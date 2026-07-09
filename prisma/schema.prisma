@@ -1,0 +1,315 @@
+// CommerceFlow OS — Prisma Schema
+// Conversational Commerce + Ad Attribution Command Center
+// Designed to be portable: SQLite (dev) -> PostgreSQL / MySQL (prod).
+// NOTE: SQLite has no native enums/arrays. We use String + constants in code.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// 1. IDENTITY & ACCESS
+// ───────────────────────────────────────────────────────────────────────────
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  role         String   @default("agent") // admin | agent | trafficker | finance
+  avatarUrl    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  assignedConv Conversation[] @relation("AgentConvos")
+  auditLogs    AuditLog[]
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// 2. CHANNELS — WhatsApp (CO primary), Messenger (intl), Instagram DM
+// ───────────────────────────────────────────────────────────────────────────
+model Channel {
+  id           String   @id @default(cuid())
+  type         String   // whatsapp | messenger | instagram | telegram
+  name         String   // e.g. "WhatsApp Colombia", "Messenger Global"
+  displayName  String
+  // Connection config (phone number id for WA, page id for Messenger, etc.)
+  accountId    String?
+  verified     Boolean  @default(false)
+  active       Boolean  @default(true)
+  country      String?  // ISO code this channel primarily serves
+  // Strategy: how this channel collects payment
+  paymentStrategy String @default("hybrid") // advance | cod | hybrid
+  requirePrepayMin  Float?  // if hybrid: orders above this require prepay
+  prepayDiscountPct  Float? @default(0)   // incentive % off if prepaid
+  codFee            Float?  @default(0)   // extra fee for cash on delivery
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  conversations Conversation[]
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// 3. CUSTOMERS / CONTACTS
+// ───────────────────────────────────────────────────────────────────────────
+model Customer {
+  id          String   @id @default(cuid())
+  name        String
+  // Channel-scoped identifiers
+  phone       String?  // E.164 for WhatsApp
+  psid        String?  // Page-Scoped ID for Messenger
+  igId        String?  // Instagram ID
+  email       String?
+  country     String?  // ISO code
+  city        String?
+  address     String?
+  notes       String?
+  tags        String?  // comma-separated
+  lifetimeValue Float  @default(0)
+  ordersCount  Int     @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  conversations Conversation[]
+  orders       Order[]
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// 4. CONVERSATIONS & MESSAGES
+// ───────────────────────────────────────────────────────────────────────────
+model Conversation {
+  id          String   @id @default(cuid())
+  customerId  String
+  channelId   String
+  status      String   @default("open") // open | pending | resolved | closed
+  priority    String   @default("normal") // low | normal | high | urgent
+  assigneeId  String?
+  lastMessageAt DateTime @default(now())
+  unreadCount Int      @default(0)
+  // Attribution link: which ad/campaign brought this conversation
+  sourceAdId      String?
+  sourceCampaign  String?
+  utm             String? // raw utm string
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  customer  Customer @relation(fields: [customerId], references: [id])
+  channel   Channel  @relation(fields: [channelId], references: [id])
+  assignee  User?    @relation("AgentConvos", fields: [assigneeId], references: [id])
+  messages  Message[]
+  orders    Order[]
+}
+
+model Message {
+  id             String   @id @default(cuid())
+  conversationId String
+  direction      String   // inbound | outbound
+  body           String
+  // Message type: text | image | audio | template | order_card | payment_link
+  type           String   @default("text")
+  mediaUrl       String?
+  status         String   @default("sent") // sent | delivered | read | failed
+  // AI assistant metadata
+  aiSuggested    Boolean  @default(false)
+  aiConfidence   Float?
+  createdAt      DateTime @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// 5. CATALOG & ORDERS
+// ───────────────────────────────────────────────────────────────────────────
+model Product {
+  id          String   @id @default(cuid())
+  sku         String   @unique
+  name        String
+  description String?
+  price       Float
+  cost        Float    @default(0)  // unit cost for margin/ROI calc
+  imageUrl    String?
+  stock       Int      @default(0)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  orderItems OrderItem[]
+}
+
+model Order {
+  id           String   @id @default(cuid())
+  number       String   @unique // human-friendly, e.g. CF-100042
+  customerId   String
+  conversationId String?
+  channelId    String?
+  status       String   @default("new")
+  // pending_payment | paid | preparing | shipped | delivered | returned | cancelled
+  paymentMode  String   // advance | cod | hybrid
+  paymentStatus String  @default("unpaid") // unpaid | partial | paid | refunded | cod_pending
+  subtotal     Float
+  discount     Float    @default(0)
+  shipping     Float    @default(0)
+  codFee       Float    @default(0)
+  total        Float
+  currency     String   @default("COP")
+  country      String?  // ISO code (ship-to)
+  city         String?
+  address      String?
+  // Attribution
+  sourceAdId       String?
+  sourceCampaign   String?
+  sourcePlatform   String?  // meta | google | tiktok | organic | direct
+  clickId          String?  // gclid / fbclid / ttclid
+  attributedAt     DateTime?
+  // Payment gateway refs
+  paymentGateway   String?  // mercadopago | wompi | stripe | payu
+  paymentRef       String?
+  paidAt           DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  customer      Customer     @relation(fields: [customerId], references: [id])
+  conversation  Conversation? @relation(fields: [conversationId], references: [id])
+  sourceAd      Ad?           @relation(fields: [sourceAdId], references: [id])
+  items         OrderItem[]
+  events        OrderEvent[]
+}
+
+model OrderItem {
+  id        String @id @default(cuid())
+  orderId   String
+  productId String
+  name      String
+  unitPrice Float
+  cost      Float
+  quantity  Int
+
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+}
+
+model OrderEvent {
+  id        String   @id @default(cuid())
+  orderId   String
+  type      String   // created | paid | shipped | delivered | cancelled | refunded
+  note      String?
+  createdAt DateTime @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// 6. AD ATTRIBUTION & PERFORMANCE
+// ───────────────────────────────────────────────────────────────────────────
+model AdPlatform {
+  id          String  @id @default(cuid())
+  name        String  @unique // meta | google | tiktok | linkedin
+  displayName String
+  accountId   String?
+  // In production these live in a secrets manager (Vault/AWS SM). Demo only.
+  accessToken String?
+  active      Boolean @default(true)
+  createdAt   DateTime @default(now())
+
+  campaigns Campaign[]
+}
+
+model Campaign {
+  id          String   @id @default(cuid())
+  platformId  String
+  externalId  String   // platform campaign id
+  name        String
+  objective   String?  // sales | leads | traffic | engagement | awareness
+  budgetDaily Float?
+  currency    String   @default("COP")
+  status      String   @default("active") // active | paused | killed
+  country     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  platform AdPlatform @relation(fields: [platformId], references: [id])
+  ads      Ad[]
+}
+
+model Ad {
+  id           String   @id @default(cuid())
+  campaignId   String
+  externalId   String   @unique // the ad id from the platform (the key identifier)
+  name         String
+  creative     String?  // creative label / asset url
+  status       String   @default("active") // active | paused | killed | under_review
+  // Trafficker flags
+  autoKill     Boolean  @default(false) // marked for auto-kill by cannibalization rule
+  killReason   String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  campaign    Campaign     @relation(fields: [campaignId], references: [id])
+  spend       AdSpend[]
+  attributions Attribution[]
+  orders      Order[]
+}
+
+// Daily spend + platform metrics per ad (imported from ad platform API / webhook)
+model AdSpend {
+  id        String   @id @default(cuid())
+  adId      String
+  date      DateTime
+  spend     Float
+  impressions Int
+  clicks    Int
+  // platform-reported conversions (for cross-check vs our own attribution)
+  convReported Int    @default(0)
+  createdAt DateTime @default(now())
+
+  ad Ad @relation(fields: [adId], references: [id], onDelete: Cascade)
+
+  @@unique([adId, date])
+}
+
+// Attribution: order -> ad (1:N if multi-touch; here 1 order N attribution rows w/ weight)
+model Attribution {
+  id        String   @id @default(cuid())
+  orderId   String
+  adId      String
+  weight    Float    @default(1.0) // multi-touch weight (0..1)
+  model     String   @default("last_click") // last_click | first_click | linear | time_decay
+  touch     String?  // click | view | message
+  createdAt DateTime @default(now())
+
+  ad Ad @relation(fields: [adId], references: [id])
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// 7. AUTOMATION & SETTINGS
+// ───────────────────────────────────────────────────────────────────────────
+model AutomationRule {
+  id        String   @id @default(cuid())
+  name      String
+  trigger   String   // new_conversation | keyword | order_created | ad_underperforming
+  condition String?  // JSON condition
+  action    String   // auto_reply | tag | assign | pause_ad | notify
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+model Setting {
+  id    String @id @default(cuid())
+  key   String @unique
+  value String
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  action    String
+  entity    String
+  entityId  String?
+  meta      String?
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+}

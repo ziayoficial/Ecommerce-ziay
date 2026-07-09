@@ -1,0 +1,2126 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CommerceFlow OS · Vende por chat, mide como un data-driver</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+<style>
+:root{
+  --emerald-50:#ECFDF5; --emerald-100:#D1FAE5; --emerald-200:#A7F3D0;
+  --emerald-300:#6EE7B7; --emerald-400:#34D399; --emerald-500:#10B981;
+  --emerald-600:#059669; --emerald-700:#047857; --emerald-800:#065F46;
+  --emerald-900:#064E3B; --emerald-950:#022C22;
+  --teal-400:#2DD4BF; --teal-500:#14B8A6; --teal-600:#0D9488; --teal-700:#0F766E;
+  --amber-500:#F59E0B; --amber-600:#D97706;
+  --rose-500:#F43F5E;
+  --slate-900:#0F172A; --slate-800:#1E293B; --slate-700:#334155;
+  --slate-500:#64748B; --slate-400:#94A3B8; --slate-300:#CBD5E1;
+  --slate-200:#E2E8F0; --slate-100:#F1F5F9; --slate-50:#F8FAFC;
+  --bg-mist:#F0FDFA;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{height:100%;width:100%;background:#0a0f0d;font-family:'Inter',sans-serif;overflow:hidden;}
+body{display:flex;align-items:center;justify-content:center;}
+.deck{position:relative;width:1280px;height:720px;transform-origin:center center;}
+.slide{
+  position:absolute;inset:0;width:1280px;height:720px;
+  background:#fff;color:var(--slate-900);
+  opacity:0;pointer-events:none;
+  transition:opacity .45s ease;
+  overflow:hidden;
+  font-family:'Inter',sans-serif;
+}
+.slide.active{opacity:1;pointer-events:auto;}
+
+/* ---------- Brand mark ---------- */
+.brand{display:inline-flex;align-items:center;gap:10px;}
+.brand-mark{
+  width:34px;height:34px;border-radius:9px;
+  background:linear-gradient(135deg,var(--emerald-400),var(--teal-600));
+  display:flex;align-items:center;justify-content:center;
+  color:#fff;box-shadow:0 4px 12px -2px rgba(13,148,136,.55);
+}
+.brand-mark .material-icons{font-size:22px;}
+.brand-name{font-family:'Manrope',sans-serif;font-weight:800;font-size:18px;letter-spacing:-.02em;color:var(--slate-900);}
+.brand-name .accent{color:var(--emerald-600);}
+
+/* ---------- Slide chrome ---------- */
+.slide-header{
+  position:absolute;top:36px;left:60px;right:60px;
+  display:flex;align-items:center;justify-content:space-between;
+  z-index:5;
+}
+.slide-eyebrow{
+  font-family:'Manrope',sans-serif;font-weight:700;font-size:12px;
+  letter-spacing:.18em;text-transform:uppercase;color:var(--emerald-600);
+}
+.slide-footer{
+  position:absolute;bottom:22px;left:60px;right:60px;
+  display:flex;align-items:center;justify-content:space-between;
+  font-size:12px;color:var(--slate-400);font-family:'Inter',sans-serif;
+  z-index:5;
+}
+.slide-footer .left{display:flex;align-items:center;gap:8px;}
+.slide-footer .dot{width:4px;height:4px;border-radius:50%;background:var(--emerald-400);}
+.slide-footer .right{font-family:'Manrope',sans-serif;font-weight:600;color:var(--slate-500);}
+.slide-footer .right b{color:var(--emerald-600);}
+.slide-body{position:absolute;top:88px;left:60px;right:60px;bottom:60px;}
+
+/* ---------- Typography ---------- */
+.h-display{font-family:'Manrope',sans-serif;font-weight:800;letter-spacing:-.035em;line-height:1.02;color:var(--slate-900);}
+.h-title{font-family:'Manrope',sans-serif;font-weight:800;letter-spacing:-.025em;line-height:1.08;color:var(--slate-900);}
+.h-sub{font-family:'Inter',sans-serif;color:var(--slate-500);font-weight:400;line-height:1.5;}
+
+/* ---------- Reusable cards ---------- */
+.card{
+  background:#fff;border:1px solid var(--slate-200);border-radius:16px;
+  padding:24px;box-shadow:0 1px 2px rgba(15,23,42,.04),0 8px 24px -16px rgba(15,23,42,.12);
+}
+.card-soft{background:var(--bg-mist);border:1px solid var(--emerald-100);border-radius:16px;padding:22px;}
+.icon-chip{
+  width:42px;height:42px;border-radius:11px;
+  display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(135deg,var(--emerald-100),var(--teal-500)/15);
+  color:var(--emerald-700);
+}
+.icon-chip .material-icons{font-size:24px;}
+.icon-chip.amber{background:#FEF3C7;color:var(--amber-600);}
+.icon-chip.rose{background:#FFE4E6;color:var(--rose-500);}
+.icon-chip.slate{background:var(--slate-100);color:var(--slate-700);}
+
+/* ============================================
+   SLIDE 1 — TITLE
+   ============================================ */
+#slide-1{
+  background:radial-gradient(110% 90% at 80% 20%,#0F766E 0%,#065F46 35%,#022C22 100%);
+  color:#fff;
+}
+#slide-1 .ghost-bolt{
+  position:absolute;top:-120px;right:-80px;font-size:760px;color:#fff;
+  opacity:.06;transform:rotate(-12deg);font-family:'Material Icons';
+  pointer-events:none;line-height:1;
+}
+#slide-1 .ghost-grid{
+  position:absolute;inset:0;
+  background-image:linear-gradient(rgba(255,255,255,.04) 1px,transparent 1px),
+                    linear-gradient(90deg,rgba(255,255,255,.04) 1px,transparent 1px);
+  background-size:64px 64px;
+  mask-image:radial-gradient(80% 60% at 30% 50%,#000 0%,transparent 80%);
+  pointer-events:none;
+}
+#slide-1 .top-bar{
+  position:absolute;top:36px;left:60px;right:60px;
+  display:flex;align-items:center;justify-content:space-between;z-index:3;
+}
+#slide-1 .brand-mark{box-shadow:0 6px 18px -4px rgba(52,211,153,.6);}
+#slide-1 .brand-name{color:#fff;}
+#slide-1 .brand-name .accent{color:var(--emerald-300);}
+#slide-1 .top-meta{font-size:12px;color:rgba(255,255,255,.6);letter-spacing:.18em;text-transform:uppercase;font-family:'Manrope',sans-serif;font-weight:600;}
+#slide-1 .hero{
+  position:absolute;left:60px;right:60px;top:200px;z-index:2;
+}
+#slide-1 .hero .pill{
+  display:inline-flex;align-items:center;gap:8px;
+  background:rgba(255,255,255,.08);border:1px solid rgba(110,231,183,.25);
+  padding:7px 14px;border-radius:999px;color:var(--emerald-200);
+  font-size:13px;font-weight:500;letter-spacing:.02em;
+  backdrop-filter:blur(6px);margin-bottom:28px;
+}
+#slide-1 .hero .pill .dot{width:7px;height:7px;border-radius:50%;background:var(--emerald-300);box-shadow:0 0 12px var(--emerald-300);}
+#slide-1 .hero h1{
+  font-family:'Manrope',sans-serif;font-weight:800;
+  font-size:96px;line-height:.95;letter-spacing:-.045em;color:#fff;
+}
+#slide-1 .hero h1 .gradient{
+  background:linear-gradient(120deg,#6EE7B7,#34D399 60%,#2DD4BF);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+}
+#slide-1 .hero .tagline{
+  font-family:'Manrope',sans-serif;font-weight:500;font-size:26px;
+  color:rgba(255,255,255,.85);margin-top:22px;letter-spacing:-.01em;
+  max-width:780px;
+}
+#slide-1 .hero .tagline .em{color:var(--emerald-300);font-weight:600;}
+#slide-1 .bottom-bar{
+  position:absolute;bottom:48px;left:60px;right:60px;
+  display:flex;align-items:flex-end;justify-content:space-between;z-index:3;
+}
+#slide-1 .channels{
+  display:flex;gap:10px;align-items:center;
+}
+#slide-1 .ch-pill{
+  display:inline-flex;align-items:center;gap:7px;
+  padding:8px 14px;border-radius:999px;
+  background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);
+  font-size:13px;color:rgba(255,255,255,.85);font-weight:500;
+}
+#slide-1 .ch-pill .material-icons{font-size:16px;color:var(--emerald-300);}
+#slide-1 .meta-block{
+  text-align:right;color:rgba(255,255,255,.55);font-size:12px;
+  font-family:'Manrope',sans-serif;letter-spacing:.04em;line-height:1.7;
+}
+#slide-1 .meta-block b{color:#fff;font-weight:700;display:block;font-size:14px;letter-spacing:.02em;}
+
+/* ============================================
+   SLIDE 2 — AGENDA
+   ============================================ */
+#slide-2 .body-wrap{display:grid;grid-template-columns:380px 1fr;gap:50px;height:100%;}
+#slide-2 .left-col h2{font-size:54px;line-height:1.02;}
+#slide-2 .left-col .sub{margin-top:18px;color:var(--slate-500);font-size:16px;line-height:1.55;max-width:320px;}
+#slide-2 .left-col .badge{
+  margin-top:32px;display:inline-flex;align-items:center;gap:8px;
+  padding:8px 14px;border-radius:999px;background:var(--emerald-50);
+  color:var(--emerald-700);font-size:12px;font-weight:600;letter-spacing:.04em;
+}
+#slide-2 .agenda-grid{
+  display:grid;grid-template-columns:1fr 1fr;gap:14px 18px;align-content:start;
+}
+#slide-2 .agenda-item{
+  display:flex;gap:14px;padding:16px 18px;border-radius:14px;
+  background:#fff;border:1px solid var(--slate-200);
+  transition:all .2s;
+}
+#slide-2 .agenda-item .num{
+  font-family:'Manrope',sans-serif;font-weight:800;font-size:22px;
+  color:var(--emerald-600);min-width:32px;line-height:1.2;
+}
+#slide-2 .agenda-item .txt .t{
+  font-family:'Manrope',sans-serif;font-weight:700;font-size:15px;color:var(--slate-900);
+  letter-spacing:-.01em;
+}
+#slide-2 .agenda-item .txt .d{
+  font-size:12.5px;color:var(--slate-500);margin-top:3px;line-height:1.4;
+}
+
+/* ============================================
+   SLIDE 3 — PROBLEM
+   ============================================ */
+#slide-3{background:linear-gradient(180deg,#fff 0%,var(--bg-mist) 100%);}
+#slide-3 .head{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:28px;}
+#slide-3 .head h2{font-size:46px;line-height:1.05;max-width:740px;}
+#slide-3 .head h2 .em{color:var(--emerald-600);}
+#slide-3 .head .right-stat{
+  text-align:right;font-family:'Manrope',sans-serif;
+}
+#slide-3 .head .right-stat .big{font-size:38px;font-weight:800;color:var(--rose-500);letter-spacing:-.02em;line-height:1;}
+#slide-3 .head .right-stat .lbl{font-size:12px;color:var(--slate-500);margin-top:4px;max-width:200px;}
+#slide-3 .pain-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
+#slide-3 .pain-card{
+  background:#fff;border:1px solid var(--slate-200);border-radius:16px;
+  padding:22px;display:flex;gap:18px;align-items:flex-start;
+}
+#slide-3 .pain-card .icon-chip{background:#FFE4E6;color:var(--rose-500);}
+#slide-3 .pain-card h3{font-family:'Manrope',sans-serif;font-weight:700;font-size:17px;color:var(--slate-900);margin-bottom:6px;letter-spacing:-.01em;}
+#slide-3 .pain-card p{font-size:13.5px;color:var(--slate-500);line-height:1.5;}
+#slide-3 .pain-card .tag{
+  display:inline-block;margin-top:10px;font-size:11px;font-weight:600;
+  color:var(--rose-500);background:#FFE4E6;padding:3px 8px;border-radius:6px;
+  letter-spacing:.02em;
+}
+
+/* ============================================
+   SLIDE 4 — SOLUTION
+   ============================================ */
+#slide-4 .head{margin-bottom:24px;}
+#slide-4 .head h2{font-size:42px;line-height:1.05;max-width:840px;}
+#slide-4 .head .sub{margin-top:12px;font-size:15px;color:var(--slate-500);max-width:780px;}
+#slide-4 .diagram{
+  display:grid;grid-template-columns:1fr 50px 1.2fr 50px 1fr;
+  gap:0;align-items:stretch;height:300px;
+}
+#slide-4 .col{
+  border-radius:18px;padding:18px 18px;display:flex;flex-direction:column;
+}
+#slide-4 .col.channels{background:var(--slate-50);border:1px solid var(--slate-200);}
+#slide-4 .col.engine{background:linear-gradient(135deg,var(--emerald-600),var(--teal-700));color:#fff;box-shadow:0 20px 40px -16px rgba(13,148,136,.55);}
+#slide-4 .col.results{background:var(--emerald-50);border:1px solid var(--emerald-100);}
+#slide-4 .col h4{
+  font-family:'Manrope',sans-serif;font-weight:700;font-size:11px;
+  letter-spacing:.16em;text-transform:uppercase;
+}
+#slide-4 .col.channels h4{color:var(--slate-500);}
+#slide-4 .col.engine h4{color:rgba(255,255,255,.7);}
+#slide-4 .col.results h4{color:var(--emerald-700);}
+#slide-4 .col .title{
+  font-family:'Manrope',sans-serif;font-weight:800;font-size:22px;
+  letter-spacing:-.02em;margin-top:8px;margin-bottom:18px;line-height:1.15;
+}
+#slide-4 .col.channels .title{color:var(--slate-900);}
+#slide-4 .col.engine .title{color:#fff;}
+#slide-4 .col.results .title{color:var(--emerald-800);}
+#slide-4 .col ul{list-style:none;display:flex;flex-direction:column;gap:11px;flex:1;}
+#slide-4 .col li{display:flex;align-items:center;gap:11px;font-size:14px;line-height:1.3;}
+#slide-4 .col.channels li{color:var(--slate-700);}
+#slide-4 .col.channels li .material-icons{font-size:18px;color:var(--slate-500);}
+#slide-4 .col.engine li{color:rgba(255,255,255,.92);font-weight:500;}
+#slide-4 .col.engine li .material-icons{font-size:18px;color:var(--emerald-200);}
+#slide-4 .col.results li{color:var(--slate-800);}
+#slide-4 .col.results li .material-icons{font-size:18px;color:var(--emerald-600);}
+#slide-4 .arrow{
+  display:flex;align-items:center;justify-content:center;
+  color:var(--emerald-400);
+}
+#slide-4 .arrow .material-icons{font-size:36px;}
+#slide-4 .engine-badge{
+  margin-top:auto;display:inline-flex;align-items:center;gap:6px;
+  background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);
+  padding:6px 11px;border-radius:8px;font-size:11px;font-weight:600;
+  color:#fff;letter-spacing:.04em;align-self:flex-start;
+}
+#slide-4 .engine-badge .dot{width:6px;height:6px;border-radius:50%;background:var(--emerald-300);box-shadow:0 0 8px var(--emerald-300);}
+#slide-4 .preview-strip{
+  margin-top:18px;display:grid;grid-template-columns:1fr 320px;gap:14px;align-items:center;
+}
+#slide-4 .preview-text h5{font-family:'Manrope',sans-serif;font-weight:700;font-size:13px;color:var(--slate-900);letter-spacing:-.01em;}
+#slide-4 .preview-text p{font-size:11.5px;color:var(--slate-500);margin-top:3px;line-height:1.4;}
+#slide-4 .preview-text .chips{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;}
+#slide-4 .preview-text .chip{font-size:10px;font-weight:600;color:var(--emerald-700);background:var(--emerald-50);padding:3px 8px;border-radius:5px;letter-spacing:.02em;}
+#slide-4 .preview-shot{
+  position:relative;height:110px;border-radius:10px;overflow:hidden;
+  border:1px solid var(--slate-200);box-shadow:0 8px 18px -10px rgba(15,23,42,.25);
+}
+#slide-4 .preview-shot img{width:100%;height:100%;object-fit:cover;object-position:top left;}
+#slide-4 .preview-shot .cap{position:absolute;top:6px;left:6px;background:rgba(15,23,42,.85);color:#fff;font-size:9.5px;padding:3px 7px;border-radius:4px;font-weight:500;display:flex;align-items:center;gap:4px;}
+#slide-4 .preview-shot .cap .material-icons{font-size:11px;color:var(--emerald-300);}
+
+/* ============================================
+   SLIDE 5 — MENSAGING
+   ============================================ */
+#slide-5 .body-wrap{display:grid;grid-template-columns:1fr 1.05fr;gap:36px;height:100%;}
+#slide-5 .head h2{font-size:42px;line-height:1.05;letter-spacing:-.025em;}
+#slide-5 .head .sub{margin-top:12px;font-size:15px;color:var(--slate-500);line-height:1.55;max-width:480px;}
+#slide-5 .benefits{margin-top:24px;display:flex;flex-direction:column;gap:12px;}
+#slide-5 .benefit{
+  display:flex;gap:14px;padding:16px;border-radius:12px;
+  background:#fff;border:1px solid var(--slate-200);
+}
+#slide-5 .benefit .icon-chip{width:38px;height:38px;flex-shrink:0;}
+#slide-5 .benefit .icon-chip .material-icons{font-size:20px;}
+#slide-5 .benefit h4{font-family:'Manrope',sans-serif;font-weight:700;font-size:14.5px;color:var(--slate-900);margin-bottom:3px;}
+#slide-5 .benefit p{font-size:12.5px;color:var(--slate-500);line-height:1.45;}
+#slide-5 .screenshot-wrap{
+  position:relative;border-radius:14px;overflow:hidden;
+  border:1px solid var(--slate-200);background:#fff;
+  box-shadow:0 30px 60px -30px rgba(15,23,42,.35),0 8px 16px -8px rgba(15,23,42,.15);
+  display:flex;flex-direction:column;height:100%;
+}
+#slide-5 .browser-bar{
+  height:34px;background:var(--slate-100);border-bottom:1px solid var(--slate-200);
+  display:flex;align-items:center;gap:6px;padding:0 14px;flex-shrink:0;
+}
+#slide-5 .browser-bar .dots{display:flex;gap:5px;}
+#slide-5 .browser-bar .dots span{width:9px;height:9px;border-radius:50%;background:var(--slate-300);}
+#slide-5 .browser-bar .dots span:nth-child(1){background:#FF5F57;}
+#slide-5 .browser-bar .dots span:nth-child(2){background:#FEBC2E;}
+#slide-5 .browser-bar .dots span:nth-child(3){background:#28C840;}
+#slide-5 .browser-bar .url{
+  margin-left:14px;background:#fff;border:1px solid var(--slate-200);border-radius:6px;
+  padding:3px 10px;font-size:11px;color:var(--slate-500);font-family:'Inter',sans-serif;
+  flex:1;
+}
+#slide-5 .browser-bar .live{
+  display:flex;align-items:center;gap:5px;font-size:10.5px;color:var(--emerald-700);font-weight:600;
+}
+#slide-5 .browser-bar .live .dot{width:6px;height:6px;border-radius:50%;background:var(--emerald-500);box-shadow:0 0 6px var(--emerald-500);}
+#slide-5 .screenshot-wrap img{flex:1;width:100%;object-fit:cover;object-position:top;}
+#slide-5 .shot-caption{
+  position:absolute;bottom:12px;left:12px;
+  background:rgba(15,23,42,.85);backdrop-filter:blur(6px);
+  color:#fff;font-size:10.5px;padding:5px 10px;border-radius:6px;font-weight:500;
+  display:flex;align-items:center;gap:6px;
+}
+#slide-5 .shot-caption .material-icons{font-size:13px;color:var(--emerald-300);}
+
+/* ============================================
+   SLIDE 6 — PAYMENTS
+   ============================================ */
+#slide-6 .head{margin-bottom:18px;}
+#slide-6 .head h2{font-size:38px;letter-spacing:-.025em;line-height:1.05;}
+#slide-6 .head .sub{margin-top:8px;font-size:14px;color:var(--slate-500);}
+#slide-6 .layout{display:grid;grid-template-columns:1.35fr 1fr;gap:24px;height:calc(100% - 90px);}
+#slide-6 .strategies{display:flex;flex-direction:column;gap:11px;}
+#slide-6 .strategy{
+  background:#fff;border:1px solid var(--slate-200);border-radius:14px;
+  padding:14px 16px;display:grid;grid-template-columns:42px 1fr auto;gap:14px;align-items:center;
+}
+#slide-6 .strategy .ic{
+  width:42px;height:42px;border-radius:11px;display:flex;align-items:center;justify-content:center;
+}
+#slide-6 .strategy.advance .ic{background:linear-gradient(135deg,var(--emerald-100),var(--teal-500)/20);color:var(--emerald-700);}
+#slide-6 .strategy.cod .ic{background:linear-gradient(135deg,#FEF3C7,#FDE68A);color:var(--amber-600);}
+#slide-6 .strategy.hybrid .ic{background:linear-gradient(135deg,var(--slate-100),var(--slate-200));color:var(--slate-700);}
+#slide-6 .strategy .ic .material-icons{font-size:22px;}
+#slide-6 .strategy h4{font-family:'Manrope',sans-serif;font-weight:800;font-size:15.5px;color:var(--slate-900);letter-spacing:-.01em;}
+#slide-6 .strategy .desc{font-size:12px;color:var(--slate-500);margin-top:2px;line-height:1.4;}
+#slide-6 .strategy .tag{
+  font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
+  padding:4px 9px;border-radius:6px;
+}
+#slide-6 .strategy.advance .tag{background:var(--emerald-50);color:var(--emerald-700);}
+#slide-6 .strategy.cod .tag{background:#FEF3C7;color:var(--amber-600);}
+#slide-6 .strategy.hybrid .tag{background:var(--slate-100);color:var(--slate-700);}
+#slide-6 .table-wrap{
+  background:#fff;border:1px solid var(--slate-200);border-radius:14px;
+  padding:14px;display:flex;flex-direction:column;overflow:hidden;
+}
+#slide-6 .table-wrap h5{font-family:'Manrope',sans-serif;font-weight:700;font-size:12px;color:var(--slate-500);letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px;}
+#slide-6 table{width:100%;border-collapse:collapse;font-size:11.5px;}
+#slide-6 th{text-align:left;font-family:'Manrope',sans-serif;font-weight:700;color:var(--slate-700);padding:7px 6px;border-bottom:1.5px solid var(--slate-200);font-size:10.5px;letter-spacing:.04em;text-transform:uppercase;}
+#slide-6 td{padding:8px 6px;border-bottom:1px solid var(--slate-100);color:var(--slate-700);vertical-align:top;line-height:1.35;}
+#slide-6 td:first-child{font-weight:600;color:var(--slate-900);}
+#slide-6 .shot-mini{
+  margin-top:auto;border-radius:10px;overflow:hidden;border:1px solid var(--slate-200);
+  height:130px;position:relative;
+}
+#slide-6 .shot-mini img{width:100%;height:100%;object-fit:cover;object-position:top;}
+#slide-6 .shot-mini .cap{
+  position:absolute;top:8px;left:8px;background:rgba(15,23,42,.85);color:#fff;
+  font-size:10px;padding:3px 8px;border-radius:5px;font-weight:500;
+}
+
+/* ============================================
+   SLIDE 7 — ATTRIBUTION
+   ============================================ */
+#slide-7 .body-wrap{display:grid;grid-template-columns:1fr 1.05fr;gap:30px;height:100%;}
+#slide-7 .head h2{font-size:38px;letter-spacing:-.025em;line-height:1.05;}
+#slide-7 .head h2 .em{color:var(--emerald-600);}
+#slide-7 .head .sub{margin-top:8px;font-size:14px;color:var(--slate-500);line-height:1.5;}
+#slide-7 .metrics{margin-top:18px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px;}
+#slide-7 .metric{background:#fff;border:1px solid var(--slate-200);border-radius:11px;padding:11px 12px;text-align:center;}
+#slide-7 .metric .k{font-family:'Manrope',sans-serif;font-weight:800;font-size:13px;color:var(--emerald-700);letter-spacing:.02em;}
+#slide-7 .metric .v{font-family:'Manrope',sans-serif;font-weight:800;font-size:22px;color:var(--slate-900);margin-top:3px;letter-spacing:-.02em;}
+#slide-7 .metric .d{font-size:10.5px;color:var(--slate-500);margin-top:2px;}
+#slide-7 .canni{
+  margin-top:12px;background:linear-gradient(135deg,#FFF7ED,#FFEDD5);
+  border:1px solid #FED7AA;border-radius:12px;padding:14px;display:flex;gap:12px;align-items:flex-start;
+}
+#slide-7 .canni .ic{width:36px;height:36px;border-radius:9px;background:#FB923C;color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+#slide-7 .canni .ic .material-icons{font-size:20px;}
+#slide-7 .canni h4{font-family:'Manrope',sans-serif;font-weight:700;font-size:13px;color:#9A3412;}
+#slide-7 .canni p{font-size:12px;color:#C2410C;line-height:1.4;margin-top:2px;}
+#slide-7 .screenshot-wrap{
+  position:relative;border-radius:14px;overflow:hidden;
+  border:1px solid var(--slate-200);background:#fff;
+  box-shadow:0 30px 60px -30px rgba(15,23,42,.35),0 8px 16px -8px rgba(15,23,42,.15);
+  display:flex;flex-direction:column;height:100%;
+}
+#slide-7 .browser-bar{height:30px;background:var(--slate-100);border-bottom:1px solid var(--slate-200);display:flex;align-items:center;gap:6px;padding:0 12px;flex-shrink:0;}
+#slide-7 .browser-bar .dots{display:flex;gap:4px;}
+#slide-7 .browser-bar .dots span{width:8px;height:8px;border-radius:50%;}
+#slide-7 .browser-bar .dots span:nth-child(1){background:#FF5F57;}
+#slide-7 .browser-bar .dots span:nth-child(2){background:#FEBC2E;}
+#slide-7 .browser-bar .dots span:nth-child(3){background:#28C840;}
+#slide-7 .browser-bar .url{margin-left:12px;background:#fff;border:1px solid var(--slate-200);border-radius:5px;padding:2px 8px;font-size:10.5px;color:var(--slate-500);flex:1;}
+#slide-7 .browser-bar .live{display:flex;align-items:center;gap:4px;font-size:10px;color:var(--emerald-700);font-weight:600;}
+#slide-7 .browser-bar .live .dot{width:5px;height:5px;border-radius:50%;background:var(--emerald-500);box-shadow:0 0 5px var(--emerald-500);}
+#slide-7 .screenshot-wrap img{flex:1;width:100%;object-fit:cover;object-position:top;}
+#slide-7 .shot-caption{position:absolute;bottom:10px;left:10px;background:rgba(15,23,42,.85);color:#fff;font-size:10px;padding:4px 9px;border-radius:5px;font-weight:500;display:flex;align-items:center;gap:5px;}
+#slide-7 .shot-caption .material-icons{font-size:12px;color:var(--emerald-300);}
+
+/* ============================================
+   SLIDE 8 — KILL SWITCH
+   ============================================ */
+#slide-8{background:linear-gradient(180deg,#fff 0%,var(--bg-mist) 100%);}
+#slide-8 .head{margin-bottom:30px;}
+#slide-8 .head h2{font-size:42px;letter-spacing:-.025em;line-height:1.05;}
+#slide-8 .head .sub{margin-top:8px;font-size:15px;color:var(--slate-500);max-width:760px;}
+#slide-8 .flow{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:14px;margin-bottom:24px;}
+#slide-8 .step{
+  background:#fff;border:1px solid var(--slate-200);border-radius:14px;padding:18px 16px;
+  position:relative;
+}
+#slide-8 .step .num{
+  position:absolute;top:14px;right:14px;
+  font-family:'Manrope',sans-serif;font-weight:800;font-size:14px;color:var(--slate-200);
+}
+#slide-8 .step .ic{width:42px;height:42px;border-radius:11px;display:flex;align-items:center;justify-content:center;margin-bottom:12px;}
+#slide-8 .step .ic .material-icons{font-size:22px;}
+#slide-8 .step.s1 .ic{background:var(--emerald-100);color:var(--emerald-700);}
+#slide-8 .step.s2 .ic{background:#FEF3C7;color:var(--amber-600);}
+#slide-8 .step.s3 .ic{background:#FFE4E6;color:var(--rose-500);}
+#slide-8 .step.s4 .ic{background:linear-gradient(135deg,var(--emerald-400),var(--teal-600));color:#fff;}
+#slide-8 .step h4{font-family:'Manrope',sans-serif;font-weight:700;font-size:15px;color:var(--slate-900);margin-bottom:5px;letter-spacing:-.01em;}
+#slide-8 .step p{font-size:12px;color:var(--slate-500);line-height:1.45;}
+#slide-8 .impact{
+  display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:14px;
+}
+#slide-8 .impact-card{
+  background:linear-gradient(135deg,var(--emerald-700),var(--teal-700));color:#fff;
+  border-radius:14px;padding:18px 20px;
+}
+#slide-8 .impact-card .label{font-size:11px;color:rgba(255,255,255,.7);letter-spacing:.1em;text-transform:uppercase;font-weight:700;}
+#slide-8 .impact-card .value{font-family:'Manrope',sans-serif;font-weight:800;font-size:42px;letter-spacing:-.025em;margin-top:6px;line-height:1;}
+#slide-8 .impact-card .desc{font-size:12.5px;color:rgba(255,255,255,.85);margin-top:6px;line-height:1.4;}
+#slide-8 .stat-card{background:#fff;border:1px solid var(--slate-200);border-radius:14px;padding:18px;}
+#slide-8 .stat-card .label{font-size:11px;color:var(--slate-500);letter-spacing:.1em;text-transform:uppercase;font-weight:700;}
+#slide-8 .stat-card .value{font-family:'Manrope',sans-serif;font-weight:800;font-size:30px;letter-spacing:-.02em;margin-top:6px;color:var(--slate-900);}
+#slide-8 .stat-card .value .em{color:var(--emerald-600);}
+#slide-8 .stat-card .desc{font-size:12px;color:var(--slate-500);margin-top:6px;line-height:1.4;}
+
+/* ============================================
+   SLIDE 9 — AI
+   ============================================ */
+#slide-9 .body-wrap{display:grid;grid-template-columns:1.05fr 1fr;gap:36px;height:100%;}
+#slide-9 .head h2{font-size:40px;letter-spacing:-.025em;line-height:1.05;}
+#slide-9 .head h2 .em{color:var(--emerald-600);}
+#slide-9 .head .sub{margin-top:10px;font-size:15px;color:var(--slate-500);line-height:1.5;max-width:480px;}
+#slide-9 .features{margin-top:22px;display:flex;flex-direction:column;gap:10px;}
+#slide-9 .feature{
+  display:flex;gap:13px;padding:14px 16px;border-radius:12px;
+  background:#fff;border:1px solid var(--slate-200);
+}
+#slide-9 .feature .ic{width:36px;height:36px;border-radius:9px;background:linear-gradient(135deg,var(--emerald-100),var(--teal-500)/15);color:var(--emerald-700);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+#slide-9 .feature .ic .material-icons{font-size:20px;}
+#slide-9 .feature h4{font-family:'Manrope',sans-serif;font-weight:700;font-size:14px;color:var(--slate-900);}
+#slide-9 .feature p{font-size:12px;color:var(--slate-500);margin-top:2px;line-height:1.4;}
+#slide-9 .demo-card{
+  background:linear-gradient(135deg,var(--emerald-700),var(--teal-800));color:#fff;
+  border-radius:18px;padding:24px;display:flex;flex-direction:column;height:100%;
+  position:relative;overflow:hidden;
+}
+#slide-9 .demo-card .deco{position:absolute;top:-40px;right:-40px;font-size:200px;color:#fff;opacity:.06;font-family:'Material Icons';pointer-events:none;}
+#slide-9 .demo-card .label{font-size:11px;color:rgba(255,255,255,.7);letter-spacing:.12em;text-transform:uppercase;font-weight:700;}
+#slide-9 .demo-card h3{font-family:'Manrope',sans-serif;font-weight:800;font-size:24px;margin-top:6px;letter-spacing:-.02em;line-height:1.15;}
+#slide-9 .chat{margin-top:18px;display:flex;flex-direction:column;gap:9px;position:relative;z-index:2;}
+#slide-9 .bubble{
+  max-width:88%;padding:10px 13px;border-radius:14px;font-size:12.5px;line-height:1.4;
+}
+#slide-9 .bubble.in{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);align-self:flex-start;border-bottom-left-radius:4px;}
+#slide-9 .bubble.out{background:var(--emerald-400);color:#062B26;align-self:flex-end;border-bottom-right-radius:4px;font-weight:500;}
+#slide-9 .bubble.ai{background:rgba(110,231,183,.15);border:1px dashed rgba(110,231,183,.5);align-self:flex-end;border-bottom-right-radius:4px;color:var(--emerald-100);}
+#slide-9 .bubble.ai .tag{display:inline-block;font-size:9.5px;font-weight:700;color:var(--emerald-300);letter-spacing:.08em;margin-bottom:3px;}
+#slide-9 .stats-row{margin-top:auto;display:grid;grid-template-columns:1fr 1fr;gap:12px;position:relative;z-index:2;}
+#slide-9 .stat{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);border-radius:11px;padding:12px 14px;}
+#slide-9 .stat .lbl{font-size:10px;color:rgba(255,255,255,.65);letter-spacing:.08em;text-transform:uppercase;font-weight:700;}
+#slide-9 .stat .v{font-family:'Manrope',sans-serif;font-weight:800;font-size:22px;margin-top:3px;letter-spacing:-.02em;}
+#slide-9 .stat .v .arrow{color:var(--emerald-300);font-size:14px;}
+
+/* ============================================
+   SLIDE 10 — ROI MATH
+   ============================================ */
+#slide-10 .head{margin-bottom:18px;}
+#slide-10 .head h2{font-size:40px;letter-spacing:-.025em;line-height:1.05;}
+#slide-10 .head h2 .em{color:var(--emerald-600);}
+#slide-10 .head .sub{margin-top:6px;font-size:14px;color:var(--slate-500);}
+#slide-10 .layout{display:grid;grid-template-columns:1.6fr 1fr;gap:22px;height:calc(100% - 88px);}
+#slide-10 .roi-table{
+  background:#fff;border:1px solid var(--slate-200);border-radius:14px;
+  padding:18px;overflow:hidden;display:flex;flex-direction:column;
+}
+#slide-10 .roi-table h5{font-family:'Manrope',sans-serif;font-weight:700;font-size:11px;color:var(--slate-500);letter-spacing:.1em;text-transform:uppercase;margin-bottom:12px;}
+#slide-10 table{width:100%;border-collapse:collapse;}
+#slide-10 th{text-align:left;font-family:'Manrope',sans-serif;font-weight:700;color:var(--slate-700);padding:9px 8px;border-bottom:2px solid var(--slate-200);font-size:11px;letter-spacing:.04em;text-transform:uppercase;}
+#slide-10 th.r{text-align:right;}
+#slide-10 td{padding:11px 8px;border-bottom:1px solid var(--slate-100);font-size:13px;color:var(--slate-700);}
+#slide-10 td.label{font-weight:600;color:var(--slate-900);}
+#slide-10 td.r{text-align:right;font-family:'Manrope',sans-serif;font-weight:600;}
+#slide-10 td.delta{color:var(--emerald-600);font-weight:700;}
+#slide-10 td.delta-bad{color:var(--rose-500);font-weight:700;}
+#slide-10 .total-row td{background:var(--emerald-50);font-weight:800;color:var(--emerald-800);border-bottom:none;padding:13px 8px;font-size:14px;}
+#slide-10 .total-row td.r{font-family:'Manrope',sans-serif;font-size:16px;}
+#slide-10 .right-col{display:flex;flex-direction:column;gap:12px;}
+#slide-10 .payback{
+  background:linear-gradient(135deg,var(--emerald-600),var(--teal-700));color:#fff;
+  border-radius:14px;padding:18px;
+}
+#slide-10 .payback .label{font-size:11px;color:rgba(255,255,255,.7);letter-spacing:.1em;text-transform:uppercase;font-weight:700;}
+#slide-10 .payback .v{font-family:'Manrope',sans-serif;font-weight:800;font-size:46px;letter-spacing:-.03em;margin-top:4px;line-height:1;}
+#slide-10 .payback .d{font-size:12px;color:rgba(255,255,255,.85);margin-top:8px;line-height:1.4;}
+#slide-10 .assumption{background:var(--slate-50);border:1px solid var(--slate-200);border-radius:14px;padding:14px;}
+#slide-10 .assumption h6{font-family:'Manrope',sans-serif;font-weight:700;font-size:11px;color:var(--slate-500);letter-spacing:.1em;text-transform:uppercase;margin-bottom:9px;}
+#slide-10 .assumption ul{list-style:none;display:flex;flex-direction:column;gap:7px;}
+#slide-10 .assumption li{display:flex;gap:8px;font-size:11.5px;color:var(--slate-700);line-height:1.35;}
+#slide-10 .assumption li .material-icons{font-size:14px;color:var(--emerald-600);flex-shrink:0;margin-top:1px;}
+
+/* ============================================
+   SLIDE 11 — CHANNELS
+   ============================================ */
+#slide-11{background:linear-gradient(180deg,#fff 0%,var(--bg-mist) 100%);}
+#slide-11 .head{margin-bottom:24px;}
+#slide-11 .head h2{font-size:42px;letter-spacing:-.025em;line-height:1.05;}
+#slide-11 .head .sub{margin-top:8px;font-size:15px;color:var(--slate-500);}
+#slide-11 .ch-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:18px;}
+#slide-11 .ch-card{
+  background:#fff;border:1px solid var(--slate-200);border-radius:14px;padding:18px;
+  display:flex;flex-direction:column;
+}
+#slide-11 .ch-card .top{display:flex;align-items:center;gap:11px;margin-bottom:11px;}
+#slide-11 .ch-card .ic{
+  width:44px;height:44px;border-radius:11px;display:flex;align-items:center;justify-content:center;color:#fff;
+}
+#slide-11 .ch-card.wa .ic{background:#25D366;}
+#slide-11 .ch-card.ms .ic{background:linear-gradient(135deg,#0084FF,#006AFF);}
+#slide-11 .ch-card.ig .ic{background:linear-gradient(135deg,#F58529,#DD2A7B,#8134AF);}
+#slide-11 .ch-card .ic .material-icons{font-size:24px;}
+#slide-11 .ch-card h4{font-family:'Manrope',sans-serif;font-weight:800;font-size:16px;color:var(--slate-900);letter-spacing:-.01em;}
+#slide-11 .ch-card .region{font-size:11px;color:var(--slate-500);font-weight:500;margin-top:1px;}
+#slide-11 .ch-card .status{
+  display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:700;
+  color:var(--emerald-700);background:var(--emerald-50);padding:3px 8px;border-radius:6px;
+  letter-spacing:.06em;text-transform:uppercase;align-self:flex-start;margin-bottom:9px;
+}
+#slide-11 .ch-card .status .dot{width:6px;height:6px;border-radius:50%;background:var(--emerald-500);box-shadow:0 0 5px var(--emerald-500);}
+#slide-11 .ch-card ul{list-style:none;display:flex;flex-direction:column;gap:5px;}
+#slide-11 .ch-card li{display:flex;gap:7px;font-size:12px;color:var(--slate-600);line-height:1.35;}
+#slide-11 .ch-card li .material-icons{font-size:14px;color:var(--emerald-600);flex-shrink:0;margin-top:1px;}
+#slide-11 .roadmap-strip{
+  background:linear-gradient(135deg,var(--slate-900),var(--slate-800));color:#fff;
+  border-radius:14px;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;
+}
+#slide-11 .roadmap-strip .lbl{
+  font-family:'Manrope',sans-serif;font-weight:700;font-size:11px;color:var(--emerald-300);
+  letter-spacing:.14em;text-transform:uppercase;
+}
+#slide-11 .roadmap-strip .lbl .sub{display:block;font-size:13px;color:#fff;letter-spacing:.01em;text-transform:none;margin-top:3px;font-weight:600;}
+#slide-11 .roadmap-strip .items{display:flex;gap:18px;}
+#slide-11 .roadmap-strip .item{display:flex;align-items:center;gap:8px;font-size:13px;color:rgba(255,255,255,.9);}
+#slide-11 .roadmap-strip .item .material-icons{font-size:18px;color:var(--emerald-300);}
+#slide-11 .roadmap-strip .item .when{font-size:10.5px;color:rgba(255,255,255,.55);font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-left:2px;}
+
+/* ============================================
+   SLIDE 12 — AD PLATFORMS
+   ============================================ */
+#slide-12 .head{margin-bottom:24px;}
+#slide-12 .head h2{font-size:42px;letter-spacing:-.025em;line-height:1.05;}
+#slide-12 .head .sub{margin-top:8px;font-size:15px;color:var(--slate-500);}
+#slide-12 .layout{display:grid;grid-template-columns:1.4fr 1fr;gap:24px;height:calc(100% - 90px);}
+#slide-12 .plat-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}
+#slide-12 .plat-card{
+  background:#fff;border:1px solid var(--slate-200);border-radius:14px;padding:16px;
+  display:flex;flex-direction:column;
+}
+#slide-12 .plat-card .ic{width:44px;height:44px;border-radius:11px;display:flex;align-items:center;justify-content:center;color:#fff;margin-bottom:11px;}
+#slide-12 .plat-card.meta .ic{background:linear-gradient(135deg,#0668E1,#0082FB);}
+#slide-12 .plat-card.google .ic{background:#fff;border:1px solid var(--slate-200);color:#4285F4;}
+#slide-12 .plat-card.google .ic .material-icons{font-size:26px;}
+#slide-12 .plat-card.tiktok .ic{background:#000;color:#fff;}
+#slide-12 .plat-card .ic .material-icons{font-size:24px;}
+#slide-12 .plat-card h4{font-family:'Manrope',sans-serif;font-weight:800;font-size:15px;color:var(--slate-900);letter-spacing:-.01em;}
+#slide-12 .plat-card .desc{font-size:11.5px;color:var(--slate-500);margin-top:3px;line-height:1.4;}
+#slide-12 .plat-card ul{list-style:none;display:flex;flex-direction:column;gap:5px;margin-top:11px;}
+#slide-12 .plat-card li{display:flex;gap:6px;font-size:11.5px;color:var(--slate-700);line-height:1.35;}
+#slide-12 .plat-card li .material-icons{font-size:13px;color:var(--emerald-600);flex-shrink:0;margin-top:2px;}
+#slide-12 .attr-models{
+  background:linear-gradient(135deg,var(--emerald-700),var(--teal-800));color:#fff;
+  border-radius:14px;padding:20px;display:flex;flex-direction:column;
+}
+#slide-12 .attr-models .lbl{font-size:11px;color:rgba(255,255,255,.7);letter-spacing:.12em;text-transform:uppercase;font-weight:700;}
+#slide-12 .attr-models h3{font-family:'Manrope',sans-serif;font-weight:800;font-size:22px;margin-top:6px;letter-spacing:-.02em;line-height:1.15;}
+#slide-12 .attr-models .desc{font-size:12.5px;color:rgba(255,255,255,.8);margin-top:8px;line-height:1.45;}
+#slide-12 .model-list{margin-top:16px;display:flex;flex-direction:column;gap:8px;}
+#slide-12 .model{display:flex;gap:10px;align-items:flex-start;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:9px;padding:10px 12px;}
+#slide-12 .model .name{font-family:'Manrope',sans-serif;font-weight:700;font-size:12.5px;color:#fff;}
+#slide-12 .model .ex{font-size:11px;color:rgba(255,255,255,.7);margin-top:1px;line-height:1.35;}
+#slide-12 .model .ic{width:28px;height:28px;border-radius:7px;background:rgba(110,231,183,.15);color:var(--emerald-300);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+#slide-12 .model .ic .material-icons{font-size:16px;}
+
+/* ============================================
+   SLIDE 13 — SECURITY
+   ============================================ */
+#slide-13{background:linear-gradient(180deg,#fff 0%,var(--bg-mist) 100%);}
+#slide-13 .head{margin-bottom:24px;}
+#slide-13 .head h2{font-size:42px;letter-spacing:-.025em;line-height:1.05;}
+#slide-13 .head .sub{margin-top:8px;font-size:15px;color:var(--slate-500);}
+#slide-13 .compliance-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px;}
+#slide-13 .compliance-card{
+  background:#fff;border:1px solid var(--slate-200);border-radius:14px;padding:16px 18px;
+  display:flex;align-items:center;gap:14px;
+}
+#slide-13 .compliance-card .ic{
+  width:48px;height:48px;border-radius:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0;
+  background:linear-gradient(135deg,var(--emerald-100),var(--teal-500)/15);color:var(--emerald-700);
+}
+#slide-13 .compliance-card .ic .material-icons{font-size:26px;}
+#slide-13 .compliance-card h4{font-family:'Manrope',sans-serif;font-weight:800;font-size:15px;color:var(--slate-900);letter-spacing:-.01em;}
+#slide-13 .compliance-card .region{font-size:11px;color:var(--emerald-600);font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-top:2px;}
+#slide-13 .compliance-card p{font-size:12px;color:var(--slate-500);margin-top:3px;line-height:1.4;}
+#slide-13 .features-strip{
+  background:#fff;border:1px solid var(--slate-200);border-radius:14px;padding:16px 18px;
+  display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:14px;
+}
+#slide-13 .feat{display:flex;gap:10px;align-items:flex-start;}
+#slide-13 .feat .ic{width:32px;height:32px;border-radius:8px;background:var(--emerald-50);color:var(--emerald-700);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+#slide-13 .feat .ic .material-icons{font-size:18px;}
+#slide-13 .feat h5{font-family:'Manrope',sans-serif;font-weight:700;font-size:12.5px;color:var(--slate-900);}
+#slide-13 .feat p{font-size:11px;color:var(--slate-500);margin-top:2px;line-height:1.35;}
+#slide-13 .config-strip{
+  margin-top:14px;display:grid;grid-template-columns:1fr 380px;gap:14px;align-items:center;
+}
+#slide-13 .config-text h5{font-family:'Manrope',sans-serif;font-weight:700;font-size:13px;color:var(--slate-900);letter-spacing:-.01em;}
+#slide-13 .config-text p{font-size:11.5px;color:var(--slate-500);margin-top:3px;line-height:1.4;}
+#slide-13 .config-text .chips{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;}
+#slide-13 .config-text .chip{font-size:10px;font-weight:600;color:var(--emerald-700);background:var(--emerald-50);padding:3px 8px;border-radius:5px;letter-spacing:.02em;}
+#slide-13 .config-shot{
+  position:relative;height:120px;border-radius:10px;overflow:hidden;
+  border:1px solid var(--slate-200);box-shadow:0 8px 18px -10px rgba(15,23,42,.25);
+}
+#slide-13 .config-shot img{width:100%;height:100%;object-fit:cover;object-position:top left;}
+#slide-13 .config-shot .cap{position:absolute;top:6px;left:6px;background:rgba(15,23,42,.85);color:#fff;font-size:9.5px;padding:3px 7px;border-radius:4px;font-weight:500;display:flex;align-items:center;gap:4px;}
+#slide-13 .config-shot .cap .material-icons{font-size:11px;color:var(--emerald-300);}
+
+/* ============================================
+   SLIDE 14 — PRICING
+   ============================================ */
+#slide-14 .head{margin-bottom:22px;display:flex;justify-content:space-between;align-items:flex-end;}
+#slide-14 .head h2{font-size:42px;letter-spacing:-.025em;line-height:1.05;}
+#slide-14 .head .sub{margin-top:6px;font-size:14px;color:var(--slate-500);}
+#slide-14 .head .right-note{
+  font-size:11.5px;color:var(--slate-500);text-align:right;line-height:1.4;
+  background:var(--emerald-50);border:1px solid var(--emerald-100);border-radius:10px;padding:9px 13px;
+}
+#slide-14 .head .right-note b{color:var(--emerald-700);font-weight:700;}
+#slide-14 .price-grid{display:grid;grid-template-columns:1fr 1.1fr 1fr;gap:14px;}
+#slide-14 .price-card{
+  background:#fff;border:1px solid var(--slate-200);border-radius:16px;padding:20px 18px;
+  display:flex;flex-direction:column;position:relative;
+}
+#slide-14 .price-card.featured{
+  background:linear-gradient(135deg,var(--emerald-700),var(--teal-800));color:#fff;
+  border:none;box-shadow:0 20px 40px -16px rgba(13,148,136,.45);
+  transform:translateY(-6px);
+}
+#slide-14 .price-card .ribbon{
+  position:absolute;top:-9px;right:16px;background:var(--amber-500);color:#1F2937;
+  font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;
+  padding:4px 10px;border-radius:6px;
+}
+#slide-14 .price-card .tier{
+  font-family:'Manrope',sans-serif;font-weight:700;font-size:12px;color:var(--emerald-600);
+  letter-spacing:.14em;text-transform:uppercase;
+}
+#slide-14 .price-card.featured .tier{color:var(--emerald-300);}
+#slide-14 .price-card h3{font-family:'Manrope',sans-serif;font-weight:800;font-size:24px;letter-spacing:-.02em;margin-top:5px;color:var(--slate-900);}
+#slide-14 .price-card.featured h3{color:#fff;}
+#slide-14 .price-card .desc{font-size:11.5px;color:var(--slate-500);margin-top:5px;line-height:1.4;}
+#slide-14 .price-card.featured .desc{color:rgba(255,255,255,.8);}
+#slide-14 .price-card .price{margin-top:14px;display:flex;align-items:baseline;gap:4px;}
+#slide-14 .price-card .price .amt{font-family:'Manrope',sans-serif;font-weight:800;font-size:42px;letter-spacing:-.03em;color:var(--slate-900);line-height:1;}
+#slide-14 .price-card.featured .price .amt{color:#fff;}
+#slide-14 .price-card .price .per{font-size:12px;color:var(--slate-500);font-weight:500;}
+#slide-14 .price-card.featured .price .per{color:rgba(255,255,255,.7);}
+#slide-14 .price-card .feats{margin-top:14px;list-style:none;display:flex;flex-direction:column;gap:7px;flex:1;}
+#slide-14 .price-card .feats li{display:flex;gap:7px;font-size:12px;color:var(--slate-700);line-height:1.4;}
+#slide-14 .price-card.featured .feats li{color:rgba(255,255,255,.92);}
+#slide-14 .price-card .feats li .material-icons{font-size:14px;color:var(--emerald-600);flex-shrink:0;margin-top:1px;}
+#slide-14 .price-card.featured .feats li .material-icons{color:var(--emerald-300);}
+#slide-14 .price-card .cta{
+  margin-top:14px;background:var(--emerald-50);color:var(--emerald-700);text-align:center;
+  font-family:'Manrope',sans-serif;font-weight:700;font-size:12px;letter-spacing:.04em;
+  padding:9px;border-radius:9px;
+}
+#slide-14 .price-card.featured .cta{background:rgba(255,255,255,.15);color:#fff;}
+#slide-14 .commission-note{
+  margin-top:14px;background:var(--slate-50);border:1px solid var(--slate-200);border-radius:11px;
+  padding:11px 16px;display:flex;align-items:center;gap:11px;
+}
+#slide-14 .commission-note .ic{width:32px;height:32px;border-radius:8px;background:var(--emerald-100);color:var(--emerald-700);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+#slide-14 .commission-note .ic .material-icons{font-size:18px;}
+#slide-14 .commission-note p{font-size:12px;color:var(--slate-600);line-height:1.4;}
+#slide-14 .commission-note p b{color:var(--slate-900);}
+
+/* ============================================
+   SLIDE 15 — ROADMAP
+   ============================================ */
+#slide-15 .head{margin-bottom:30px;}
+#slide-15 .head h2{font-size:42px;letter-spacing:-.025em;line-height:1.05;}
+#slide-15 .head .sub{margin-top:8px;font-size:15px;color:var(--slate-500);}
+#slide-15 .timeline{
+  position:relative;display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:14px;
+}
+#slide-15 .timeline::before{
+  content:"";position:absolute;top:22px;left:6%;right:6%;height:2px;
+  background:linear-gradient(90deg,var(--emerald-400),var(--teal-600));
+  z-index:0;
+}
+#slide-15 .q-card{
+  position:relative;background:#fff;border:1px solid var(--slate-200);border-radius:14px;padding:16px;
+  display:flex;flex-direction:column;
+}
+#slide-15 .q-card .q-mark{
+  width:44px;height:44px;border-radius:50%;background:#fff;border:3px solid var(--emerald-500);
+  display:flex;align-items:center;justify-content:center;
+  font-family:'Manrope',sans-serif;font-weight:800;font-size:14px;color:var(--emerald-700);
+  margin-bottom:14px;position:relative;z-index:2;
+}
+#slide-15 .q-card .status{
+  position:absolute;top:18px;right:16px;font-size:9.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+  padding:3px 7px;border-radius:5px;
+}
+#slide-15 .q-card.done .status{background:var(--emerald-50);color:var(--emerald-700);}
+#slide-15 .q-card.now .status{background:#FEF3C7;color:var(--amber-600);}
+#slide-15 .q-card.next .status{background:var(--slate-100);color:var(--slate-500);}
+#slide-15 .q-card h4{font-family:'Manrope',sans-serif;font-weight:800;font-size:15px;color:var(--slate-900);letter-spacing:-.01em;margin-bottom:10px;}
+#slide-15 .q-card ul{list-style:none;display:flex;flex-direction:column;gap:7px;flex:1;}
+#slide-15 .q-card li{display:flex;gap:7px;font-size:11.5px;color:var(--slate-700);line-height:1.4;}
+#slide-15 .q-card li .material-icons{font-size:14px;color:var(--emerald-600);flex-shrink:0;margin-top:1px;}
+#slide-15 .q-card.now{border-color:var(--emerald-300);box-shadow:0 8px 20px -10px rgba(16,185,129,.3);}
+#slide-15 .q-card.now .q-mark{background:var(--emerald-500);color:#fff;border-color:var(--emerald-500);}
+
+/* ============================================
+   SLIDE 16 — WHY NOW
+   ============================================ */
+#slide-16{
+  background:radial-gradient(110% 100% at 70% 30%,#0F766E 0%,#065F46 40%,#022C22 100%);
+  color:#fff;
+}
+#slide-16 .ghost-grid{
+  position:absolute;inset:0;
+  background-image:linear-gradient(rgba(255,255,255,.04) 1px,transparent 1px),
+                    linear-gradient(90deg,rgba(255,255,255,.04) 1px,transparent 1px);
+  background-size:64px 64px;
+  mask-image:radial-gradient(80% 60% at 30% 50%,#000 0%,transparent 80%);
+  pointer-events:none;
+}
+#slide-16 .slide-eyebrow{color:var(--emerald-300);}
+#slide-16 .head h2{font-size:54px;color:#fff;letter-spacing:-.03em;line-height:1.02;}
+#slide-16 .head h2 .em{color:var(--emerald-300);}
+#slide-16 .head .sub{color:rgba(255,255,255,.7);font-size:15px;margin-top:10px;max-width:600px;}
+#slide-16 .stats-grid{margin-top:34px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;}
+#slide-16 .stat-block{
+  background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);
+  border-radius:14px;padding:20px;backdrop-filter:blur(8px);
+}
+#slide-16 .stat-block .label{font-size:11px;color:rgba(255,255,255,.6);letter-spacing:.12em;text-transform:uppercase;font-weight:700;}
+#slide-16 .stat-block .v{font-family:'Manrope',sans-serif;font-weight:800;font-size:54px;letter-spacing:-.03em;margin-top:6px;line-height:1;color:#fff;}
+#slide-16 .stat-block .v .small{font-size:24px;color:var(--emerald-300);}
+#slide-16 .stat-block .desc{font-size:12.5px;color:rgba(255,255,255,.75);margin-top:8px;line-height:1.45;}
+#slide-16 .opportunity{
+  margin-top:20px;display:flex;align-items:center;gap:14px;
+  background:rgba(110,231,183,.1);border:1px solid rgba(110,231,183,.3);border-radius:12px;
+  padding:14px 18px;
+}
+#slide-16 .opportunity .ic{width:38px;height:38px;border-radius:9px;background:var(--emerald-400);color:#062B26;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+#slide-16 .opportunity .ic .material-icons{font-size:22px;}
+#slide-16 .opportunity h4{font-family:'Manrope',sans-serif;font-weight:700;font-size:14px;color:#fff;letter-spacing:-.01em;}
+#slide-16 .opportunity p{font-size:12px;color:rgba(255,255,255,.8);margin-top:2px;line-height:1.4;}
+
+/* ============================================
+   SLIDE 17 — CTA
+   ============================================ */
+#slide-17{
+  background:radial-gradient(120% 100% at 80% 20%,#0F766E 0%,#065F46 40%,#022C22 100%);
+  color:#fff;
+}
+#slide-17 .ghost-bolt{
+  position:absolute;bottom:-100px;left:-60px;font-size:540px;color:#fff;
+  opacity:.05;transform:rotate(15deg);font-family:'Material Icons';
+  pointer-events:none;line-height:1;
+}
+#slide-17 .ghost-grid{
+  position:absolute;inset:0;
+  background-image:linear-gradient(rgba(255,255,255,.04) 1px,transparent 1px),
+                    linear-gradient(90deg,rgba(255,255,255,.04) 1px,transparent 1px);
+  background-size:64px 64px;
+  mask-image:radial-gradient(80% 60% at 70% 50%,#000 0%,transparent 80%);
+  pointer-events:none;
+}
+#slide-17 .top-bar{position:absolute;top:36px;left:60px;right:60px;display:flex;align-items:center;justify-content:space-between;z-index:3;}
+#slide-17 .brand-name{color:#fff;}
+#slide-17 .brand-name .accent{color:var(--emerald-300);}
+#slide-17 .top-meta{font-size:12px;color:rgba(255,255,255,.6);letter-spacing:.18em;text-transform:uppercase;font-family:'Manrope',sans-serif;font-weight:600;}
+#slide-17 .hero{position:absolute;left:60px;right:60px;top:140px;z-index:2;}
+#slide-17 .hero .pill{
+  display:inline-flex;align-items:center;gap:8px;
+  background:rgba(110,231,183,.12);border:1px solid rgba(110,231,183,.3);
+  padding:7px 14px;border-radius:999px;color:var(--emerald-300);
+  font-size:13px;font-weight:600;letter-spacing:.04em;margin-bottom:24px;
+}
+#slide-17 .hero .pill .dot{width:7px;height:7px;border-radius:50%;background:var(--emerald-300);box-shadow:0 0 12px var(--emerald-300);}
+#slide-17 .hero h1{
+  font-family:'Manrope',sans-serif;font-weight:800;font-size:74px;line-height:.98;letter-spacing:-.04em;color:#fff;
+}
+#slide-17 .hero h1 .gradient{background:linear-gradient(120deg,#6EE7B7,#34D399 60%,#2DD4BF);-webkit-background-clip:text;background-clip:text;color:transparent;}
+#slide-17 .hero .sub{
+  font-family:'Manrope',sans-serif;font-weight:500;font-size:20px;color:rgba(255,255,255,.85);
+  margin-top:18px;max-width:680px;line-height:1.4;
+}
+#slide-17 .contact-bar{
+  position:absolute;bottom:60px;left:60px;right:60px;z-index:2;
+  display:flex;align-items:center;justify-content:space-between;gap:24px;
+}
+#slide-17 .contact-card{
+  background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.15);
+  backdrop-filter:blur(10px);border-radius:14px;padding:16px 22px;
+  display:flex;gap:20px;align-items:center;
+}
+#slide-17 .contact-card .item{display:flex;gap:9px;align-items:center;}
+#slide-17 .contact-card .item .ic{width:34px;height:34px;border-radius:8px;background:rgba(110,231,183,.15);color:var(--emerald-300);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+#slide-17 .contact-card .item .ic .material-icons{font-size:18px;}
+#slide-17 .contact-card .item .lbl{font-size:10px;color:rgba(255,255,255,.55);letter-spacing:.1em;text-transform:uppercase;font-weight:600;}
+#slide-17 .contact-card .item .v{font-family:'Manrope',sans-serif;font-weight:700;font-size:13px;color:#fff;margin-top:1px;}
+#slide-17 .contact-card .divider{width:1px;height:32px;background:rgba(255,255,255,.15);}
+#slide-17 .cta-btn{
+  background:linear-gradient(135deg,var(--emerald-400),var(--teal-500));color:#062B26;
+  font-family:'Manrope',sans-serif;font-weight:800;font-size:16px;letter-spacing:-.01em;
+  padding:14px 26px;border-radius:12px;display:inline-flex;align-items:center;gap:10px;
+  box-shadow:0 12px 30px -8px rgba(16,185,129,.6);
+}
+#slide-17 .cta-btn .material-icons{font-size:20px;}
+
+/* ---------- Navigation ---------- */
+.nav{
+  position:fixed;bottom:20px;left:50%;transform:translateX(-50%);
+  display:flex;align-items:center;gap:14px;z-index:1000;
+  background:rgba(15,23,42,.85);backdrop-filter:blur(10px);
+  padding:8px 12px;border-radius:999px;border:1px solid rgba(255,255,255,.1);
+  box-shadow:0 8px 24px -8px rgba(0,0,0,.5);
+}
+.nav button{
+  width:32px;height:32px;border-radius:50%;border:none;cursor:pointer;
+  background:rgba(255,255,255,.08);color:#fff;
+  display:flex;align-items:center;justify-content:center;
+  transition:all .2s;
+}
+.nav button:hover{background:var(--emerald-500);color:#fff;}
+.nav button:disabled{opacity:.3;cursor:not-allowed;}
+.nav button .material-icons{font-size:18px;}
+.nav .counter{
+  font-family:'Manrope',sans-serif;font-weight:700;font-size:13px;color:#fff;
+  min-width:60px;text-align:center;letter-spacing:.04em;
+}
+.nav .counter b{color:var(--emerald-300);}
+.nav .dots{display:flex;gap:5px;margin-left:6px;}
+.nav .dots .d{
+  width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.25);cursor:pointer;transition:all .2s;
+}
+.nav .dots .d.active{background:var(--emerald-400);width:18px;border-radius:3px;}
+</style>
+</head>
+<body>
+
+<div class="deck" id="deck">
+
+<!-- ============================================ SLIDE 1 — TITLE ============================================ -->
+<section class="slide active" id="slide-1">
+  <span class="ghost-bolt material-icons">bolt</span>
+  <span class="ghost-grid"></span>
+
+  <div class="top-bar">
+    <div class="brand">
+      <div class="brand-mark"><span class="material-icons">bolt</span></div>
+      <div class="brand-name">CommerceFlow<span class="accent"> OS</span></div>
+    </div>
+    <div class="top-meta">Presentación comercial · 2025</div>
+  </div>
+
+  <div class="hero">
+    <div class="pill"><span class="dot"></span> CommerceFlow OS · LATAM &rarr; Global</div>
+    <h1>Vende por chat.<br><span class="gradient">Mide como un data-driver.</span></h1>
+    <div class="tagline">Conversational Commerce + Ad Attribution Command Center para <span class="em">belleza, cuidado personal y ecommerce</span> que escala de Colombia al mundo.</div>
+  </div>
+
+  <div class="bottom-bar">
+    <div class="channels">
+      <span class="ch-pill"><span class="material-icons">chat</span> WhatsApp Business</span>
+      <span class="ch-pill"><span class="material-icons">forum</span> Messenger</span>
+      <span class="ch-pill"><span class="material-icons">photo_camera</span> Instagram DM</span>
+    </div>
+    <div class="meta-block">
+      <b>Para CEOs, marketing y ecommerce</b>
+      Demo privada · 30 min
+    </div>
+  </div>
+</section>
+
+<!-- ============================================ SLIDE 2 — AGENDA ============================================ -->
+<section class="slide" id="slide-2">
+  <div class="slide-header">
+    <div class="slide-eyebrow">Agenda</div>
+    <div class="brand">
+      <div class="brand-mark"><span class="material-icons">bolt</span></div>
+      <div class="brand-name">CommerceFlow<span class="accent"> OS</span></div>
+    </div>
+  </div>
+
+  <div class="slide-body">
+    <div class="body-wrap">
+      <div class="left-col">
+        <h2 class="h-title">¿Qué veremos<br>hoy?</h2>
+        <p class="sub">16 capítulos para entender cómo CommerceFlow OS convierte conversaciones en ventas y pauta en decisiones.</p>
+        <div class="badge"><span class="material-icons" style="font-size:14px;">schedule</span> Lectura 8 min</div>
+      </div>
+      <div class="agenda-grid">
+        <div class="agenda-item"><div class="num">01</div><div class="txt"><div class="t">El problema</div><div class="d">Vender por chat sin datos ni control.</div></div></div>
+        <div class="agenda-item"><div class="num">02</div><div class="txt"><div class="t">La solución</div><div class="d">Una plataforma: chat + pedidos + pauta.</div></div></div>
+        <div class="agenda-item"><div class="num">03</div><div class="txt"><div class="t">Mensajería omnicanal</div><div class="d">WhatsApp + Messenger + IG en una bandeja.</div></div></div>
+        <div class="agenda-item"><div class="num">04</div><div class="txt"><div class="t">Pagos inteligentes</div><div class="d">Anticipado, contra entrega, híbrido.</div></div></div>
+        <div class="agenda-item"><div class="num">05</div><div class="txt"><div class="t">Atribución de pauta</div><div class="d">CPA, ROAS, ROI por anuncio real.</div></div></div>
+        <div class="agenda-item"><div class="num">06</div><div class="txt"><div class="t">Kill-switch + IA</div><div class="d">Apaga perdedores, escala ganadores.</div></div></div>
+        <div class="agenda-item"><div class="num">07</div><div class="txt"><div class="t">ROI: la matemática</div><div class="d">Caso numérico en COP, payback &lt; 2 meses.</div></div></div>
+        <div class="agenda-item"><div class="num">08</div><div class="txt"><div class="t">Planes, seguridad y roadmap</div><div class="d">Pricing, GDPR/Ley 1581, hoja de ruta.</div></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="slide-footer">
+    <div class="left"><span class="dot"></span> CommerceFlow OS · Vende por chat, mide como un data-driver</div>
+    <div class="right"><b>02</b> / 17</div>
+  </div>
+</section>
+
+<!-- ============================================ SLIDE 3 — PROBLEM ============================================ -->
+<section class="slide" id="slide-3">
+  <div class="slide-header">
+    <div class="slide-eyebrow">El problema</div>
+    <div class="brand"><div class="brand-mark"><span class="material-icons">bolt</span></div><div class="brand-name">CommerceFlow<span class="accent"> OS</span></div></div>
+  </div>
+
+  <div class="slide-body">
+    <div class="head">
+      <h2 class="h-title">Vender por chat no debería ser <span class="em">adivinar</span>.</h2>
+      <div class="right-stat">
+        <div class="big">73%</div>
+        <div class="lbl">de las marcas en LATAM no sabe qué anuncio genera venta real.</div>
+      </div>
+    </div>
+
+    <div class="pain-grid">
+      <div class="pain-card">
+        <div class="icon-chip"><span class="material-icons">sticky_note_2</span></div>
+        <div>
+          <h3>Pedidos en notas, Excel y memoria</h3>
+          <p>Cada asesor anota el pedido donde puede. Se pierden, se duplican, no hay trazabilidad del cliente ni del anuncio que lo trajo.</p>
+          <span class="tag">Operación manual</span>
+        </div>
+      </div>
+      <div class="pain-card">
+        <div class="icon-chip"><span class="material-icons">ads_click</span></div>
+        <div>
+          <h3>Pauta que no sabes si funciona</h3>
+          <p>Meta/Google/TikTok reportan conversiones que no aparecen en tu caja. No hay CPA, ROAS o ROI real por anuncio. Inviertes a ciegas.</p>
+          <span class="tag">Ciego de datos</span>
+        </div>
+      </div>
+      <div class="pain-card">
+        <div class="icon-chip"><span class="material-icons">local_shipping</span></div>
+        <div>
+          <h3>Contra entrega con rechazos caros</h3>
+          <p>El COD mueve volumen en Colombia, pero los rechazos comen margen. Sin reglas por canal/país, la logística se vuelve un agujero.</p>
+          <span class="tag">Margen fugado</span>
+        </div>
+      </div>
+      <div class="pain-card">
+        <div class="icon-chip"><span class="material-icons">trending_down</span></div>
+        <div>
+          <h3>Ningún CPA / ROAS accionable</h3>
+          <p>Sin atribución por anuncio no hay kill-switch ni escala. Los anuncios perdedores siguen corriendo y los ganadores no reciben más presupuesto.</p>
+          <span class="tag">Sin palanca de control</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="slide-footer">
+    <div class="left"><span class="dot"></span> CommerceFlow OS · Vende por chat, mide como un data-driver</div>
+    <div class="right"><b>03</b> / 17</div>
+  </div>
+</section>
+
+<!-- ============================================ SLIDE 4 — SOLUTION ============================================ -->
+<section class="slide" id="slide-4">
+  <div class="slide-header">
+    <div class="slide-eyebrow">La solución</div>
+    <div class="brand"><div class="brand-mark"><span class="material-icons">bolt</span></div><div class="brand-name">CommerceFlow<span class="accent"> OS</span></div></div>
+  </div>
+
+  <div class="slide-body">
+    <div class="head">
+      <h2 class="h-title">Una plataforma. Tres canales. Decisiones con datos.</h2>
+      <p class="sub">CommerceFlow OS une la conversación, el pedido, el pago y la atribución de pauta en un solo comando. Dejas de saltar entre hojas, apps y reportes de agencia.</p>
+    </div>
+
+    <div class="diagram">
+      <div class="col channels">
+        <h4>Canales</h4>
+        <div class="title">Por donde el cliente habla</div>
+        <ul>
+          <li><span class="material-icons">chat</span> WhatsApp Business API</li>
+          <li><span class="material-icons">forum</span> Facebook Messenger</li>
+          <li><span class="material-icons">photo_camera</span> Instagram DM</li>
+          <li><span class="material-icons">send</span> Telegram (próximo)</li>
+        </ul>
+      </div>
+      <div class="arrow"><span class="material-icons">arrow_forward</span></div>
+      <div class="col engine">
+        <h4>Motor central</h4>
+        <div class="title">CommerceFlow OS</div>
+        <ul>
+          <li><span class="material-icons">inbox</span> Bandeja unificada + IA</li>
+          <li><span class="material-icons">shopping_bag</span> Pedidos con cliente y catálogo</li>
+          <li><span class="material-icons">payments</span> Pagos: anticipado / COD / híbrido</li>
+          <li><span class="material-icons">analytics</span> Atribución por anuncio (CPA, ROAS, ROI)</li>
+          <li><span class="material-icons">power_settings_new</span> Kill-switch automático</li>
+        </ul>
+        <div class="engine-badge"><span class="dot"></span> Tiempo real · Socket.io</div>
+      </div>
+      <div class="arrow"><span class="material-icons">arrow_forward</span></div>
+      <div class="col results">
+        <h4>Resultados</h4>
+        <div class="title">Lo que obtienes</div>
+        <ul>
+          <li><span class="material-icons">paid</span> Más ventas atribuidas</li>
+          <li><span class="material-icons">savings</span> Hasta -30% pauta desperdiciada</li>
+          <li><span class="material-icons">speed</span> Respuesta más rápida</li>
+          <li><span class="material-icons">insights</span> Decisiones con datos reales</li>
+          <li><span class="material-icons">rocket_launch</span> Escala internacional</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="preview-strip">
+      <div class="preview-text">
+        <h5>El dashboard en acción</h5>
+        <p>Una sola pantalla: KPIs en vivo, revenue vs. spend, split por canal y modalidad de pago. Sin saltar entre reportes.</p>
+        <div class="chips">
+          <span class="chip">Revenue</span>
+          <span class="chip">ROAS</span>
+          <span class="chip">CPA</span>
+          <span class="chip">AOV</span>
+          <span class="chip">Channel split</span>
+        </div>
+      </div>
+      <div class="preview-shot">
+        <img src="overview.png" alt="Vista general del dashboard CommerceFlow OS">
+        <div class="cap"><span class="material-icons">verified</span> Overview real</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="slide-footer">
+    <div class="left"><span class="dot"></span> CommerceFlow OS · Vende por chat, mide como un data-driver</div>
+    <div class="right"><b>04</b> / 17</div>
+  </div>
+</section>
+
+<!-- ============================================ SLIDE 5 — MESSAGING ============================================ -->
+<section class="slide" id="slide-5">
+  <div class="slide-header">
+    <div class="slide-eyebrow">Módulo 1 · Mensajería</div>
+    <div class="brand"><div class="brand-mark"><span class="material-icons">bolt</span></div><div class="brand-name">CommerceFlow<span class="accent"> OS</span></div></div>
+  </div>
+
+  <div class="slide-body">
+    <div class="body-wrap">
+      <div>
+        <div class="head">
+          <h2 class="h-title">Bandeja omnicanal unificada</h2>
+          <p class="sub">WhatsApp, Messenger e Instagram en una sola vista. Cada conversación trae el contexto del cliente, su historial y la campaña que lo trajo.</p>
+        </div>
+        <div class="benefits">
+          <div class="benefit">
+            <div class="icon-chip"><span class="material-icons">bolt</span></div>
+            <div>
+              <h4>Respuesta más rápida</h4>
+              <p>Una bandeja única elimina el cambio de app. El equipo responde en segundos, no en horas.</p>
+            </div>
+          </div>
+          <div class="benefit">
+            <div class="icon-chip"><span class="material-icons">person_search</span></div>
+            <div>
+              <h4>Contexto del cliente</h4>
+              <p>Historial de pedidos, pagos y conversaciones previas al lado del chat activo.</p>
+            </div>
+          </div>
+          <div class="benefit">
+            <div class="icon-chip"><span class="material-icons">campaign</span></div>
+            <div>
+              <h4>Atribución de campaña por conversación</h4>
+              <p>Cada chat lleva el ad ID y la plataforma que originó el contacto. Sabes de dónde viene cada venta.</p>
+            </div>
+          </div>
+          <div class="benefit">
+            <div class="icon-chip"><span class="material-icons">auto_awesome</span></div>
+            <div>
+              <h4>IA sugiere respuestas</h4>
+              <p>Sugerencias contextuales que conocen tu catálogo, tu estrategia de pago y el historial del cliente.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="screenshot-wrap">
+        <div class="browser-bar">
+          <div class="dots"><span></span><span></span><span></span></div>
+          <div class="url">app.commerceflow.os/messenger</div>
+          <div class="live"><span class="dot"></span> TIEMPO REAL</div>
+        </div>
+        <img src="messenger-thread.png" alt="Vista de bandeja unificada con conversación activa">
+        <div class="shot-caption"><span class="material-icons">verified</span> Vista real del producto · Messenger</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="slide-footer">
+    <div class="left"><span class="dot"></span> CommerceFlow OS · Vende por chat, mide como un data-driver</div>
+    <div class="right"><b>05</b> / 17</div>
+  </div>
+</section>
+
+<!-- ============================================ SLIDE 6 — PAYMENTS ============================================ -->
+<section class="slide" id="slide-6">
+  <div class="slide-header">
+    <div class="slide-eyebrow">Módulo 2 · Pagos</div>
+    <div class="brand"><div class="brand-mark"><span class="material-icons">bolt</span></div><div class="brand-name">CommerceFlow<span class="accent"> OS</span></div></div>
+  </div>
+
+  <div class="slide-body">
+    <div class="head">
+      <h2 class="h-title">Pagos inteligentes por canal y país</h2>
+      <p class="sub">Tres estrategias configurables. Colombia crece con contra entrega; internacional exige anticipado. Híbrido para escalar sin perder conversión.</p>
+    </div>
+
+    <div class="layout">
+      <div class="strategies">
+        <div class="strategy advance">
+          <div class="ic"><span class="material-icons">credit_card</span></div>
+          <div>
+            <h4>Anticipado · Pago previo con descuento</h4>
+            <div class="desc">Carrito ecommerce + checkout. Aplica descuento por prepagar. Caja segura, cero rechazos. Ideal para internacional y ticket alto.</div>
+          </div>
+          <div class="tag">EU · Alta ticket</div>
+        </div>
+        <div class="strategy cod">
+          <div class="ic"><span class="material-icons">local_shipping</span></div>
+          <div>
+            <h4>Contra entrega · Pago al recibir</h4>
+            <div class="desc">Conversión máxima en primer pedido. Tasa de rechazo monitoreada por canal. Cargo logístico configurable. Fuerte en Colombia.</div>
+          </div>
+          <div class="tag">CO · Conversión</div>
+        </div>
+        <div class="strategy hybrid">
+          <div class="ic"><span class="material-icons">tune</span></div>
+          <div>
+            <h4>Híbrido · Reglas por canal/país</h4>
+            <div class="desc">Anticipado para ticket alto o envío lejano, contra entrega para clientes recurrentes. Mínimo prepagable y descuento configurables.</div>
+          </div>
+          <div class="tag">Multi-país</div>
+        </div>
+
+        <div class="shot-mini">
+          <img src="orders.png" alt="Vista de pedidos con modalidades de pago">
+          <div class="cap">Vista real · Órdenes & Pagos</div>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <h5>Comparativa · Cuándo usar cada una</h5>
+        <table>
+          <thead>
+            <tr><th>Estrategia</th><th>Ideal para</th><th>Pro</th><th>Contra</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Anticipado</td><td>EU, ticket &gt; $80</td><td>Caja segura</td><td>Fricción checkout</td></tr>
+            <tr><td>Contra entrega</td><td>CO, 1er pedido</td><td>Conversión alta</td><td>Rechazos</td></tr>
+            <tr><td>Híbrido</td><td>Multi-país</td><td>Flexibilidad</td><td>Requiere reglas</td></tr>
+          </tbody>
+        </table>
+        <div style="margin-top:14px;padding:11px 12px;background:var(--emerald-50);border:1px solid var(--emerald-100);border-radius:9px;font-size:11.5px;color:var(--emerald-800);line-height:1.45;">
+          <b>Configurable por canal:</b> define <code style="background:#fff;padding:1px 5px;border-radius:4px;font-size:10.5px;">requirePrepayMin</code>,
+          <code style="background:#fff;padding:1px 5px;border-radius:4px;font-size:10.5px;">prepayDiscountPct</code> y
+          <code style="background:#fff;padding:1px 5px;border-radius:4px;font-size:10.5px;">codFee</code> en Settings.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="slide-footer">
+    <div class="left"><span class="dot"></span> CommerceFlow OS · Vende por chat, mide como un data-driver</div>
+    <div class="right"><b>06</b> / 17</div>
+  </div>
+</section>
+
+<!-- ============================================ SLIDE 7 — ATTRIBUTION ============================================ -->
+<section class="slide" id="slide-7">
+  <div class="slide-header">
+    <div class="slide-eyebrow">Módulo 3 · El game-changer</div>
+    <div class="brand"><div class="brand-mark"><span class="material-icons">bolt</span></div><div class="brand-name">CommerceFlow<span class="accent"> OS</span></div></div>
+  </div>
+
+  <div class="slide-body">
+    <div class="body-wrap">
+      <div>
+        <div class="head">
+          <h2 class="h-title">Atribución de pauta: <span class="em">la diferencia</span></h2>
+          <p class="sub">Sabes EXACTAMENTE qué anuncio genera venta —en cantidad y valor— y cuál quema plata. No lo que dice Meta, lo que dice tu caja.</p>
+        </div>
+
+        <div class="metrics">
+          <div class="metric">
+            <div class="k">CPA</div>
+            <div class="v">Real</div>
+            <div class="d">Costo por adquisición por anuncio</div>
+          </div>
+          <div class="metric">
+            <div class="k">ROAS</div>
+            <div class="v">Real</div>
+            <div class="d">Ingreso / inversión publicitaria</div>
+          </div>
+          <div class="metric">
+            <div class="k">ROI</div>
+            <div class="v">Neto</div>
+            <div class="d">Utilidad neta tras COGS y pauta</div>
+          </div>
+        </div>
+
+        <div class="canni">
+          <div class="ic"><span class="material-icons">warning</span></div>
+          <div>
+            <h4>Detección de canibalización</h4>
+            <p>Identificamos anuncios que reportan conversiones pero generan cero pedidos reales o se apropian del crédito de otro. Marca automática: <b>cannibalize</b>.</p>
+          </div>
+        </div>
+
+        <div style="margin-top:12px;padding:12px 14px;background:var(--slate-50);border:1px solid var(--slate-200);border-radius:10px;display:flex;align-items:center;gap:10px;">
+          <span class="material-icons" style="color:var(--emerald-600);font-size:18px;">verified</span>
+          <p style="font-size:12px;color:var(--slate-700);line-height:1.4;">Cada pedido queda vinculado al <b style="color:var(--slate-900);">externalId</b> (ad ID real de la plataforma) y al canal que originó la conversación.</p>
+        </div>
+      </div>
+
+      <div class="screenshot-wrap">
+        <div class="browser-bar">
+          <div class="dots"><span></span><span></span><span></span></div>
+          <div class="url">app.commerceflow.os/ads</div>
+          <div class="live"><span class="dot"></span> ATRIBUCIÓN</div>
+        </div>
+        <img src="ads.png" alt="Vista de atribución de pauta por anuncio con ROAS, ROI y verdict">
+        <div class="shot-caption"><span class="material-icons">verified</span> Vista real del producto · Ads Attribution</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="slide-footer">
+    <div class="left"><span class="dot"></span> CommerceFlow OS · Vende por chat, mide como un data-driver</div>
+    <div class="right"><b>07</b> / 17</div>
+  </div>
+</section>
+
+<!-- ============================================ SLIDE 8 — KILL SWITCH ============================================ -->
+<section class="slide" id="slide-8">
+  <div class="slide-header">
+    <div class="slide-eyebrow">Módulo 4 · Automatización</div>
+    <div class="brand"><div class="brand-mark"><span class="material-icons">bolt</span></div><div class="brand-name">CommerceFlow<span class="accent"> OS</span></div></div>
+  </div>
+
+  <div class="slide-body">
+    <div class="head">
+      <h2 class="h-title">Kill-switch automático</h2>
+      <p class="sub">Apaga anuncios perdedores con 1 clic o déjalo en automático. Escala los ganadores. Recupera presupuesto cada mes sin meter las manos.</p>
+    </div>
+
+    <div class="flow">
+      <div class="step s1">
+        <div class="num">01</div>
+        <div class="ic"><span class="material-icons">monitoring</span></div>
+        <h4>Detecta</h4>
+        <p>El motor evalúa cada anuncio contra tus umbrales: <b>ROAS mínimo</b> y <b>CPA objetivo</b>.</p>
+      </div>
+      <div class="step s2">
+        <div class="num">02</div>
+        <div class="ic"><span class="material-icons">notifications_active</span></div>
+        <h4>Alerta</h4>
+        <p>Verdict engine marca: scale, optimize, watch, pause, kill o cannibalize. Lo ves en el dashboard.</p>
+      </div>
+      <div class="step s3">
+        <div class="num">03</div>
+        <div class="ic"><span class="material-icons">power_settings_new</span></div>
+        <h4>Apaga</h4>
+        <p>1 clic o regla automática. Push del status change + entrada en audit log. Trazable.</p>
+      </div>
+      <div class="step s4">
+        <div class="num">04</div>
+        <div class="ic"><span class="material-icons">trending_up</span></div>
+        <h4>Escala</h4>
+        <p>El presupuesto liberado se reasigna a anuncios ganadores. Más ROAS sin más inversión.</p>
+      </div>
+    </div>
+
+    <div class="impact">
+      <div class="impact-card">
+        <div class="label">Recupera hasta</div>
+        <div class="value">30%</div>
+        <div class="desc">del presupuesto de pauta mensual al apagar perdedores automáticos.</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Audit log</div>
+        <div class="value"><span class="em">100%</span></div>
+        <div class="desc">Trazable: quién, cuándo, por qué se apagó o escaló cada anuncio.</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Modos</div>
+        <div class="value"><span class="em">Manual</span> + Auto</div>
+        <div class="desc">Reglas por umbral o control total. Tú decides el nivel de automatización.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="slide-footer">
+    <div class="left"><span class="dot"></span> CommerceFlow OS · Vende por chat, mide como un data-driver</div>
+    <div class="right"><b>08</b> / 17</div>
+  </div>
+</section>
+
+<!-- ============================================ SLIDE 9 — AI ============================================ -->
+<section class="slide" id="slide-9">
+  <div class="slide-header">
+    <div class="slide-eyebrow">Módulo 5 · IA</div>
+    <div class="brand"><div class="brand-mark"><span class="material-icons">bolt</span></div><div class="brand-name">CommerceFlow<span class="accent"> OS</span></div></div>
+  </div>
+
+  <div class="slide-body">
+    <div class="body-wrap">
+      <div>
+        <div class="head">
+          <h2 class="h-title">IA conversacional con <span class="em">contexto</span></h2>
+          <p class="sub">Sugerencias de respuesta que conocen tu catálogo, tu estrategia de pago por canal y el historial del cliente. El asesor aprueba, no escribe desde cero.</p>
+        </div>
+        <div class="features">
+          <div class="feature">
+            <div class="ic"><span class="material-icons">inventory_2</span></div>
+            <div>
+              <h4>Catálogo en vivo</h4>
+              <p>La IA sugiere productos con precio, stock y variaciones reales.</p>
+            </div>
+          </div>
+          <div class="feature">
+            <div class="ic"><span class="material-icons">tune</span></div>
+            <div>
+              <h4>Estrategia de pago</h4>
+              <p>Respeta las reglas: anticipado, contra entrega o híbrido por canal/país.</p>
+            </div>
+          </div>
+          <div class="feature">
+            <div class="ic"><span class="material-icons">history</span></div>
+            <div>
+              <h4>Historial del cliente</h4>
+              <p>Conversaciones y pedidos previos informan cada respuesta sugerida.</p>
+            </div>
+          </div>
+          <div class="feature">
+            <div class="ic"><span class="material-icons">verified_user</span></div>
+            <div>
+              <h4>Humano en el loop</h4>
+              <p>El asesor aprueba antes de enviar. Cero respuestas fantasma, cero descontrol.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="demo-card">
+        <span class="deco material-icons">psychology</span>
+        <div class="label">Demo IA · LLM contextual</div>
+        <h3>Menos escritura,<br>más cierre.</h3>
+        <div class="chat">
+          <div class="bubble in">Hola, ¿el sérum vit C viene para piel grasa?</div>
+          <div class="bubble ai">
+            <span class="tag">SUGERENCIA IA</span>
+            ¡Hola! Sí, el Sérum Vit C Glow es apto para piel grasa (texture ligera, no comedogénico). Precio $89.000. ¿Te lo envío contra entrega en Bogotá o anticipado con 10% off?
+          </div>
+          <div class="bubble out">¡Hola! Sí, el Sérum Vit C Glow es apto para piel grasa. $89.000. ¿Contra entrega o anticipado con 10% off?</div>
+        </div>
+        <div class="stats-row">
+          <div class="stat">
+            <div class="lbl">Tiempo de respuesta</div>
+            <div class="v">12' <span class="arrow">→</span> 2'</div>
+          </div>
+          <div class="stat">
+            <div class="lbl">Capacidad por asesor</div>
+            <div class="v">3x</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="slide-footer">
+    <div class="left"><span class="dot"></span> CommerceFlow OS · Vende por chat, mide como un data-driver</div>
+    <div class="right"><b>09</b> / 17</div>
+  </div>
+</section>
+
+<!-- ============================================ SLIDE 10 — ROI MATH ============================================ -->
+<section class="slide" id="slide-10">
+  <div class="slide-header">
+    <div class="slide-eyebrow">El negocio · ROI</div>
+    <div class="brand"><div class="brand-mark"><span class="material-icons">bolt</span></div><div class="brand-name">CommerceFlow<span class="accent"> OS</span></div></div>
+  </div>
+
+  <div class="slide-body">
+    <div class="head">
+      <h2 class="h-title">La matemática del ROI <span class="em">en COP</span></h2>
+      <p class="sub">Caso concreto: una marca de belleza en Colombia con $1.650.000 COP/mes en pauta.</p>
+    </div>
+
+    <div class="layout">
+      <div class="roi-table">
+        <h5>Proyección mensual · Una marca tipo</h5>
+        <table>
+          <thead>
+            <tr>
+              <th>Concepto</th>
+              <th class="r">Sin CF OS</th>
+              <th class="r">Con CF OS</th>
+              <th class="r">Δ</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="label">Inversión pauta / mes</td>
+              <td class="r">$1.650.000</td>
+              <td class="r">$1.155.000</td>
+              <td class="r delta">-$495.000</td>
+            </tr>
+            <tr>
+              <td class="label">Conversión (chat → pedido)</td>
+              <td class="r">2,0%</td>
+              <td class="r">2,1%</td>
+              <td class="r delta">+5%</td>
+            </tr>
+            <tr>
+              <td class="label">Pedidos / mes</td>
+              <td class="r">320</td>
+              <td class="r">336</td>
+              <td class="r delta">+16</td>
+            </tr>
+            <tr>
+              <td class="label">Ingreso atribuido / mes</td>
+              <td class="r">$28.800.000</td>
+              <td class="r">$31.080.000</td>
+              <td class="r delta">+$2.280.000</td>
+            </tr>
+            <tr>
+              <td class="label">ROAS pauta</td>
+              <td class="r">1,8x</td>
+              <td class="r">2,7x</td>
+              <td class="r delta">+50%</td>
+            </tr>
+            <tr>
+              <td class="label">Pauta desperdiciada</td>
+              <td class="r">$495.000</td>
+              <td class="r">$0</td>
+              <td class="r delta">-100%</td>
+            </tr>
+            <tr class="total-row">
+              <td class="label">Ganancia neta extra / mes</td>
+              <td class="r">—</td>
+              <td class="r">≈ $2.775.000</td>
+              <td class="r">Δ</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="right-col">
+        <div class="payback">
+          <div class="label">Payback</div>
+          <div class="v">&lt; 2 meses</div>
+          <div class="d">La solución se paga sola en menos de 60 días solo con el ahorro de pauta.</div>
+        </div>
+        <div class="assumption">
+          <h6>Supuestos del cálculo</h6>
+          <ul>
+            <li><span class="material-icons">check_circle</span> Ahorro 30% al apagar anuncios perdedores con kill-switch.</li>
+            <li><span class="material-icons">check_circle</span> +5% conversión por respuesta rápida (IA + bandeja única).</li>
+            <li><span class="material-icons">check_circle</span> AOV promedio $90.000 COP, margen bruto 45%.</li>
+            <li><span class="material-icons">check_circle</span> Plan Growth $299 USD/mes incluido.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="slide-footer">
+    <div class="left"><span class="dot"></span> CommerceFlow OS · Vende por chat, mide como un data-driver</div>
+    <div class="right"><b>10</b> / 17</div>
+  </div>
+</section>
+
+<!-- ============================================ SLIDE 11 — CHANNELS ============================================ -->
+<section class="slide" id="slide-11">
+  <div class="slide-header">
+    <div class="slide-eyebrow">Integraciones · Canales</div>
+    <div class="brand"><div class="brand-mark"><span class="material-icons">bolt</span></div><div class="brand-name">CommerceFlow<span class="accent"> OS</span></div></div>
+  </div>
+
+  <div class="slide-body">
+    <div class="head">
+      <h2 class="h-title">Canales soportados</h2>
+      <p class="sub">Donde tus clientes ya están. Hoy: WhatsApp Business API, Messenger e Instagram. Próximamente: Telegram y Mercado Libre.</p>
+    </div>
+
+    <div class="ch-grid">
+      <div class="ch-card wa">
+        <div class="top">
+          <div class="ic"><span class="material-icons">chat</span></div>
+          <div>
+            <h4>WhatsApp Business API</h4>
+            <div class="region">Colombia · México · LATAM</div>
+          </div>
+        </div>
+        <div class="status"><span class="dot"></span> Disponible</div>
+        <ul>
+          <li><span class="material-icons">check</span> Canal primario en Colombia (87% penetración)</li>
+          <li><span class="material-icons">check</span> Plantillas HSM, sesión 24h, botones</li>
+          <li><span class="material-icons">check</span> Webhook oficial + verificación</li>
+          <li><span class="material-icons">check</span> Atribución de campaña por click-to-chat</li>
+        </ul>
+      </div>
+
+      <div class="ch-card ms">
+        <div class="top">
+          <div class="ic"><span class="material-icons">forum</span></div>
+          <div>
+            <h4>Facebook Messenger</h4>
+            <div class="region">Global · Europa · Internacional</div>
+          </div>
+        </div>
+        <div class="status"><span class="dot"></span> Disponible</div>
+        <ul>
+          <li><span class="material-icons">check</span> Canal primario para EU y otros países</li>
+          <li><span class="material-icons">check</span> Integración con Meta Ads y UTM</li>
+          <li><span class="material-icons">check</span> Quick replies y botones persistentes</li>
+          <li><span class="material-icons">check</span> Ideal para anticipado + checkout</li>
+        </ul>
+      </div>
+
+      <div class="ch-card ig">
+        <div class="top">
+          <div class="ic"><span class="material-icons">photo_camera</span></div>
+          <div>
+            <h4>Instagram DM</h4>
+            <div class="region">Global · Beauty & Lifestyle</div>
+          </div>
+        </div>
+        <div class="status"><span class="dot"></span> Disponible</div>
+        <ul>
+          <li><span class="material-icons">check</span> Esencial para marcas de belleza</li>
+          <li><span class="material-icons">check</span> Conexión con Meta Business Suite</li>
+          <li><span class="material-icons">check</span> Atribución por anuncio de IG</li>
+          <li><span class="material-icons">check</span> Catálogo clickable en chat</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="roadmap-strip">
+      <div class="lbl">Próximamente<span class="sub">Ampliando el alcance conversacional</span></div>
+      <div class="items">
+        <div class="item"><span class="material-icons">send</span> Telegram <span class="when">Q2 2025</span></div>
+        <div class="item"><span class="material-icons">storefront</span> Mercado Libre <span class="when">Q3 2025</span></div>
+        <div class="item"><span class="material-icons">record_voice_over</span> Voice <span class="when">Q3 2025</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="slide-footer">
+    <div class="left"><span class="dot"></span> CommerceFlow OS · Vende por chat, mide como un data-driver</div>
+    <div class="right"><b>11</b> / 17</div>
+  </div>
+</section>
+
+<!-- ============================================ SLIDE 12 — AD PLATFORMS ============================================ -->
+<section class="slide" id="slide-12">
+  <div class="slide-header">
+    <div class="slide-eyebrow">Integraciones · Pauta</div>
+    <div class="brand"><div class="brand-mark"><span class="material-icons">bolt</span></div><div class="brand-name">CommerceFlow<span class="accent"> OS</span></div></div>
+  </div>
+
+  <div class="slide-body">
+    <div class="head">
+      <h2 class="h-title">Plataformas de pauta conectadas</h2>
+      <p class="sub">Atribución last-click configurable. Tú decides cómo se reparte el crédito entre touchpoints.</p>
+    </div>
+
+    <div class="layout">
+      <div class="plat-grid">
+        <div class="plat-card meta">
+          <div class="ic"><span class="material-icons">campaign</span></div>
+          <h4>Meta Ads</h4>
+          <div class="desc">Facebook + Instagram</div>
+          <ul>
+            <li><span class="material-icons">check</span> Ad ID + UTM por conversación</li>
+            <li><span class="material-icons">check</span> Spend, impresiones, clicks</li>
+            <li><span class="material-icons">check</span> Kill-switch vía API</li>
+            <li><span class="material-icons">check</span> Cannibalization detect</li>
+          </ul>
+        </div>
+        <div class="plat-card google">
+          <div class="ic"><span class="material-icons">ads_click</span></div>
+          <h4>Google Ads</h4>
+          <div class="desc">Search + Display + YouTube</div>
+          <ul>
+            <li><span class="material-icons">check</span> GCLID + conversiones reales</li>
+            <li><span class="material-icons">check</span> CPA por campaña y ad group</li>
+            <li><span class="material-icons">check</span> ROAS por palabra clave</li>
+            <li><span class="material-icons">check</span> Pause / resume bid</li>
+          </ul>
+        </div>
+        <div class="plat-card tiktok">
+          <div class="ic"><span class="material-icons">music_note</span></div>
+          <h4>TikTok Ads</h4>
+          <div class="desc">Spark + In-feed</div>
+          <ul>
+            <li><span class="material-icons">check</span> TikTok click ID (ttclid)</li>
+            <li><span class="material-icons">check</span> Spend y conv reportada</li>
+            <li><span class="material-icons">check</span> Verificación de pedidos</li>
+            <li><span class="material-icons">check</span> Escala ganadores</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="attr-models">
+        <div class="lbl">Atribución</div>
+        <h3>Configurable, no impuesta</h3>
+        <p class="desc">Elige cómo se reparte el crédito entre touchpoints. Cambia el modelo según tu canal y madurez.</p>
+        <div class="model-list">
+          <div class="model">
+            <div class="ic"><span class="material-icons">last_page</span></div>
+            <div>
+              <div class="name">Last-click</div>
+              <div class="ex">100% al último anuncio (default Meta/Google).</div>
+            </div>
+          </div>
+          <div class="model">
+            <div class="ic"><span class="material-icons">first_page</span></div>
+            <div>
+              <div class="name">First-touch</div>
+              <div class="ex">Crédito al primer contacto que atrajo al cliente.</div>
+            </div>
+          </div>
+          <div class="model">
+            <div class="ic"><span class="material-icons">linear_scale</span></div>
+            <div>
+              <div class="name">Lineal</div>
+              <div class="ex">Reparte equitativamente entre todos los touchpoints.</div>
+            </div>
+          </div>
+          <div class="model">
+            <div class="ic"><span class="material-icons">schedule</span></div>
+            <div>
+              <div class="name">Time-decay</div>
+              <div class="ex">Pesa más el anuncio más cercano a la conversión.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="slide-footer">
+    <div class="left"><span class="dot"></span> CommerceFlow OS · Vende por chat, mide como un data-driver</div>
+    <div class="right"><b>12</b> / 17</div>
+  </div>
+</section>
+
+<!-- ============================================ SLIDE 13 — SECURITY ============================================ -->
+<section class="slide" id="slide-13">
+  <div class="slide-header">
+    <div class="slide-eyebrow">Confianza · Seguridad</div>
+    <div class="brand"><div class="brand-mark"><span class="material-icons">bolt</span></div><div class="brand-name">CommerceFlow<span class="accent"> OS</span></div></div>
+  </div>
+
+  <div class="slide-body">
+    <div class="head">
+      <h2 class="h-title">Seguridad y cumplimiento</h2>
+      <p class="sub">Cumplimos los marcos de LATAM y Europa. Tus datos y los de tus clientes, protegidos por diseño.</p>
+    </div>
+
+    <div class="compliance-grid">
+      <div class="compliance-card">
+        <div class="ic"><span class="material-icons">gavel</span></div>
+        <div>
+          <h4>Ley 1581 de 2012</h4>
+          <div class="region">Colombia</div>
+          <p>Protección de datos personales: consentimiento, finalidad, derechos ARCO.</p>
+        </div>
+      </div>
+      <div class="compliance-card">
+        <div class="ic"><span class="material-icons">shield</span></div>
+        <div>
+          <h4>GDPR</h4>
+          <div class="region">Unión Europea</div>
+          <p>Right to access, rectify, erasure. Data processing agreements disponibles.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="features-strip">
+      <div class="feat">
+        <div class="ic"><span class="material-icons">lock</span></div>
+        <div>
+          <h5>Datos cifrados</h5>
+          <p>En tránsito (TLS 1.3) y reposo (AES-256).</p>
+        </div>
+      </div>
+      <div class="feat">
+        <div class="ic"><span class="material-icons">vpn_key</span></div>
+        <div>
+          <h5>Tokens en vault</h5>
+          <p>Credenciales de API separadas del app code.</p>
+        </div>
+      </div>
+      <div class="feat">
+        <div class="ic"><span class="material-icons">verified</span></div>
+        <div>
+          <h5>Webhooks firmados</h5>
+          <p>Verificación HMAC en cada evento entrante.</p>
+        </div>
+      </div>
+      <div class="feat">
+        <div class="ic"><span class="material-icons">manage_history</span></div>
+        <div>
+          <h5>Audit log</h5>
+          <p>Cada cambio de status, kill-switch o escala queda registrado.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="config-strip">
+      <div class="config-text">
+        <h5>Configuración por canal, trazable</h5>
+        <p>En Settings defines estrategia de pago por canal, umbrales de CPA/ROAS y webhooks firmados. Todo queda versionado en audit log.</p>
+        <div class="chips">
+          <span class="chip">Estrategia pago</span>
+          <span class="chip">Umbrales CPA/ROAS</span>
+          <span class="chip">Webhooks HMAC</span>
+          <span class="chip">Tokens vault</span>
+        </div>
+      </div>
+      <div class="config-shot">
+        <img src="settings.png" alt="Vista de configuración de seguridad y cumplimiento">
+        <div class="cap"><span class="material-icons">verified</span> Settings real</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="slide-footer">
+    <div class="left"><span class="dot"></span> CommerceFlow OS · Vende por chat, mide como un data-driver</div>
+    <div class="right"><b>13</b> / 17</div>
+  </div>
+</section>
+
+<!-- ============================================ SLIDE 14 — PRICING ============================================ -->
+<section class="slide" id="slide-14">
+  <div class="slide-header">
+    <div class="slide-eyebrow">Planes</div>
+    <div class="brand"><div class="brand-mark"><span class="material-icons">bolt</span></div><div class="brand-name">CommerceFlow<span class="accent"> OS</span></div></div>
+  </div>
+
+  <div class="slide-body">
+    <div class="head">
+      <div>
+        <h2 class="h-title">Planes que escalan contigo</h2>
+        <p class="sub">Sin letra pequeña. Comisiona solo si quieres alinearnos con tu crecimiento.</p>
+      </div>
+      <div class="right-note">
+        <b>+ Comisión opcional</b><br>
+        1-2% sobre ventas atribuidas (solo plan Growth y Scale).
+      </div>
+    </div>
+
+    <div class="price-grid">
+      <div class="price-card">
+        <div class="tier">Starter</div>
+        <h3>Primer canal</h3>
+        <div class="desc">Para marcas que arrancan con WhatsApp en Colombia.</div>
+        <div class="price"><span class="amt">$99</span><span class="per">USD / mes</span></div>
+        <ul class="feats">
+          <li><span class="material-icons">check</span> 1 canal (WhatsApp o Messenger)</li>
+          <li><span class="material-icons">check</span> 1 país</li>
+          <li><span class="material-icons">check</span> Hasta 500 conversaciones / mes</li>
+          <li><span class="material-icons">check</span> Pedidos + pagos básicos</li>
+          <li><span class="material-icons">check</span> Atribución last-click</li>
+          <li><span class="material-icons">check</span> Soporte email</li>
+        </ul>
+        <div class="cta">Empezar</div>
+      </div>
+
+      <div class="price-card featured">
+        <div class="ribbon">Más popular</div>
+        <div class="tier">Growth</div>
+        <h3>Omnicanal</h3>
+        <div class="desc">Para marcas que escalan a multi-país con atribución + IA.</div>
+        <div class="price"><span class="amt">$299</span><span class="per">USD / mes</span></div>
+        <ul class="feats">
+          <li><span class="material-icons">check</span> WhatsApp + Messenger + Instagram</li>
+          <li><span class="material-icons">check</span> Multi-país (CO, MX, ES, DE)</li>
+          <li><span class="material-icons">check</span> 5.000 conversaciones / mes</li>
+          <li><span class="material-icons">check</span> Pagos: anticipado + COD + híbrido</li>
+          <li><span class="material-icons">check</span> Atribución multi-modelo + IA</li>
+          <li><span class="material-icons">check</span> Kill-switch automático</li>
+          <li><span class="material-icons">check</span> Soporte prioritario</li>
+        </ul>
+        <div class="cta">Escalar ahora</div>
+      </div>
+
+      <div class="price-card">
+        <div class="tier">Scale</div>
+        <h3>Multi-cuenta</h3>
+        <div class="desc">Para operaciones con varias marcas y agencias.</div>
+        <div class="price"><span class="amt">$799</span><span class="per">USD / mes</span></div>
+        <ul class="feats">
+          <li><span class="material-icons">check</span> Todo lo de Growth</li>
+          <li><span class="material-icons">check</span> Multi-cuenta de pauta</li>
+          <li><span class="material-icons">check</span> IA avanzada + reglas custom</li>
+          <li><span class="material-icons">check</span> Conversaciones ilimitadas</li>
+          <li><span class="material-icons">check</span> API + webhooks + SSO</li>
+          <li><span class="material-icons">check</span> SLA 99,9% + onboarding</li>
+          <li><span class="material-icons">check</span> Customer Success dedicado</li>
+        </ul>
+        <div class="cta">Hablar con ventas</div>
+      </div>
+    </div>
+
+    <div class="commission-note">
+      <div class="ic"><span class="material-icons">handshake</span></div>
+      <p><b>Modelo alineado:</b> la comisión opcional solo aplica sobre ventas atribuidas por CommerceFlow OS. Si no generamos venta medible, no cobramos comisión.</p>
+    </div>
+  </div>
+
+  <div class="slide-footer">
+    <div class="left"><span class="dot"></span> CommerceFlow OS · Vende por chat, mide como un data-driver</div>
+    <div class="right"><b>14</b> / 17</div>
+  </div>
+</section>
+
+<!-- ============================================ SLIDE 15 — ROADMAP ============================================ -->
+<section class="slide" id="slide-15">
+  <div class="slide-header">
+    <div class="slide-eyebrow">Hoja de ruta</div>
+    <div class="brand"><div class="brand-mark"><span class="material-icons">bolt</span></div><div class="brand-name">CommerceFlow<span class="accent"> OS</span></div></div>
+  </div>
+
+  <div class="slide-body">
+    <div class="head">
+      <h2 class="h-title">Roadmap 2025</h2>
+      <p class="sub">De bandeja unificada a plataforma predictiva multi-canal. Cada trimestre, una capa nueva de valor.</p>
+    </div>
+
+    <div class="timeline">
+      <div class="q-card done">
+        <div class="status">En vivo</div>
+        <div class="q-mark">Q1</div>
+        <h4>Omnicanal + atribución</h4>
+        <ul>
+          <li><span class="material-icons">check_circle</span> Bandeja WA + Messenger + IG</li>
+          <li><span class="material-icons">check_circle</span> Pedidos + 3 estrategias de pago</li>
+          <li><span class="material-icons">check_circle</span> Atribución por anuncio (CPA/ROAS/ROI)</li>
+          <li><span class="material-icons">check_circle</span> Kill-switch + audit log</li>
+          <li><span class="material-icons">check_circle</span> IA sugerencias contextuales</li>
+        </ul>
+      </div>
+
+      <div class="q-card now">
+        <div class="status">En curso</div>
+        <div class="q-mark">Q2</div>
+        <h4>IA ventas proactivas + cobro</h4>
+        <ul>
+          <li><span class="material-icons">arrow_forward</span> IA proactiva: recupera carritos</li>
+          <li><span class="material-icons">arrow_forward</span> Cobro automatizado (Wompi, Stripe)</li>
+          <li><span class="material-icons">arrow_forward</span> Plantillas HSM dinámicas</li>
+          <li><span class="material-icons">arrow_forward</span> Telegram + insights de agente</li>
+        </ul>
+      </div>
+
+      <div class="q-card next">
+        <div class="status">Próximo</div>
+        <div class="q-mark">Q3</div>
+        <h4>Marketplace + voice</h4>
+        <ul>
+          <li><span class="material-icons">schedule</span> Integración Mercado Libre</li>
+          <li><span class="material-icons">schedule</span> Voice commerce (WhatsApp audio)</li>
+          <li><span class="material-icons">schedule</span> Catálogo distribuido multicanal</li>
+          <li><span class="material-icons">schedule</span> Reglas de cobranza avanzadas</li>
+        </ul>
+      </div>
+
+      <div class="q-card next">
+        <div class="status">Visión</div>
+        <div class="q-mark">Q4</div>
+        <h4>BI predictivo + expansión</h4>
+        <ul>
+          <li><span class="material-icons">schedule</span> BI predictivo de demanda</li>
+          <li><span class="material-icons">schedule</span> Forecasting de ROAS por anuncio</li>
+          <li><span class="material-icons">schedule</span> Expansión regional (BR, AR, CL)</li>
+          <li><span class="material-icons">schedule</span> Marketplace de apps conversacionales</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="slide-footer">
+    <div class="left"><span class="dot"></span> CommerceFlow OS · Vende por chat, mide como un data-driver</div>
+    <div class="right"><b>15</b> / 17</div>
+  </div>
+</section>
+
+<!-- ============================================ SLIDE 16 — WHY NOW ============================================ -->
+<section class="slide" id="slide-16">
+  <span class="ghost-grid"></span>
+  <div class="slide-header">
+    <div class="slide-eyebrow">Oportunidad</div>
+    <div class="brand"><div class="brand-mark" style="background:rgba(255,255,255,.15);"><span class="material-icons">bolt</span></div><div class="brand-name" style="color:#fff;">CommerceFlow<span class="accent" style="color:var(--emerald-300);"> OS</span></div></div>
+  </div>
+
+  <div class="slide-body">
+    <div class="head">
+      <h2 class="h-title">Por qué <span class="em">ahora</span>.</h2>
+      <p class="sub">El comercio conversacional en LATAM no es el futuro: es el presente. La ventana para liderar se cierra rápido.</p>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-block">
+        <div class="label">Crecimiento anual LATAM</div>
+        <div class="v">40<span class="small">%</span></div>
+        <div class="desc">Commerce conversacional en LATAM crece a esta tasa. Quien mide primero, escala más rápido.</div>
+      </div>
+      <div class="stat-block">
+        <div class="label">Penetración WhatsApp CO</div>
+        <div class="v">87<span class="small">%</span></div>
+        <div class="desc">De la población colombiana usa WhatsApp. Tu canal de ventas ya está en el bolsillo del cliente.</div>
+      </div>
+      <div class="stat-block">
+        <div class="label">Pauta sin atribución</div>
+        <div class="v">1<span class="small"> de 3</span></div>
+        <div class="desc">Pesos en pauta se pierden por anuncios perdedores que nadie apaga. Más motivo para tener kill-switch.</div>
+      </div>
+    </div>
+
+    <div class="opportunity">
+      <div class="ic"><span class="material-icons">rocket_launch</span></div>
+      <div>
+        <h4>La ventana de oportunidad está abierta — pero no para siempre.</h4>
+        <p>Las marcas que instalen atribución real y automatización de pauta en los próximos 12 meses capturarán participación antes de que la categoría se sature.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="slide-footer">
+    <div class="left" style="color:rgba(255,255,255,.5);"><span class="dot" style="background:var(--emerald-400);"></span> <span style="color:rgba(255,255,255,.7);">CommerceFlow OS · Vende por chat, mide como un data-driver</span></div>
+    <div class="right" style="color:rgba(255,255,255,.5);"><b style="color:var(--emerald-300);">16</b> / 17</div>
+  </div>
+</section>
+
+<!-- ============================================ SLIDE 17 — CTA ============================================ -->
+<section class="slide" id="slide-17">
+  <span class="ghost-bolt material-icons">bolt</span>
+  <span class="ghost-grid"></span>
+
+  <div class="top-bar">
+    <div class="brand">
+      <div class="brand-mark"><span class="material-icons">bolt</span></div>
+      <div class="brand-name">CommerceFlow<span class="accent"> OS</span></div>
+    </div>
+    <div class="top-meta">Cierre · CTA</div>
+  </div>
+
+  <div class="hero">
+    <div class="pill"><span class="dot"></span> Agenda tu demo privada</div>
+    <h1>Deja de adivinar.<br><span class="gradient">Empieza a medir.</span></h1>
+    <div class="sub">30 minutos. Te mostramos tu propio dashboard con datos reales. Sal con un plan de ROI en la mano.</div>
+  </div>
+
+  <div class="contact-bar">
+    <div class="contact-card">
+      <div class="item">
+        <div class="ic"><span class="material-icons">calendar_today</span></div>
+        <div>
+          <div class="lbl">Agenda</div>
+          <div class="v">commerceflow.os/demo</div>
+        </div>
+      </div>
+      <div class="divider"></div>
+      <div class="item">
+        <div class="ic"><span class="material-icons">mail</span></div>
+        <div>
+          <div class="lbl">Ventas</div>
+          <div class="v">hola@commerceflow.os</div>
+        </div>
+      </div>
+      <div class="divider"></div>
+      <div class="item">
+        <div class="ic"><span class="material-icons">whatsapp</span></div>
+        <div>
+          <div class="lbl">WhatsApp directo</div>
+          <div class="v">+57 300 000 0000</div>
+        </div>
+      </div>
+    </div>
+    <div class="cta-btn"><span class="material-icons">arrow_forward</span> Agendar demo</div>
+  </div>
+</section>
+
+</div>
+
+<!-- Navigation -->
+<div class="nav">
+  <button id="prevBtn" aria-label="Anterior"><span class="material-icons">chevron_left</span></button>
+  <div class="counter"><b id="curNum">1</b> / <span id="totalNum">17</span></div>
+  <button id="nextBtn" aria-label="Siguiente"><span class="material-icons">chevron_right</span></button>
+  <div class="dots" id="dots"></div>
+</div>
+
+<script>
+(function(){
+  const slides = document.querySelectorAll('.slide');
+  const total = slides.length;
+  let cur = 0;
+
+  const prevBtn = document.getElementById('prevBtn');
+  const nextBtn = document.getElementById('nextBtn');
+  const curNum = document.getElementById('curNum');
+  const totalNum = document.getElementById('totalNum');
+  const dotsWrap = document.getElementById('dots');
+  const deck = document.getElementById('deck');
+
+  totalNum.textContent = total;
+
+  // Build dots
+  for(let i=0;i<total;i++){
+    const d = document.createElement('div');
+    d.className = 'd' + (i===0?' active':'');
+    d.addEventListener('click', ()=>goTo(i));
+    dotsWrap.appendChild(d);
+  }
+  const dots = dotsWrap.querySelectorAll('.d');
+
+  function goTo(i){
+    if(i<0) i=0;
+    if(i>=total) i=total-1;
+    slides[cur].classList.remove('active');
+    dots[cur].classList.remove('active');
+    cur = i;
+    slides[cur].classList.add('active');
+    dots[cur].classList.add('active');
+    curNum.textContent = cur+1;
+    prevBtn.disabled = cur===0;
+    nextBtn.disabled = cur===total-1;
+  }
+
+  prevBtn.addEventListener('click', ()=>goTo(cur-1));
+  nextBtn.addEventListener('click', ()=>goTo(cur+1));
+
+  document.addEventListener('keydown', (e)=>{
+    if(e.key==='ArrowRight' || e.key===' ' || e.key==='PageDown'){ e.preventDefault(); goTo(cur+1); }
+    else if(e.key==='ArrowLeft' || e.key==='PageUp'){ e.preventDefault(); goTo(cur-1); }
+    else if(e.key==='Home'){ goTo(0); }
+    else if(e.key==='End'){ goTo(total-1); }
+  });
+
+  // Scale deck to fit viewport
+  function scaleDeck(){
+    const sx = window.innerWidth / 1280;
+    const sy = window.innerHeight / 720;
+    const s = Math.min(sx, sy, 1);
+    deck.style.transform = `scale(${s})`;
+  }
+  scaleDeck();
+  window.addEventListener('resize', scaleDeck);
+
+  goTo(0);
+})();
+</script>
+</body>
+</html>

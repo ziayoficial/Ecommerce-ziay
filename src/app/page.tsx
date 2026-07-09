@@ -6,6 +6,7 @@ import { OverviewView } from '@/components/dashboard/overview-view'
 import { MessengerView } from '@/components/dashboard/messenger-view'
 import { OrdersView } from '@/components/dashboard/orders-view'
 import { AdsView } from '@/components/dashboard/ads-view'
+import { MonetizationView } from '@/components/dashboard/monetization-view'
 import { SettingsView } from '@/components/dashboard/settings-view'
 import { NAV_ITEMS } from '@/components/dashboard/sidebar'
 import { Zap, Github, BookOpen } from 'lucide-react'
@@ -31,6 +32,7 @@ export default function Home() {
               {view === 'messenger' && <MessengerView />}
               {view === 'orders' && <OrdersView />}
               {view === 'ads' && <AdsView />}
+              {view === 'monetization' && <MonetizationView />}
               {view === 'settings' && <SettingsView />}
             </div>
           </main>

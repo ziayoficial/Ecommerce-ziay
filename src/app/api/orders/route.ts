@@ -5,9 +5,11 @@ export async function GET(req: NextRequest) {
   const status = req.nextUrl.searchParams.get('status') || undefined
   const mode = req.nextUrl.searchParams.get('mode') || undefined
   const q = req.nextUrl.searchParams.get('q') || undefined
+  const tenantId = req.nextUrl.searchParams.get('tenantId') || undefined
 
   const orders = await db.order.findMany({
     where: {
+      ...(tenantId ? { tenantId } : {}),
       ...(status && status !== 'all' ? { status } : {}),
       ...(mode && mode !== 'all' ? { paymentMode: mode } : {}),
       ...(q ? { number: { contains: q } } : {}),

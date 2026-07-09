@@ -1,6 +1,7 @@
 'use client'
+import { useEffect } from 'react'
 import { useTheme } from 'next-themes'
-import { Sun, Moon, Search, Bell, Globe } from 'lucide-react'
+import { Sun, Moon, Search, Bell, Globe, Building2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -8,6 +9,7 @@ import {
 } from '@/components/ui/select'
 import { ViewId, NAV_ITEMS } from './sidebar'
 import { useMounted } from '@/hooks/use-mounted'
+import { useTenantStore } from '@/hooks/use-tenant'
 
 export function Topbar({ active, country, onCountryChange }: {
   active: ViewId
@@ -17,6 +19,11 @@ export function Topbar({ active, country, onCountryChange }: {
   const { theme, setTheme } = useTheme()
   const mounted = useMounted()
   const item = NAV_ITEMS.find(n => n.id === active)
+  const { tenants, activeTenant, setTenants, setActive } = useTenantStore()
+
+  useEffect(() => {
+    fetch('/api/tenants').then(r => r.json()).then(d => setTenants(d.tenants || []))
+  }, [setTenants])
 
   return (
     <header className="h-16 shrink-0 border-b bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-30">
@@ -28,11 +35,33 @@ export function Topbar({ active, country, onCountryChange }: {
             {active === 'messenger' && 'Bandeja unificada WhatsApp + Messenger + Instagram · atribución de campaña'}
             {active === 'orders' && 'Gestión de pedidos · pago anticipado, contra entrega e híbrido configurable'}
             {active === 'ads' && 'Rendimiento por anuncio · CPA, ROAS, ROI y detección de canibalización'}
-            {active === 'settings' && 'Estrategia de pago por canal/país · umbrales de auto-pausa'}
+            {active === 'monetization' && 'Comisión sobre GMV · reconocimiento en 2 momentos · embudo de cobro'}
+            {active === 'settings' && 'Estrategia de pago por canal/país · umbrales de auto-pausa · integraciones'}
           </p>
         </div>
 
-        <div className="hidden lg:flex items-center gap-2 w-64">
+        {/* Tenant switcher — multi-tenant core */}
+        <Select value={activeTenant?.id || ''} onValueChange={(v) => {
+          const t = tenants.find((x) => x.id === v)
+          if (t) setActive(t)
+        }}>
+          <SelectTrigger className="w-[170px] h-9 hidden md:flex">
+            <Building2 className="size-4 mr-1 text-primary" />
+            <SelectValue placeholder="Tenant" />
+          </SelectTrigger>
+          <SelectContent>
+            {tenants.map((t) => (
+              <SelectItem key={t.id} value={t.id}>
+                <span className="flex items-center gap-2">
+                  <span className="font-medium">{t.marca}</span>
+                  <span className="text-xs text-muted-foreground">· {t.planMonetizacion}</span>
+                </span>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <div className="hidden lg:flex items-center gap-2 w-56">
           <div className="relative flex-1">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
             <Input placeholder="Buscar pedido, cliente, ad ID..." className="pl-8 h-9" />
@@ -40,12 +69,12 @@ export function Topbar({ active, country, onCountryChange }: {
         </div>
 
         <Select value={country} onValueChange={onCountryChange}>
-          <SelectTrigger className="w-[130px] h-9 hidden sm:flex">
+          <SelectTrigger className="w-[120px] h-9 hidden sm:flex">
             <Globe className="size-4 mr-1 text-muted-foreground" />
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="ALL">Todos los países</SelectItem>
+            <SelectItem value="ALL">Todos</SelectItem>
             <SelectItem value="CO">🇨🇴 Colombia</SelectItem>
             <SelectItem value="MX">🇲🇽 México</SelectItem>
             <SelectItem value="ES">🇪🇸 España</SelectItem>
@@ -70,7 +99,7 @@ export function Topbar({ active, country, onCountryChange }: {
           <div className="size-8 rounded-full bg-primary/15 ring-1 ring-primary/25 flex items-center justify-center text-xs font-semibold text-primary">VR</div>
           <div className="text-xs leading-tight">
             <div className="font-medium">Valentina R.</div>
-            <div className="text-muted-foreground">Admin · CO</div>
+            <div className="text-muted-foreground">Admin · {activeTenant?.marca || '—'}</div>
           </div>
         </div>
       </div>

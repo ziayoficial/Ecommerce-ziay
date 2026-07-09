@@ -14,6 +14,7 @@ import {
 import { formatCurrency, shortDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
+import { useTenantId } from '@/hooks/use-tenant'
 import {
   CreditCard, Truck, CheckCircle2, Clock, XCircle, Search,
   TrendingUp, Wallet, Percent, Package,
@@ -54,6 +55,7 @@ const platformMeta = (p?: string) => {
 }
 
 export function OrdersView() {
+  const tenantId = useTenantId()
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState('all')
@@ -61,13 +63,14 @@ export function OrdersView() {
   const [q, setQ] = useState('')
 
   useEffect(() => {
+    if (!tenantId) return
     let cancelled = false
-    fetch(`/api/orders?status=${statusFilter}&mode=${modeFilter}&q=${encodeURIComponent(q)}`)
+    fetch(`/api/orders?status=${statusFilter}&mode=${modeFilter}&q=${encodeURIComponent(q)}&tenantId=${tenantId}`)
       .then(r => r.json())
       .then(d => { if (!cancelled) { setOrders(d.orders || []); setLoading(false) } })
       .catch(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [statusFilter, modeFilter, q])
+  }, [statusFilter, modeFilter, q, tenantId])
 
   const advanceOrders = orders.filter(o => o.paymentMode === 'advance')
   const codOrders = orders.filter(o => o.paymentMode === 'cod')

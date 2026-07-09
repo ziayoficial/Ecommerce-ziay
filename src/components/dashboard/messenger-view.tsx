@@ -12,11 +12,15 @@ import { Separator } from '@/components/ui/separator'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
 import { timeAgo, shortTime, formatCurrency } from '@/lib/format'
 import { getSocket } from '@/lib/socket'
 import { toast } from 'sonner'
+import { useTenantId } from '@/hooks/use-tenant'
 import {
   MessageCircle, Send, Sparkles, Phone, MapPin, Tag, Bot, User, Search,
   CircleDot, ArrowRight, ShoppingCart,
@@ -60,6 +64,7 @@ const statusMeta = (s: string) => {
 }
 
 export function MessengerView() {
+  const tenantId = useTenantId()
   const [convs, setConvs] = useState<ConvListItem[]>([])
   const [active, setActive] = useState<ConvDetail | null>(null)
   const [activeId, setActiveId] = useState<string | null>(null)
@@ -73,11 +78,12 @@ export function MessengerView() {
   const threadRef = useRef<HTMLDivElement>(null)
 
   const loadConvs = useCallback(async () => {
-    const res = await fetch(`/api/conversations?status=${filter}&channel=${channelFilter}&q=${encodeURIComponent(q)}`)
+    if (!tenantId) return
+    const res = await fetch(`/api/conversations?status=${filter}&channel=${channelFilter}&q=${encodeURIComponent(q)}&tenantId=${tenantId}`)
     const data = await res.json()
     setConvs(data.conversations || [])
     setLoading(false)
-  }, [filter, channelFilter, q])
+  }, [filter, channelFilter, q, tenantId])
 
   useEffect(() => { loadConvs() }, [loadConvs])
 
@@ -134,24 +140,29 @@ export function MessengerView() {
     // Persist via API
     await fetch('/api/conversations', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ conversationId: activeId, body: text }),
+      body: JSON.stringify({ tenantId, conversationId: activeId, body: text }),
     })
     // Broadcast via socket for other dashboards + simulated customer reply
     getSocket().emit('message:sent', { conversationId: activeId, body: text, agentName: 'Valentina' })
   }
 
-  const aiSuggest = async () => {
-    if (!activeId) return
+  const aiSuggest = async (agentName: string = 'speech') => {
+    if (!activeId || !tenantId) return
     setAiLoading(true)
     try {
-      const res = await fetch('/api/ai-reply', {
+      // Use the 10-agent system if agentName is specified, else fallback to generic ai-reply
+      const endpoint = agentName && agentName !== 'generic' ? `/api/agents/${agentName}` : '/api/ai-reply'
+      const body = agentName && agentName !== 'generic'
+        ? { tenantId, conversationId: activeId, customerId: active?.customer.id, perfil: (active as any)?.perfilConversacion || active?.customer.perfilDetectado }
+        : { conversationId: activeId }
+      const res = await fetch(endpoint, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ conversationId: activeId }),
+        body: JSON.stringify(body),
       })
       const data = await res.json()
       if (data.reply) setDraft(data.reply)
-      if (data.confidence < 0.5) toast.info('Respuesta de respaldo generada (IA no disponible en demo)')
-      else toast.success('Sugerencia de IA generada')
+      if (data.confidence < 0.5) toast.info('Respuesta de respaldo (IA no disponible — fallback determinístico)')
+      else toast.success(`Agente "${agentName}" generó sugerencia`)
     } catch {
       toast.error('No se pudo generar la sugerencia')
     } finally {
@@ -325,10 +336,52 @@ export function MessengerView() {
                 />
               </div>
               <div className="flex items-center justify-between gap-2">
-                <Button variant="outline" size="sm" onClick={aiSuggest} disabled={aiLoading} className="gap-1.5">
-                  <Sparkles className={cn('size-3.5', aiLoading && 'animate-pulse')} />
-                  {aiLoading ? 'Generando...' : 'Sugerir con IA'}
-                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" disabled={aiLoading} className="gap-1.5">
+                      <Sparkles className={cn('size-3.5', aiLoading && 'animate-pulse')} />
+                      {aiLoading ? 'Generando...' : 'Agentes IA'}
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-64">
+                    <DropdownMenuLabel className="text-xs text-muted-foreground">10 agentes especializados (Saramantha §6)</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => aiSuggest('profile')} className="text-xs cursor-pointer">
+                      <span className="font-medium">Perfilamiento</span><span className="text-muted-foreground ml-auto">mayorista/detal/...</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => aiSuggest('speech')} className="text-xs cursor-pointer">
+                      <span className="font-medium">Discurso</span><span className="text-muted-foreground ml-auto">por perfil</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => aiSuggest('quote')} className="text-xs cursor-pointer">
+                      <span className="font-medium">Cotización</span><span className="text-muted-foreground ml-auto">volumen + margen</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => aiSuggest('catalog')} className="text-xs cursor-pointer">
+                      <span className="font-medium">Catálogo</span><span className="text-muted-foreground ml-auto">visual-primero</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => aiSuggest('theme')} className="text-xs cursor-pointer">
+                      <span className="font-medium">Tema/personaje</span><span className="text-muted-foreground ml-auto">Stitch, Hello Kitty</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => aiSuggest('objection')} className="text-xs cursor-pointer">
+                      <span className="font-medium">Objeciones</span><span className="text-muted-foreground ml-auto">desconfianza, precio...</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => aiSuggest('address')} className="text-xs cursor-pointer">
+                      <span className="font-medium">Dirección</span><span className="text-muted-foreground ml-auto">10 campos</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => aiSuggest('logistics')} className="text-xs cursor-pointer">
+                      <span className="font-medium">Logística</span><span className="text-muted-foreground ml-auto">flete real</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => aiSuggest('vision')} className="text-xs cursor-pointer">
+                      <span className="font-medium">Visión</span><span className="text-muted-foreground ml-auto">SKU por imagen</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => aiSuggest('checkout')} className="text-xs cursor-pointer">
+                      <span className="font-medium">Checkout</span><span className="text-muted-foreground ml-auto">resumen + confirma</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => aiSuggest('generic')} className="text-xs cursor-pointer text-muted-foreground">
+                      <Sparkles className="size-3" /> Agente genérico (legacy)
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
                 <div className="flex items-center gap-2">
                   <span className="text-[11px] text-muted-foreground hidden sm:inline">Estrategia: <strong className="text-foreground">{active.channel.paymentStrategy}</strong></span>
                   <Button size="sm" onClick={send} disabled={!draft.trim()} className="gap-1.5">

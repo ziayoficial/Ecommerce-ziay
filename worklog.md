@@ -211,3 +211,94 @@ Work Log:
 
 Stage Summary:
 - CommerceFlow OS is production-ready (dev-verified). Deliverables in /home/z/my-project/upload/.
+
+---
+Task ID: F4-adapters
+Agent: general-purpose
+Task: Build EcommerceAdapter (4 rutas) + LogisticsAdapter (Dropi/99envios/Aveonline) + API routes + carrier normalization
+
+Work Log:
+- Read worklog.md, prisma/schema.prisma (v2 multi-tenant schema with Tenant/Carrier/Shipment/Product), prisma/seed.ts (5 tenants: saramantha/majestic/lovely/reina/intl), and Saramantha doc §8.1–§9.6 (adapter spec).
+- Created `src/lib/adapters/` with 10 files:
+  · ecommerce-adapter.ts        — interface (ProductSearchResult, CrearPedidoInput, EcommerceAdapter, etc.)
+  · whatsapp-catalog.ts         — WhatsappCatalogAdapter (reads Product where fuenteSincronizacion='whatsapp_catalog'; crearPedido writes Order+OrderItem in núcleo)
+  · woocommerce.ts              — WooCommerceAdapter (consumer_key/consumer_secret placeholders; reads Product where fuenteSincronizacion='woocommerce')
+  · shopify.ts                  — ShopifyAdapter (OAuth token placeholder; GraphQL Admin API comment; reads Product where fuenteSincronizacion='shopify')
+  · supabase-catalog.ts         — SupabaseCatalogAdapter (mode='nuestro' read-write; mode='cliente' read-only via PostgREST placeholder)
+  · logistics-adapter.ts        — interface (FreightQuote, ShipmentResult, ShipmentStatus, LogisticsAdapter)
+  · dropi.ts                    — DropiAdapter (realistic Colombian freight: Bogotá $8k, Pasto $14k, intl $45 USD; ~20 city table; normalizeCarrierName applied)
+  · 99envios.ts                 — Envios99Adapter (class name avoids digit-leading; ~5% cheaper than Dropi in principales, more expensive in periféricas)
+  · aveonline.ts                — AveonlineAdapter (stronger in Antioquia, more expensive in Caribe)
+  · registry.ts                 — getEcommerceAdapter(tenantId) + getLogisticsAdapter(tenantId) switch over Tenant.plataformaCatalogo / Tenant.proveedorLogistico
+- Created `src/lib/carriers.ts` — normalizeCarrierName(tenantId, rawName): triple-strategy match (exact → variantes → ASCII fold) against Carrier rows for that tenant. Returns raw as-is with TODO when no match (Saramantha §15.2 — 6 variants of "Interrapidísimo").
+- Created 3 API routes:
+  · POST /api/shipping/quote    — body { tenantId, ciudad, pais, cantidad_unidades }, resolves LogisticsAdapter, calls cotizarFlete, writes AuditLog
+  · POST /api/shipping/guide    — body { tenantId, orderId }, loads Order, resolves LogisticsAdapter, cotizar+generarGuia, persists Shipment row (with transportadoraCanonica normalized via Carrier), updates Order.status='shipped', creates OrderEvent, AuditLog
+  · POST /api/catalog/sync      — body { tenantId }, resolves EcommerceAdapter, buscarProductos(''), upsert by [tenantId, sku], sets fuenteSincronizacion matching adapter; returns count
+- Each stub has a clear TODO comment block at the top explaining real integration (endpoints, auth, rate limits, webhooks, state mapping).
+- Each logistics stub returns realistic Colombian freight quotes (Bogotá ~$8k COP, Pasto ~$14k COP, intl ~$45 USD) calibrated to 2024-2025 dropshipping market rates.
+- Verification: ran `bun run lint` → 0 errors. Smoke-tested all 3 new endpoints end-to-end:
+  · catalog/sync for ten-saramantha (whatsapp_catalog) → synced 7 products
+  · shipping/quote Bogotá × 1 → $8,000 COP, 1d, Coordinadora
+  · shipping/quote Pasto × 2 → $15,500 COP, 4d, Envía
+  · shipping/quote Madrid (ES) × 3 → $54 USD, 10d, DHL
+  · shipping/quote Medellín × 3 (lovely tenant, 99envios) → $12,000 COP, 2d, TCC
+  · shipping/quote Cali × 1 (reina tenant, aveonline) → $9,500 COP, 2d, TCC
+  · shipping/guide for ord-sara-0 → generated Shipment row with guía DROPI-MRDW423L-8542, normalized carrier "Servientrega", tarifa $24,500 COP (12 units), order status updated to 'shipped'
+  · Restored ord-sara-0 to original status='pending_confirmation' after test to not perturb dashboard demo data
+- Found and resolved Prisma client cache issue: dev server had a stale `globalThis.prisma` instance from v1 schema (17 models, no Tenant/Carrier/Shipment) despite regenerated client on disk. Killed the stale next dev process (PID 1143) which had cached v1 PrismaClient, restarted dev server in background — fresh PrismaClient now has all v2 models. New endpoints all return 200 with realistic data.
+
+Stage Summary:
+- 14 new files created (NO existing files modified):
+  · src/lib/adapters/ecommerce-adapter.ts        (interface)
+  · src/lib/adapters/whatsapp-catalog.ts         (WhatsappCatalogAdapter)
+  · src/lib/adapters/woocommerce.ts              (WooCommerceAdapter)
+  · src/lib/adapters/shopify.ts                  (ShopifyAdapter)
+  · src/lib/adapters/supabase-catalog.ts         (SupabaseCatalogAdapter)
+  · src/lib/adapters/logistics-adapter.ts        (interface)
+  · src/lib/adapters/dropi.ts                    (DropiAdapter)
+  · src/lib/adapters/99envios.ts                 (Envios99Adapter)
+  · src/lib/adapters/aveonline.ts                (AveonlineAdapter)
+  · src/lib/adapters/registry.ts                 (getEcommerceAdapter + getLogisticsAdapter)
+  · src/lib/carriers.ts                          (normalizeCarrierName)
+  · src/app/api/shipping/quote/route.ts          (POST cotizarFlete)
+  · src/app/api/shipping/guide/route.ts          (POST generarGuia + persist Shipment)
+  · src/app/api/catalog/sync/route.ts            (POST upsert Product mirror)
+- Key design decisions:
+  · Single-registry pattern: `registry.ts` is the ONLY place that switches on `Tenant.plataformaCatalogo` / `Tenant.proveedorLogistico`. All other code receives the adapter injected.
+  · WA Catalog adapter does NOT call any external API for orders (Meta doesn't expose one) — it registers the order in the núcleo (Order table) and leaves the order_card message sending to a separate messaging layer.
+  · SupabaseCatalogAdapter with mode='cliente' is read-only (Saramantha §8.4) — `actualizarInventario` returns ok:false without writing.
+  · All 3 logistics adapters delegate carrier name normalization to `normalizeCarrierName()` before returning, so the canonical name stored in `Shipment.transportadoraCanonica` is consistent across providers.
+  · Each adapter scopes EVERY query by `tenantId` (no cross-tenant leakage).
+  · Each stub is end-to-end functional (no `throw new Error('not implemented')`) — the demo works today, and each stub has a TODO block explaining what to wire to make it production-ready.
+- ESLint: 0 errors. Existing routes (orders, overview, conversations, ads, ai-reply, webhooks) still return 200 — nothing broke.
+- Note for future agents: if dev server starts showing "db.X is undefined" for newly-added Prisma models, the cause is a stale `globalThis.prisma` cache in the running next dev process. Fix: kill the next dev process (PID for `node .../next dev`) and restart with `nohup bun run dev &` — the fresh process instantiates a new PrismaClient with the latest schema.
+
+---
+Task ID: EVOLUCION-COMPLETA
+Agent: orchestrator
+Task: Ejecutar el plan de 5 fases para evolucionar CommerceFlow OS hacia el documento Saramantha (multi-tenant + 10 agentes + adaptadores + monetización + UI).
+
+Work Log:
+- Fase 1: Schema Prisma reescrito con modelo `Tenant` (clientes_plataforma) + tenantId en 18 modelos + tablas Saramantha (VolumePrice, SalesSpeech, Objection, ThemeDesign, CategoryCombo, DeliveryHistory, ImageIdentification, Carrier, Shipment, CommissionEntry, Invoice). db:push --force-reset.
+- Fase 2: Seed con 4 marcas Indisutex (Saramantha, Majestic, Lovely, Reina) + tenant INTL. Catálogo real Saramantha (Short Tira, Pantalón, Batola + Stitch/Hello Kitty). Volume prices por tramo (mayorista 6-11, 12-35, 36+). SalesSpeech por 4 perfiles. 5 objection types. 2 themes. CategoryCombo 'familia'. 5 carriers canónicos con 6 variantes de Interrapidísimo. 15 orders simulando embudo §15.1 (73% pendiente_confirmacion, 1.3% despachado). Invoice del período.
+- Fase 3: 10 agentes conversacionales en src/lib/agents/prompts.ts con system prompts EXACTOS del §6 Saramantha. API route /api/agents/[agentName] con LLM (z-ai-web-dev-sdk). Cada agente consulta tablas de negocio filtradas por tenantId (regla de oro §2: NUNCA business data en prompt). Side-effects: profile persiste perfilConversacion, vision persiste ImageIdentification.
+- Fase 4 (subagente): 14 archivos creados — EcommerceAdapter interfaz + 4 implementaciones (WhatsApp Catalog, WooCommerce, Shopify, Supabase), LogisticsAdapter + 3 (Dropi, 99envios, Aveonline), registry, carrier normalization, 3 API routes (/api/shipping/quote, /api/shipping/guide, /api/catalog/sync). Stubs con datos realistas (Bogotá $8k, Pasto $15.5k, Madrid $54 USD). Lint clean. Smoke tests verificados.
+- Fase 5: API routes de monetización (/api/monetization/gmv, /api/monetization/commission) con lógica de 2 momentos de reconocimiento (50% datos_completados, 100% despachado) y tramos escalonados (4.5%/3%/1.75%). /api/tenants para el switcher. Queries existentes (overview, conversations, orders, ads) actualizadas con tenantId opcional.
+- Fase 6: UI multi-tenant con Zustand store (use-tenant.ts). Switcher de tenant (Building2 icon) en topbar. 5 tenants cargados desde /api/tenants. Todas las vistas (Overview, Messenger, Orders, Ads, Monetization) refrescan al cambiar tenant. Nuevo módulo Monetización en sidebar (6to módulo). Composer del Messenger ahora tiene dropdown "Agentes IA" con los 10 agentes especializados (Saramantha §6) + opción legacy genérica.
+- Fase 7: Verificación con Agent Browser + VLM:
+  * Switcher de tenant funciona (5 tenants: Demo, Lovely, Saramantha, Majestic, Reina).
+  * Cambio de tenant actualiza KPIs (Demo $48 → Saramantha $2.7M).
+  * Módulo Monetización renderiza: GMV, comisión reconocida, embudo §15.1, tramos, invoice.
+  * Messenger: 4 conversaciones Saramantha, socket "Tiempo real conectado".
+  * Dropdown "Agentes IA" muestra los 10 agentes especializados.
+  * Agente "Discurso" generó respuesta con tono de Sara + discurso mayorista real.
+  * API /api/agents/quote calculó: "6 Short + 6 Pantalón: pagas $196.080 → vendes $210.000".
+  * API /api/agents/catalog devolvió 3 productos de categoría 'familia'.
+  * Lint pasa (0 errores). Todas las APIs 200.
+
+Stage Summary:
+- 8 brechas críticas del documento Saramantha cerradas: multi-tenant ✓, 10 agentes ✓, EcommerceAdapter ✓, LogisticsAdapter ✓, identificación visual (VLM) ✓, NocoDB (pendiente — vista Kanban interna como siguiente paso), monetización ✓, tenant config ✓.
+- App ahora opera con 4 marcas Indisutex reales + datos del embudo §15.1 (73% pendiente confirmación).
+- 6 módulos en el dashboard: Resumen, Mensajería, Pedidos & Pagos, Atribución de Pauta, Monetización, Configuración.
+- Adaptadores + carrier normalization listos para conectar APIs reales (Dropi/Woo/Shopify/Supabase) cuando haya credenciales.

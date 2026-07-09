@@ -1,16 +1,17 @@
 'use client'
 import { cn } from '@/lib/utils'
 import {
-  LayoutDashboard, MessagesSquare, ShoppingCart, Target, Settings, Zap,
+  LayoutDashboard, MessagesSquare, ShoppingCart, Target, Settings, Zap, DollarSign,
 } from 'lucide-react'
 
-export type ViewId = 'overview' | 'messenger' | 'orders' | 'ads' | 'settings'
+export type ViewId = 'overview' | 'messenger' | 'orders' | 'ads' | 'monetization' | 'settings'
 
 export const NAV_ITEMS: { id: ViewId; label: string; icon: typeof LayoutDashboard; hint: string }[] = [
   { id: 'overview', label: 'Resumen', icon: LayoutDashboard, hint: 'KPIs · ROAS · CPA' },
   { id: 'messenger', label: 'Mensajería', icon: MessagesSquare, hint: 'WhatsApp · Messenger · IG' },
   { id: 'orders', label: 'Pedidos & Pagos', icon: ShoppingCart, hint: 'Anticipado · Contra entrega' },
   { id: 'ads', label: 'Atribución de Pauta', icon: Target, hint: 'CPA · ROAS · ROI' },
+  { id: 'monetization', label: 'Monetización', icon: DollarSign, hint: 'Comisión sobre GMV' },
   { id: 'settings', label: 'Configuración', icon: Settings, hint: 'Estrategia de pago' },
 ]
 

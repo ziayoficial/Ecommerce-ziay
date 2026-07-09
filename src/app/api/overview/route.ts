@@ -4,20 +4,22 @@ import { db } from '@/lib/db'
 // Overview KPIs: revenue, orders, conversations, ad spend, ROAS, CPA, channel split
 export async function GET(req: NextRequest) {
   const days = Number(req.nextUrl.searchParams.get('days') || '14')
+  const tenantId = req.nextUrl.searchParams.get('tenantId') || undefined
   const since = new Date()
   since.setDate(since.getDate() - days)
 
+  const tenantFilter = tenantId ? { tenantId } : {}
   const [orders, conversations, adSpends, channels] = await Promise.all([
     db.order.findMany({
-      where: { createdAt: { gte: since } },
+      where: { ...tenantFilter, createdAt: { gte: since } },
       include: { items: true, sourceAd: true },
     }),
-    db.conversation.count({ where: { createdAt: { gte: since } } }),
+    db.conversation.count({ where: { ...tenantFilter, createdAt: { gte: since } } }),
     db.adSpend.findMany({
-      where: { date: { gte: since } },
+      where: { date: { gte: since }, ...(tenantId ? { ad: { campaign: { tenantId } } } : {}) },
       include: { ad: { include: { campaign: true } } },
     }),
-    db.channel.findMany(),
+    db.channel.findMany({ where: tenantFilter }),
   ])
 
   const revenue = orders.reduce((s, o) => s + o.total, 0)

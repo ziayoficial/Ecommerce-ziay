@@ -6,12 +6,14 @@ import { db } from '@/lib/db'
 export async function GET(req: NextRequest) {
   const days = Number(req.nextUrl.searchParams.get('days') || '14')
   const platform = req.nextUrl.searchParams.get('platform') || undefined
+  const tenantId = req.nextUrl.searchParams.get('tenantId') || undefined
   const since = new Date()
   since.setDate(since.getDate() - days)
 
   const ads = await db.ad.findMany({
     where: {
       ...(platform && platform !== 'all' ? { campaign: { platformId: `ap-${platform}` } } : {}),
+      ...(tenantId ? { campaign: { tenantId } } : {}),
     },
     include: {
       campaign: { include: { platform: true } },

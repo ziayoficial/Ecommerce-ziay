@@ -1,6 +1,6 @@
-// CommerceFlow OS — Prisma Schema
-// Conversational Commerce + Ad Attribution Command Center
-// Designed to be portable: SQLite (dev) -> PostgreSQL / MySQL (prod).
+// CommerceFlow OS — Prisma Schema (v2 · multi-tenant + Saramantha agents layer)
+// Conversational Commerce + Ad Attribution + Multi-tenant Agent Platform
+// Portable: SQLite (dev) -> PostgreSQL/MySQL + pgvector (prod).
 // NOTE: SQLite has no native enums/arrays. We use String + constants in code.
 
 generator client {
@@ -13,19 +13,76 @@ datasource db {
 }
 
 // ───────────────────────────────────────────────────────────────────────────
+// 0. TENANT (clientes_plataforma) — multi-tenant core
+// ───────────────────────────────────────────────────────────────────────────
+model Tenant {
+  id                    String   @id @default(cuid())
+  // slug used in URLs and as tenantId foreign key value (e.g. "saramantha")
+  slug                  String   @unique
+  nombreNegocio         String
+  marca                 String
+  // platform_catalogo: whatsapp_catalog | woocommerce | shopify | catalogo_propio_cliente | catalogo_nuestro
+  plataformaCatalogo    String   @default("whatsapp_catalog")
+  // bd_catalogo: supabase_cliente | supabase_nuestro | oracle_nuestro
+  bdCatalogo            String?  @default("supabase_nuestro")
+  credencialesCatalogoRef String? // ref to n8n/secret manager
+  // proveedor_ia: chatgpt | xai | ollama | zai (default for this stack)
+  proveedorIa           String   @default("zai")
+  credencialesIaRef     String?
+  // proveedor_logistico: dropi | 99envios | aveonline | otro
+  proveedorLogistico    String   @default("dropi")
+  credencialesLogisticaRef String?
+  wabaId                String?
+  wabaTokenRef          String?
+  // brand config (regla de oro Saramantha §2: NO business data in prompts)
+  tonoMarca             String?  // e.g. "tutea, certeza total, sin disculpas"
+  nombreAsesora         String?  // e.g. "Sara"
+  politicaPago          String?  // "híbrido: prepay 5% off > $250k, COD debajo"
+  preguntaPerfil        String?  // "¿Para ti o para surtir tu negocio?"
+  // plan_monetizacion: conecta | catalogo_incluido | completo
+  planMonetizacion      String   @default("conecta")
+  feeBaseMensual        Float    @default(0) // COP
+  comisionPctInicial    Float    @default(4.5) // % over GMV (tramo 1)
+  activo                Boolean  @default(true)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  users                 User[]
+  channels              Channel[]
+  customers             Customer[]
+  conversations         Conversation[]
+  products              Product[]
+  orders                Order[]
+  campaigns             Campaign[]
+  carriers              Carrier[] // tenant-scoped canonical carriers
+  salesSpeeches         SalesSpeech[]
+  objections            Objection[]
+  themes                ThemeDesign[]
+  categoryCombos        CategoryCombo[]
+  volumePrices          VolumePrice[]
+  deliveryHistories     DeliveryHistory[]
+  shipments             Shipment[]
+  commissionEntries     CommissionEntry[]
+  invoices              Invoice[]
+  auditLogs             AuditLog[]
+}
+
+// ───────────────────────────────────────────────────────────────────────────
 // 1. IDENTITY & ACCESS
 // ───────────────────────────────────────────────────────────────────────────
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  name         String
-  role         String   @default("agent") // admin | agent | trafficker | finance
-  avatarUrl    String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id        String   @id @default(cuid())
+  tenantId  String
+  email     String   @unique
+  name      String
+  role      String   @default("agent") // admin | agent | trafficker | finance
+  avatarUrl String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
+  tenant      Tenant        @relation(fields: [tenantId], references: [id])
   assignedConv Conversation[] @relation("AgentConvos")
-  auditLogs    AuditLog[]
+  auditLogs   AuditLog[]
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -33,22 +90,22 @@ model User {
 // ───────────────────────────────────────────────────────────────────────────
 model Channel {
   id           String   @id @default(cuid())
+  tenantId     String
   type         String   // whatsapp | messenger | instagram | telegram
   name         String   // e.g. "WhatsApp Colombia", "Messenger Global"
   displayName  String
-  // Connection config (phone number id for WA, page id for Messenger, etc.)
   accountId    String?
   verified     Boolean  @default(false)
   active       Boolean  @default(true)
   country      String?  // ISO code this channel primarily serves
-  // Strategy: how this channel collects payment
-  paymentStrategy String @default("hybrid") // advance | cod | hybrid
-  requirePrepayMin  Float?  // if hybrid: orders above this require prepay
-  prepayDiscountPct  Float? @default(0)   // incentive % off if prepaid
-  codFee            Float?  @default(0)   // extra fee for cash on delivery
+  paymentStrategy String @default("hybrid")
+  requirePrepayMin  Float?
+  prepayDiscountPct  Float? @default(0)
+  codFee            Float?  @default(0)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  tenant        Tenant        @relation(fields: [tenantId], references: [id])
   conversations Conversation[]
 }
 
@@ -57,24 +114,27 @@ model Channel {
 // ───────────────────────────────────────────────────────────────────────────
 model Customer {
   id          String   @id @default(cuid())
+  tenantId    String
   name        String
-  // Channel-scoped identifiers
-  phone       String?  // E.164 for WhatsApp
-  psid        String?  // Page-Scoped ID for Messenger
-  igId        String?  // Instagram ID
+  phone       String?
+  psid        String?
+  igId        String?
   email       String?
-  country     String?  // ISO code
+  country     String?
   city        String?
   address     String?
+  // Saramantha §2: perfil_detectado
+  perfilDetectado String? // mayorista | emprendedor | detal | regalo
   notes       String?
-  tags        String?  // comma-separated
+  tags        String?
   lifetimeValue Float  @default(0)
   ordersCount  Int     @default(0)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  tenant        Tenant         @relation(fields: [tenantId], references: [id])
   conversations Conversation[]
-  orders       Order[]
+  orders        Order[]
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -82,39 +142,43 @@ model Customer {
 // ───────────────────────────────────────────────────────────────────────────
 model Conversation {
   id          String   @id @default(cuid())
+  tenantId    String
   customerId  String
   channelId   String
   status      String   @default("open") // open | pending | resolved | closed
-  priority    String   @default("normal") // low | normal | high | urgent
+  priority    String   @default("normal")
   assigneeId  String?
   lastMessageAt DateTime @default(now())
   unreadCount Int      @default(0)
-  // Attribution link: which ad/campaign brought this conversation
   sourceAdId      String?
   sourceCampaign  String?
-  utm             String? // raw utm string
+  utm             String?
+  // Saramantha §2: perfil determinado en la conversación
+  perfilConversacion String? // mayorista | emprendedor | detal | regalo
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  customer  Customer @relation(fields: [customerId], references: [id])
-  channel   Channel  @relation(fields: [channelId], references: [id])
-  assignee  User?    @relation("AgentConvos", fields: [assigneeId], references: [id])
-  messages  Message[]
-  orders    Order[]
+  tenant      Tenant @relation(fields: [tenantId], references: [id])
+  customer    Customer @relation(fields: [customerId], references: [id])
+  channel     Channel  @relation(fields: [channelId], references: [id])
+  assignee    User?    @relation("AgentConvos", fields: [assigneeId], references: [id])
+  messages    Message[]
+  orders      Order[]
 }
 
 model Message {
   id             String   @id @default(cuid())
+  tenantId       String
   conversationId String
   direction      String   // inbound | outbound
   body           String
-  // Message type: text | image | audio | template | order_card | payment_link
-  type           String   @default("text")
+  type           String   @default("text") // text | image | audio | template | order_card | payment_link
   mediaUrl       String?
-  status         String   @default("sent") // sent | delivered | read | failed
-  // AI assistant metadata
+  status         String   @default("sent")
   aiSuggested    Boolean  @default(false)
   aiConfidence   Float?
+  // Saramantha §3: embedding for semantic memory (Bytes in SQLite, vector in PG)
+  embedding      Bytes?
   createdAt      DateTime @default(now())
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
@@ -125,57 +189,78 @@ model Message {
 // ───────────────────────────────────────────────────────────────────────────
 model Product {
   id          String   @id @default(cuid())
-  sku         String   @unique
+  tenantId    String
+  sku         String
   name        String
   description String?
   price       Float
-  cost        Float    @default(0)  // unit cost for margin/ROI calc
+  cost        Float    @default(0)
   imageUrl    String?
   stock       Int      @default(0)
   active      Boolean  @default(true)
+  // Saramantha §2: design + theme
+  diseno      String?  // e.g. "Stitch", "Hello Kitty"
+  categoria   String?  // e.g. "familia", "short", "pantalon", "batola"
+  // Saramantha §2: image with visible metadata stripe
+  imagenMetadataVisible Boolean @default(true)
+  fuenteSincronizacion  String? // whatsapp_catalog | woocommerce | shopify | supabase_cliente | supabase_nuestro | oracle_nuestro
+  // embeddings (Bytes in SQLite; in PG use vector type via Unsupported)
+  embeddingTexto Bytes?
+  embeddingVisual Bytes?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  orderItems OrderItem[]
+  tenant      Tenant     @relation(fields: [tenantId], references: [id])
+  orderItems  OrderItem[]
+  volumePrices VolumePrice[]
+
+  @@unique([tenantId, sku])
 }
 
 model Order {
   id           String   @id @default(cuid())
-  number       String   @unique // human-friendly, e.g. CF-100042
+  tenantId     String
+  number       String   @unique
   customerId   String
   conversationId String?
   channelId    String?
   status       String   @default("new")
   // pending_payment | paid | preparing | shipped | delivered | returned | cancelled
+  // Saramantha §10 Kanban: "Llamar para confirmar" | "Datos completados" | "Intento cancelación" | "Oficina" | "Programado" | "Despachado"
   paymentMode  String   // advance | cod | hybrid
-  paymentStatus String  @default("unpaid") // unpaid | partial | paid | refunded | cod_pending
+  paymentStatus String  @default("unpaid")
   subtotal     Float
   discount     Float    @default(0)
   shipping     Float    @default(0)
   codFee       Float    @default(0)
   total        Float
   currency     String   @default("COP")
-  country      String?  // ISO code (ship-to)
+  country      String?
   city         String?
   address      String?
-  // Attribution
+  // Saramantha §2: imagen_referencia_url
+  imagenReferenciaUrl String?
+  // Saramantha §2: origen (CRITICAL for monetization §17.6)
+  origen       String   @default("agente_whatsapp") // agente_whatsapp | carrito_web | otro
   sourceAdId       String?
   sourceCampaign   String?
-  sourcePlatform   String?  // meta | google | tiktok | organic | direct
-  clickId          String?  // gclid / fbclid / ttclid
+  sourcePlatform   String?
+  clickId          String?
   attributedAt     DateTime?
-  // Payment gateway refs
-  paymentGateway   String?  // mercadopago | wompi | stripe | payu
+  paymentGateway   String?
   paymentRef       String?
   paidAt           DateTime?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
+  tenant      Tenant       @relation(fields: [tenantId], references: [id])
   customer      Customer     @relation(fields: [customerId], references: [id])
   conversation  Conversation? @relation(fields: [conversationId], references: [id])
   sourceAd      Ad?           @relation(fields: [sourceAdId], references: [id])
   items         OrderItem[]
   events        OrderEvent[]
+  shipments     Shipment[]
+  commissionEntries CommissionEntry[]
 }
 
 model OrderItem {
@@ -186,6 +271,7 @@ model OrderItem {
   unitPrice Float
   cost      Float
   quantity  Int
+  diseno    String? // Saramantha: design variant per item
 
   order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product Product @relation(fields: [productId], references: [id])
@@ -194,7 +280,7 @@ model OrderItem {
 model OrderEvent {
   id        String   @id @default(cuid())
   orderId   String
-  type      String   // created | paid | shipped | delivered | cancelled | refunded
+  type      String   // created | paid | shipped | delivered | cancelled | refunded | cod_pending
   note      String?
   createdAt DateTime @default(now())
 
@@ -202,14 +288,103 @@ model OrderEvent {
 }
 
 // ───────────────────────────────────────────────────────────────────────────
+// 5.1 Saramantha §2 — pricing & discourse tables (per tenant)
+// ───────────────────────────────────────────────────────────────────────────
+model VolumePrice {
+  id           String @id @default(cuid())
+  tenantId     String
+  productId    String
+  sku          String // denormalized for convenience
+  tipoCliente  String // mayorista | emprendedor | detal | regalo
+  cantidadMinima Int
+  cantidadMaxima Int
+  precioUnitario Float
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+
+  @@unique([tenantId, productId, tipoCliente, cantidadMinima])
+}
+
+model SalesSpeech {
+  id           String @id @default(cuid())
+  tenantId     String
+  perfil       String // mayorista | emprendedor | detal | regalo
+  aperturaTexto String
+  pruebaSocial String?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, perfil])
+}
+
+model Objection {
+  id           String @id @default(cuid())
+  tenantId     String
+  tipoObjecion String // desconfianza | precio | talla | lo_pienso | producto_no_disponible
+  respuestaBase String
+  gatilloMentalAsociado String?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, tipoObjecion])
+}
+
+model ThemeDesign {
+  id           String @id @default(cuid())
+  tenantId     String
+  tema         String // "Stitch", "Hello Kitty"
+  nombreDiseno String?
+  skusAsociados String // comma-separated SKUs (SQLite no arrays)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, tema])
+}
+
+model CategoryCombo {
+  id           String @id @default(cuid())
+  tenantId     String
+  categoria    String // "familia", "short", etc.
+  skusRecomendados String // comma-separated, min 3 distinct refs
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, categoria])
+}
+
+model DeliveryHistory {
+  id           String @id @default(cuid())
+  tenantId     String
+  contactoId   String?
+  direccionNormalizada String
+  ciudad       String
+  departamento String?
+  resultadoEntregaAnterior String? // ok | rechazo | novedad
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+}
+
+model ImageIdentification {
+  id           String @id @default(cuid())
+  tenantId     String
+  contactoId   String?
+  imagenUrl    String
+  skuDetectado String?
+  metodo       String // ocr | openclip | vlm | manual
+  confianza    Float  @default(0)
+
+  createdAt DateTime @default(now())
+}
+
+// ───────────────────────────────────────────────────────────────────────────
 // 6. AD ATTRIBUTION & PERFORMANCE
 // ───────────────────────────────────────────────────────────────────────────
 model AdPlatform {
   id          String  @id @default(cuid())
-  name        String  @unique // meta | google | tiktok | linkedin
+  name        String  @unique
   displayName String
   accountId   String?
-  // In production these live in a secrets manager (Vault/AWS SM). Demo only.
   accessToken String?
   active      Boolean @default(true)
   createdAt   DateTime @default(now())
@@ -219,30 +394,31 @@ model AdPlatform {
 
 model Campaign {
   id          String   @id @default(cuid())
+  tenantId    String
   platformId  String
-  externalId  String   // platform campaign id
+  externalId  String
   name        String
-  objective   String?  // sales | leads | traffic | engagement | awareness
+  objective   String?
   budgetDaily Float?
   currency    String   @default("COP")
-  status      String   @default("active") // active | paused | killed
+  status      String   @default("active")
   country     String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  platform AdPlatform @relation(fields: [platformId], references: [id])
+  tenant   Tenant      @relation(fields: [tenantId], references: [id])
+  platform AdPlatform  @relation(fields: [platformId], references: [id])
   ads      Ad[]
 }
 
 model Ad {
   id           String   @id @default(cuid())
   campaignId   String
-  externalId   String   @unique // the ad id from the platform (the key identifier)
+  externalId   String   @unique
   name         String
-  creative     String?  // creative label / asset url
-  status       String   @default("active") // active | paused | killed | under_review
-  // Trafficker flags
-  autoKill     Boolean  @default(false) // marked for auto-kill by cannibalization rule
+  creative     String?
+  status       String   @default("active")
+  autoKill     Boolean  @default(false)
   killReason   String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -253,7 +429,6 @@ model Ad {
   orders      Order[]
 }
 
-// Daily spend + platform metrics per ad (imported from ad platform API / webhook)
 model AdSpend {
   id        String   @id @default(cuid())
   adId      String
@@ -261,7 +436,6 @@ model AdSpend {
   spend     Float
   impressions Int
   clicks    Int
-  // platform-reported conversions (for cross-check vs our own attribution)
   convReported Int    @default(0)
   createdAt DateTime @default(now())
 
@@ -270,27 +444,100 @@ model AdSpend {
   @@unique([adId, date])
 }
 
-// Attribution: order -> ad (1:N if multi-touch; here 1 order N attribution rows w/ weight)
 model Attribution {
   id        String   @id @default(cuid())
   orderId   String
   adId      String
-  weight    Float    @default(1.0) // multi-touch weight (0..1)
-  model     String   @default("last_click") // last_click | first_click | linear | time_decay
-  touch     String?  // click | view | message
+  weight    Float    @default(1.0)
+  model     String   @default("last_click")
+  touch     String?
   createdAt DateTime @default(now())
 
   ad Ad @relation(fields: [adId], references: [id])
 }
 
 // ───────────────────────────────────────────────────────────────────────────
-// 7. AUTOMATION & SETTINGS
+// 7. LOGISTICS — LogisticsAdapter backing tables (Saramantha §2, §8.6)
+// ───────────────────────────────────────────────────────────────────────────
+model Carrier {
+  // Canonical carrier names per tenant — normalizes the 6 variants of "Interrapidísimo"
+  id         String @id @default(cuid())
+  tenantId   String
+  nombreCanonico   String // "Interrapidísimo"
+  variantes         String // comma-separated: "Interrapidisimo,interrapidisimo,Interrapidicimo,..."
+  cobertura         String @default("nacional") // nacional | internacional
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, nombreCanonico])
+}
+
+model Shipment {
+  id              String @id @default(cuid())
+  tenantId        String
+  orderId         String
+  proveedor       String // dropi | 99envios | aveonline
+  numeroGuia      String?
+  urlSeguimiento  String?
+  transportadora  String? // raw from provider
+  transportadoraCanonica String? // normalized via Carrier
+  tarifa          Float @default(0)
+  tiempoEstimadoDias Int?
+  estado          String @default("generada") // generada | en_transito | entregada | novedad | devuelta
+  novedad         String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  order  Order  @relation(fields: [orderId], references: [id])
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// 8. MONETIZATION (Saramantha §17) — commission over GMV
+// ───────────────────────────────────────────────────────────────────────────
+model CommissionEntry {
+  id              String @id @default(cuid())
+  tenantId        String
+  orderId         String
+  gmv             Float // order.total at confirmation
+  comisionPct     Float // e.g. 4.5
+  comisionTotal   Float // gmv * pct / 100
+  reconocidaPct   Float @default(50) // 50 at "Datos completados", 100 at "Despachado"
+  reconocidaMonto Float // comisionTotal * reconocidaPct / 100
+  etapaReconocimiento String? // datos_completados | despachado
+  reconocidaAt    DateTime?
+  createdAt       DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  order  Order  @relation(fields: [orderId], references: [id])
+}
+
+model Invoice {
+  id              String @id @default(cuid())
+  tenantId        String
+  periodo         String // "2026-07"
+  gmvTotal        Float
+  feeBase         Float
+  comisionTotal   Float
+  tramoAplicado   String // "0-10M" | "10-40M" | "40M+"
+  total           Float // feeBase + comisionTotal
+  estado          String @default("borrador") // borrador | emitida | pagada
+  emitidaAt       DateTime?
+  pagadaAt        DateTime?
+  createdAt       DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// 9. AUTOMATION & SETTINGS
 // ───────────────────────────────────────────────────────────────────────────
 model AutomationRule {
   id        String   @id @default(cuid())
+  tenantId  String?
   name      String
   trigger   String   // new_conversation | keyword | order_created | ad_underperforming
-  condition String?  // JSON condition
+  condition String?
   action    String   // auto_reply | tag | assign | pause_ad | notify
   active    Boolean  @default(true)
   createdAt DateTime @default(now())
@@ -304,6 +551,7 @@ model Setting {
 
 model AuditLog {
   id        String   @id @default(cuid())
+  tenantId  String?
   userId    String?
   action    String
   entity    String
@@ -311,5 +559,6 @@ model AuditLog {
   meta      String?
   createdAt DateTime @default(now())
 
-  user User? @relation(fields: [userId], references: [id])
+  tenant Tenant? @relation(fields: [tenantId], references: [id])
+  user   User?   @relation(fields: [userId], references: [id])
 }

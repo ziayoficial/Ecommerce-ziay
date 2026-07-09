@@ -5,9 +5,11 @@ export async function GET(req: NextRequest) {
   const status = req.nextUrl.searchParams.get('status') || undefined
   const channel = req.nextUrl.searchParams.get('channel') || undefined
   const q = req.nextUrl.searchParams.get('q') || undefined
+  const tenantId = req.nextUrl.searchParams.get('tenantId') || undefined
 
   const conversations = await db.conversation.findMany({
     where: {
+      ...(tenantId ? { tenantId } : {}),
       ...(status && status !== 'all' ? { status } : {}),
       ...(channel && channel !== 'all' ? { channelId: channel } : {}),
       ...(q ? { customer: { name: { contains: q } } } : {}),
@@ -46,7 +48,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'conversationId and body required' }, { status: 400 })
   }
   const msg = await db.message.create({
-    data: { conversationId, direction, body: text, type: 'text', status: 'sent' },
+    data: { tenantId: body.tenantId || 'ten-saramantha', conversationId, direction, body: text, type: 'text', status: 'sent' },
   })
   await db.conversation.update({
     where: { id: conversationId },

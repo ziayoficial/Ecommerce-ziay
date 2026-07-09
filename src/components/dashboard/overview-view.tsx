@@ -12,6 +12,7 @@ import {
   Target, Wallet, Percent, Sparkles,
 } from 'lucide-react'
 import { formatCurrency, formatNumber, formatPercent, formatMultiplier, shortDate } from '@/lib/format'
+import { useTenantId } from '@/hooks/use-tenant'
 
 type Overview = {
   range: { days: number }
@@ -72,12 +73,19 @@ const channelColor = (type: string) => {
 }
 
 export function OverviewView() {
+  const tenantId = useTenantId()
   const [data, setData] = useState<Overview | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetch('/api/overview?days=14').then(r => r.json()).then(d => { setData(d); setLoading(false) })
-  }, [])
+    if (!tenantId) return
+    let cancelled = false
+    fetch(`/api/overview?days=14&tenantId=${tenantId}`)
+      .then(r => r.json())
+      .then(d => { if (!cancelled) { setData(d); setLoading(false) } })
+      .catch(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [tenantId])
 
   if (loading || !data) {
     return (

@@ -20,6 +20,7 @@ import {
 import { formatCurrency, formatNumber, formatPercent, formatMultiplier, shortDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
+import { useTenantId } from '@/hooks/use-tenant'
 import {
   Target, TrendingUp, TrendingDown, DollarSign, Percent, Flame, Skull, Pause,
   Play, Rocket, Eye, AlertTriangle, Search, Gauge,
@@ -90,19 +91,21 @@ function TotalsKpi({ icon: Icon, label, value, sub, accent }: {
 }
 
 export function AdsView() {
+  const tenantId = useTenantId()
   const [data, setData] = useState<AdsData | null>(null)
   const [loading, setLoading] = useState(true)
   const [platform, setPlatform] = useState('all')
   const [q, setQ] = useState('')
 
   useEffect(() => {
+    if (!tenantId) return
     let cancelled = false
-    fetch(`/api/ads?days=14&platform=${platform}`)
+    fetch(`/api/ads?days=14&platform=${platform}&tenantId=${tenantId}`)
       .then(r => r.json())
       .then(d => { if (!cancelled) { setData(d); setLoading(false) } })
       .catch(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [platform])
+  }, [platform, tenantId])
 
   const doAction = async (id: string, action: 'pause' | 'kill' | 'resume' | 'scale', reason?: string) => {
     await fetch(`/api/ads/${id}`, {

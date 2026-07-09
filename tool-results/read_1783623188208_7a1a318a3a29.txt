@@ -1,0 +1,275 @@
+     1→   649→   649→
+     2→   650→   650→## 12. Flujo end-to-end (4 escenarios narrados)
+     3→   651→   651→
+     4→   652→   652→### 12.1 Escenario Indisutex (catálogo nativo de WhatsApp)
+     5→   653→   653→
+     6→   654→   654→1. Un cliente hace clic en un anuncio de Meta de "pijama familia" y llega a WhatsApp de Saramantha — `tenant_id` se resuelve por el WABA que recibió el mensaje.
+     7→   655→   655→2. El agente de perfilamiento (6.1) pregunta el perfil si hace falta. El cliente responde "para surtir mi tienda" → perfil `mayorista`.
+     8→   656→   656→3. El agente de discurso (6.2) abre con el tono mayorista configurado en `clientes_plataforma`.
+     9→   657→   657→4. El cliente escribe "quiero ver para toda la familia". El agente de catálogo (6.4) busca en el catálogo real y devuelve 3 imágenes: Short, Pantalón y Batola.
+    10→   658→   658→5. El cliente responde "el short lo quiero en Stitch" — el agente de tema/personaje (6.5) confirma disponibilidad.
+    11→   659→   659→6. El cliente pide cotización de 6 Short + 6 Pantalón. El agente de ofertas cruzadas (6.3) calcula el total con margen.
+    12→   660→   660→7. El cliente objeta "¿y si no llega bien?" — el agente de objeciones (6.6) responde con prueba social sin repetir argumentos.
+    13→   661→   661→8. El cliente confirma la compra. El agente de dirección (6.7) recoge los 10 campos.
+    14→   662→   662→9. El agente de logística (6.8) cotiza el flete real vía Dropi.
+    15→   663→   663→10. El agente de checkout (6.10) crea el pedido con `origen="agente_whatsapp"`, dispara la guía en Dropi, sincroniza NocoDB, y dispara el cálculo de comisión (sección 17.6).
+    16→   664→   664→
+    17→   665→   665→### 12.2 Escenario cliente nuevo con WooCommerce
+    18→   666→   666→
+    19→   667→   667→1. Onboarding: se registra el tenant, se conectan sus credenciales WooCommerce, se sincroniza su catálogo real hacia `productos` vía el adaptador (8.2).
+    20→   668→   668→2. El flujo conversacional es idéntico al 12.1 en los agentes 6.1 a 6.9 — el cliente conversacional nunca nota diferencia.
+    21→   669→   669→3. Al confirmar, el agente de checkout (6.10) llama a `EcommerceAdapter.crearPedido()`, que esta vez escribe el pedido también en el WooCommerce real del cliente, no solo en nuestro núcleo.
+    22→   670→   670→
+    23→   671→   671→### 12.3 Escenario cliente nuevo con Shopify
+    24→   672→   672→
+    25→   673→   673→1. Igual que 12.2, pero el adaptador (8.3) autentica vía OAuth/app privada y usa GraphQL Admin API.
+    26→   674→   674→2. Webhooks de Shopify llegan con verificación HMAC — el adaptador la valida antes de procesar cualquier actualización de inventario u orden.
+    27→   675→   675→
+    28→   676→   676→### 12.4 Escenario cliente sin catálogo propio (le desarrollamos uno en Supabase)
+    29→   677→   677→
+    30→   678→   678→1. En el onboarding, como el cliente no tiene catálogo propio, se aprovisiona un proyecto de Supabase nuestro con el modelo de tablas de catálogo ya definido (sección 2).
+    31→   679→   679→2. Se carga el catálogo inicial del cliente a mano (productos, precios, diseños) — trabajo de implementación cobrado en el fee correspondiente (sección 17).
+    32→   680→   680→3. El resto del flujo es idéntico — el adaptador (8.5) lee y escribe sobre esa Supabase, y el agente de catálogo (6.4) nunca distingue esto de los otros tres escenarios.
+    33→   681→   681→
+    34→   682→   682→---
+    35→   683→   683→
+    36→   684→   684→## 13. Plan de implementación por fases
+    37→   685→   685→
+    38→   686→   686→**Fase 0** — Modelo de datos con `tenant_id` y RLS desde el inicio; levantar Ollama solo si se anticipa un tenant que lo requiera.
+    39→   687→   687→**Fase 1** — Migrar Indisutex (sus 4 marcas) como los primeros 4 tenants, sincronizando cada catálogo desde WhatsApp Catalog.
+    40→   688→   688→**Fase 2** — Construir la capa `EcommerceAdapter` y validar con un cliente piloto externo que use WooCommerce.
+    41→   689→   689→**Fase 3** — Adaptador Shopify vía app privada, con un segundo cliente piloto.
+    42→   690→   690→**Fase 4** — Adaptador de catálogo propio del cliente (Supabase) y catálogo propio nuestro (Supabase, luego Oracle) con un tercer cliente piloto que no tenga WooCommerce ni Shopify.
+    43→   691→   691→**Fase 5** — Habilitar el proveedor de IA elegible por tenant (ChatGPT, xAI, Ollama), comparando calidad y latencia con datos reales antes de ofrecerlo como opción estándar. En paralelo, construir el `LogisticsAdapter` (sección 8.6) y validar con datos reales la integración con 99envios y Aveonline, además de la ya existente con Dropi.
+    44→   692→   692→**Fase 6** — Wizard de onboarding self-service y evaluación de app pública en Shopify App Store, si el volumen de clientes lo justifica.
+    45→   693→   693→**Fase 7** — Activar el modelo de monetización de comisión escalonada (sección 17) con los primeros clientes piloto, calibrando tramos y porcentajes con datos reales de margen.
+    46→   694→   694→
+    47→   695→   695→---
+    48→   696→   696→
+    49→   697→   697→## 14. Métricas de éxito
+    50→   698→   698→
+    51→   699→   699→- Tasa de conversión por etapa del embudo (perfilamiento → catálogo → cotización → cierre → confirmación → despacho).
+    52→   700→   700→- % de pedidos estancados en "Llamar para confirmar" (hoy 73% — sección 15, prioridad número uno).
+    53→   701→   701→- Tiempo de respuesta del LLM, medido por proveedor: para tenants con Ollama, vigilar latencia bajo carga concurrente (sección 16.10); para tenants con ChatGPT/xAI, vigilar la salud de su propia API key (sección 16.11).
+    54→   702→   702→- Precisión y velocidad de la cotización de flete y generación de guía, por proveedor logístico (Dropi/99envios/Aveonline) — cualquier tenant que cambie de proveedor debe mantener el mismo nivel de servicio (sección 16.9 y 16.11).
+    55→   703→   703→- % de conversaciones correctamente enrutadas a su tenant — debe ser 100%; cualquier fuga es un incidente de seguridad, no un bug menor.
+    56→   704→   704→- GMV mensual confirmado por el agente, por tenant — la métrica base del modelo de monetización (sección 17).
+    57→   705→   705→- Margen por tenant (ingreso que paga el cliente frente al costo real de sostenerlo) — sección 17.5.
+    58→   706→   706→- % de pedidos que efectivamente llegan a "Despachado" — hoy solo 1.3% en el ciclo observado (sección 15.1), la métrica que más condiciona el momento real de cobro del modelo de monetización (sección 17.7).
+    59→   707→   707→
+    60→   708→   708→---
+    61→   709→   709→
+    62→   710→   710→## 15. Lo que ya aprendimos de los 239 pedidos reales (abril–julio 2026)
+    63→   711→   711→
+    64→   712→   712→- **Producto ancla domina el mix**: Short Tira aparece en 91% de los pedidos (217/239) — el guion lo ofrece primero por defecto; Pantalón y Batola solo aparecen si el cliente insiste. El agente de catálogo (6.4) ya corrige esto para categorías amplias tipo "familia" (mínimo 3 prendas).
+    65→   713→   713→- **El negocio es mayoritariamente mayorista y de alto ticket**: 43% de los pedidos son de 12+ unidades, 29% de 6-11 unidades; valor promedio $137.014 COP, mediana $111.000 COP, mínimo $16.500 COP, máximo $468.000 COP.
+    66→   714→   714→- **Dispersión geográfica nacional real**: Bogotá (14), Cali (7), Pasto (7), Medellín (6), Neiva (6), Popayán (6), Florencia (4), Apartadó (4) — confirma que el agente de logística (6.8) necesita tarifas reales de flete variable por ciudad, no una tabla fija.
+    67→   715→   715→- **Franja horaria de compra**: la mayoría de pedidos se concretan entre 8am y 12pm.
+    68→   716→   716→- **Crecimiento real acelerado**: de ~4 pedidos/semana en abril a 47 en la semana pico de finales de junio — dato clave para el modelo de monetización basado en GMV (sección 17.5).
+    69→   717→   717→- **GMV total ya procesado**: $32.746.242 COP en los 239 pedidos — evidencia de que el sistema ya liga de forma directa y auditable el valor de venta al pedido confirmado, sin telemetría adicional.
+    70→   718→   718→- **Gobernanza de prompts como riesgo ya materializado**: al menos dos versiones distintas del prompt "REGLA CERO" coexisten activas en paralelo (una deriva a un número de WhatsApp de asesora humana ante producto fuera de catálogo, otra deriva al link del catálogo de Meta) — confirma, con evidencia adicional a la ya reportada, que ningún dato de negocio debe vivir en el texto del prompt en esta versión del documento (sección 2, regla de gobernanza).
+    71→   719→   719→- **Subregistro estructural confirmado con el export completo del CRM**: al cruzar las 239 filas contra el export completo de ~270 columnas (el mismo dataset visto ahora con mucho más detalle), los campos `conversation_summary`, `Nombre de la campaña`, `Método de pago (traducido)`, `Nombre del producto en el ecommerce interno`, `Nombre de la tienda`, `Nombre del asesor`, `Estado actual`/`Estado verificado`/`Novedad Homologada`/`Novedad: resultado` y `Analisis de porcentaje` están vacíos en el 100% de las 239 filas. Esto no es un artefacto de un CSV recortado — es un patrón real de la plataforma de origen, y significa que hoy no existe ningún dato utilizable de atribución de campaña, método de pago, ni de causa de novedad logística ya resuelta.
+    72→   720→   720→
+    73→   721→   721→### 15.1 Hallazgo nuevo: desglose completo del embudo por etapa (columna del tablero Kanban)
+    74→   722→   722→
+    75→   723→   723→El export completo permite, por primera vez, ver la distribución exacta de las 239 filas por etapa del tablero, no solo el porcentaje agregado en "Llamar para confirmar":
+    76→   724→   724→
+    77→   725→   725→| Etapa (`board_column_name`) | Pedidos | % del total |
+    78→   726→   726→|---|---|---|
+    79→   727→   727→| Llamar Para Confirmar Pedido✍ | 175 | 73.2% |
+    80→   728→   728→| Intento de cancelación ⁉️ | 21 | 8.8% |
+    81→   729→   729→| Datos completados ✅ | 15 | 6.3% |
+    82→   730→   730→| Seguimiento WhatsApp✍ | 12 | 5.0% |
+    83→   731→   731→| Oficina 📦 | 9 | 3.8% |
+    84→   732→   732→| Pedido programado ⏱️ | 3 | 1.3% |
+    85→   733→   733→| **Pedidos Despachados 🚚** | **3** | **1.3%** |
+    86→   734→   734→| Pendiente Guía✍ | 1 | 0.4% |
+    87→   735→   735→
+    88→   736→   736→Esto confirma el 73% ya reportado como cuello de botella número uno, y **añade un hallazgo más grave que no era visible en el análisis anterior**: de los 239 pedidos confirmados por el agente en el período observado, solo **3 (1.3%) llegaron a estado "Despachado"**. Aun contando generosamente "Oficina" + "Pedido programado" + "Despachado" como el tramo final del embudo, eso es apenas 15 de 239 (6.3%). Esto tiene una implicación directa sobre el modelo de monetización (sección 17.7): si la comisión solo se reconoce al llegar a "Despachado", el ingreso real recibido durante el período estaría gravemente rezagado frente al GMV ya confirmado por el agente — no es solo una cuestión de "cuándo" cobrar, es una señal de que el cuello de botella operativo (el 73% varado en "Llamar para confirmar") es también, hoy, un cuello de botella de facturación si se adopta ese punto de reconocimiento sin ajustarlo.
+    89→   737→   737→
+    90→   738→   738→### 15.2 Hallazgo nuevo: calidad de dato en transportadora
+    91→   739→   739→
+    92→   740→   740→El campo `Transportadora` solo está diligenciado en 17 de 239 filas (7.1%), y en esas 17 filas el mismo transportador aparece escrito de seis formas distintas: "Interrapidisimo" (10), "interrapidisimo" (3), "Interrapidicimo" (1), "Interrapidismo" (1), "Interrapidísimo" (1), "Interapidisimo" (1). Es evidencia directa, con datos reales, de por qué la tabla `transportadoras_canonicas` (sección 2) es necesaria desde el día uno y no un "nice to have": sin normalización, cualquier reporte agregado por transportadora subestimaría el volumen real hasta en un 83% solo por variaciones de escritura del mismo dato.
+    93→   741→   741→
+    94→   742→   742→---
+    95→   743→   743→
+    96→   744→   744→## 16. Arquitectura multi-tenant y multi-plataforma
+    97→   745→   745→
+    98→   746→   746→### 16.1 Qué cambia al aceptar clientes externos
+    99→   747→   747→El sistema deja de ser una herramienta interna de Indisutex para convertirse en una plataforma que otros negocios pueden conectar con su propio WooCommerce, Shopify, catálogo propio en Supabase, o adoptando nuestro catálogo desarrollado a la medida. Implica cuatro cambios estructurales: `tenant_id` + RLS (sección 2), prompts generalizados (sección 6), capa de adaptadores (sección 8), y proveedor de IA elegible por tenant (16.8).
+   100→   748→   748→
+   101→   749→   749→### 16.2 Aislamiento de datos (seguridad multi-tenant)
+   102→   750→   750→- `tenant_id` en cada tabla, incluidos `mensajes` y sus embeddings.
+   103→   751→   751→- **Row-Level Security en Postgres**: protege incluso si un workflow olvida filtrar explícitamente — evita el incidente más grave posible: un cliente viendo datos de otro.
+   104→   752→   752→- Alternativa más costosa: esquema de base de datos separado por cliente — se justifica solo pasados los ~15-20 tenants.
+   105→   753→   753→
+   106→   754→   754→### 16.3 Onboarding de un cliente nuevo
+   107→   755→   755→1. Registro del tenant en `clientes_plataforma`.
+   108→   756→   756→2. Sincronización automática del catálogo real vía el adaptador correspondiente.
+   109→   757→   757→3. Configuración corta de marca: tono, política de pago, mínimo de pedido mayorista, ciudades de despacho.
+   110→   758→   758→4. Conexión de su propio número de WhatsApp Business — paso manual, sujeto a tiempos de verificación de Meta.
+   111→   759→   759→5. Ambiente de prueba con número sandbox antes de producción.
+   112→   760→   760→
+   113→   761→   761→### 16.4 Verificación de WhatsApp Business
+   114→   762→   762→Limita la velocidad real de onboarding sin importar la calidad del software — no es automatizable, puede tardar días o semanas.
+   115→   763→   763→
+   116→   764→   764→### 16.5 Riesgo de gobernanza de prompts, multiplicado
+   117→   765→   765→Ya mitigado al sacar todo dato de negocio del texto del prompt hacia `clientes_plataforma` y tablas relacionadas (sección 2 y 6); reforzado con la evidencia adicional de la sección 15 (dos versiones del "REGLA CERO" corriendo en paralelo).
+   118→   766→   766→
+   119→   767→   767→### 16.6 Elección de plataforma de ecommerce
+   120→   768→   768→Ver sección 5 (catálogo) y 8 (adaptadores) — cuatro rutas posibles, ninguna obliga al cliente a migrar su infraestructura existente.
+   121→   769→   769→
+   122→   770→   770→### 16.7 Modelo de base de datos de catálogo: Supabase del cliente, o catálogo propio en Supabase/Oracle
+   123→   771→   771→
+   124→   772→   772→- **Postgres + pgvector (núcleo del sistema)**: igual para todos los tenants — contactos, pedidos, mensajes, embeddings, con RLS.
+   125→   773→   773→- **Base de datos del catálogo (varía por tenant)**:
+   126→   774→   774→  1. El cliente ya tiene su propia interfaz de catálogo y su propia Supabase → el adaptador (8.4) se conecta como lector; el cliente conserva control total.
+   127→   775→   775→  2. El cliente no tiene catálogo propio y quiere que se lo desarrollemos en Supabase → ruta más rápida y económica (8.5).
+   128→   776→   776→  3. El cliente no tiene catálogo propio y prefiere u opera con Oracle → mismo modelo lógico de tablas, adaptador propio para Oracle; mayor costo y tiempo de puesta en marcha, se reserva para requisitos corporativos explícitos.
+   129→   777→   777→
+   130→   778→   778→### 16.8 Proveedor de IA elegible por cliente (ChatGPT, xAI, u Ollama)
+   131→   779→   779→
+   132→   780→   780→- **ChatGPT (OpenAI)**: el cliente conecta su propia API key en `clientes_plataforma.credenciales_ia_ref`. El consumo se factura directo a su cuenta de OpenAI — no lo intermediamos ni lo revendemos con margen.
+   133→   781→   781→- **xAI (Grok)**: mismo esquema — API key propia del cliente.
+   134→   782→   782→- **Ollama autoalojado**: opción que **el vendedor habilita si conviene** — cliente de bajo volumen, o requisito explícito de no depender de proveedores externos de IA.
+   135→   783→   783→- Los 9 system prompts no cambian por proveedor — el nodo de IA en n8n apunta a uno u otro endpoint según `proveedor_ia` del tenant.
+   136→   784→   784→- Validar que el modelo elegido soporte visión con calidad comparable para el agente 6.9 — no todos los planes de cada proveedor la incluyen igual.
+   137→   785→   785→
+   138→   786→   786→### 16.9 Proveedor de logística elegible por cliente (Dropi, 99envios, Aveonline)
+   139→   787→   787→
+   140→   788→   788→Igual que con el proveedor de IA, el proveedor de logística no está atado a Dropi — cada tenant elige en `clientes_plataforma.proveedor_logistico` (sección 2) cuál de los tres usar, y el `LogisticsAdapter` (sección 8.6) resuelve la diferencia sin que ningún agente conversacional lo note. Consideraciones al elegir:
+   141→   789→   789→- Un cliente que ya opera con Dropi como marketplace de dropshipping (no solo como transportadora) probablemente deba quedarse en Dropi para no romper su cadena de abastecimiento.
+   142→   790→   790→- Un cliente que solo necesita cotizar/despachar (ya tiene su propio inventario, como Indisutex) puede evaluar 99envios o Aveonline igual de bien, comparando tarifa, cobertura y velocidad de pago del recaudo contra entrega.
+   143→   791→   791→- Si el cliente ya usa el módulo de confirmación/novedades por WhatsApp de 99envios o Aveonline (AveChat), acordar explícitamente con el cliente si esa función la sigue el agente propio (6.7) o el del proveedor logístico, para no duplicar mensajes.
+   144→   792→   792→
+   145→   793→   793→### 16.10 El límite real de escalar el LLM cuando el cliente elige Ollama
+   146→   794→   794→Un solo servidor de Ollama compartido entre varios tenants que lo eligieron degrada su tiempo de respuesta proporcional a la carga concurrente. Opciones: un Ollama por tenant (aísla carga, más costo), pool balanceado (más complejo de operar), o sugerir activamente ChatGPT/xAI para tenants de alto volumen y reservar Ollama para los de bajo volumen. Dimensionar según cuántos tenants reales elijan Ollama, no según el total de clientes de la plataforma.
+   147→   795→   795→
+   148→   796→   796→### 16.11 Riesgos específicos del escalamiento multi-tenant
+   149→   797→   797→1. Fuga de datos entre tenants si no se aplica RLS.
+   150→   798→   798→2. Dependencia de tiempos de revisión de Shopify si se opta por app pública.
+   151→   799→   799→3. Gobernanza de prompts multiplicada por cliente — mitigada en 16.5.
+   152→   800→   800→4. Latencia de Ollama bajo carga compartida, para tenants que lo elijan — mitigada en 16.10.
+   153→   801→   801→5. Verificación de WhatsApp Business por cliente — riesgo de tiempo, no técnico.
+   154→   802→   802→6. Dependencia de la API key del cliente para ChatGPT/xAI: si la revoca o deja de pagar, ese tenant pierde LLM funcional hasta renovarla — conviene un chequeo de salud de la key por tenant.
+   155→   803→   803→7. Gobernanza de credenciales de catálogo externas (Supabase del cliente, Oracle): un cambio de esquema no avisado por el cliente puede romper la sincronización — el adaptador debe validar columnas esperadas antes de sincronizar, no asumir que la estructura nunca cambia.
+   156→   804→   804→8. Calidad de dato heredada de la plataforma de origen del cliente (ver sección 15.2: seis variantes de escritura del mismo transportador en un solo dataset) — el adaptador de cada plataforma debe normalizar campos de texto libre contra catálogos canónicos antes de escribir en el núcleo, no asumir que el dato del cliente ya viene limpio.
+   157→   805→   805→9. Dependencia del proveedor logístico elegido (Dropi, 99envios o Aveonline): si el cliente cambia de proveedor logístico a mitad de operación, hay que migrar `proveedor_logistico` y revalidar que `LogisticsAdapter` siga generando guía y estado correctamente — mitigado por la interfaz común de la sección 8.6, pero el corte de credenciales del proveedor viejo debe coordinarse para no perder guías en tránsito.
+   158→   806→   806→10. Solapamiento de funciones si el cliente ya usa el módulo de confirmación/novedades por WhatsApp propio de 99envios o Aveonline (AveChat) — sin acordar por tenant cuál sistema posee esa conversación, el cliente final puede recibir mensajes duplicados o contradictorios sobre el mismo pedido (sección 16.9).
+   159→   807→   807→
+   160→   808→   808→---
+   161→   809→   809→
+   162→   810→   810→## 17. Modelo de monetización recomendado
+   163→   811→   811→
+   164→   812→   812→### 17.1 Modelo elegido: híbrido de fee base bajo + comisión escalonada decreciente sobre el GMV confirmado por el agente
+   165→   813→   813→
+   166→   814→   814→No es un SaaS fijo, ni un cobro por conversación, ni licenciamiento a terceros como modelo primario. Es la combinación que mejor se alinea con cómo este tipo de cliente (mayorista de alto ticket, ya acostumbrado a pagar por resultado en Meta Ads y Dropi) entiende el valor, y con lo que el sistema ya registra por diseño sin necesidad de telemetría nueva.
+   167→   815→   815→
+   168→   816→   816→### 17.2 Por qué este modelo y no los otros (resumen del marco de evaluación)
+   169→   817→   817→
+   170→   818→   818→| Modelo | Alineación de incentivos | Fricción de venta | Techo de ingreso | Costo de auditoría | Resiliencia a churn | Cubre costo fijo |
+   171→   819→   819→|---|---|---|---|---|---|---|
+   172→   820→   820→| SaaS fijo | Baja | Alta | Plano | Bajo | Baja | Alta |
+   173→   821→   821→| Por conversación/uso | Media | Media-alta | Medio, desalineado del valor | Medio | Media | Alta |
+   174→   822→   822→| **Comisión sobre GMV (elegido, combinado con fee base)** | **Alta** | **Baja** | **Alto, crece con el cliente** | **Bajo (ya existe el dato)** | **Alta** | Baja por sí solo (se complementa con el fee base) |
+   175→   823→   823→| Licenciamiento/reventa a terceros | Media | Baja (para escalar canal) | Medio (diluido por margen del revendedor) | Medio | Media | Media |
+   176→   824→   824→| Fee de implementación como único eje | N/A | Baja | Nulo en recurrencia | Bajo | N/A | Media, solo al inicio |
+   177→   825→   825→
+   178→   826→   826→### 17.3 Estructura del modelo
+   179→   827→   827→
+   180→   828→   828→1. **Fee de implementación** (pago único): cubre el onboarding real — verificación de WABA, configuración de marca, sincronización inicial de catálogo, pruebas en sandbox (sección 16.3). No cambia según el plan.
+   181→   829→   829→2. **Fee base mensual, bajo**: cubre exclusivamente el costo fijo que no depende del volumen de venta del cliente — mantenimiento de la plataforma, soporte, y GPU si el cliente eligió Ollama. Varía según el plan de arquitectura elegido (17.4):
+   182→   830→   830→   - Plan **Conecta** (catálogo propio del cliente + su propia API key de IA): fee base más bajo — nuestro costo fijo real es mínimo.
+   183→   831→   831→   - Plan **Catálogo Incluido** (catálogo desarrollado por nosotros en Supabase, API key propia del cliente): fee base intermedio.
+   184→   832→   832→   - Plan **Completo** (catálogo propio nuestro en Oracle u Ollama compartido): fee base más alto — asumimos costo fijo de licenciamiento e infraestructura.
+   185→   833→   833→3. **Comisión variable sobre el GMV confirmado por el agente**, escalonada y decreciente — la fuente principal de ingreso:
+   186→   834→   834→
+   187→   835→   835→| Tramo de GMV mensual generado vía el agente | Comisión sugerida |
+   188→   836→   836→|---|---|
+   189→   837→   837→| Hasta $10.000.000 COP/mes | 4-5% |
+   190→   838→   838→| $10.000.001 - $40.000.000 COP/mes | 2.5-3% |
+   191→   839→   839→| Más de $40.000.000 COP/mes | 1.5-2% |
+   192→   840→   840→
+   193→   841→   841→*(Tramos y porcentajes de partida, a calibrar con datos reales de margen del cliente piloto; el margen mayorista reportado en el guion de ventas ronda 55-60% sobre el precio de venta, lo que deja espacio real para esta comisión sin volverse prohibitiva.)*
+   194→   842→   842→
+   195→   843→   843→### 17.4 Por qué escalonado y decreciente
+   196→   844→   844→
+   197→   845→   845→Un porcentaje fijo penaliza más, en términos relativos, al cliente que más crece — justo al que menos motivos se le debe dar para buscar alternativas. Bajar el porcentaje con el volumen premia el crecimiento del cliente y refuerza la retención en el momento de mayor riesgo de fuga (cuando ya tiene volumen suficiente para plantearse construir algo propio), mientras el ingreso absoluto para nosotros sigue creciendo con el cliente.
+   198→   846→   846→
+   199→   847→   847→### 17.5 Ejemplo numérico con los datos reales ya observados
+   200→   848→   848→
+   201→   849→   849→- GMV de la semana pico observada (≈47 pedidos × $137.014 COP AOV) ≈ **$6.440.000 COP/semana** → proyectado a mes (×4.3) ≈ **$27.700.000 COP/mes**.
+   202→   850→   850→- Bajo el modelo recomendado (tramo de 4-5% en ese nivel): comisión mensual estimada ≈ **$1.100.000 - $1.385.000 COP**, más el fee base.
+   203→   851→   851→- Comparado con un SaaS fijo conservador ($300.000-$500.000 COP/mes, cifra ilustrativa): la comisión ya supera ese ingreso en el mes en que el cliente alcanza el ritmo de crecimiento ya observado (de 4 a 47 pedidos/semana en menos de tres meses).
+   204→   852→   852→- Si el cliente escala a 100 pedidos/semana, GMV mensual ≈ **$58.900.000 COP**, entrando al tramo de 1.5-2% → comisión mensual estimada entre **$883.000 y $1.178.000 COP**, todavía por encima del SaaS fijo conservador, sin renegociar contrato.
+   205→   853→   853→
+   206→   854→   854→*(Cifras ilustrativas construidas sobre datos reales ya procesados, no una promesa de ingreso — evidencia de que el modelo escala con el negocio observado, mientras un SaaS fijo se queda estático sin importar el éxito del cliente.)*
+   207→   855→   855→
+   208→   856→   856→### 17.6 Qué pedido "cuenta" para la comisión
+   209→   857→   857→
+   210→   858→   858→Solo los pedidos con `origen = "agente_whatsapp"` (campo definido en la tabla `pedidos`, sección 2) se facturan — un pedido que el cliente cerró por su cuenta (ej. en su tienda web sin pasar por el agente) no cuenta. El propio agente de checkout (6.10) escribe este campo al confirmar, así que no depende de que el cliente reporte manualmente sus ventas.
+   211→   859→   859→
+   212→   860→   860→### 17.7 Momento de reconocimiento de la comisión — ajustado con el hallazgo de la sección 15.1
+   213→   861→   861→
+   214→   862→   862→La versión anterior de este documento proponía cobrar la comisión solo sobre pedidos que llegan a estado "Despachado". El desglose completo del embudo (sección 15.1) muestra que **ese punto de reconocimiento, tal cual, es inviable operativamente hoy**: solo el 1.3% de los 239 pedidos observados llegó a "Despachado" en el período — no porque las ventas no sean reales, sino porque el cuello de botella de "Llamar para confirmar" (73%) retiene casi todo el embudo antes de llegar ahí. Cobrar solo al despacho, en el estado operativo actual, significaría facturar sobre menos del 2% del GMV real confirmado por el agente — un desalineamiento severo entre el valor entregado y el ingreso recibido.
+   215→   863→   863→
+   216→   864→   864→**Ajuste recomendado**: reconocer la comisión en dos momentos, no uno solo, para no perder alineación con el flujo de caja real del negocio ni sobre-prometer un ingreso que el propio embudo del cliente no sostiene:
+   217→   865→   865→- **Reconocimiento parcial** (ej. 50% de la comisión calculada) al llegar a "Datos completados" — el punto en que el pedido ya tiene dirección, producto y valor confirmados por el cliente, y es lo más cercano a "venta real" que el embudo actual sostiene de forma consistente.
+   218→   866→   866→- **Reconocimiento del saldo restante** al llegar a "Despachado" — preserva el incentivo original de cobrar sobre venta efectivamente entregada, sin que el 98.7% de rezago actual bloquee todo el ingreso recurrente.
+   219→   867→   867→
+   220→   868→   868→Esto no reemplaza la prioridad operativa de resolver el cuello de botella del 73% (sección 14 y 18) — al contrario, la refuerza: mientras ese cuello de botella no se resuelva, es también el mayor obstáculo para el flujo de caja del propio modelo de monetización, no solo para la satisfacción del cliente final.
+   221→   869→   869→
+   222→   870→   870→### 17.8 Riesgos del modelo y mitigación
+   223→   871→   871→
+   224→   872→   872→1. **Ingreso variable y menos predecible que un SaaS fijo** — mitigado por el fee base, que garantiza un piso de ingreso independiente del volumen de venta del cliente ese mes.
+   225→   873→   873→2. **Resistencia inicial de algunos clientes a un modelo de comisión** — ofrecer también un SaaS fijo equivalente más alto como alternativa, dejando que el cliente elija; en la práctica, calibrado para que la comisión escalonada sea la opción más atractiva para un cliente que confía en el sistema.
+   226→   874→   874→3. **Auditoría de valor real del pedido** — mitigado porque el propio agente de checkout escribe `valor_de_compra`, no depende de autoreporte.
+   227→   875→   875→4. **Cancelaciones y devoluciones** — el 8.8% de los pedidos observados (21/239) quedan en "Intento de cancelación" (sección 15.1); mitigado por el reconocimiento en dos momentos de la sección 17.7, que evita cobrar comisión completa sobre un pedido que aún puede caerse.
+   228→   876→   876→5. **Calibración inicial de tramos, porcentajes y del split de reconocimiento parcial/final** — deben ajustarse con datos reales de margen y de tasa de conversión "Datos completados → Despachado" de los primeros 2-3 clientes piloto antes de estandarizarse para el resto de la plataforma.
+   229→   877→   877→6. **Dependencia del cuello de botella operativo del 73%** (nuevo, sección 15.1 y 17.7) — mientras ese cuello de botella no se resuelva, el reconocimiento final de comisión (ligado a "Despachado") seguirá rezagado frente al GMV real confirmado; conviene tratar la resolución de ese cuello de botella como una prioridad compartida entre el éxito del cliente y la salud del propio modelo de ingreso.
+   230→   878→   878→
+   231→   879→   879→### 17.9 Fuga de pedidos: riesgo y mitigación
+   232→   880→   880→
+   233→   881→   881→Es una preocupación frecuente y legítima de cualquier ecommerce antes de aceptar un modelo de comisión sobre GMV: ¿qué evita que un pedido se cierre por WhatsApp pero quede fuera del sistema, sin generar comisión? Vale la pena distinguir dos formas del mismo riesgo y tratarlas por separado, porque la mitigación de cada una es distinta.
+   234→   882→   882→
+   235→   883→   883→**Tipo 1 — Fuga de visibilidad.** El vendedor cierra la venta conversando por un número de WhatsApp personal, no por la WABA del tenant conectada al agente. El pedido nunca pasa por el sistema, así que ni siquiera queda registrado como dato — se pierde la venta y la trazabilidad, no solo la comisión.
+   236→   884→   884→
+   237→   885→   885→**Tipo 2 — Fuga de comisión.** El pedido sí nace en la WABA del tenant (por ejemplo, entra por un anuncio de Meta que apunta ahí), pero antes de que el agente de checkout (6.10) lo confirme, el vendedor lo deriva a un canal paralelo — un número personal, "mándame el pago directo por Nequi" — precisamente para esquivar el campo `origen = "agente_whatsapp"` (sección 17.6) y no generar comisión sobre esa venta.
+   238→   886→   886→
+   239→   887→   887→**Mitigaciones recomendadas, de la más estructural a la más operativa:**
+   240→   888→   888→
+   241→   889→   889→1. **Un solo número público por tenant.** Toda la pauta paga (Meta Ads), el link en bio y el catálogo apuntan únicamente a la WABA conectada al agente — si no existe otro número público al que derivar al cliente, se cierra la puerta de entrada del Tipo 1 desde el origen del tráfico.
+   242→   890→   890→2. **Conciliación periódica GMV del agente vs. GMV del cliente.** Comparar el GMV que reporta el agente (`pedidos.valor_de_compra` con `origen = "agente_whatsapp"`) contra las ventas totales que el cliente reporta por su cuenta (caja, banco, o el backend de su ecommerce si aplica). Una brecha sostenida es la señal temprana de fuga; se puede montar como un reporte adicional en el tablero de NocoDB (sección 10).
+   243→   891→   891→3. **Activar el log completo de conversación.** Ya identificado como gap crítico en `conversation_summary` (0% de registro en los 239 pedidos analizados, sección 15 y riesgo 18.4) — sin el hilo completo de la conversación no hay forma de auditar si un pedido se desvió a mitad de camino. Resolver ese gap no es solo una mejora de calidad de dato: es la evidencia que sostiene cualquier disputa sobre fuga.
+   244→   892→   892→4. **Fricción de proceso a favor del canal oficial.** El camino por el agente debe ser objetivamente más cómodo que el atajo — checkout guiado, generación automática de guía de envío (vía `LogisticsAdapter`, sección 8.6), confirmación sin pasos manuales. Si cerrar por el agente es más rápido que cerrar por fuera, la fuga pierde buena parte de su incentivo económico para el vendedor.
+   245→   893→   893→5. **Cláusula contractual explícita.** Independiente de la mitigación técnica, el contrato con el tenant debe definir la fuga de pedidos como incumplimiento, con la conciliación del punto 2 como mecanismo de verificación — la mitigación técnica reduce la fuga, pero no reemplaza el respaldo contractual.
+   246→   894→   894→
+   247→   895→   895→Ninguna de estas mitigaciones elimina el riesgo por completo — es inherente a cualquier modelo de comisión sobre un canal conversacional humano-asistido — pero en conjunto lo reducen a un nivel manejable y, sobre todo, lo hacen detectable en vez de invisible.
+   248→   896→   896→
+   249→   897→   897→---
+   250→   898→   898→
+   251→   899→   899→## 18. Riesgos generales del proyecto y mitigación
+   252→   900→   900→
+   253→   901→   901→1. **Cuello de botella operativo en "Llamar para confirmar"** (73.2% de los pedidos, 175/239 — sección 15.1) — evaluar automatización de confirmación por WhatsApp (voz/audio) para pedidos de score alto de Dropi, antes de invertir en escalar a más clientes. Este mismo cuello de botella hoy limita a 1.3% la tasa de pedidos que llegan a "Despachado" — afecta directamente el momento de reconocimiento de ingreso del modelo de monetización (sección 17.7).
+   254→   902→   902→2. **Talla única S-L deriva siempre a asesor humano** — demanda no cuantificada que se pierde o se resuelve manualmente sin quedar en las métricas de conversión del bot.
+   255→   903→   903→3. **Dependencia de un solo SKU (Short Tira)** — limita el ticket promedio y el cross-sell; el agente de catálogo (6.4) ya corrige parcialmente esto para categorías amplias.
+   256→   904→   904→4. **Falta histórica de registro de conversación real** (`conversation_summary` vacía en el 100% de los pedidos analizados, confirmado también en el export completo del CRM — sección 15) — cualquier optimización futura del guion se basa en inferencia indirecta en vez de evidencia directa; activar el log de conversación es una mejora de bajo costo y alto valor.
+   257→   905→   905→5. **Calidad de dato heredada de la plataforma de origen** (sección 15.2: seis variantes de escritura del mismo transportador) — riesgo de subestimar cualquier métrica agregada por campo de texto libre si no se normaliza antes de reportar.
+   258→   906→   906→6. **Riesgos de seguridad y gobernanza multi-tenant** — ver sección 16.11.
+   259→   907→   907→7. **Riesgos del modelo de monetización** — ver sección 17.8.
+   260→   908→   908→8. **Fuga de pedidos fuera del agente (visibilidad y comisión)** — un vendedor puede derivar la venta a un número personal o a un canal paralelo para evitar que quede registrada como `origen = "agente_whatsapp"`; mitigado con número único público por tenant, conciliación GMV agente vs. cliente y activación del log de conversación — ver sección 17.9.
+   261→   909→   909→
+   262→   910→   910→---
+   263→   911→   911→
+   264→   912→   912→## 19. Glosario
+   265→   913→   913→
+   266→   914→   914→- **Tenant**: una marca interna de Indisutex o un cliente externo completo, identificado por `tenant_id`.
+   267→   915→   915→- **WABA**: WhatsApp Business Account, la cuenta verificada de Meta que atiende a un tenant.
+   268→   916→   916→- **GMV**: Gross Merchandise Value — el valor total de venta procesado, en este proyecto igual a la suma de `pedidos.valor_de_compra` con `origen = "agente_whatsapp"`.
+   269→   917→   917→- **RLS**: Row-Level Security, mecanismo de Postgres que aísla los datos de cada tenant a nivel de fila.
+   270→   918→   918→- **EcommerceAdapter**: la interfaz común que traduce las llamadas de los agentes conversacionales hacia la plataforma de catálogo/ecommerce real de cada tenant (WhatsApp Catalog, WooCommerce, Shopify, Supabase propia o del cliente, Oracle).
+   271→   919→   919→- **LogisticsAdapter**: la interfaz común que traduce las llamadas del agente de logística (6.8) y del agente de checkout (6.10) hacia la plataforma de envíos real de cada tenant (Dropi, 99envios, Aveonline), sin que ningún agente conversacional sepa cuál está detrás (sección 8.6).
+   272→   920→   920→- **99envios / Aveonline**: plataformas logísticas colombianas multitransportadora (cotizan y despachan indistintamente con TCC, Coordinadora, Interrapidísimo, Servientrega y Envía desde un solo panel/API), alternativas a Dropi como proveedor logístico elegible por tenant (sección 9.6).
+   273→   921→   921→- **PostgREST**: la API REST autogenerada por Supabase sobre Postgres, usada para leer catálogos de clientes que ya tienen su propia Supabase.
+   274→   922→   922→- **Fuga de pedidos**: cuando una venta que debería pasar por el agente de WhatsApp se cierra por fuera del sistema (número personal o canal paralelo), sin quedar registrada con `origen = "agente_whatsapp"` — pierde visibilidad de dato, comisión, o ambas (sección 17.9).
+   275→   923→   923→

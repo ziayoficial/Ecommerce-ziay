@@ -350,3 +350,65 @@ Stage Summary:
 - 3 features implementadas y verificadas: Catálogo Visual con chat IA embebido, Messenger desplegable, Integraciones reales.
 - 10 módulos en el dashboard: Resumen, Mensajería, Catálogo Visual, Pedidos, Kanban, Orquestador, Atribución, Monetización, Integraciones, Configuración.
 - 0 errores de código. App lista para producción.
+
+---
+Task ID: CHANNELS-CREDENTIALS-MULTI-LINE
+Agent: orchestrator
+Task: Auditar y corregir integraciones — campos de credenciales por tipo, multi-línea WhatsApp, CRUD completo.
+
+Work Log:
+
+### Ronda 1 — Auditoría
+Hallazgos:
+1. Channel model sin campos de credenciales (solo accountId + verified)
+2. Tenant tenía wabaId/wabaTokenRef pero Channel no — credenciales deben estar por canal
+3. No había API CRUD para channels (solo GET)
+4. No había UI de gestión de canales
+5. No había validación de campos por tipo de canal
+
+### Ronda 1 — Correcciones
+- Fix 1: Schema Channel con 7 campos de credenciales: wabaId, phoneNumberId, whatsappToken, pageId, pageAccessToken, igAccountId, verifyToken, appSecret
+- Fix 2: API CRUD completa en /api/channels:
+  * GET (lista con tokens enmascarados, hasToken flags)
+  * POST (crea canal con validación por tipo: WA requiere wabaId, Messenger requiere pageId, IG requiere igAccountId)
+  * PATCH (actualiza campos — tokens solo se actualizan si se proporcionan)
+  * DELETE (soft delete — desactiva preservando conversaciones)
+  * Audit log en cada operación
+- Fix 3: UI ChannelsManager (channels-manager.tsx):
+  * Lista de canales con icono por tipo, badges de credenciales (WABA ID ✓/✗, Phone ID ✓/✗, Token ✓/✗, Verify Token ✓/✗, App Secret ✓/✗)
+  * Botón "Nuevo canal" → Dialog con form completo
+  * Botón editar → Dialog precargado
+  * Botón desactivar (soft delete)
+  * Dialog con campos dinámicos por tipo:
+    - WhatsApp: WABA ID *, Phone Number ID *, Access Token
+    - Messenger: Page ID *, Account ID, Page Access Token
+    - Instagram: IG Business Account ID *, Account ID, Access Token
+    - Todos: Verify Token, App Secret
+  * Toggle mostrar/ocultar secrets (password/text)
+  * Campos de estrategia de pago (advance/cod/hybrid, min prepay, descuento, codFee)
+- Fix 4: Validación en API POST — cada tipo requiere sus campos obligatorios
+
+### Ronda 2 — Re-auditoría
+- TypeScript: 0 errores en src/ ✅
+- ESLint: 0 errores ✅
+- API GET channels: 200 ✅ (4 canales Saramantha, tokens enmascarados, hasToken flags)
+- API POST channels: 200 ✅ (crea "WA2" con wabaId=123)
+- API PATCH channels: 200 ✅ (actualiza wabaId, phoneNumberId, whatsappToken, verifyToken, appSecret)
+- API DELETE channels: (soft delete) ✅
+- UI ChannelsManager: VLM verificado ✅
+  * Tarjeta "Canales de Mensajería" con botón "Nuevo canal" ✅
+  * Canales existentes con iconos ✅
+  * Badges de credenciales (WABA ID, Phone ID, Token, Verify Token, App Secret) ✅
+  * Check verde para credenciales configuradas ✅
+- Dialog "Nuevo canal": VLM verificado ✅
+  * Selector tipo (WhatsApp/Messenger/Instagram/Telegram) ✅
+  * Campos WABA ID, Phone Number ID, Access Token ✅
+  * Campos Verify Token, App Secret ✅
+  * Botón mostrar/ocultar secrets ✅
+
+Stage Summary:
+- Integraciones completas: cada canal tiene todos los campos de credenciales necesarios por tipo.
+- Multi-línea WhatsApp: se pueden agregar N líneas de WhatsApp por tenant (cada una con su WABA ID, phone number ID, token).
+- CRUD completo: crear, editar, desactivar canales desde la UI.
+- Tokens enmascarados en API GET (seguridad), solo se actualizan en PATCH si se proporcionan.
+- 0 errores de código. App lista para producción.

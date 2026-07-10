@@ -14,6 +14,7 @@ import { Switch } from '@/components/ui/switch'
 import { formatCurrency } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
+import { ChannelsManager } from './channels-manager'
 import {
   CreditCard, Truck, Percent, Save, Shield, Zap, Globe, KeyRound, Bot,
 } from 'lucide-react'
@@ -87,6 +88,9 @@ export function SettingsView() {
 
   return (
     <div className="space-y-6 animate-fade-in-up">
+      {/* Channels manager — multi-line WhatsApp, Messenger, IG with credentials */}
+      <ChannelsManager />
+
       {/* Channel payment strategy */}
       <Card>
         <CardHeader>

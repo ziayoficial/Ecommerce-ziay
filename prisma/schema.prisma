@@ -102,6 +102,21 @@ model Channel {
   requirePrepayMin  Float?
   prepayDiscountPct  Float? @default(0)
   codFee            Float?  @default(0)
+
+  // ── Credenciales por tipo de canal (Saramantha §9.1, §9.2, §9.3) ──
+  // WhatsApp Cloud API (§9.1)
+  wabaId            String?  // WhatsApp Business Account ID
+  phoneNumberId     String?  // Phone Number ID from Meta
+  whatsappToken     String?  // Access token for WhatsApp Cloud API
+  // Messenger (§9.2)
+  pageId            String?  // Facebook Page ID
+  pageAccessToken   String?  // Page Access Token
+  // Instagram DM (§9.3)
+  igAccountId       String?  // Instagram Business Account ID
+  // Webhook security (all channels)
+  verifyToken       String?  // Webhook verification token
+  appSecret         String?  // App Secret for HMAC signature verification
+
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

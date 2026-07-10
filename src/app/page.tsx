@@ -4,11 +4,14 @@ import { Sidebar, ViewId } from '@/components/dashboard/sidebar'
 import { Topbar } from '@/components/dashboard/topbar'
 import { OverviewView } from '@/components/dashboard/overview-view'
 import { MessengerView } from '@/components/dashboard/messenger-view'
+import { CatalogVisualView } from '@/components/dashboard/catalog-visual-view'
 import { OrdersView } from '@/components/dashboard/orders-view'
+import { KanbanView } from '@/components/dashboard/kanban-view'
+import { OrchestratorView } from '@/components/dashboard/orchestrator-view'
 import { AdsView } from '@/components/dashboard/ads-view'
 import { MonetizationView } from '@/components/dashboard/monetization-view'
+import { IntegrationsView } from '@/components/dashboard/integrations-view'
 import { SettingsView } from '@/components/dashboard/settings-view'
-import { NAV_ITEMS } from '@/components/dashboard/sidebar'
 import { Zap, Github, BookOpen } from 'lucide-react'
 
 export default function Home() {
@@ -16,8 +19,8 @@ export default function Home() {
   const [country, setCountry] = useState('ALL')
 
   const badges: Partial<Record<ViewId, number>> = {
-    messenger: 3, // unread demo
-    ads: 2,       // kill candidates
+    messenger: 3,
+    ads: 2,
   }
 
   return (
@@ -30,16 +33,19 @@ export default function Home() {
             <div className="p-4 md:p-6 max-w-[1600px] mx-auto">
               {view === 'overview' && <OverviewView />}
               {view === 'messenger' && <MessengerView />}
+              {view === 'catalog' && <CatalogVisualView />}
               {view === 'orders' && <OrdersView />}
+              {view === 'kanban' && <KanbanView />}
+              {view === 'orchestrator' && <OrchestratorView />}
               {view === 'ads' && <AdsView />}
               {view === 'monetization' && <MonetizationView />}
+              {view === 'integrations' && <IntegrationsView />}
               {view === 'settings' && <SettingsView />}
             </div>
           </main>
         </div>
       </div>
 
-      {/* Sticky footer */}
       <footer className="shrink-0 border-t bg-background">
         <div className="px-4 md:px-6 py-3 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-muted-foreground">
           <div className="flex items-center gap-3">

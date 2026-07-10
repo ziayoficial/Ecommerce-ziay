@@ -1,17 +1,21 @@
 'use client'
 import { cn } from '@/lib/utils'
 import {
-  LayoutDashboard, MessagesSquare, ShoppingCart, Target, Settings, Zap, DollarSign,
+  LayoutDashboard, MessagesSquare, ShoppingCart, Target, Settings, Zap, DollarSign, Plug, KanbanSquare, Workflow, Grid3x3,
 } from 'lucide-react'
 
-export type ViewId = 'overview' | 'messenger' | 'orders' | 'ads' | 'monetization' | 'settings'
+export type ViewId = 'overview' | 'messenger' | 'catalog' | 'orders' | 'kanban' | 'orchestrator' | 'ads' | 'monetization' | 'integrations' | 'settings'
 
 export const NAV_ITEMS: { id: ViewId; label: string; icon: typeof LayoutDashboard; hint: string }[] = [
   { id: 'overview', label: 'Resumen', icon: LayoutDashboard, hint: 'KPIs · ROAS · CPA' },
   { id: 'messenger', label: 'Mensajería', icon: MessagesSquare, hint: 'WhatsApp · Messenger · IG' },
+  { id: 'catalog', label: 'Catálogo Visual', icon: Grid3x3, hint: 'Ver + chatear con IA' },
   { id: 'orders', label: 'Pedidos & Pagos', icon: ShoppingCart, hint: 'Anticipado · Contra entrega' },
+  { id: 'kanban', label: 'Kanban operativo', icon: KanbanSquare, hint: 'NocoDB · §10' },
+  { id: 'orchestrator', label: 'Orquestador', icon: Workflow, hint: '9 agentes · §12' },
   { id: 'ads', label: 'Atribución de Pauta', icon: Target, hint: 'CPA · ROAS · ROI' },
   { id: 'monetization', label: 'Monetización', icon: DollarSign, hint: 'Comisión sobre GMV' },
+  { id: 'integrations', label: 'Catálogo e Integraciones', icon: Plug, hint: 'Shopify · Woo · Dropi' },
   { id: 'settings', label: 'Configuración', icon: Settings, hint: 'Estrategia de pago' },
 ]
 

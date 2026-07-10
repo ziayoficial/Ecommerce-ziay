@@ -124,7 +124,7 @@ export async function GET(req: NextRequest) {
     acc.units += r.metrics.units
     acc.netProfit += r.metrics.netProfit
     return acc
-  }, { spend: 0, revenue: 0, paidRevenue: 0, orders: 0, units: 0, netProfit: 0 })
+  }, { spend: 0, revenue: 0, paidRevenue: 0, orders: 0, units: 0, netProfit: 0, roas: 0, roi: 0, cpa: 0 })
   totals.roas = totals.spend > 0 ? Number((totals.paidRevenue / totals.spend).toFixed(2)) : 0
   totals.roi = totals.spend > 0 ? Number((totals.netProfit / totals.spend).toFixed(2)) : 0
   totals.cpa = totals.orders > 0 ? Math.round(totals.spend / totals.orders) : 0

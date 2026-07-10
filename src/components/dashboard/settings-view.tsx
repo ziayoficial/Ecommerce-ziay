@@ -220,35 +220,16 @@ export function SettingsView() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2"><Globe className="size-4 text-violet-500" /> Integraciones</CardTitle>
-            <CardDescription>Canales de mensajería y plataformas de pauta conectadas</CardDescription>
+            <CardTitle className="text-base flex items-center gap-2"><Globe className="size-4 text-violet-500" /> Integraciones (estado real)</CardTitle>
+            <CardDescription>Estado real de cada integracion — lee del endpoint /api/health</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            {[
-              { name: 'WhatsApp Business API', status: 'Conectado', icon: '💬', cls: 'bg-emerald-500/10 text-emerald-600', detail: '+57 300 111 2233 · verificado' },
-              { name: 'Facebook Messenger', status: 'Conectado', icon: '📩', cls: 'bg-sky-500/10 text-sky-600', detail: 'Página CommerceFlow · INTL' },
-              { name: 'Instagram DM', status: 'Conectado', icon: '📸', cls: 'bg-fuchsia-500/10 text-fuchsia-600', detail: '@commerceflow.shop' },
-              { name: 'Meta Ads API', status: 'Conectado', icon: '🎯', cls: 'bg-sky-500/10 text-sky-600', detail: 'act_102455 · token válido' },
-              { name: 'Google Ads API', status: 'Conectado', icon: '🔍', cls: 'bg-amber-500/10 text-amber-600', detail: '123-456-7890 · OAuth ok' },
-              { name: 'TikTok Ads API', status: 'Conectado', icon: '🎵', cls: 'bg-slate-900/10 text-slate-700 dark:text-slate-300', detail: 'tt_act_9981' },
-              { name: 'Mercado Pago / Wompi', status: 'Conectado', icon: '💳', cls: 'bg-primary/10 text-primary', detail: 'Gateway de cobro anticipado' },
-            ].map((i) => (
-              <div key={i.name} className="flex items-center gap-3 p-2.5 rounded-lg border">
-                <span className="text-lg">{i.icon}</span>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium">{i.name}</div>
-                  <div className="text-xs text-muted-foreground truncate">{i.detail}</div>
-                </div>
-                <Badge variant="outline" className={cn('text-[10px] gap-1', i.cls)}>
-                  <span className="size-1.5 rounded-full bg-emerald-500" /> {i.status}
-                </Badge>
-              </div>
-            ))}
+            <IntegrationsReal />
             <div className="flex items-center justify-between pt-2 border-t">
               <div className="flex items-center gap-2">
                 <Bot className="size-4 text-primary" />
                 <div>
-                  <div className="text-sm font-medium">Respuestas automáticas con IA</div>
+                  <div className="text-sm font-medium">Respuestas automaticas con IA</div>
                   <div className="text-xs text-muted-foreground">Sugerencias contextuales para agentes</div>
                 </div>
               </div>
@@ -278,6 +259,74 @@ export function SettingsView() {
           ))}
         </CardContent>
       </Card>
+    </div>
+  )
+}
+
+// ── Integrations real status (reads from /api/health) ──
+function IntegrationsReal() {
+  const [checks, setChecks] = useState<Array<{ name: string; status: string; detail: string }>>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetch('/api/health?tenantId=ten-saramantha').then(r => r.json()).then(d => {
+      // Filter to integration-relevant checks
+      const relevant = (d.checks || []).filter((c: { name: string }) =>
+        c.name.startsWith('llm_') || c.name.startsWith('adapter_') || c.name.startsWith('logistics_') || c.name.startsWith('webhook_') || c.name === 'database' || c.name === 'tenants'
+      )
+      setChecks(relevant)
+      setLoading(false)
+    }).catch(() => setLoading(false))
+  }, [])
+
+  if (loading) return <div className="text-sm text-muted-foreground">Cargando estado de integraciones...</div>
+
+  const statusMeta = (s: string) => {
+    switch (s) {
+      case 'ok': return { label: 'Configurado', dot: 'bg-emerald-500', badge: 'bg-emerald-500/10 text-emerald-600' }
+      case 'warning': return { label: 'Parcial', dot: 'bg-amber-500', badge: 'bg-amber-500/10 text-amber-600' }
+      case 'error': return { label: 'Error', dot: 'bg-rose-500', badge: 'bg-rose-500/10 text-rose-600' }
+      default: return { label: 'No configurado', dot: 'bg-slate-400', badge: 'bg-slate-500/10 text-slate-500' }
+    }
+  }
+
+  const iconFor = (name: string) => {
+    if (name.includes('llm_chatgpt')) return '🤖'
+    if (name.includes('llm_xai')) return '🧠'
+    if (name.includes('llm_ollama')) return '🖥️'
+    if (name.includes('llm_zai')) return '⚡'
+    if (name.includes('woocommerce')) return '🛒'
+    if (name.includes('shopify')) return '🅢'
+    if (name.includes('supabase')) return '🔌'
+    if (name.includes('oracle')) return '🗄️'
+    if (name.includes('dropi')) return '🚚'
+    if (name.includes('99envios')) return '📦'
+    if (name.includes('aveonline')) return '✈️'
+    if (name.includes('whatsapp')) return '💬'
+    if (name.includes('meta')) return '📩'
+    if (name.includes('nocodb')) return '📊'
+    if (name === 'database') return '🗄️'
+    if (name === 'tenants') return '🏢'
+    return '🔧'
+  }
+
+  return (
+    <div className="space-y-1.5">
+      {checks.map((c) => {
+        const meta = statusMeta(c.status)
+        return (
+          <div key={c.name} className="flex items-center gap-3 p-2.5 rounded-lg border">
+            <span className="text-lg">{iconFor(c.name)}</span>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-medium">{c.name}</div>
+              <div className="text-xs text-muted-foreground truncate">{c.detail}</div>
+            </div>
+            <Badge variant="outline" className={cn('text-[10px] gap-1', meta.badge)}>
+              <span className={cn('size-1.5 rounded-full', meta.dot)} /> {meta.label}
+            </Badge>
+          </div>
+        )
+      })}
     </div>
   )
 }

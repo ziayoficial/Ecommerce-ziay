@@ -153,7 +153,7 @@ export function MessengerView() {
       // Use the 10-agent system if agentName is specified, else fallback to generic ai-reply
       const endpoint = agentName && agentName !== 'generic' ? `/api/agents/${agentName}` : '/api/ai-reply'
       const body = agentName && agentName !== 'generic'
-        ? { tenantId, conversationId: activeId, customerId: active?.customer.id, perfil: (active as any)?.perfilConversacion || active?.customer.perfilDetectado }
+        ? { tenantId, conversationId: activeId, customerId: active?.customer.id, perfil: (active as any)?.perfilConversacion || (active?.customer as any)?.perfilDetectado }
         : { conversationId: activeId }
       const res = await fetch(endpoint, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -181,7 +181,7 @@ export function MessengerView() {
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr_300px] gap-4 h-[calc(100vh-13rem)] animate-fade-in-up">
+    <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr_300px] gap-4 min-h-[calc(100vh-13rem)] animate-fade-in-up">
       {/* Conversation list */}
       <Card className="flex flex-col overflow-hidden">
         <div className="p-3 border-b space-y-2">
@@ -300,7 +300,7 @@ export function MessengerView() {
             </div>
 
             {/* Messages */}
-            <div ref={threadRef} className="flex-1 overflow-y-auto scroll-thin p-4 space-y-3 bg-muted/20">
+            <div ref={threadRef} className="flex-1 overflow-y-visible p-4 space-y-3 bg-muted/20">
               {active.messages.map((m) => {
                 const isOut = m.direction === 'outbound'
                 return (

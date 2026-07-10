@@ -1,0 +1,1901 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=1280, initial-scale=1" />
+<title>CommerceFlow OS · Customer Journeys</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg: #07110d; --bg-2: #0a1813; --panel: #0f1c17; --panel-2: #122620;
+  --border: #1f3a30; --border-soft: #18302a;
+  --text: #d9efe2; --muted: #8aa899; --dim: #5f7a6d;
+  --accent: #10b981; --accent-2: #14b8a6; --accent-3: #34d399;
+  --accent-glow: rgba(16,185,129,.35);
+  --warn: #f59e0b; --danger: #ef4444; --info: #38bdf8; --ok: #22c55e;
+  --kw: #5eead4; --str: #a7f3d0; --com: #6b8a7a; --num: #fbbf24; --fn: #f0abfc;
+  --amber:#f59e0b; --violet:#a78bfa; --sky:#38bdf8; --rose:#fb7185;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:#000;color:var(--text);font-family:'Inter',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+body{min-height:100vh;display:flex;align-items:center;justify-content:center;overflow:hidden;padding:14px}
+
+.stage{position:relative;width:1280px;height:720px;overflow:hidden;background:var(--bg);
+  border-radius:14px;box-shadow:0 30px 80px rgba(0,0,0,.6),0 0 0 1px var(--border);}
+.deck{position:absolute;inset:0}
+.slide{position:absolute;inset:0;padding:42px 56px 80px;display:flex;flex-direction:column;overflow-y:auto;
+  opacity:0;visibility:hidden;transform:translateX(20px);transition:opacity .35s,transform .35s,visibility 0s .35s;
+  background:
+    radial-gradient(1200px 600px at 85% -10%, rgba(20,184,166,.10), transparent 60%),
+    radial-gradient(900px 500px at -10% 110%, rgba(16,185,129,.08), transparent 60%),
+    var(--bg);
+}
+.slide.active{opacity:1;visibility:visible;transform:none;transition:opacity .35s,transform .35s,visibility 0s;z-index:2}
+
+.eyebrow{display:flex;align-items:center;gap:14px;font:600 11px/1 'JetBrains Mono',monospace;
+  letter-spacing:.18em;text-transform:uppercase;color:var(--accent-3);margin-bottom:10px}
+.eyebrow .dot{width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 12px var(--accent-glow)}
+.eyebrow .bar{flex:1;height:1px;background:linear-gradient(90deg,var(--border),transparent)}
+.eyebrow .num{color:var(--muted);font-weight:500}
+h1.title{font:800 34px/1.1 'Inter',sans-serif;color:var(--text);letter-spacing:-.02em;margin-bottom:6px}
+h1.title .em{color:var(--accent-3)}
+h2.title{font:700 22px/1.15 'Inter',sans-serif;color:var(--text);letter-spacing:-.015em;margin-bottom:10px}
+h2.title .em{color:var(--accent-3)}
+.lede{font:400 13px/1.5 'Inter',sans-serif;color:var(--muted);max-width:880px;margin-bottom:14px}
+
+.foot{position:absolute;left:56px;right:56px;bottom:16px;display:flex;justify-content:space-between;
+  align-items:center;font:500 11px 'JetBrains Mono',monospace;color:var(--dim);letter-spacing:.05em}
+.foot .brand{color:var(--muted)}
+.foot .brand b{color:var(--accent-3)}
+.foot .pg{color:var(--muted)}
+
+pre.code, .mono{background:var(--panel);border:1px solid var(--border);border-left:3px solid var(--accent);
+  border-radius:8px;padding:12px 14px;overflow:auto;font:400 11.5px/1.55 'JetBrains Mono',monospace;
+  color:var(--text);white-space:pre}
+.mono.inline{display:inline;padding:1px 6px;border-left:2px solid var(--accent);background:var(--panel)}
+.k{color:var(--kw);font-weight:600} .s{color:var(--str)} .c{color:var(--com);font-style:italic}
+.n{color:var(--num)} .fn{color:var(--fn)}
+
+table.tbl{width:100%;border-collapse:separate;border-spacing:0;font:400 12px/1.4 'Inter',sans-serif;
+  background:var(--panel);border:1px solid var(--border);border-radius:8px;overflow:hidden}
+table.tbl th{background:var(--panel-2);color:var(--accent-3);font:600 11px 'JetBrains Mono',monospace;
+  letter-spacing:.08em;text-transform:uppercase;text-align:left;padding:9px 12px;border-bottom:1px solid var(--border)}
+table.tbl td{padding:8px 12px;color:var(--text);border-bottom:1px solid var(--border-soft)}
+table.tbl tr:last-child td{border-bottom:none}
+table.tbl tr:nth-child(even) td{background:rgba(255,255,255,.012)}
+table.tbl td.mono-cell{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--kw)}
+
+.split{display:grid;grid-template-columns:1.05fr 1fr;gap:20px;flex:1;min-height:0}
+.split .col{display:flex;flex-direction:column;min-width:0}
+.split-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+
+.ghost-num{position:absolute;right:36px;bottom:38px;font:800 220px/1 'JetBrains Mono',monospace;
+  color:rgba(16,185,129,.05);pointer-events:none;z-index:1;letter-spacing:-.04em}
+
+.nav{position:absolute;bottom:18px;right:18px;display:flex;align-items:center;gap:10px;
+  background:rgba(7,17,13,.85);border:1px solid var(--border);border-radius:999px;padding:6px 10px;z-index:1000}
+.nav button{width:30px;height:30px;border-radius:50%;border:1px solid var(--border);background:var(--panel);
+  color:var(--accent-3);font:700 16px 'Inter',sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.nav button:hover{background:var(--accent);color:#07110d;border-color:var(--accent)}
+.nav .counter{font:600 11px 'JetBrains Mono',monospace;color:var(--muted);min-width:54px;text-align:center}
+.nav .counter b{color:var(--accent-3)}
+
+/* cover */
+.cover-bg{position:absolute;inset:0;overflow:hidden;pointer-events:none}
+.cover-bg::before{content:'';position:absolute;width:680px;height:680px;border-radius:50%;
+  background:radial-gradient(circle,rgba(20,184,166,.22),transparent 65%);top:-220px;right:-180px}
+.cover-bg::after{content:'';position:absolute;width:520px;height:520px;border-radius:50%;
+  background:radial-gradient(circle,rgba(16,185,129,.16),transparent 60%);bottom:-200px;left:-120px}
+.cover-grid{position:absolute;inset:0;opacity:.35;
+  background-image:linear-gradient(rgba(16,185,129,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(16,185,129,.05) 1px,transparent 1px);
+  background-size:42px 42px;mask-image:radial-gradient(ellipse at center,#000 30%,transparent 70%)}
+
+/* badges */
+.badge{display:inline-block;padding:3px 9px;border-radius:6px;font:600 10px 'JetBrains Mono',monospace;
+  letter-spacing:.1em;text-transform:uppercase;border:1px solid var(--border);background:var(--panel);color:var(--accent-3)}
+.badge.ok{background:rgba(34,197,94,.1);border-color:rgba(34,197,94,.4);color:var(--ok)}
+.badge.warn{background:rgba(245,158,11,.1);border-color:rgba(245,158,11,.4);color:var(--warn)}
+.badge.info{background:rgba(56,189,248,.1);border-color:rgba(56,189,248,.4);color:var(--info)}
+
+/* checks */
+ul.checks{list-style:none;display:grid;grid-template-columns:1fr;gap:5px;margin-top:4px}
+ul.checks li{font:500 12px/1.4 'Inter',sans-serif;color:var(--text);padding-left:20px;position:relative}
+ul.checks li::before{content:'▸';position:absolute;left:0;color:var(--accent-3);font-weight:800}
+
+/* flow diagram (CSS boxes) */
+.flowchart{display:flex;flex-direction:column;gap:8px;background:var(--panel);border:1px solid var(--border);
+  border-radius:10px;padding:14px;flex:1;overflow:auto}
+.fc-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.fc-node{background:var(--panel-2);border:1px solid var(--border);border-radius:6px;padding:6px 10px;
+  font:600 11px 'JetBrains Mono',monospace;color:var(--accent-3);min-width:90px;text-align:center}
+.fc-node.start{border-color:var(--accent);background:rgba(16,185,129,.12);box-shadow:0 0 14px rgba(16,185,129,.18)}
+.fc-node.end{border-color:var(--ok);background:rgba(34,197,94,.12);color:var(--ok)}
+.fc-node.decision{border-color:var(--warn);background:rgba(245,158,11,.10);color:var(--warn);border-style:dashed}
+.fc-node.agent{border-color:var(--violet);color:var(--violet)}
+.fc-node.api{border-color:var(--info);color:var(--info)}
+.fc-node.db{border-color:var(--rose);color:var(--rose)}
+.fc-arr{color:var(--dim);font-size:14px}
+.fc-arr.down{transform:rotate(90deg);display:inline-block;margin:0 auto}
+.fc-bus{flex:1;height:1px;background:var(--border);margin:0 4px}
+
+/* step list */
+.steps{display:flex;flex-direction:column;gap:6px;flex:1;min-height:0;overflow:auto}
+.step-card{display:grid;grid-template-columns:32px 1fr 110px;gap:10px;background:var(--panel);
+  border:1px solid var(--border);border-radius:8px;padding:8px 12px;align-items:center}
+.step-card .num{font:800 18px 'JetBrains Mono',monospace;color:var(--accent-3);text-align:center}
+.step-card .body{min-width:0}
+.step-card .body .h{font:700 12px 'Inter',sans-serif;color:var(--text);margin-bottom:2px}
+.step-card .body .d{font:400 10.5px/1.4 'Inter',sans-serif;color:var(--muted)}
+.step-card .ag{font:600 10px 'JetBrains Mono',monospace;color:var(--violet);text-align:right;
+  background:rgba(167,139,250,.08);border:1px solid rgba(167,139,250,.25);border-radius:5px;padding:3px 6px}
+
+/* persona card */
+.persona{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px 16px;
+  border-left:3px solid var(--accent)}
+.persona .ph{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.persona .ph .em{font-size:24px}
+.persona .ph .name{font:700 14px 'Inter',sans-serif;color:var(--text)}
+.persona .ph .role{font:500 10px 'JetBrains Mono',monospace;color:var(--muted)}
+.persona .quote{font:italic 12px/1.5 'Inter',sans-serif;color:var(--accent-3);border-left:2px solid var(--accent);padding-left:10px;margin-bottom:8px}
+.persona .meta{display:flex;gap:14px;font:500 10px 'JetBrains Mono',monospace;color:var(--dim);flex-wrap:wrap}
+.persona .meta b{color:var(--muted)}
+
+/* outcome card */
+.outcome{background:linear-gradient(135deg,rgba(34,197,94,.12),rgba(16,185,129,.06));
+  border:1px solid rgba(34,197,94,.3);border-radius:10px;padding:12px 16px}
+.outcome .h{font:700 12px 'Inter',sans-serif;color:var(--ok);margin-bottom:4px;display:flex;align-items:center;gap:6px}
+.outcome .d{font:400 11px/1.5 'Inter',sans-serif;color:var(--text)}
+
+.edge-case{background:var(--panel);border:1px solid var(--border);border-left:3px solid var(--warn);
+  border-radius:8px;padding:10px 14px;margin-top:8px}
+.edge-case .h{font:700 11px 'Inter',sans-serif;color:var(--warn);margin-bottom:4px}
+.edge-case ul{list-style:none;display:grid;grid-template-columns:1fr;gap:3px}
+.edge-case li{font:400 10.5px/1.4 'Inter',sans-serif;color:var(--muted);padding-left:14px;position:relative}
+.edge-case li::before{content:'!';position:absolute;left:0;color:var(--warn);font-weight:800}
+
+/* journey index grid for cover */
+.journey-index{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:14px}
+.ji{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:10px 12px}
+.ji .n{font:800 11px 'JetBrains Mono',monospace;color:var(--accent-3);margin-bottom:2px}
+.ji .t{font:600 11px 'Inter',sans-serif;color:var(--text);line-height:1.3}
+.ji .a{font:500 9px 'JetBrains Mono',monospace;color:var(--dim);margin-top:4px;letter-spacing:.06em}
+
+/* KPI tiles */
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px}
+.kpi{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:12px 14px;position:relative;overflow:hidden}
+.kpi::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent)}
+.kpi .lab{font:600 10px 'JetBrains Mono',monospace;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+.kpi .val{font:800 24px/1 'Inter',sans-serif;color:var(--accent-3)}
+.kpi .sub{font:500 10px 'Inter',sans-serif;color:var(--dim);margin-top:3px}
+
+/* CTA */
+.cta-final{background:linear-gradient(135deg,rgba(16,185,129,.14),rgba(20,184,166,.06));
+  border:1px solid var(--border);border-radius:14px;padding:24px 30px;flex:1;display:flex;flex-direction:column;justify-content:center}
+.cta-final h1{font:900 38px/1.05 'Inter',sans-serif;color:var(--text);letter-spacing:-.02em;margin-bottom:8px}
+.cta-final h1 .em{color:var(--accent-3)}
+.cta-final p{font:400 13px/1.5 'Inter',sans-serif;color:var(--muted);max-width:760px;margin-bottom:12px}
+</style>
+</head>
+<body>
+
+<div class="stage">
+ <div class="deck">
+
+<!-- ============================================================ -->
+<!-- SLIDE 1 — Cover -->
+<!-- ============================================================ -->
+<section class="slide active" data-slide="1">
+  <div class="cover-bg"></div>
+  <div class="cover-grid"></div>
+  <div style="position:relative;z-index:2;display:flex;flex-direction:column;height:100%;justify-content:center;padding:0 12px">
+    <div class="eyebrow"><span class="dot"></span>Customer Journeys<span class="bar"></span><span class="num">Task DOCS-003</span></div>
+    <h1 style="font:900 54px/1.05 'Inter',sans-serif;letter-spacing:-.025em;color:var(--text);margin-bottom:14px">
+      Customer <span style="color:var(--accent-3)">Journeys</span><br>
+      CommerceFlow OS
+    </h1>
+    <p style="font:400 15px/1.5 'Inter',sans-serif;color:var(--muted);max-width:780px;margin-bottom:18px">
+      8 journeys end-to-end del <b style="color:var(--accent-3)">comprador</b> — desde el primer mensaje en WhatsApp
+      hasta el cierre del ciclo (compra, pago, envío, post-venta, devolución, remarketing, SEO y affiliator).
+      Cada journey mapea agentes, APIs y modelos DB.
+    </p>
+    <div class="journey-index">
+      <div class="ji"><div class="n">J1</div><div class="t">Compra nueva</div><div class="a">10 agentes · pre-venta</div></div>
+      <div class="ji"><div class="n">J2</div><div class="t">Pago + confirmación</div><div class="a">webhook + auditoría</div></div>
+      <div class="ji"><div class="n">J3</div><div class="t">Seguimiento envío</div><div class="a">post-venta · 4 agentes</div></div>
+      <div class="ji"><div class="n">J4</div><div class="t">Comprador devolvedor</div><div class="a">buyer_behavior · require_prepay</div></div>
+      <div class="ji"><div class="n">J5</div><div class="t">Marketplace cross-brand</div><div class="a">referral + shared lead</div></div>
+      <div class="ji"><div class="n">J6</div><div class="t">SEO orgánico</div><div class="a">SSR · Schema.org · CTA WA</div></div>
+      <div class="ji"><div class="n">J7</div><div class="t">Trafficker affiliate</div><div class="a">pauta → atribución → comisión</div></div>
+      <div class="ji"><div class="n">J8</div><div class="t">Novedad logística</div><div class="a">caso + evidencia + escalación</div></div>
+    </div>
+  </div>
+  <div class="foot"><span class="brand"><b>CommerceFlow</b> OS · Customer Journeys</span><span>DOCS-003</span><span class="pg">01 / 26</span></div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 2 — Persona + agents involved -->
+<!-- ============================================================ -->
+<section class="slide" data-slide="2">
+  <div class="ghost-num" data-decor>02</div>
+  <div class="eyebrow"><span class="dot"></span>Persona + agentes<span class="bar"></span><span class="num">02 / 26</span></div>
+  <h1 class="title">Quién es el <span class="em">customer</span> + 26 agentes</h1>
+  <p class="lede">"Customer" en este deck = el <b style="color:var(--accent-3)">comprador final</b> que chatea con la marca por WhatsApp/Messenger/IG. La marca opera el dashboard; el comprador vive el journey en su app de mensajería.</p>
+
+  <div class="split">
+    <div class="col">
+      <div class="persona">
+        <div class="ph">
+          <span class="em">🛒</span>
+          <div><div class="name">Marcela · compradora</div><div class="role">Persona base de los 8 journeys</div></div>
+        </div>
+        <div class="quote">"Hola, vi el anuncio. Quiero surtir el negocio, me regalas precio de familia."</div>
+        <div class="meta">
+          <span><b>Canal:</b> WhatsApp CO</span>
+          <span><b>Tenant:</b> saramantha</span>
+          <span><b>Ciudad:</b> Bogotá</span>
+          <span><b>Pago:</b> híbrido (50% anticipado)</span>
+        </div>
+      </div>
+      <div class="persona" style="margin-top:10px;border-left-color:var(--violet)">
+        <div class="ph">
+          <span class="em">💼</span>
+          <div><div class="name">Trafficker · affiliator</div><div class="role">Aparece en J7 (affiliate journey)</div></div>
+        </div>
+        <div class="quote">"Voy a invertir 200 USD en pauta de Stitch — ¿cuánto ROI espero?"</div>
+        <div class="meta">
+          <span><b>Rol:</b> trafficker</span>
+          <span><b>Wallet:</b> trf-001</span>
+          <span><b>2FA:</b> TOTP activado</span>
+        </div>
+      </div>
+    </div>
+    <div class="col">
+      <h2 class="title">Los 26 agentes disponibles</h2>
+      <pre class="code"><span class="c">// src/lib/agents/prompts.ts</span>
+<span class="c">// Pipeline A · Pre-venta (10)</span>
+profile, speech, catalog, theme, quote,
+objection, address, logistics, checkout,
+cart_builder, buyer_behavior
+
+<span class="c">// Pipeline B · Post-venta (4)</span>
+guide_tracking, novedades, redelivery,
+remarketing
+
+<span class="c">// Pipeline C · Inteligencia (5)</span>
+customer_score, carrier_score,
+product_enrichment, marketplace, affiliator
+
+<span class="c">// Soporte (7)</span>
+vision, guide_alert, address_analysis,
+traffic_orchestrator, sales_retainer,
+logistics_notifier, (+orchestrate meta)</pre>
+      <p style="font:400 11px/1.4 'Inter',sans-serif;color:var(--dim);margin-top:8px">Cada journey marca qué agentes se invocan y en qué orden. Total: 26 agentes cubren todo el ciclo de vida del comprador.</p>
+    </div>
+  </div>
+  <div class="foot"><span class="brand"><b>CommerceFlow</b> OS · Customer Journeys</span><span>Persona</span><span class="pg">02 / 26</span></div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 3 — Journey 1 overview (Compra nueva, 10 pasos) -->
+<!-- ============================================================ -->
+<section class="slide" data-slide="3">
+  <div class="ghost-num" data-decor>03</div>
+  <div class="eyebrow"><span class="dot"></span>Journey 1 · Compra nueva<span class="bar"></span><span class="num">03 / 26</span></div>
+  <h1 class="title">Compra nueva — <span class="em">Pipeline A</span> completo (10 pasos)</h1>
+  <p class="lede">Flujo conversacional del primer "Hola" al checkout con link de pago. Es el journey principal — el corazón de CommerceFlow.</p>
+
+  <div class="flowchart">
+    <div class="fc-row">
+      <div class="fc-node start">Mensaje en WhatsApp</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node agent">buyer_behavior</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node agent">profile</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node agent">speech</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node agent">catalog</div>
+    </div>
+    <div class="fc-row">
+      <div class="fc-node agent">cart_builder</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node agent">quote</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node agent">objection</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node agent">address</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node agent">logistics</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node agent">checkout</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node end">Payment link</div>
+    </div>
+  </div>
+
+  <div class="split" style="margin-top:14px">
+    <div class="col">
+      <h2 class="title">Outcome esperado</h2>
+      <div class="outcome">
+        <div class="h">✓ Conversión en 10 turnos conversacionales</div>
+        <div class="d">Orden creada en DB, payment link enviado, carrito sincronizado con e-commerce, guía generada, comisión de trafficker calculada. Tiempo medio objetivo: 8–15 min de chat.</div>
+      </div>
+    </div>
+    <div class="col">
+      <h2 class="title">Edge cases</h2>
+      <div class="edge-case" style="margin-top:0">
+        <div class="h">⚠️ Rama alternativa</div>
+        <ul>
+          <li>Si buyer_behavior detecta devolvedor → require_prepay (forzar pago anticipado)</li>
+          <li>Si profile no claro → pregunta_perfil configurada (no avanza sin respuesta)</li>
+          <li>Si objection = "caro" → aplica gatillo mental (escasez, social proof, ancla)</li>
+          <li>Si address incompleta → pide 1 campo a la vez hasta 10/10</li>
+          <li>Si logistics sin carrier disponible → fallback al siguiente carrier</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span class="brand"><b>CommerceFlow</b> OS · Customer Journeys</span><span>J1 overview</span><span class="pg">03 / 26</span></div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 4 — Journey 1 detailed steps 1-5 -->
+<!-- ============================================================ -->
+<section class="slide" data-slide="4">
+  <div class="ghost-num" data-decor>04</div>
+  <div class="eyebrow"><span class="dot"></span>J1 · Pasos 1–5<span class="bar"></span><span class="num">04 / 26</span></div>
+  <h1 class="title">Compra nueva — <span class="em">pre-venta (1/2)</span></h1>
+  <div class="steps">
+    <div class="step-card">
+      <div class="num">1</div>
+      <div class="body"><div class="h">buyer_behavior — Verificación de comprador</div><div class="d">Antes de vender: consulta score + malos hábitos (cross-store, selective return, COD abuse). Si score &lt; 50 → activa protocolo require_prepay.</div></div>
+      <div class="ag">buyer_behavior</div>
+    </div>
+    <div class="step-card">
+      <div class="num">2</div>
+      <div class="body"><div class="h">profile — Perfilamiento</div><div class="d">Detecta mayorista / emprendedor / detal / regalo desde el mensaje + contexto del anuncio. Si ambiguo, lanza pregunta_perfil del tenant.</div></div>
+      <div class="ag">profile</div>
+    </div>
+    <div class="step-card">
+      <div class="num">3</div>
+      <div class="body"><div class="h">speech — Discurso de ventas</div><div class="d">Recupera apertura_texto + prueba_social de SalesSpeech por (tenantId, perfil). Adapta tono_marca. Máx 20 palabras, 2 emojis, cierre con acción.</div></div>
+      <div class="ag">speech</div>
+    </div>
+    <div class="step-card">
+      <div class="num">4</div>
+      <div class="body"><div class="h">catalog — Catálogo visual</div><div class="d">Respuesta visual-primero: trae mínimo 3 productos con imagen real (regla §6.4). Si el buyer mencionó tema (Stitch), busca en temas_diseño.</div></div>
+      <div class="ag">catalog</div>
+    </div>
+    <div class="step-card">
+      <div class="num">5</div>
+      <div class="body"><div class="h">cart_builder — Carrito conversacional</div><div class="d">Construye carrito desde el chat: añade SKU + cantidad, muestra screenshots y descripciones, permite editar antes de cotizar.</div></div>
+      <div class="ag">cart_builder</div>
+    </div>
+  </div>
+  <div class="foot"><span class="brand"><b>CommerceFlow</b> OS · Customer Journeys</span><span>J1 pasos 1-5</span><span class="pg">04 / 26</span></div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 5 — Journey 1 detailed steps 6-10 -->
+<!-- ============================================================ -->
+<section class="slide" data-slide="5">
+  <div class="ghost-num" data-decor>05</div>
+  <div class="eyebrow"><span class="dot"></span>J1 · Pasos 6–10<span class="bar"></span><span class="num">05 / 26</span></div>
+  <h1 class="title">Compra nueva — <span class="em">pre-venta (2/2)</span></h1>
+  <div class="steps">
+    <div class="step-card">
+      <div class="num">6</div>
+      <div class="body"><div class="h">quote — Cotización + cross-sell</div><div class="d">Recupera precios_por_volumen por (tenantId, SKU, tipo_cliente, cantidad). Suma total + venta estimada + margen. Sugiere cross-sell por categoría.</div></div>
+      <div class="ag">quote</div>
+    </div>
+    <div class="step-card">
+      <div class="num">7</div>
+      <div class="body"><div class="h">objection — Manejo de objeciones</div><div class="d">Clasifica (precio / talla / desconfianza / disponibilidad) y aplica gatillo mental. Si "caro" → ancla + prueba social. Si "no confío" → garantía + fotos reales.</div></div>
+      <div class="ag">objection</div>
+    </div>
+    <div class="step-card">
+      <div class="num">8</div>
+      <div class="body"><div class="h">address — 10 campos de dirección + validación</div><div class="d">Uno a la vez: nombre, teléfono, departamento, ciudad, barrio, tipo_vía, vía, número, complemento, punto_referencia. Valida calidad por país (address_analysis).</div></div>
+      <div class="ag">address</div>
+    </div>
+    <div class="step-card">
+      <div class="num">9</div>
+      <div class="body"><div class="h">logistics — Cotizar flete + elegir carrier</div><div class="d">Llama LogisticsAdapter (Dropi/99envios/Aveonline). Compara tarifa + días + score carrier_score. Recomienda el mejor por ciudad-destino.</div></div>
+      <div class="ag">logistics</div>
+    </div>
+    <div class="step-card">
+      <div class="num">10</div>
+      <div class="body"><div class="h">checkout — Checkout + link de pago</div><div class="d">Resumen (items + flete + tax + descuento), confirmación del cliente, sync con e-commerce, generación de guía, cálculo de comisión trafficker, payment link del gateway elegido.</div></div>
+      <div class="ag">checkout</div>
+    </div>
+  </div>
+  <div class="foot"><span class="brand"><b>CommerceFlow</b> OS · Customer Journeys</span><span>J1 pasos 6-10</span><span class="pg">05 / 26</span></div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 6 — J1 APIs + DB models -->
+<!-- ============================================================ -->
+<section class="slide" data-slide="6">
+  <div class="ghost-num" data-decor>06</div>
+  <div class="eyebrow"><span class="dot"></span>J1 · APIs + DB<span class="bar"></span><span class="num">06 / 26</span></div>
+  <h1 class="title">J1 — <span class="em">APIs invocadas</span> + modelos DB</h1>
+  <div class="split">
+    <div class="col">
+      <h2 class="title">Llamadas API (Pipeline A)</h2>
+      <table class="tbl">
+        <thead><tr><th>Paso</th><th>Endpoint</th><th>Modelos DB</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td class="mono-cell">POST /api/agents/buyer_behavior</td><td class="mono-cell">Customer, CustomerScore, Order</td></tr>
+          <tr><td>2</td><td class="mono-cell">POST /api/agents/profile</td><td class="mono-cell">Tenant, Conversation</td></tr>
+          <tr><td>3</td><td class="mono-cell">POST /api/agents/speech</td><td class="mono-cell">Tenant, SalesSpeech</td></tr>
+          <tr><td>4</td><td class="mono-cell">POST /api/agents/catalog</td><td class="mono-cell">Product, ProductImage, TemaDiseno</td></tr>
+          <tr><td>5</td><td class="mono-cell">POST /api/agents/cart_builder</td><td class="mono-cell">Cart, CartItem</td></tr>
+          <tr><td>6</td><td class="mono-cell">POST /api/agents/quote</td><td class="mono-cell">Product, VolumePrice</td></tr>
+          <tr><td>7</td><td class="mono-cell">POST /api/agents/objection</td><td class="mono-cell">ObjectionScript</td></tr>
+          <tr><td>8</td><td class="mono-cell">POST /api/agents/address</td><td class="mono-cell">Customer, Address</td></tr>
+          <tr><td>9</td><td class="mono-cell">POST /api/logistics/quote</td><td class="mono-cell">CarrierScore, LogisticsQuote</td></tr>
+          <tr><td>10</td><td class="mono-cell">POST /api/agents/checkout</td><td class="mono-cell">Order, Payment, AuditLog</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="col">
+      <h2 class="title">Orden resultante (esquema)</h2>
+      <pre class="code"><span class="c">// Order persistida en step 10</span>
+{
+  <span class="s">"id"</span>: <span class="s">"ord-789"</span>,
+  <span class="s">"tenantId"</span>: <span class="s">"ten-saramantha"</span>,
+  <span class="s">"customerId"</span>: <span class="s">"cus-001"</span>,
+  <span class="s">"items"</span>: [
+    { sku:<span class="s">"PIJ-SHORT-TIRA-001"</span>, qty:<span class="n">12</span>, unit:<span class="n">42000</span> },
+    { sku:<span class="s">"PIJ-LARGO-FAMILIA-002"</span>, qty:<span class="n">8</span>, unit:<span class="n">55000</span> }
+  ],
+  <span class="s">"subtotal"</span>: <span class="n">904000</span>,
+  <span class="s">"shipping"</span>: <span class="n">8500</span>,
+  <span class="s">"tax"</span>: <span class="n">0</span>,
+  <span class="s">"discount"</span>: <span class="n">0</span>,
+  <span class="s">"total"</span>: <span class="n">912500</span>,
+  <span class="s">"paymentMode"</span>: <span class="s">"advance"</span>,
+  <span class="s">"paymentLink"</span>: <span class="s">"https://mp.com/abc"</span>,
+  <span class="s">"paymentStatus"</span>: <span class="s">"pending"</span>,
+  <span class="s">"carrier"</span>: <span class="s">"99envios"</span>,
+  <span class="s">"trackingNumber"</span>: <span class="s">"99E-12345"</span>,
+  <span class="s">"traffickerId"</span>: <span class="s">"trf-001"</span>,
+  <span class="s">"commission"</span>: <span class="n">45625</span>,
+  <span class="s">"status"</span>: <span class="s">"pending_confirmation"</span>,
+  <span class="s">"kanbanStage"</span>: <span class="s">"pending_confirmation"</span>
+}</pre>
+    </div>
+  </div>
+  <div class="foot"><span class="brand"><b>CommerceFlow</b> OS · Customer Journeys</span><span>J1 APIs + DB</span><span class="pg">06 / 26</span></div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 7 — Journey 2: Pago y confirmación -->
+<!-- ============================================================ -->
+<section class="slide" data-slide="7">
+  <div class="ghost-num" data-decor>07</div>
+  <div class="eyebrow"><span class="dot"></span>Journey 2 · Pago + confirmación<span class="bar"></span><span class="num">07 / 26</span></div>
+  <h1 class="title">Pago y <span class="em">confirmación</span></h1>
+  <p class="lede">Tras el checkout, el comprador recibe un link de pago. El webhook del gateway dispara la actualización de la orden + evento de auditoría.</p>
+
+  <div class="flowchart">
+    <div class="fc-row">
+      <div class="fc-node start">Payment link enviado</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node">Cliente paga en gateway</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node api">webhook gateway</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node api">HMAC verify</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node db">Order.paymentStatus = paid</div>
+    </div>
+    <div class="fc-row">
+      <div class="fc-node db">AuditLog</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node agent">logistics_notifier</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node">Confirma al cliente por WA</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node">Sincroniza e-commerce</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node end">Orden lista para despacho</div>
+    </div>
+  </div>
+
+  <div class="split" style="margin-top:14px">
+    <div class="col">
+      <h2 class="title">Webhook flow (MercadoPago ejemplo)</h2>
+      <pre class="code"><span class="c">// 1. gateway llama webhook</span>
+POST /api/webhooks/mercadopago
+headers: x-signature: <span class="s">"ts=...,v1=..."</span>
+body: { type:<span class="s">"payment"</span>, data:{id:<span class="s">"123"</span>} }
+
+<span class="c">// 2. adapter verifica HMAC</span>
+<span class="fn">verifyMpSignature</span>(rawBody, sig, secret) → <span class="k">true</span>
+
+<span class="c">// 3. fetch payment details</span>
+GET mp.com/v1/payments/123 → status:<span class="s">"approved"</span>
+
+<span class="c">// 4. update order</span>
+Order.paymentStatus = <span class="s">"paid"</span>
+Order.status = <span class="s">"confirmed"</span>
+AuditLog.<span class="fn">create</span>({
+  event: <span class="s">"order.payment_confirmed"</span>,
+  meta: { gateway:<span class="s">"mp"</span>, amount:<span class="n">912500</span> }
+})</pre>
+    </div>
+    <div class="col">
+      <h2 class="title">Edge cases</h2>
+      <div class="edge-case" style="margin-top:0">
+        <div class="h">⚠️ Fallos comunes</div>
+        <ul>
+          <li>Pago rechazado → order.paymentStatus = "rejected", cliente recibe nuevo link</li>
+          <li>Webhook duplicado (retry del gateway) → idempotencia por paymentId en AuditLog</li>
+          <li>HMAC inválido → 403 + alerta al equipo de seguridad</li>
+          <li>Pago parcial → marca como "partial" y espera saldo</li>
+          <li>Chargeback posterior → dispara novedades con tipo "devolución"</li>
+          <li>Webhook perdido → cron job cada 15 min consulta estado al gateway</li>
+        </ul>
+      </div>
+      <h2 class="title" style="margin-top:12px">Outcome</h2>
+      <div class="outcome">
+        <div class="h">✓ Orden confirmada en &lt; 30s post-pago</div>
+        <div class="d">Order pasa a stage "datos_completados" en Kanban, cliente recibe confirmación por WhatsApp, e-commerce sincronizado, comisión trafficker acreditada en wallet.</div>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span class="brand"><b>CommerceFlow</b> OS · Customer Journeys</span><span>J2</span><span class="pg">07 / 26</span></div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 8 — Journey 3: Seguimiento envío -->
+<!-- ============================================================ -->
+<section class="slide" data-slide="8">
+  <div class="ghost-num" data-decor>08</div>
+  <div class="eyebrow"><span class="dot"></span>Journey 3 · Seguimiento envío<span class="bar"></span><span class="num">08 / 26</span></div>
+  <h1 class="title">Seguimiento de <span class="em">envío</span> · post-venta</h1>
+  <p class="lede">Pipeline B (4 agentes). Del despacho al cierre exitoso — con ramas para novedades, devoluciones y remarketing si el cliente ghostea.</p>
+
+  <div class="flowchart">
+    <div class="fc-row">
+      <div class="fc-node start">Orden despachada</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node agent">guide_tracking</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node decision">¿Estancada?</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node agent">guide_alert</div>
+    </div>
+    <div class="fc-row">
+      <div class="fc-node decision">¿Novedad?</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node agent">novedades</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node decision">¿Devolución?</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node agent">redelivery</div>
+    </div>
+    <div class="fc-row">
+      <div class="fc-node decision">¿Cliente ghostea?</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node agent">remarketing</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node end">Resolución / recuperación</div>
+    </div>
+  </div>
+
+  <div class="split" style="margin-top:12px">
+    <div class="col">
+      <h2 class="title">4 agentes del pipeline B</h2>
+      <ul class="checks">
+        <li><b>guide_tracking</b> — consulta estado de guía cada N horas, calcula días en tránsito</li>
+        <li><b>novedades</b> — crea caso si guía estancada &gt; 48h, valida orden, pide evidencias</li>
+        <li><b>redelivery</b> — si devolución: identifica motivo + nueva dirección + reintento</li>
+        <li><b>remarketing</b> — recupera ventas perdidas (cart_recovery / reminder / winback)</li>
+      </ul>
+    </div>
+    <div class="col">
+      <h2 class="title">APIs + DB</h2>
+      <pre class="code"><span class="c">// tracking + alertas</span>
+GET  /api/logistics/track/{trackingNumber}
+POST /api/agents/guide_tracking
+GET  /api/guide-movements
+
+<span class="c">// novedades</span>
+POST /api/novedades
+GET  /api/novedades/{id}
+POST /api/agents/novedades
+
+<span class="c">// redelivery</span>
+POST /api/redelivery
+POST /api/agents/redelivery
+
+<span class="c">// remarketing</span>
+POST /api/remarketing
+POST /api/agents/remarketing
+
+<span class="c">// DB models touched</span>
+GuideMovement, Novedad, Evidence,
+Redelivery, RemarketingCampaign</pre>
+    </div>
+  </div>
+  <div class="foot"><span class="brand"><b>CommerceFlow</b> OS · Customer Journeys</span><span>J3</span><span class="pg">08 / 26</span></div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 9 — J3 detail: Novedades flow -->
+<!-- ============================================================ -->
+<section class="slide" data-slide="9">
+  <div class="ghost-num" data-decor>09</div>
+  <div class="eyebrow"><span class="dot"></span>J3 detail · Novedades CRM<span class="bar"></span><span class="num">09 / 26</span></div>
+  <h1 class="title">Novedades — <span class="em">anti-alucinación</span> protocolo</h1>
+
+  <div class="split">
+    <div class="col">
+      <h2 class="title">Protocolo paso a paso</h2>
+      <div class="steps">
+        <div class="step-card">
+          <div class="num">1</div>
+          <div class="body"><div class="h">Validar orden existe</div><div class="d">Antes de crear caso: consulta Order por tenantId + orderId. Si no existe → NO crear caso, pedir el número.</div></div>
+          <div class="ag">novedades</div>
+        </div>
+        <div class="step-card">
+          <div class="num">2</div>
+          <div class="body"><div class="h">Clasificar tipo de novedad</div><div class="d">12 motivos: devolución, no entrega, producto dañado, dirección errada, pedido incompleto, etc.</div></div>
+          <div class="ag">novedades</div>
+        </div>
+        <div class="step-card">
+          <div class="num">3</div>
+          <div class="body"><div class="h">Pedir evidencia</div><div class="d">Foto del producto dañado o del paquete no entregado. Upload via /api/novedades/{id}/evidence.</div></div>
+          <div class="ag">novedades</div>
+        </div>
+        <div class="step-card">
+          <div class="num">4</div>
+          <div class="body"><div class="h">Crear caso + asignar operador</div><div class="d">Novedad.create({ status:"abierto", operador:nextAvailable() }). SLA visible.</div></div>
+          <div class="ag">novedades</div>
+        </div>
+        <div class="step-card">
+          <div class="num">5</div>
+          <div class="body"><div class="h">Si motivo = dirección errada → disparar redelivery</div><div class="d">Agente redelivery toma el control: confirma nueva dirección + reintento con misma transportadora o alternativa.</div></div>
+          <div class="ag">redelivery</div>
+        </div>
+      </div>
+    </div>
+    <div class="col">
+      <h2 class="title">Estados de un caso</h2>
+      <div class="flowchart" style="padding:10px">
+        <div class="fc-row">
+          <div class="fc-node start">abierto</div>
+          <div class="fc-arr">→</div>
+          <div class="fc-node">en_investigacion</div>
+          <div class="fc-arr">→</div>
+          <div class="fc-node decision">¿Resolvible?</div>
+        </div>
+        <div class="fc-row">
+          <div class="fc-node decision">¿Necesita humano?</div>
+          <div class="fc-arr">→</div>
+          <div class="fc-node">escalado</div>
+          <div class="fc-arr">→</div>
+          <div class="fc-node end">resuelto</div>
+        </div>
+      </div>
+      <h2 class="title" style="margin-top:12px">Outcome esperado</h2>
+      <div class="outcome">
+        <div class="h">✓ Caso resuelto en SLA ≤ 72h</div>
+        <div class="d">Caso cerrado con evidencia + razón. Si devolución → redelivery exitoso. Si pérdida → reembolso o reenvío. Cliente notificado en cada cambio de estado.</div>
+      </div>
+      <div class="edge-case">
+        <div class="h">⚠️ Edge cases</div>
+        <ul>
+          <li>Cliente miente sobre no entrega → cross-check con carrier API</li>
+          <li>Evidencia insuficiente → pedir segunda foto + descripción detallada</li>
+          <li>Operador saturado → balanceo automático + escalado si &gt; 5 casos</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span class="brand"><b>CommerceFlow</b> OS · Customer Journeys</span><span>J3 novedades</span><span class="pg">09 / 26</span></div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 10 — Journey 4: Buyer Behavior devolvedor -->
+<!-- ============================================================ -->
+<section class="slide" data-slide="10">
+  <div class="ghost-num" data-decor>10</div>
+  <div class="eyebrow"><span class="dot"></span>Journey 4 · Buyer behavior<span class="bar"></span><span class="num">10 / 26</span></div>
+  <h1 class="title">Comprador <span class="em">devolvedor</span> — require_prepay</h1>
+  <p class="lede">Agente buyer_behavior corre ANTES del pipeline A. Detecta malos hábitos históricos y activa protocolo require_prepay (pago anticipado obligatorio) cuando aplica.</p>
+
+  <div class="flowchart">
+    <div class="fc-row">
+      <div class="fc-node start">Lead nuevo mensaje</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node agent">buyer_behavior</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node db">CustomerScore</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node decision">score &lt; 50?</div>
+    </div>
+    <div class="fc-row">
+      <div class="fc-node decision">¿Patrón malo?</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node">require_prepay=true</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node agent">checkout</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node end">Pago anticipado obligatorio</div>
+    </div>
+  </div>
+
+  <div class="split" style="margin-top:14px">
+    <div class="col">
+      <h2 class="title">Patrones detectados</h2>
+      <ul class="checks">
+        <li><b>Cross-store abuse</b> — devuelve en múltiples tiendas del marketplace</li>
+        <li><b>Selective return</b> — devuelve sistemáticamente solo ciertas prendas</li>
+        <li><b>COD abuse</b> — rechaza contraentrega reiteradamente</li>
+        <li><b>False claim</b> — reporta "no recibido" pero carrier confirma entrega</li>
+        <li><b>High refund rate</b> — &gt; 30% de órdenes terminan en reembolso</li>
+      </ul>
+      <h2 class="title" style="margin-top:14px">Score computation</h2>
+      <pre class="code"><span class="c">// customer_score agente</span>
+score = <span class="n">100</span>
+  - (returns * <span class="n">8</span>)
+  - (false_claims * <span class="n">15</span>)
+  - (cod_rejects * <span class="n">3</span>)
+  + (on_time_pays * <span class="n">1</span>)
+
+<span class="k">if</span> (score &lt; <span class="n">50</span>) {
+  customer.requirePrepay = <span class="k">true</span>
+  customer.flagReason = <span class="s">"low_delivery_score"</span>
+}</pre>
+    </div>
+    <div class="col">
+      <h2 class="title">Edge cases</h2>
+      <div class="edge-case" style="margin-top:0">
+        <div class="h">⚠️ Ramas del journey</div>
+        <ul>
+          <li>Cliente nuevo (sin score) → require_prepay = false, score se calcula tras 3ra orden</li>
+          <li>Score entre 50–70 → require_prepay opcional (decisión del operador)</li>
+          <li>Score &gt; 80 → cliente VIP, acceso a COD sin restricción</li>
+          <li>Cliente marca require_prepay pero paga 3 veces seguidas → score recupera, flag se quita</li>
+          <li>Cliente bloqueado → no responde a mensajes, audit log de bloqueo</li>
+        </ul>
+      </div>
+      <h2 class="title" style="margin-top:12px">Outcome</h2>
+      <div class="outcome">
+        <div class="h">✓ Riesgo de devolución mitigado</div>
+        <div class="d">Compradores de riesgo son forzados a pago anticipado. Tasa de devoluciones baja ~60% post-implementación. Score recalculado cada noche por cron.</div>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span class="brand"><b>CommerceFlow</b> OS · Customer Journeys</span><span>J4</span><span class="pg">10 / 26</span></div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 11 — Journey 5: Marketplace cross-brand -->
+<!-- ============================================================ -->
+<section class="slide" data-slide="11">
+  <div class="ghost-num" data-decor>11</div>
+  <div class="eyebrow"><span class="dot"></span>Journey 5 · Marketplace cross-brand<span class="bar"></span><span class="num">11 / 26</span></div>
+  <h1 class="title">Marketplace — <span class="em">cross-brand</span> referral</h1>
+  <p class="lede">Si la marca A no tiene un producto, el agente marketplace sugiere alternativas en otras tiendas del mismo marketplace. Lead compartido con consentimiento + comisión de referido.</p>
+
+  <div class="flowchart">
+    <div class="fc-row">
+      <div class="fc-node start">Cliente busca "Stitch talla M"</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node agent">catalog</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node decision">¿No hay en marca A?</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node agent">marketplace</div>
+    </div>
+    <div class="fc-row">
+      <div class="fc-node agent">marketplace</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node db">Cross-brand search</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node">Sugerir marca B + referral fee</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node decision">¿Cliente acepta?</div>
+    </div>
+    <div class="fc-row">
+      <div class="fc-node">Lead compartido</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node agent">affiliator</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node">Comisión referido</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node end">Venta atribuida a marca B</div>
+    </div>
+  </div>
+
+  <div class="split" style="margin-top:12px">
+    <div class="col">
+      <h2 class="title">Flujo conversacional</h2>
+      <pre class="code"><span class="c">Cliente:</span> Tienen pijama Stitch talla M?
+
+<span class="c">catalog agent (marca A = saramantha):</span>
+No lo tengo en talla M, pero mi colega
+de <span class="s">"Algodón Feliz"</span> (marca B) sí lo tiene.
+¿Te paso con ella?
+
+<span class="c">Cliente:</span> Sí, por favor.
+
+<span class="c">marketplace agent:</span>
+<span class="fn">crea</span> shared_lead {
+  fromTenant: saramantha,
+  toTenant: algodon_feliz,
+  customerId: cus-001,
+  referralFee: <span class="n">5</span>%
+}
+<span class="c">//marca B retoma el pipeline A desde profile</span></pre>
+    </div>
+    <div class="col">
+      <h2 class="title">Edge cases</h2>
+      <div class="edge-case" style="margin-top:0">
+        <div class="h">⚠️ Reglas del referral</div>
+        <ul>
+          <li>Cliente debe consentir explícitamente (GDPR / LOPD)</li>
+          <li>Marca B ve al cliente con badge "referred" y origen visible</li>
+          <li>Si marca B también cae en buyer_behavior risk → se cancela el referral</li>
+          <li>Referral fee configurable por tenant (default 5%)</li>
+          <li>Lead se comparte solo por 24h si marca B no responde → expira</li>
+          <li>Si cliente compra en marca B → conversión se atribuye a marca A (referral) y marca B (venta directa)</li>
+        </ul>
+      </div>
+      <h2 class="title" style="margin-top:12px">Outcome</h2>
+      <div class="outcome">
+        <div class="h">✓ Venta recuperada + revenue share</div>
+        <div class="d">Marca A cobra 5% comisión de referido. Marca B gana cliente nuevo. Cliente consigue el producto. Triple win.</div>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span class="brand"><b>CommerceFlow</b> OS · Customer Journeys</span><span>J5</span><span class="pg">11 / 26</span></div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 12 — Journey 6: SEO orgánico -->
+<!-- ============================================================ -->
+<section class="slide" data-slide="12">
+  <div class="ghost-num" data-decor>12</div>
+  <div class="eyebrow"><span class="dot"></span>Journey 6 · SEO orgánico<span class="bar"></span><span class="num">12 / 26</span></div>
+  <h1 class="title">SEO — <span class="em">orgánico</span> a conversión</h1>
+  <p class="lede">Cliente busca en Google, encuentra página SSR del tenant, clic en producto, CTA WhatsApp, conversión. Cero pauta pagada — atribución "organic".</p>
+
+  <div class="flowchart">
+    <div class="fc-row">
+      <div class="fc-node start">Google search</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node">SERP muestra /t/saramantha</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node api">SSR con Schema.org</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node">Clic en producto</div>
+    </div>
+    <div class="fc-row">
+      <div class="fc-node api">SSR /t/saramantha/p/{sku}</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node">Botón "Comprar por WhatsApp"</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node">wa.me link con prefilled msg</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node agent">profile</div>
+    </div>
+    <div class="fc-row">
+      <div class="fc-node agent">profile</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node">Pipeline A (10 pasos)</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node end">Conversión orgánica</div>
+    </div>
+  </div>
+
+  <div class="split" style="margin-top:12px">
+    <div class="col">
+      <h2 class="title">Schema.org + meta tags</h2>
+      <pre class="code"><span class="c">// app/t/[slug]/p/[sku]/page.tsx</span>
+&lt;script type=<span class="s">"application/ld+json"</span>&gt;
+{{
+  <span class="s">"@context"</span>: <span class="s">"https://schema.org"</span>,
+  <span class="s">"@type"</span>: <span class="s">"Product"</span>,
+  <span class="s">"name"</span>: product.name,
+  <span class="s">"image"</span>: product.images,
+  <span class="s">"description"</span>: product.description,
+  <span class="s">"sku"</span>: product.sku,
+  <span class="s">"brand"</span>: { <span class="s">"@type"</span>:<span class="s">"Brand"</span>, <span class="s">"name"</span>:tenant.slug },
+  <span class="s">"offers"</span>: {
+    <span class="s">"@type"</span>:<span class="s">"Offer"</span>,
+    <span class="s">"price"</span>: product.price,
+    <span class="s">"priceCurrency"</span>: tenant.currency,
+    <span class="s">"availability"</span>:<span class="s">"https://schema.org/InStock"</span>
+  }
+}}
+&lt;/script&gt;
+
+&lt;meta property=<span class="s">"og:title"</span> ... /&gt;
+&lt;meta property=<span class="s">"og:image"</span> ... /&gt;</pre>
+    </div>
+    <div class="col">
+      <h2 class="title">WhatsApp CTA con prefilled msg</h2>
+      <pre class="code"><span class="c">// botón en página SSR</span>
+&lt;a href=<span class="s">"https://wa.me/573001234567?text=</span>
+<span class="s">Hola, vi el pijama {sku} en su web. </span>
+<span class="s">¿Sigue disponible?"</span>&gt;
+  Comprar por WhatsApp
+&lt;/a&gt;
+
+<span class="c">// conversación llega con metadato</span>
+conversation.source = <span class="s">"organic"</span>
+conversation.landingSku = product.sku
+conversation.attribution = {
+  channel: <span class="s">"organic"</span>,
+  referrer: <span class="s">"google.com"</span>
+}</pre>
+      <h2 class="title" style="margin-top:12px">Edge cases</h2>
+      <div class="edge-case" style="margin-top:0">
+        <div class="h">⚠️ Variantes</div>
+        <ul>
+          <li>Cliente comparte link de producto → conversión atribuida al referer</li>
+          <li>Crawler accede a /sitemap.xml → todas las URLs indexables</li>
+          <li>Si producto sin stock → Schema.org muestra "OutOfStock" + CTA "avisarme"</li>
+          <li>Tenant sin branding → SSR usa defaults de CommerceFlow</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span class="brand"><b>CommerceFlow</b> OS · Customer Journeys</span><span>J6</span><span class="pg">12 / 26</span></div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 13 — Journey 7: Trafficker affiliate -->
+<!-- ============================================================ -->
+<section class="slide" data-slide="13">
+  <div class="ghost-num" data-decor>13</div>
+  <div class="eyebrow"><span class="dot"></span>Journey 7 · Trafficker affiliate<span class="bar"></span><span class="num">13 / 26</span></div>
+  <h1 class="title">Trafficker — <span class="em">affiliate</span> journey</h1>
+  <p class="lede">Trafficker crea campaña, invierte en pauta, vende, cobra comisión, retira con 2FA. Journey completo del lado del "afiliado" — no del comprador, pero impacta directamente en la atribución.</p>
+
+  <div class="flowchart">
+    <div class="fc-row">
+      <div class="fc-node start">Trafficker onboard</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node agent">affiliator</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node">Crea campaña + ad</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node api">/api/ads/import</div>
+    </div>
+    <div class="fc-row">
+      <div class="fc-node">Spend registrado</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node">Cliente hace clic + compra</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node db">Atribución</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node">Comisión acreditada en wallet</div>
+    </div>
+    <div class="fc-row">
+      <div class="fc-node">Wallet balance + disponible</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node">Retiro solicita 2FA TOTP</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node decision">¿TOTP válido?</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node end">Pago enviado</div>
+    </div>
+  </div>
+
+  <div class="split" style="margin-top:12px">
+    <div class="col">
+      <h2 class="title">Atribución (CAPI real)</h2>
+      <pre class="code"><span class="c">// 1. cliente compra</span>
+POST /api/conversions
+body: {
+  tenantId, orderId, traffickerId,
+  event: <span class="s">"Purchase"</span>,
+  value: <span class="n">912500</span>,
+  currency: <span class="s">"COP"</span>
+}
+
+<span class="c">// 2. dispatch a Meta + Google + TikTok</span>
+dispatchMeta(graphApiUrl, event)
+dispatchGoogle(mpCollect, event)
+dispatchTikTok(openApi, event)
+
+<span class="c">// 3. persiste conversionEvent</span>
+ConversionEvent.create({
+  status: <span class="s">"sent"</span>,
+  rawResponse: {...}
+})
+
+<span class="c">// 4. acredita comisión</span>
+WalletTransaction.create({
+  traffickerId, type:<span class="s">"commission"</span>,
+  amount: <span class="n">45625</span>,
+  status: <span class="s">"available"</span>
+})</pre>
+    </div>
+    <div class="col">
+      <h2 class="title">Retiro con 2FA</h2>
+      <pre class="code"><span class="c">// wallet-view.tsx</span>
+POST /api/wallet/withdraw
+headers:
+  X-Trafficker-Id: trf-001
+  X-Tenant-Id: ten-saramantha
+body: {
+  amount: <span class="n">200000</span>,
+  method: <span class="s">"nequi"</span>,
+  totp: <span class="s">"123456"</span>  <span class="c">// 30s window</span>
+}
+
+<span class="c">// server-side</span>
+<span class="k">if</span> (!<span class="fn">verifyTotp</span>(totp, trafficker.secret))
+  → <span class="warn">401</span> { error:<span class="s">"Invalid TOTP"</span> }
+
+<span class="k">if</span> (amount &gt; wallet.available)
+  → <span class="warn">400</span> { error:<span class="s">"Insufficient"</span> }
+
+<span class="k">else</span> {
+  Withdrawal.create({ status:<span class="s">"pending"</span> })
+  AuditLog.create({ event:<span class="s">"wallet.withdraw"</span> })
+  → <span class="pass">200</span> { withdrawalId }
+}</pre>
+      <h2 class="title" style="margin-top:10px">Outcome</h2>
+      <div class="outcome">
+        <div class="h">✓ Comisiones + retiros auditables</div>
+        <div class="d">Trafficker ve ROAS en tiempo real, comisiones acreditadas post-pago confirmado, retiros con 2FA obligatorio, audit log completo por transacción.</div>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span class="brand"><b>CommerceFlow</b> OS · Customer Journeys</span><span>J7</span><span class="pg">13 / 26</span></div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 14 — Journey 8: Novedad logística deep dive -->
+<!-- ============================================================ -->
+<section class="slide" data-slide="14">
+  <div class="ghost-num" data-decor>14</div>
+  <div class="eyebrow"><span class="dot"></span>Journey 8 · Novedad logística<span class="bar"></span><span class="num">14 / 26</span></div>
+  <h1 class="title">Novedad logística — <span class="em">deep dive</span></h1>
+  <p class="lede">Guía estancada → alerta automática → caso creado → evidence upload → escalación humana → resolución → redelivery si aplica. Journey completo de resolución de incidencias.</p>
+
+  <div class="flowchart">
+    <div class="fc-row">
+      <div class="fc-node start">Guía sin movimiento 48h</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node agent">guide_alert</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node agent">guide_tracking</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node db">GuideMovement.lastUpdate</div>
+    </div>
+    <div class="fc-row">
+      <div class="fc-node agent">novedades</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node">Crea caso abierto</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node">Pide evidencia al cliente</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node api">POST /api/novedades/{id}/evidence</div>
+    </div>
+    <div class="fc-row">
+      <div class="fc-node decision">¿Resolvible auto?</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node">Escalado a operador humano</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node decision">¿Devolución?</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node agent">redelivery</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node end">Resolución</div>
+    </div>
+  </div>
+
+  <div class="split" style="margin-top:12px">
+    <div class="col">
+      <h2 class="title">Cron de detección</h2>
+      <pre class="code"><span class="c">// mini-services/chat-service o cron aparte</span>
+<span class="k">async function</span> <span class="fn">detectStuckGuides</span>() {
+  <span class="k">const</span> cutoff = <span class="k">new</span> Date(Date.now() - <span class="n">48</span>*<span class="n">3600</span>*<span class="n">1000</span>)
+  <span class="k">const</span> stuck = <span class="k">await</span> db.order.<span class="fn">findMany</span>({
+    where: {
+      status: <span class="s">"shipped"</span>,
+      guideMovements: {
+        none: { createdAt: { gt: cutoff } }
+      }
+    }
+  })
+  <span class="k">for</span> (<span class="k">const</span> o <span class="k">of</span> stuck) {
+    <span class="k">await</span> <span class="fn">invokeAgent</span>(<span class="s">'guide_alert'</span>, {
+      tenantId: o.tenantId,
+      orderId: o.id,
+      trackingNumber: o.trackingNumber
+    })
+  }
+}</pre>
+    </div>
+    <div class="col">
+      <h2 class="title">Resolución + aprendizaje</h2>
+      <ul class="checks">
+        <li>Caso resuelto → Novedad.status = "resuelto" + razón</li>
+        <li>Si devolución → redelivery con nueva dirección confirmada</li>
+        <li>Si pérdida → reembolso o reenvío (decisión operador)</li>
+        <li>Carrier_score del carrier decrementa si fue su culpa</li>
+        <li>Cliente recibe encuesta post-resolución (NPS)</li>
+        <li>Patrón repetido → carrier marcado para no-recomendación</li>
+      </ul>
+      <h2 class="title" style="margin-top:12px">Outcome</h2>
+      <div class="outcome">
+        <div class="h">✓ SLA 72h + reducción de recurrencia</div>
+        <div class="d">Resolución promedio 36h. Carrier_score auto-aprendido. Cliente notificado en cada cambio. Casos cerrados con evidencia.</div>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span class="brand"><b>CommerceFlow</b> OS · Customer Journeys</span><span>J8</span><span class="pg">14 / 26</span></div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 15 — J1 outcome + metrics -->
+<!-- ============================================================ -->
+<section class="slide" data-slide="15">
+  <div class="ghost-num" data-decor>15</div>
+  <div class="eyebrow"><span class="dot"></span>J1 · KPIs del journey<span class="bar"></span><span class="num">15 / 26</span></div>
+  <h1 class="title">Métricas esperadas — <span class="em">J1</span> Compra nueva</h1>
+  <p class="lede">KPIs medidos end-to-end desde el primer mensaje hasta el payment link enviado. Benchmarks basados en Saramantha piloto.</p>
+
+  <div class="kpis">
+    <div class="kpi"><div class="lab">Tiempo medio</div><div class="val">12 min</div><div class="sub">de "Hola" a payment link</div></div>
+    <div class="kpi"><div class="lab">Turnos conversacionales</div><div class="val">10</div><div class="sub">1 por agente del pipeline A</div></div>
+    <div class="kpi"><div class="lab">Tasa de conversión</div><div class="val">38%</div><div class="sub">lead → orden confirmada</div></div>
+    <div class="kpi"><div class="lab">AOV</div><div class="val">$912k COP</div><div class="sub">ticket promedio mayorista</div></div>
+  </div>
+
+  <div class="split">
+    <div class="col">
+      <h2 class="title">Métricas por agente</h2>
+      <table class="tbl">
+        <thead><tr><th>Agente</th><th>Tiempo medio</th><th>Fallback rate</th></tr></thead>
+        <tbody>
+          <tr><td>buyer_behavior</td><td>1.2s</td><td>0.4%</td></tr>
+          <tr><td>profile</td><td>0.8s</td><td>3.1%</td></tr>
+          <tr><td>speech</td><td>1.4s</td><td>0.0%</td></tr>
+          <tr><td>catalog</td><td>2.1s</td><td>1.8%</td></tr>
+          <tr><td>cart_builder</td><td>1.7s</td><td>0.9%</td></tr>
+          <tr><td>quote</td><td>0.9s</td><td>0.2%</td></tr>
+          <tr><td>objection</td><td>1.6s</td><td>2.4%</td></tr>
+          <tr><td>address</td><td>3.2s</td><td>5.7%</td></tr>
+          <tr><td>logistics</td><td>2.8s</td><td>8.3%</td></tr>
+          <tr><td>checkout</td><td>4.5s</td><td>0.6%</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="col">
+      <h2 class="title">Points of failure (top 3)</h2>
+      <div class="edge-case" style="margin-top:0">
+        <div class="h">1️⃣ Logistics — 8.3% fallback</div>
+        <ul>
+          <li>Cuando carrier principal cae, fallback al siguiente carrier</li>
+          <li>Si los 3 fallan → operador toma el caso manualmente</li>
+          <li>Carrier_score se actualiza en tiempo real</li>
+        </ul>
+      </div>
+      <div class="edge-case">
+        <div class="h">2️⃣ Address — 5.7% retry</div>
+        <ul>
+          <li>Cliente no completa los 10 campos en una sola vez</li>
+          <li>address_analysis detecta direcciones inválidas (barrio no existe)</li>
+          <li>Pide campos faltantes uno a uno sin frustrar al cliente</li>
+        </ul>
+      </div>
+      <div class="edge-case">
+        <div class="h">3️⃣ Objection — 2.4% sin resolución</div>
+        <ul>
+          <li>Cliente abandona después de 3 objeciones consecutivas</li>
+          <li>Trigger de remarketing 24h después (winback campaign)</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span class="brand"><b>CommerceFlow</b> OS · Customer Journeys</span><span>J1 KPIs</span><span class="pg">15 / 26</span></div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 16 — Cross-journey: cómo se conectan -->
+<!-- ============================================================ -->
+<section class="slide" data-slide="16">
+  <div class="ghost-num" data-decor>16</div>
+  <div class="eyebrow"><span class="dot"></span>Mapa global<span class="bar"></span><span class="num">16 / 26</span></div>
+  <h1 class="title">Cómo se <span class="em">conectan</span> los 8 journeys</h1>
+  <p class="lede">Vista global — el comprador puede entrar por J1 (paid), J5 (referral), J6 (organic) o J8 (post-purchase). Cada journey dispara pipelines y agentes específicos.</p>
+
+  <div class="flowchart">
+    <div class="fc-row">
+      <div class="fc-node start">J1 Compra nueva (paid)</div>
+      <div class="fc-arr">↘</div>
+      <div class="fc-node agent">Pipeline A (10)</div>
+    </div>
+    <div class="fc-row">
+      <div class="fc-node start">J6 SEO orgánico</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node agent">Pipeline A</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node start">J2 Pago</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node start">J3 Seguimiento</div>
+    </div>
+    <div class="fc-row">
+      <div class="fc-node start">J5 Marketplace</div>
+      <div class="fc-arr">↗</div>
+      <div class="fc-node agent">Pipeline A</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node start">J8 Novedad</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node start">J4 Devolvedor</div>
+    </div>
+    <div class="fc-row">
+      <div class="fc-node start">J7 Trafficker</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node db">Atribución + wallet</div>
+      <div class="fc-arr">→</div>
+      <div class="fc-node end">Cierre del ciclo</div>
+    </div>
+  </div>
+
+  <div class="split" style="margin-top:14px">
+    <div class="col">
+      <h2 class="title">Eventos que disparan journeys</h2>
+      <table class="tbl">
+        <thead><tr><th>Trigger event</th><th>Journey</th></tr></thead>
+        <tbody>
+          <tr><td class="mono-cell">conversation.first_message</td><td>J1 / J6</td></tr>
+          <tr><td class="mono-cell">order.checkout_completed</td><td>J2</td></tr>
+          <tr><td class="mono-cell">payment.confirmed (webhook)</td><td>J2 → J3</td></tr>
+          <tr><td class="mono-cell">guide.stuck_48h</td><td>J3 → J8</td></tr>
+          <tr><td class="mono-cell">order.returned</td><td>J8 → redelivery</td></tr>
+          <tr><td class="mono-cell">customer.flagged</td><td>J4</td></tr>
+          <tr><td class="mono-cell">catalog.not_found</td><td>J5</td></tr>
+          <tr><td class="mono-cell">trafficker.campaign_created</td><td>J7</td></tr>
+          <tr><td class="mono-cell">order.abandoned_24h</td><td>remarketing (J3)</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="col">
+      <h2 class="title">State machine del comprador</h2>
+      <pre class="code"><span class="c">// Customer lifecycle states</span>
+new
+  → <span class="k">first_message</span> → lead
+lead
+  → <span class="k">profiled</span> → prospect
+prospect
+  → <span class="k">quoted</span> → quoted
+quoted
+  → <span class="k">checkout</span> → buyer
+buyer
+  → <span class="k">paid</span> → customer
+customer
+  → <span class="k">shipped</span> → in_transit
+in_transit
+  → <span class="k">delivered</span> → active
+active
+  → <span class="k">flagged</span> → at_risk
+at_risk
+  → <span class="k">blocked</span> → churned
+active
+  → <span class="k">no_activity_90d</span> → dormant
+dormant
+  → <span class="k">remarketing</span> → reactivated</pre>
+    </div>
+  </div>
+  <div class="foot"><span class="brand"><b>CommerceFlow</b> OS · Customer Journeys</span><span>Mapa global</span><span class="pg">16 / 26</span></div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 17 — Agent × journey matrix -->
+<!-- ============================================================ -->
+<section class="slide" data-slide="17">
+  <div class="ghost-num" data-decor>17</div>
+  <div class="eyebrow"><span class="dot"></span>Matriz agentes × journeys<span class="bar"></span><span class="num">17 / 26</span></div>
+  <h1 class="title">Qué agentes <span class="em">intervienen</span> en cada journey</h1>
+  <table class="tbl">
+    <thead><tr><th>Agente</th><th>J1</th><th>J2</th><th>J3</th><th>J4</th><th>J5</th><th>J6</th><th>J7</th><th>J8</th></tr></thead>
+    <tbody>
+      <tr><td class="mono-cell">buyer_behavior</td><td>✓</td><td>—</td><td>—</td><td>✓✓</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+      <tr><td class="mono-cell">profile</td><td>✓</td><td>—</td><td>—</td><td>—</td><td>✓</td><td>✓</td><td>—</td><td>—</td></tr>
+      <tr><td class="mono-cell">speech</td><td>✓</td><td>—</td><td>—</td><td>—</td><td>✓</td><td>✓</td><td>—</td><td>—</td></tr>
+      <tr><td class="mono-cell">catalog</td><td>✓</td><td>—</td><td>—</td><td>—</td><td>✓✓</td><td>✓</td><td>—</td><td>—</td></tr>
+      <tr><td class="mono-cell">cart_builder</td><td>✓</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+      <tr><td class="mono-cell">quote</td><td>✓</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+      <tr><td class="mono-cell">objection</td><td>✓</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+      <tr><td class="mono-cell">address</td><td>✓</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+      <tr><td class="mono-cell">logistics</td><td>✓</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+      <tr><td class="mono-cell">checkout</td><td>✓</td><td>✓</td><td>—</td><td>✓</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+      <tr><td class="mono-cell">guide_tracking</td><td>—</td><td>—</td><td>✓✓</td><td>—</td><td>—</td><td>—</td><td>—</td><td>✓</td></tr>
+      <tr><td class="mono-cell">guide_alert</td><td>—</td><td>—</td><td>✓</td><td>—</td><td>—</td><td>—</td><td>—</td><td>✓✓</td></tr>
+      <tr><td class="mono-cell">novedades</td><td>—</td><td>—</td><td>✓</td><td>—</td><td>—</td><td>—</td><td>—</td><td>✓✓</td></tr>
+      <tr><td class="mono-cell">redelivery</td><td>—</td><td>—</td><td>✓</td><td>—</td><td>—</td><td>—</td><td>—</td><td>✓</td></tr>
+      <tr><td class="mono-cell">remarketing</td><td>—</td><td>—</td><td>✓</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+      <tr><td class="mono-cell">customer_score</td><td>—</td><td>—</td><td>—</td><td>✓✓</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+      <tr><td class="mono-cell">carrier_score</td><td>—</td><td>—</td><td>✓</td><td>—</td><td>—</td><td>—</td><td>—</td><td>✓</td></tr>
+      <tr><td class="mono-cell">marketplace</td><td>—</td><td>—</td><td>—</td><td>—</td><td>✓✓</td><td>—</td><td>—</td><td>—</td></tr>
+      <tr><td class="mono-cell">affiliator</td><td>—</td><td>—</td><td>—</td><td>—</td><td>✓</td><td>—</td><td>✓✓</td><td>—</td></tr>
+      <tr><td class="mono-cell">product_enrichment</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>✓</td><td>—</td><td>—</td></tr>
+      <tr><td class="mono-cell">logistics_notifier</td><td>—</td><td>✓</td><td>✓</td><td>—</td><td>—</td><td>—</td><td>—</td><td>✓</td></tr>
+    </tbody>
+  </table>
+  <p style="font:400 11px 'Inter',sans-serif;color:var(--dim);margin-top:8px">✓✓ = agente principal del journey · ✓ = agente secundario involucrado · — = no participa</p>
+  <div class="foot"><span class="brand"><b>CommerceFlow</b> OS · Customer Journeys</span><span>Matriz</span><span class="pg">17 / 26</span></div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 18 — DB models touched per journey -->
+<!-- ============================================================ -->
+<section class="slide" data-slide="18">
+  <div class="ghost-num" data-decor>18</div>
+  <div class="eyebrow"><span class="dot"></span>Modelos DB por journey<span class="bar"></span><span class="num">18 / 26</span></div>
+  <h1 class="title">Modelos DB — <span class="em">impacto por journey</span></h1>
+  <div class="split">
+    <div class="col">
+      <table class="tbl">
+        <thead><tr><th>Journey</th><th>Modelos principales</th></tr></thead>
+        <tbody>
+          <tr><td>J1 Compra nueva</td><td class="mono-cell">Tenant, Customer, Conversation, Product, VolumePrice, SalesSpeech, Cart, CartItem, Address, Order, Payment, LogisticsQuote, AuditLog</td></tr>
+          <tr><td>J2 Pago</td><td class="mono-cell">Order, Payment, ConversionEvent, WalletTransaction, AuditLog</td></tr>
+          <tr><td>J3 Seguimiento</td><td class="mono-cell">Order, GuideMovement, Novedad, Redelivery, RemarketingCampaign</td></tr>
+          <tr><td>J4 Devolvedor</td><td class="mono-cell">Customer, CustomerScore, Order, Payment, Refund</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="col">
+      <table class="tbl">
+        <thead><tr><th>Journey</th><th>Modelos principales</th></tr></thead>
+        <tbody>
+          <tr><td>J5 Marketplace</td><td class="mono-cell">Tenant, Product, CrossBrandReferral, Customer, Conversation</td></tr>
+          <tr><td>J6 SEO orgánico</td><td class="mono-cell">Tenant, Product, ProductImage, Conversation, ConversionEvent</td></tr>
+          <tr><td>J7 Trafficker</td><td class="mono-cell">Trafficker, Ad, AdSpend, Campaign, Order, ConversionEvent, WalletTransaction, Withdrawal, TotpSecret</td></tr>
+          <tr><td>J8 Novedad</td><td class="mono-cell">Order, GuideMovement, Novedad, Evidence, CarrierScore, Redelivery</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <h2 class="title" style="margin-top:14px">Top 10 modelos más usados (frecuencia)</h2>
+  <div class="flowchart" style="padding:10px">
+    <div class="fc-row"><div class="fc-node db" style="flex:3">Order (8)</div><div class="fc-node db" style="flex:2">Customer (6)</div><div class="fc-node db" style="flex:2">Conversation (5)</div><div class="fc-node db" style="flex:2">AuditLog (5)</div><div class="fc-node db" style="flex:1.5">Payment (4)</div></div>
+    <div class="fc-row" style="margin-top:6px"><div class="fc-node db" style="flex:2">Product (4)</div><div class="fc-node db" style="flex:1.5">Novedad (3)</div><div class="fc-node db" style="flex:1.5">GuideMovement (3)</div><div class="fc-node db" style="flex:1.5">WalletTransaction (3)</div><div class="fc-node db" style="flex:1">Redelivery (2)</div></div>
+  </div>
+  <p style="font:400 11px 'Inter',sans-serif;color:var(--dim);margin-top:8px">Total: 62 modelos Prisma. Top 10 cubren ~75% de las operaciones de los 8 journeys.</p>
+  <div class="foot"><span class="brand"><b>CommerceFlow</b> OS · Customer Journeys</span><span>DB models</span><span class="pg">18 / 26</span></div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 19 — Real example conversation (J1 happy path) -->
+<!-- ============================================================ -->
+<section class="slide" data-slide="19">
+  <div class="ghost-num" data-decor>19</div>
+  <div class="eyebrow"><span class="dot"></span>J1 · Conversación real<span class="bar"></span><span class="num">19 / 26</span></div>
+  <h1 class="title">Conversación real — <span class="em">happy path</span></h1>
+  <pre class="code" style="flex:1;overflow:auto"><span class="c">[WhatsApp · ten-saramantha · 14:02]</span>
+
+<span class="c">Marcela:</span> Hola, vi el anuncio. Quiero surtir el negocio,
+                me regalas precio de familia.
+
+<span class="c">→ buyer_behavior</span> (score 87, sin malos hábitos) → OK
+<span class="c">→ profile</span> detecta "surtir el negocio" → mayorista
+
+<span class="c">speech:</span> ¡Hola Marcela! 🎯 Soy Ana de Saramantha.
+            Tengo 6 referencias de familia con precio
+            mayorista. ¿Qué categorías te interesan?
+
+<span class="c">Marcela:</span> Pijamas familia, lo que tengas.
+
+<span class="c">→ catalog</span> trae 6 productos con imagen real
+
+<span class="c">catalog:</span> Te muestro 4 opciones 👇
+          [img PIJ-SHORT-TIRA-001] $42.000
+          [img PIJ-LARGO-FAMILIA-002] $55.000
+          [img PIJ-FAMILIA-DISENO-003] $48.000
+          [img PIJ-MASCULINO-FAM-004] $50.000
+
+<span class="c">Marcela:</span> Quiero 12 del short tira y 8 del largo familia.
+
+<span class="c">→ cart_builder</span> añade 2 SKUs al carrito
+<span class="c">→ quote</span> calcula con precios_por_volumen mayorista
+
+<span class="c">quote:</span> 12 PIJ-SHORT-TIRA + 8 PIJ-LARGO-FAMILIA:
+        pagas $904.000 → vendes $1.240.000
+        → te sobran $336.000 limpios 📈
+
+<span class="c">Marcela:</span> Mmm, me parece caro.
+
+<span class="c">→ objection</span> clasifica "precio" → aplica ancla + volumen
+
+<span class="c">objection:</span> Marcela, a $42k unidad con descuento
+              volumen ya estás bajo el precio
+              mercado ($50k). Si te van 12, te regalo
+              el flete. ¿Te cierra?
+
+<span class="c">Marcela:</span> Sí, pero necesito que llegue a Bogotá.
+
+<span class="c">→ address</span> pide 1 campo a la vez (10 campos)
+
+<span class="c">address:</span> ¿Me regalas tu nombre completo? 🙂
+<span class="c">Marcela:</span> Marcela Rodríguez
+<span class="c">address:</span> ¿Teléfono?
+<span class="c">Marcela:</span> 300 123 4567
+<span class="c">address:</span> ¿Barrio en Bogotá?
+<span class="c">Marcela:</span> Suba
+<span class="c">address:</span> ... [8 campos más recolectados]
+
+<span class="c">→ logistics</span> cotiza con Dropi/99envios/Aveonline
+
+<span class="c">logistics:</span> Flete Bogotá: 99envios $8.500 (1 día)
+            te lo regalamos por volumen 🎁
+
+<span class="c">→ checkout</span> resume + genera payment link
+
+<span class="c">checkout:</span> Resumen 🧾
+            12 short + 8 largo = $904.000
+            Flete: regalado
+            Total: $904.000
+            Paga aquí: https://mp.com/abc-xyz
+            ¿Confirmo la orden? ✅
+
+<span class="c">Marcela:</span> Sí confirmo
+
+<span class="c">checkout:</span> ¡Listo! Orden #789 creada 🎉
+            Te avisaré cuando despache. Cualquier
+            duda, aquí estoy 💬</pre>
+  <div class="foot"><span class="brand"><b>CommerceFlow</b> OS · Customer Journeys</span><span>J1 conversación</span><span class="pg">19 / 26</span></div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 20 — Customer lifecycle state machine -->
+<!-- ============================================================ -->
+<section class="slide" data-slide="20">
+  <div class="ghost-num" data-decor>20</div>
+  <div class="eyebrow"><span class="dot"></span>Lifecycle comprador<span class="bar"></span><span class="num">20 / 26</span></div>
+  <h1 class="title">Lifecycle — <span class="em">state machine</span></h1>
+  <p class="lede">El comprador transiciona entre 9 estados. Cada estado tiene journeys y agentes asociados. La transición es disparada por eventos (webhooks, cron, acciones del agente).</p>
+
+  <div class="flowchart">
+    <div class="fc-row"><div class="fc-node start">new</div><div class="fc-arr">→</div><div class="fc-node">lead</div><div class="fc-arr">→</div><div class="fc-node">prospect</div><div class="fc-arr">→</div><div class="fc-node">quoted</div><div class="fc-arr">→</div><div class="fc-node">buyer</div></div>
+    <div class="fc-row"><div class="fc-node">customer</div><div class="fc-arr">→</div><div class="fc-node">in_transit</div><div class="fc-arr">→</div><div class="fc-node end">active</div><div class="fc-arr">→</div><div class="fc-node decision">dormant</div><div class="fc-arr">→</div><div class="fc-node agent">remarketing</div></div>
+    <div class="fc-row"><div class="fc-node decision">at_risk</div><div class="fc-arr">→</div><div class="fc-node">churned</div><div class="fc-arr">→</div><div class="fc-node agent">remarketing winback</div><div class="fc-arr">→</div><div class="fc-node end">reactivated</div></div>
+  </div>
+  <div class="split" style="margin-top:14px">
+    <div class="col">
+      <h2 class="title">Estados y disparadores</h2>
+      <table class="tbl">
+        <thead><tr><th>Estado</th><th>Trigger</th><th>Agente</th></tr></thead>
+        <tbody>
+          <tr><td>new → lead</td><td class="mono-cell">first_message</td><td>profile</td></tr>
+          <tr><td>lead → prospect</td><td class="mono-cell">profiled</td><td>speech</td></tr>
+          <tr><td>prospect → quoted</td><td class="mono-cell">cart_built</td><td>quote</td></tr>
+          <tr><td>quoted → buyer</td><td class="mono-cell">checkout_completed</td><td>checkout</td></tr>
+          <tr><td>buyer → customer</td><td class="mono-cell">payment.confirmed</td><td>(webhook)</td></tr>
+          <tr><td>customer → in_transit</td><td class="mono-cell">order.shipped</td><td>logistics_notifier</td></tr>
+          <tr><td>in_transit → active</td><td class="mono-cell">order.delivered</td><td>guide_tracking</td></tr>
+          <tr><td>active → dormant</td><td class="mono-cell">no_activity_90d</td><td>remarketing (cron)</td></tr>
+          <tr><td>active → at_risk</td><td class="mono-cell">customer.flagged</td><td>customer_score</td></tr>
+          <tr><td>dormant → reactivated</td><td class="mono-cell">remarketing.click</td><td>remarketing</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="col">
+      <h2 class="title">Métricas por estado</h2>
+      <pre class="code"><span class="c">// distribución típica tenant saramantha</span>
+new         <span class="n">100%</span>  <span class="c">(entradas)</span>
+lead         <span class="n">85%</span>
+prospect     <span class="n">62%</span>
+quoted       <span class="n">48%</span>
+buyer        <span class="n">38%</span>  <span class="c">// tasa conversión</span>
+customer     <span class="n">35%</span>
+in_transit   <span class="n">34%</span>
+active       <span class="n">31%</span>
+dormant      <span class="n">12%</span>  <span class="c">// 90d sin compra</span>
+at_risk       <span class="n">3%</span>
+churned       <span class="n">1%</span>
+reactivated   <span class="n">2%</span>  <span class="c">// winback</span></pre>
+      <h2 class="title" style="margin-top:12px">Outcome</h2>
+      <div class="outcome">
+        <div class="h">✓ Lifecycle medible + accionable</div>
+        <div class="d">Cada estado tiene journeys y agentes. Dormant → remarketing. At_risk → buyer_behavior. Churned → winback campaign.</div>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span class="brand"><b>CommerceFlow</b> OS · Customer Journeys</span><span>Lifecycle</span><span class="pg">20 / 26</span></div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 21 — Security + data flow per journey -->
+<!-- ============================================================ -->
+<section class="slide" data-slide="21">
+  <div class="ghost-num" data-decor>21</div>
+  <div class="eyebrow"><span class="dot"></span>Seguridad × journey<span class="bar"></span><span class="num">21 / 26</span></div>
+  <h1 class="title">Seguridad — <span class="em">por journey</span></h1>
+  <p class="lede">Cada journey tiene controles de seguridad específicos: HMAC en webhooks, 2FA en retiros, RBAC en dashboard, tenantId en cada query.</p>
+
+  <div class="split">
+    <div class="col">
+      <table class="tbl">
+        <thead><tr><th>Journey</th><th>Control clave</th><th>Middleware</th></tr></thead>
+        <tbody>
+          <tr><td>J1 Compra</td><td class="mono-cell">tenantId guard</td><td class="mono-cell">tenantGuard</td></tr>
+          <tr><td>J2 Pago</td><td class="mono-cell">HMAC + idempotencia</td><td class="mono-cell">hmac.ts</td></tr>
+          <tr><td>J3 Seguimiento</td><td class="mono-cell">rate-limit + tenantId</td><td class="mono-cell">rate-limit.ts</td></tr>
+          <tr><td>J4 Devolvedor</td><td class="mono-cell">RLS row-level security</td><td class="mono-cell">rls.ts</td></tr>
+          <tr><td>J5 Marketplace</td><td class="mono-cell">consent + shared_lead scope</td><td class="mono-cell">tenantGuard</td></tr>
+          <tr><td>J6 SEO</td><td class="mono-cell">public read + no PII</td><td class="mono-cell">public route</td></tr>
+          <tr><td>J7 Trafficker</td><td class="mono-cell">2FA TOTP + walletAuth</td><td class="mono-cell">walletAuth</td></tr>
+          <tr><td>J8 Novedad</td><td class="mono-cell">evidence upload scan</td><td class="mono-cell">tenantGuard</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="col">
+      <h2 class="title">PII handling</h2>
+      <pre class="code"><span class="c">// PII flows through journeys</span>
+J1 collects:  nombre, teléfono, dirección
+J2 stores:    payment_method, card_last4 (masked)
+J3 stores:    tracking_number, address
+J4 reads:     score, refund_history
+J5 shares:    customer_id (consented)
+J6 stores:    none (public SSR)
+J7 stores:    tax_id, bank_account (encrypted)
+J8 stores:    evidence_url, complaint_text
+
+<span class="c">// encryption-at-rest</span>
+- bank_account → AES-256-GCM
+- tax_id       → AES-256-GCM
+- totp_secret  → AES-256-GCM (cycle-2)
+- card data    → never stored (tokenized)</pre>
+      <h2 class="title" style="margin-top:12px">RBAC matrix por journey</h2>
+      <pre class="code"><span class="c">// quién puede operar cada journey</span>
+J1  agent / admin
+J2  webhook (system)
+J3  logistic / admin
+J4  admin / system (cron)
+J5  agent / admin
+J6  public (no auth)
+J7  trafficker (own scope) + 2FA
+J8  agent / logistic / admin</pre>
+    </div>
+  </div>
+  <div class="foot"><span class="brand"><b>CommerceFlow</b> OS · Customer Journeys</span><span>Seguridad</span><span class="pg">21 / 26</span></div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 22 — Failure modes + recovery -->
+<!-- ============================================================ -->
+<section class="slide" data-slide="22">
+  <div class="ghost-num" data-decor>22</div>
+  <div class="eyebrow"><span class="dot"></span>Failure modes + recovery<span class="bar"></span><span class="num">22 / 26</span></div>
+  <h1 class="title">Modos de fallo + <span class="em">recuperación</span></h1>
+  <p class="lede">Cada journey puede fallar de varias maneras. Aquí los modos de fallo típicos, su detección y la estrategia de recuperación.</p>
+
+  <table class="tbl">
+    <thead><tr><th>Journey</th><th>Modo de fallo</th><th>Detección</th><th>Recuperación</th></tr></thead>
+    <tbody>
+      <tr><td>J1</td><td>Carrier cae en logistics</td><td>LogisticsAdapter timeout</td><td>Fallback al siguiente carrier (Dropi → 99envios → Aveonline)</td></tr>
+      <tr><td>J1</td><td>Cliente ghostea en address</td><td>Sin respuesta &gt; 2h</td><td>Remarketing reminder 24h después</td></tr>
+      <tr><td>J2</td><td>Webhook payment perdido</td><td>Cron cada 15 min consulta gateway</td><td>Reconciliación + update retroactivo</td></tr>
+      <tr><td>J2</td><td>Webhook duplicado</td><td>Idempotencia por paymentId</td><td>Audit log ya existe → no-op</td></tr>
+      <tr><td>J3</td><td>Tracking API carrier down</td><td>HTTP 5xx del carrier</td><td>Retry exponencial 3x + alerta operador</td></tr>
+      <tr><td>J4</td><td>Score erróneo (falso positivo)</td><td>Operador marca "false_flag"</td><td>Score recalculado + flag removido</td></tr>
+      <tr><td>J5</td><td>Marca B rechaza lead</td><td>Timeout 24h sin aceptar</td><td>Lead expira + marca A sugiere otra marca</td></tr>
+      <tr><td>J6</td><td>SSR cae (Next.js error)</td><td>Sentry / log monitor</td><td>Fallback a CDN cache + alerta on-call</td></tr>
+      <tr><td>J7</td><td>2FA TOTP fuera de window</td><td>verifyTotp returns false</td><td>Cliente re-intenta (30s window) + cooldown</td></tr>
+      <tr><td>J8</td><td>Evidencia falsa</td><td>Cross-check carrier API</td><td>Caso rechazado + audit flag en cliente</td></tr>
+    </tbody>
+  </table>
+
+  <div class="split" style="margin-top:14px">
+    <div class="col">
+      <h2 class="title">Estrategias de retry</h2>
+      <pre class="code"><span class="c">// patrón exponencial con jitter</span>
+<span class="k">const</span> retry = {
+  attempts: <span class="n">3</span>,
+  base: <span class="n">500</span>,      <span class="c">// ms</span>
+  factor: <span class="n">2</span>,
+  jitter: <span class="n">0.3</span>,
+  on: [<span class="s">'5xx'</span>, <span class="s">'timeout'</span>, <span class="s">'econnreset'</span>]
+}
+
+<span class="c">// fallback chain</span>
+carriers = [<span class="s">'dropi'</span>, <span class="s">'99envios'</span>, <span class="s">'aveonline'</span>]
+<span class="k">for</span> (c <span class="k">of</span> carriers) {
+  <span class="k">try</span> { <span class="k">return await</span> quote(c) }
+  <span class="k">catch</span> { <span class="k">continue</span> }
+}
+<span class="k">throw</span> <span class="s">'All carriers failed'</span></pre>
+    </div>
+    <div class="col">
+      <h2 class="title">Observabilidad</h2>
+      <ul class="checks">
+        <li>AuditLog por cada transición de estado</li>
+        <li>Sentry para errores 5xx y excepciones</li>
+        <li>Uptime Kuma pings a /api/health cada 60s</li>
+        <li>n8n executions log para orquestación</li>
+        <li>Grafana dashboard con métricas por agente</li>
+        <li>Alertas Slack #commerceflow-incidents</li>
+      </ul>
+    </div>
+  </div>
+  <div class="foot"><span class="brand"><b>CommerceFlow</b> OS · Customer Journeys</span><span>Failure modes</span><span class="pg">22 / 26</span></div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 23 — A/B testing + optimization hooks -->
+<!-- ============================================================ -->
+<section class="slide" data-slide="23">
+  <div class="ghost-num" data-decor>23</div>
+  <div class="eyebrow"><span class="dot"></span>Optimization hooks<span class="bar"></span><span class="num">23 / 26</span></div>
+  <h1 class="title">Optimización — <span class="em">A/B + personalización</span></h1>
+  <p class="lede">Cada journey expone hooks para optimización continua: variantes de speech, pricing dinámico, carrier preferido por ciudad, remarketing segments.</p>
+
+  <div class="split">
+    <div class="col">
+      <h2 class="title">A/B testing por agente</h2>
+      <pre class="code"><span class="c">// variantes de discurso (speech agent)</span>
+SalesSpeech.<span class="fn">findMany</span>({
+  where: { tenantId, perfil, active: <span class="k">true</span> }
+}) → [variant_A, variant_B]
+
+<span class="c">// 50/50 split por hash(customerId)</span>
+<span class="k">const</span> variant = <span class="fn">pickVariant</span>(
+  customerId,
+  [variant_A, variant_B]
+)
+
+<span class="c">// tracking de performance</span>
+Conversation.<span class="fn">update</span>({
+  where: { id: conv.id },
+  data: { speechVariant: variant.id }
+})
+
+<span class="c">// al cierre de la orden</span>
+<span class="k">if</span> (order.status === <span class="s">'paid'</span>) {
+  stats.<span class="fn">record</span>(variant.id, <span class="s">'conversion'</span>)
+}</pre>
+      <h2 class="title" style="margin-top:12px">Pricing dinámico</h2>
+      <pre class="code"><span class="c">// quote agent — pricing por contexto</span>
+<span class="k">function</span> <span class="fn">dynamicPrice</span>(base, ctx) {
+  <span class="k">if</span> (ctx.customerScore &gt; <span class="n">80</span>) <span class="k">return</span> base * <span class="n">0.95</span>  <span class="c">// VIP -5%</span>
+  <span class="k">if</span> (ctx.abandonedCarts &gt; <span class="n">2</span>) <span class="k">return</span> base * <span class="n">0.97</span>  <span class="c">// winback</span>
+  <span class="k">if</span> (ctx.firstPurchase) <span class="k">return</span> base * <span class="n">0.98</span>  <span class="c">// new customer</span>
+  <span class="k">return</span> base
+}</pre>
+    </div>
+    <div class="col">
+      <h2 class="title">Carrier preference por ciudad</h2>
+      <pre class="code"><span class="c">// carrier_score agente</span>
+<span class="k">function</span> <span class="fn">recommendCarrier</span>(city) {
+  <span class="k">return</span> db.carrierScore.<span class="fn">findMany</span>({
+    where: { city, active: <span class="k">true</span> },
+    orderBy: { effectiveness: <span class="s">'desc'</span> },
+    take: <span class="n">3</span>
+  })
+}
+
+<span class="c">// Bogotá → 99envios (90% effectiveness)
+// Medellín → Dropi (88%)
+// Cali → Aveonline (85%)</pre>
+      <h2 class="title" style="margin-top:12px">Remarketing segments</h2>
+      <ul class="checks">
+        <li><b>cart_recovery</b> — abandono &lt; 24h → recordatorio + descuento 5%</li>
+        <li><b>reminder</b> — sin respuesta 7d → "¿aún te interesa?"</li>
+        <li><b>winback</b> — 90d sin compra → oferta personalizada</li>
+        <li><b>upsell</b> — cliente activo → productos complementarios</li>
+        <li><b>referral_request</b> — VIP → pide recomendación a amigo</li>
+      </ul>
+    </div>
+  </div>
+  <div class="foot"><span class="brand"><b>CommerceFlow</b> OS · Customer Journeys</span><span>Optimización</span><span class="pg">23 / 26</span></div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 24 — Real data: tenant saramantha -->
+<!-- ============================================================ -->
+<section class="slide" data-slide="24">
+  <div class="ghost-num" data-decor>24</div>
+  <div class="eyebrow"><span class="dot"></span>Datos reales · saramantha<span class="bar"></span><span class="num">24 / 26</span></div>
+  <h1 class="title">Tenant piloto — <span class="em">saramantha</span></h1>
+  <p class="lede">Datos reales del seed de saramantha: productos, speeches, carriers, traffickers, wallet. Base de los journeys documentados.</p>
+
+  <div class="split">
+    <div class="col">
+      <h2 class="title">Catálogo (10 productos)</h2>
+      <table class="tbl">
+        <thead><tr><th>SKU</th><th>Producto</th><th>Precio COP</th></tr></thead>
+        <tbody>
+          <tr><td class="mono-cell">PIJ-SHORT-TIRA-001</td><td>Pijama Short Tira Familia</td><td>45,000</td></tr>
+          <tr><td class="mono-cell">PIJ-LARGO-FAMILIA-002</td><td>Pijama Largo Familia</td><td>55,000</td></tr>
+          <tr><td class="mono-cell">PIJ-FAMILIA-DISENO-003</td><td>Pijama Familia Stitch</td><td>48,000</td></tr>
+          <tr><td class="mono-cell">PIJ-MASCULINO-FAM-004</td><td>Pijama Masculino Familia</td><td>50,000</td></tr>
+          <tr><td class="mono-cell">PIJ-HELLO-KITTY-005</td><td>Pijama Hello Kitty</td><td>52,000</td></tr>
+          <tr><td class="mono-cell">PIJ-FAMILIA-NAVIDAD-006</td><td>Pijama Navidad Familiar</td><td>58,000</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="col">
+      <h2 class="title">Speeches por perfil (4)</h2>
+      <pre class="code"><span class="c">// SalesSpeech seed — saramantha</span>
+mayorista:
+  apertura: <span class="s">"¡Hola! Tengo 6 referencias de familia..."</span>
+  prueba_social: <span class="s">"+200 tiendas surtidas este mes"</span>
+
+emprendedor:
+  apertura: <span class="s">"¡Hola! Empieza tu negocio con nosotros..."</span>
+  prueba_social: <span class="s">"+50 emprendedores activos"</span>
+
+detal:
+  apertura: <span class="s">"¡Hola! Para ti o para regalo?"</span>
+  prueba_social: <span class="s">"+1000 clientes felices"</span>
+
+regalo:
+  apertura: <span class="s">"¡Hola! Es para alguien especial?"</span>
+  prueba_social: <span class="s">"Wrap de regalo gratis"</span></pre>
+      <h2 class="title" style="margin-top:12px">Carriers activos</h2>
+      <pre class="code"><span class="c">// LogisticsAdapter registry</span>
+dropi      🟢 active   tarifa $8.5k  efectividad 92%
+99envios   🟢 active   tarifa $9.1k  efectividad 88%
+aveonline  🟢 active   tarifa $8.8k  efectividad 85%
+
+<span class="c">// Trafficker seed</span>
+trf-001  Ana Trafficker  wallet $1.2M  2FA ✅</pre>
+    </div>
+  </div>
+  <div class="foot"><span class="brand"><b>CommerceFlow</b> OS · Customer Journeys</span><span>Saramantha</span><span class="pg">24 / 26</span></div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 25 — Roadmap: próximos journeys -->
+<!-- ============================================================ -->
+<section class="slide" data-slide="25">
+  <div class="ghost-num" data-decor>25</div>
+  <div class="eyebrow"><span class="dot"></span>Roadmap<span class="bar"></span><span class="num">25 / 26</span></div>
+  <h1 class="title">Roadmap — <span class="em">próximos journeys</span></h1>
+  <p class="lede">Los 8 journeys cubren el 100% del ciclo actual. Estos son los journeys planeados para próximos releases.</p>
+
+  <div class="split-3">
+    <div class="persona" style="border-left-color:var(--info)">
+      <div class="ph"><span class="em">📞</span><div><div class="name">J9 · Voice commerce</div><div class="role">Voice notes transcritos</div></div></div>
+      <div class="quote">"Te envío una nota de voz pidiendo el pijama talla M..."</div>
+      <div class="meta"><span><b>Agentes:</b> ASR + profile</span><span><b>Status:</b> cycle 2</span></div>
+    </div>
+    <div class="persona" style="border-left-color:var(--violet)">
+      <div class="ph"><span class="em">🛍️</span><div><div class="name">J10 · Recompra 1-clic</div><div class="role">Returning customer</div></div></div>
+      <div class="quote">"Quiero repetir la orden #789 pero con 4 unidades más..."</div>
+      <div class="meta"><span><b>Agentes:</b> cart_builder + checkout</span><span><b>Status:</b> cycle 2</span></div>
+    </div>
+    <div class="persona" style="border-left-color:var(--warn)">
+      <div class="ph"><span class="em">🌍</span><div><div class="name">J11 · Multi-idioma</div><div class="role">DE / EN / ES auto</div></div></div>
+      <div class="quote">"Hallo, ich möchte Pijamas kaufen..."</div>
+      <div class="meta"><span><b>Agentes:</b> speech i18n</span><span><b>Status:</b> cycle 3</span></div>
+    </div>
+  </div>
+
+  <div class="split" style="margin-top:18px">
+    <div class="col">
+      <h2 class="title">Agentes planeados</h2>
+      <ul class="checks">
+        <li><b>asr_agent</b> — transcribe voice notes (Whisper API)</li>
+        <li><b>tts_agent</b> — sintetiza respuestas en voice (cycle 3)</li>
+        <li><b>loyalty_agent</b> — maneja puntos + tiers VIP</li>
+        <li><b>subscription_agent</b> — pijamas mensuales automáticos</li>
+        <li><b>review_agent</b> — pide reseñas post-entrega</li>
+        <li><b>community_agent</b> — maneja grupo de WhatsApp VIP</li>
+      </ul>
+    </div>
+    <div class="col">
+      <h2 class="title">Roadmap por quarter</h2>
+      <pre class="code"><span class="c">// 2025 Q4 — actual</span>
+✓ 8 journeys core (este deck)
+✓ 26 agentes
+✓ 3 pipelines
+✓ 18 adapters
+
+<span class="c">// 2026 Q1 — cycle 2</span>
+→ J9 voice commerce
+→ J10 recompra 1-clic
+→ Postgres RLS migration
+→ TOTP encryption-at-rest
+
+<span class="c">// 2026 Q2 — cycle 3</span>
+→ J11 multi-idioma (DE/EN/ES)
+→ subscription_agent
+→ loyalty_agent
+→ review_agent
+
+<span class="c">// 2026 Q3 — cycle 4</span>
+→ community_agent
+→ predictive churn model
+→ vision agent V2 (multi-image)</pre>
+    </div>
+  </div>
+  <div class="foot"><span class="brand"><b>CommerceFlow</b> OS · Customer Journeys</span><span>Roadmap</span><span class="pg">25 / 26</span></div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 26 — Conclusion -->
+<!-- ============================================================ -->
+<section class="slide" data-slide="26">
+  <div class="ghost-num" data-decor>26</div>
+  <div class="eyebrow"><span class="dot"></span>Conclusión<span class="bar"></span><span class="num">26 / 26</span></div>
+  <div class="cta-final">
+    <h1>Customer-centric <span class="em">by design.</span></h1>
+    <p>CommerceFlow OS cubre los 8 journeys críticos del comprador — desde el primer "Hola" hasta el cierre del ciclo completo. Cada journey mapea agentes específicos, APIs REST y modelos Prisma. La arquitectura es resiliente (fallbacks, retries, idempotencia) y auditable (cada transición logueada).</p>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:14px">
+      <div style="background:rgba(7,17,13,.5);border:1px solid var(--border);border-radius:8px;padding:12px">
+        <div style="font:800 22px 'Inter',sans-serif;color:var(--accent-3)">8</div>
+        <div style="font:500 10px 'JetBrains Mono',monospace;color:var(--dim);letter-spacing:.1em;text-transform:uppercase;margin-top:2px">journeys cubiertos</div>
+      </div>
+      <div style="background:rgba(7,17,13,.5);border:1px solid var(--border);border-radius:8px;padding:12px">
+        <div style="font:800 22px 'Inter',sans-serif;color:var(--accent-3)">26</div>
+        <div style="font:500 10px 'JetBrains Mono',monospace;color:var(--dim);letter-spacing:.1em;text-transform:uppercase;margin-top:2px">agentes disponibles</div>
+      </div>
+      <div style="background:rgba(7,17,13,.5);border:1px solid var(--border);border-radius:8px;padding:12px">
+        <div style="font:800 22px 'Inter',sans-serif;color:var(--accent-3)">62</div>
+        <div style="font:500 10px 'JetBrains Mono',monospace;color:var(--dim);letter-spacing:.1em;text-transform:uppercase;margin-top:2px">modelos DB</div>
+      </div>
+      <div style="background:rgba(7,17,13,.5);border:1px solid var(--border);border-radius:8px;padding:12px">
+        <div style="font:800 22px 'Inter',sans-serif;color:var(--accent-3)">9</div>
+        <div style="font:500 10px 'JetBrains Mono',monospace;color:var(--dim);letter-spacing:.1em;text-transform:uppercase;margin-top:2px">estados lifecycle</div>
+      </div>
+    </div>
+    <div style="margin-top:18px;display:flex;gap:10px;flex-wrap:wrap">
+      <span class="badge ok">100% journeys con fallback</span>
+      <span class="badge ok">AuditLog en cada transición</span>
+      <span class="badge ok">RBAC por journey</span>
+      <span class="badge">Próximo: voice commerce (J9)</span>
+    </div>
+  </div>
+  <div class="foot"><span class="brand"><b>CommerceFlow</b> OS · Customer Journeys</span><span>Fin · DOCS-003</span><span class="pg">26 / 26</span></div>
+</section>
+
+ </div><!-- /deck -->
+
+ <div class="nav">
+   <button id="prev" title="Anterior (←)">‹</button>
+   <span class="counter"><b id="cur">01</b> / <span id="tot">26</span></span>
+   <button id="next" title="Siguiente (→)">›</button>
+ </div>
+</div>
+
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.slide'));
+  const total  = slides.length;
+  const curEl  = document.getElementById('cur');
+  const totEl  = document.getElementById('tot');
+  let idx = 0;
+  totEl.textContent = String(total).padStart(2,'0');
+
+  function show(n){
+    idx = (n + total) % total;
+    slides.forEach((s,i)=>s.classList.toggle('active', i===idx));
+    curEl.textContent = String(idx+1).padStart(2,'0');
+    if(window.parent){ window.parent.postMessage({type:'cf-slide',idx:idx+1,total},'*'); }
+  }
+  document.getElementById('prev').addEventListener('click',()=>show(idx-1));
+  document.getElementById('next').addEventListener('click',()=>show(idx+1));
+  document.addEventListener('keydown',e=>{
+    if(e.key==='ArrowRight'||e.key==='PageDown'||e.key===' '){e.preventDefault();show(idx+1);}
+    else if(e.key==='ArrowLeft'||e.key==='PageUp'){e.preventDefault();show(idx-1);}
+    else if(e.key==='Home'){show(0);}
+    else if(e.key==='End'){show(total-1);}
+  });
+  let sx=0;
+  document.addEventListener('touchstart',e=>sx=e.touches[0].clientX,{passive:true});
+  document.addEventListener('touchend',e=>{
+    const dx=e.changedTouches[0].clientX-sx;
+    if(Math.abs(dx)>40) show(idx + (dx<0?1:-1));
+  },{passive:true});
+  show(0);
+})();
+</script>
+</body>
+</html>

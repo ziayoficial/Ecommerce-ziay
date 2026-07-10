@@ -188,32 +188,32 @@ export function MonetizationView() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-32">Pedido</TableHead>
-                    <TableHead className="w-28">Estado</TableHead>
-                    <TableHead className="text-right w-28">GMV</TableHead>
-                    <TableHead className="text-right w-24">%</TableHead>
-                    <TableHead className="text-right w-32">Comisión total</TableHead>
-                    <TableHead className="text-right w-24">Recon. %</TableHead>
-                    <TableHead className="text-right w-32">Reconocida</TableHead>
-                    <TableHead className="w-32">Etapa</TableHead>
+                    <TableHead className="w-36">Pedido</TableHead>
+                    <TableHead className="w-32">Estado</TableHead>
+                    <TableHead className="text-right w-36">GMV</TableHead>
+                    <TableHead className="text-right w-20">%</TableHead>
+                    <TableHead className="text-right w-40">Comisión total</TableHead>
+                    <TableHead className="text-right w-28">Recon. %</TableHead>
+                    <TableHead className="text-right w-40">Reconocida</TableHead>
+                    <TableHead className="min-w-[160px]">Etapa</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {entries.map((e) => (
                     <TableRow key={e.id}>
-                      <TableCell className="font-mono text-xs">{e.orderNumber}</TableCell>
+                      <TableCell className="font-mono text-xs whitespace-nowrap">{e.orderNumber}</TableCell>
                       <TableCell><Badge variant="secondary" className="text-[10px]">{e.orderStatus}</Badge></TableCell>
-                      <TableCell className="text-right tabular-nums">{formatCurrency(e.gmv, 'COP', { compact: true })}</TableCell>
-                      <TableCell className="text-right tabular-nums">{e.comisionPct}%</TableCell>
-                      <TableCell className="text-right tabular-nums font-medium">{formatCurrency(e.comisionTotal, 'COP', { compact: true })}</TableCell>
-                      <TableCell className="text-right">
-                        <span className={cn('text-xs font-semibold px-1.5 py-0.5 rounded',
-                          e.reconocidaPct === 100 ? 'bg-emerald-500/10 text-emerald-600' :
-                          e.reconocidaPct === 50 ? 'bg-amber-500/10 text-amber-600' :
-                          'bg-slate-500/10 text-slate-600'
+                      <TableCell className="text-right tabular-nums whitespace-nowrap">{formatCurrency(e.gmv, 'COP', { compact: true })}</TableCell>
+                      <TableCell className="text-right tabular-nums whitespace-nowrap">{e.comisionPct}%</TableCell>
+                      <TableCell className="text-right tabular-nums font-medium whitespace-nowrap">{formatCurrency(e.comisionTotal, 'COP', { compact: true })}</TableCell>
+                      <TableCell className="text-right whitespace-nowrap">
+                        <span className={cn('text-xs font-semibold px-1.5 py-0.5 rounded inline-block',
+                          e.reconocidaPct === 100 ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' :
+                          e.reconocidaPct === 50 ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300' :
+                          'bg-slate-500/10 text-slate-700 dark:text-slate-300'
                         )}>{e.reconocidaPct}%</span>
                       </TableCell>
-                      <TableCell className="text-right tabular-nums">{formatCurrency(e.reconocidaMonto, 'COP', { compact: true })}</TableCell>
+                      <TableCell className="text-right tabular-nums whitespace-nowrap">{formatCurrency(e.reconocidaMonto, 'COP', { compact: true })}</TableCell>
                       <TableCell className="text-xs text-muted-foreground">{e.etapaReconocimiento || '—'}</TableCell>
                     </TableRow>
                   ))}

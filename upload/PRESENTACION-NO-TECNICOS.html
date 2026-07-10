@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CommerceFlow OS · Guía para Emprendedores</title>
+<style>
+:root{--bg:#0a0f0d;--surface:#111815;--surface2:#1a2420;--border:#2a3a34;--text:#e8f0ec;--text2:#9ab0a8;--primary:#10b981;--primary2:#34d399;--accent:#f59e0b;--danger:#ef4444;--radius:14px}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text)}
+.deck{width:100vw;height:100vh;position:relative}
+.slide{position:absolute;inset:0;display:none;flex-direction:column;padding:50px 70px 90px 70px;overflow-y:auto}
+.slide.active{display:flex;animation:fadeIn .5s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(15px)}to{opacity:1;transform:translateY(0)}}
+h1{font-size:2.5em;font-weight:800;margin-bottom:14px;line-height:1.15}
+h2{font-size:1.5em;font-weight:600;margin-bottom:18px;color:var(--primary2)}
+h3{font-size:1.15em;font-weight:600;margin:14px 0 8px;color:var(--primary2)}
+p{font-size:1.08em;line-height:1.65;margin-bottom:12px;color:var(--text)}
+ul,ol{margin:8px 0 14px 24px}
+li{font-size:1.02em;line-height:1.7;margin-bottom:6px}
+.badge{display:inline-block;padding:5px 14px;border-radius:20px;font-size:.78em;font-weight:600;margin:3px}
+.badge-primary{background:rgba(16,185,129,.15);color:var(--primary2);border:1px solid rgba(16,185,129,.3)}
+.badge-accent{background:rgba(245,158,11,.15);color:var(--accent);border:1px solid rgba(245,158,11,.3)}
+.badge-danger{background:rgba(239,68,68,.15);color:var(--danger);border:1px solid rgba(239,68,68,.3)}
+.grid{display:grid;gap:16px;margin:14px 0}
+.grid-2{grid-template-columns:1fr 1fr}
+.grid-3{grid-template-columns:1fr 1fr 1fr}
+.grid-4{grid-template-columns:1fr 1fr 1fr 1fr}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px}
+.card-accent{border-left:5px solid var(--primary)}
+.card-warm{border-left:5px solid var(--accent)}
+.card-danger{border-left:5px solid var(--danger)}
+.stat{font-size:2.8em;font-weight:800;color:var(--primary2);line-height:1}
+.stat-label{font-size:.88em;color:var(--text2);margin-top:6px}
+.quote{font-size:1.15em;font-style:italic;color:var(--accent);border-left:4px solid var(--accent);padding-left:20px;margin:16px 0;line-height:1.6}
+.example{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:16px;margin:12px 0}
+.example-title{font-size:.8em;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px}
+.example-body{font-size:1em;line-height:1.6;color:var(--text)}
+.thinking{background:linear-gradient(135deg,rgba(16,185,129,.08),rgba(245,158,11,.05));border:1px solid rgba(16,185,129,.2);border-radius:10px;padding:16px;margin:12px 0}
+.thinking-title{font-size:.8em;font-weight:700;color:var(--primary2);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.money{background:linear-gradient(135deg,rgba(16,185,129,.12),rgba(16,185,129,.04));border:2px solid var(--primary);border-radius:12px;padding:20px;margin:16px 0}
+.money-title{font-size:1.1em;font-weight:700;color:var(--primary2);margin-bottom:12px;display:flex;align-items:center;gap:8px}
+table{width:100%;border-collapse:collapse;margin:12px 0;font-size:.92em}
+th{background:var(--surface2);padding:10px 12px;text-align:left;font-weight:600;border-bottom:2px solid var(--border);color:var(--primary2)}
+td{padding:8px 12px;border-bottom:1px solid var(--border);color:var(--text)}
+.nav{position:fixed;bottom:20px;right:20px;display:flex;gap:8px;z-index:1000}
+.nav button{background:var(--surface2);border:1px solid var(--border);color:var(--text);width:44px;height:44px;border-radius:10px;cursor:pointer;font-size:1.2em;display:flex;align-items:center;justify-content:center;transition:all .2s}
+.nav button:hover{background:var(--primary);color:var(--bg);transform:scale(1.05)}
+.counter{position:fixed;bottom:20px;left:20px;color:var(--text2);font-size:.85em;z-index:1000;background:var(--surface);padding:6px 14px;border-radius:20px;border:1px solid var(--border)}
+.progress{position:fixed;top:0;left:0;height:4px;background:linear-gradient(90deg,var(--primary),var(--accent));z-index:1000;transition:width .4s}
+.center{display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;height:100%}
+.muted{color:var(--text2)}
+.text-primary{color:var(--primary2)}
+.text-accent{color:var(--accent)}
+.text-danger{color:var(--danger)}
+.big{font-size:1.3em}
+.emoji{font-size:1.6em}
+.step-num{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;background:var(--primary);color:var(--bg);font-weight:700;font-size:.9em;margin-right:10px;flex-shrink:0}
+.flow{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:14px 0}
+.flow-step{background:var(--surface2);border:1px solid var(--primary);padding:8px 16px;border-radius:10px;font-size:.9em;font-weight:600;color:var(--text)}
+.flow-arrow{color:var(--primary2);font-size:1.3em}
+@media(max-width:768px){.slide{padding:28px 22px}.grid-2,.grid-3,.grid-4{grid-template-columns:1fr}h1{font-size:1.7em}p{font-size:.98em}}
+</style>
+</head>
+<body>
+<div class="progress" id="progress" style="width:0%"></div>
+<div class="deck" id="deck">
+
+<!-- Slide 1: Portada -->
+<section class="slide active center">
+<div class="emoji" style="font-size:4.5em;margin-bottom:24px">🚀</div>
+<h1>CommerceFlow OS</h1>
+<p class="big text-primary" style="font-weight:600;margin-bottom:8px">Vende más por WhatsApp, sin el caos</p>
+<p class="muted" style="max-width:600px;line-height:1.6">Una guía sencilla para entender cómo esta plataforma te ayuda a vender más, gastar menos en publicidad, y no perder dinero con clientes problemáticos.</p>
+<div style="margin-top:36px;display:flex;gap:10px;flex-wrap:wrap;justify-content:center">
+<span class="badge badge-primary">Para emprendedores</span>
+<span class="badge badge-primary">Sin tecnicismos</span>
+<span class="badge badge-accent">Cómo ganar dinero</span>
+</div>
+<p class="muted" style="margin-top:40px;font-size:.85em">Indisutex SAS · Saramantha · Sublimados Majestic · Lovely Pijamas · Sueño de Reina</p>
+</section>
+
+<!-- Slide 2: El problema que vives -->
+<section class="slide">
+<h1>¿Te suena esto?</h1>
+<h2>El día a día de vender por WhatsApp</h2>
+<div class="grid grid-2">
+<div class="card card-danger">
+<h3>😰 El caos del WhatsApp</h3>
+<ul>
+<li>Tienes <strong>200+ chats sin responder</strong> y no sabes cuáles son urgentes</li>
+<li>Copias y pegas direcciones, calculas fletes a mano, cotizas uno por uno</li>
+<li>No sabes <strong>qué anuncio te trajo cada venta</strong> — gastas en pauta a ciegas</li>
+<li>Un cliente devuelve 5 veces y sigues aceptándole pedidos</li>
+<li>Las transportadoras pierden paquetes y no tienes dónde gestionarlo</li>
+<li>Tienes 3 marcas (Saramantha, Majestic, Lovely) y saltas entre 3 WhatsApps</li>
+</ul>
+</div>
+<div class="card card-warm">
+<h3>💰 El dinero que pierdes</h3>
+<div class="stat">1 de 5</div>
+<div class="stat-label">pedidos se devuelve (clientes problemáticos)</div>
+<div style="height:14px"></div>
+<div class="stat">73%</div>
+<div class="stat-label">de pedidos necesitan llamada de confirmación</div>
+<div style="height:14px"></div>
+<div class="stat">$$$</div>
+<div class="stat-label">en pauta que no sabes si funciona</div>
+</div>
+</div>
+<div class="quote">
+"No sé si el anuncio de Stitch está funcionando o perdiendo plata. Solo sé que gasto $500K al mes en Meta Ads."
+</div>
+<p class="muted">— Valentina, asesora de Saramantha (caso real)</p>
+</section>
+
+<!-- Slide 3: La solución en palabras simples -->
+<section class="slide">
+<h1>CommerceFlow OS lo resuelve</h1>
+<h2>Imagínate un asistente que nunca duerme</h2>
+<div class="grid grid-3">
+<div class="card card-accent">
+<div class="emoji">🤖</div>
+<h3>Responde por ti</h3>
+<p>Cuando un cliente escribe por WhatsApp, un asistente inteligente responde en 3 segundos. No importa si son las 3am. Pregunta qué busca, muestra productos con fotos, y arma el pedido.</p>
+</div>
+<div class="card card-accent">
+<div class="emoji">🛡️</div>
+<h3>Filtra clientes malos</h3>
+<p>Antes de vender, revisa si el cliente es de los que <strong>siempre devuelven</strong>. Si lo es, le pedimos pago anticipado. Adiós a perder dinero en envíos que vuelven.</p>
+</div>
+<div class="card card-accent">
+<div class="emoji">🎯</div>
+<h3>Sabe qué pauta funciona</h3>
+<p>Conecta cada venta con el anuncio que la generó. Te dice: "El ad de Stitch tiene ROAS 3.2 → escala; el ad de Pijama Cowboy tiene ROAS 0.6 → mátalo".</p>
+</div>
+<div class="card card-accent">
+<div class="emoji">📦</div>
+<h3>Sigue cada envío</h3>
+<p>Sabe dónde está cada paquete. Si una guía lleva 3 días sin moverse, te avisa. Si hay un problema, abre un "caso" y lo sigue hasta resolverse.</p>
+</div>
+<div class="card card-accent">
+<div class="emoji">💰</div>
+<h3>Cobra comisiones</h3>
+<p>Si eres plataforma, cobras comisión a las marcas por cada venta. Escalonado: a más volumen, menor %. Todo automático, con factura al final del mes.</p>
+</div>
+<div class="card card-accent">
+<div class="emoji">🌐</div>
+<h3>Aparece en Google</h3>
+<p>Cada marca tiene su página web gratis. Cuando alguien busca "pijamas Stitch Colombia", te encuentra. Más tráfico orgánico = más ventas gratis.</p>
+</div>
+</div>
+</section>
+
+<!-- Slide 4: Pensamiento ágil -->
+<section class="slide">
+<h1>Pensemos ágil por un momento</h1>
+<h2>¿Cómo funciona una venta real, paso a paso?</h2>
+<div class="thinking">
+<div class="thinking-title">🧠 Ejercicio de pensamiento ágil</div>
+<p>Imagina que eres Valentina, asesora de Saramantha. Un cliente nuevo escribe por WhatsApp a las 9pm:</p>
+<p><strong>"Hola, vi un pijama de Stitch en su Instagram, ¿cuánto cuesta?"</strong></p>
+</div>
+<div class="grid grid-2">
+<div class="card card-danger">
+<h3>😱 Sin CommerceFlow (hoy)</h3>
+<ol>
+<li>Ves el mensaje 2 horas después (estabas cenando)</li>
+<li>Buscas el producto en tu catálogo (5 min)</li>
+<li>Le mandas foto + precio</li>
+<li>Él pregunta por tallas → buscas otra vez</li>
+<li>Pregunta por envío a Pasto → calculas a mano</li>
+<li>Te pide descuento → negocias 10 min</li>
+<li>Te da la dirección → la copias en otro lado</li>
+<li>Le confirmas para mañana llamarlo</li>
+<li><strong>Total: 40 min de tu tiempo + él esperó 2h</strong></li>
+<li>Posibilidad de que abandone: <strong>60%</strong></li>
+</ol>
+</div>
+<div class="card card-accent">
+<h3>✨ Con CommerceFlow</h3>
+<ol>
+<li>El asistente responde en <strong>3 segundos</strong></li>
+<li>Muestra foto + precio + tallas automáticamente</li>
+<li>Cotiza envío a Pasto en tiempo real ($14K Dropi)</li>
+<li>Detecta que es cliente nuevo (no devolvedor) → ok</li>
+<li>Le perfila: "detal" → muestra precio sin descuento mayorista</li>
+<li>Pide confirmar dirección → él la escribe → se valida</li>
+<li>Genera link de pago (Wompi) → él paga ahí mismo</li>
+<li>Pedido pasa a "confirmado" automáticamente</li>
+<li><strong>Total: 0 min de tu tiempo + él compró en 5 min</strong></li>
+<li>Posibilidad de que abandone: <strong>15%</strong></li>
+</ol>
+</div>
+</div>
+<div class="money">
+<div class="money-title">💰 La diferencia = más dinero</div>
+<p>Si recibes 50 mensajes al día y cada venta vale $50K COP:</p>
+<ul>
+<li><strong>Sin CommerceFlow:</strong> 40 min × 50 = 33h/día (imposible) → atiendes 10 → vendes $500K/día</li>
+<li><strong>Con CommerceFlow:</strong> IA atiende 50 conversaciones y cierra 35 sola → vendes $1.75M/día (tú solo supervisas)</li>
+</ul>
+<p class="text-primary" style="font-weight:700;margin-top:10px">→ Duplicaste tus ventas sin contratar nadie.</p>
+</div>
+</section>
+
+<!-- Slide 5: ¿Qué hace la IA exactamente? -->
+<section class="slide">
+<h1>¿Qué hace la IA por ti?</h1>
+<h2>26 asistentes especializados, cada uno en su trabajo</h2>
+<p>Imagínate que tienes 26 empleados virtuales. Cada uno es experto en una cosa. Trabajarán en equipo para atender a tu cliente:</p>
+<div class="grid grid-2">
+<div class="card card-accent">
+<h3>🛒 Antes de vender (10 asistentes)</h3>
+<div class="example">
+<div class="example-title">Asistente #1: El guardia</div>
+<div class="example-body">Revisa si el cliente es de los que siempre devuelven. Si es así, avisa: "Este cliente requiere pago anticipado".</div>
+</div>
+<div class="example">
+<div class="example-title">Asistente #2: El psicólogo</div>
+<div class="example-body">Adivina qué tipo de comprador es: ¿mayorista (compra mucho), detal (compra 1-2), o regalo (compra 1 para obsequiar)? Según eso, cambia el precio.</div>
+</div>
+<div class="example">
+<div class="example-title">Asistente #3: El vendedor</div>
+<div class="example-body">Genera el discurso de ventas perfecto para ese perfil. No es lo mismo venderle a una tienda que a una mamá.</div>
+</div>
+<div class="example">
+<div class="example-title">Asistentes #4-10</div>
+<div class="example-body">Muestran catálogo, arman carrito, cotizan, manejan objeciones, confirman dirección, calculan envío, y cierran la venta.</div>
+</div>
+</div>
+<div class="card card-warm">
+<h3>📦 Después de vender (4 asistentes)</h3>
+<div class="example">
+<div class="example-title">Asistente #11: El rastreador</div>
+<div class="example-body">Sigue cada paquete. Si lleva 3 días parado, te avisa para que reclames a la transportadora.</div>
+</div>
+<div class="example">
+<div class="example-title">Asistente #12: El gestor de problemas</div>
+<div class="example-body">Si hay devolución, abre un "caso", pide fotos de evidencia, y lo sigue hasta resolverse.</div>
+</div>
+<div class="example">
+<div class="example-title">Asistente #13: El reintentador</div>
+<div class="example-body">Si el paquete vuelve, agenda un nuevo intento con dirección corregida.</div>
+</div>
+<div class="example">
+<div class="example-title">Asistente #14: El recuperador</div>
+<div class="example-body">Si el cliente dejó de responder, le manda un mensaje inteligente para recuperarlo.</div>
+</div>
+</div>
+</div>
+<div class="card card-accent">
+<h3>🧠 Además: 5 asistentes de inteligencia</h3>
+<p>Estos no hablan con el cliente. Trabajan en silencio: puntúan a tus clientes (confiables, riesgosos, devolvedores), puntúan a las transportadoras, enriquecen tus productos con SEO, conectan marcas entre sí (marketplace), y miden a tus affiliates.</p>
+</div>
+</section>
+
+<!-- Slide 6: El embudo de ventas -->
+<section class="slide">
+<h1>El viaje de un pedido</h1>
+<h2>Desde "Hola" hasta "Entregado" — con datos reales</h2>
+<div class="thinking">
+<div class="thinking-title">🧠 Pensamiento ágil: el embudo</div>
+<p>No todos los que escriben compran. De 100 mensajes, ¿cuántos llegan a entregado? Esto es lo que pasa en la vida real (datos de Saramantha):</p>
+</div>
+<div class="flow">
+<span class="flow-step">100 mensajes</span><span class="flow-arrow">→</span>
+<span class="flow-step">73 necesitan llamada</span><span class="flow-arrow">→</span>
+<span class="flow-step">21 datos completados</span><span class="flow-arrow">→</span>
+<span class="flow-step">15 quieren cancelar</span><span class="flow-arrow">→</span>
+<span class="flow-step">3 despachados</span>
+</div>
+<div class="grid grid-4" style="margin-top:20px">
+<div class="card"><div class="stat">73%</div><div class="stat-label">Necesitan llamada de confirmación</div></div>
+<div class="card"><div class="stat">8.9%</div><div class="stat-label">Datos completados (listos para despachar)</div></div>
+<div class="card"><div class="stat text-danger">6.3%</div><div class="stat-label">Intentan cancelar</div></div>
+<div class="card"><div class="stat text-primary">1.1%</div><div class="stat-label">Llegan a despachado (sin sistema)</div></div>
+</div>
+<div class="card card-danger" style="margin-top:20px">
+<h3>😰 El problema: solo 1 de cada 100 llega a despachado</h3>
+<p>El resto se pierde en el camino: no responden, cancelan, la dirección estaba mal, la transportadora perdió el paquete...</p>
+</div>
+<div class="card card-accent">
+<h3>✨ Con CommerceFlow: pasamos del 1% al 15%</h3>
+<p>El asistente #11 (rastreador) sigue cada paquete. El #12 (gestor) resuelve problemas rápido. El #13 (reintentador) recupera devoluciones. El resultado: 15x más pedidos entregados.</p>
+</div>
+</section>
+
+<!-- Slide 7: Cómo ganas dinero (1) -->
+<section class="slide">
+<h1>Cómo ganas dinero con esto</h1>
+<h2>3 formas de generar ingresos</h2>
+<div class="money">
+<div class="money-title">💰 Forma 1: Vendes más (si eres marca)</div>
+<div class="grid grid-2">
+<div>
+<p><strong>Antes:</strong> Atiendes 10 conversaciones/día manualmente → 2-3 ventas → $100K COP/día</p>
+<p><strong>Ahora:</strong> IA atiende 50 conversaciones/día y cierra 35 sola → $1.75M COP/día (tú solo supervisas casos edge)</p>
+</div>
+<div>
+<div class="stat text-primary">5x</div>
+<div class="stat-label">más ventas con el mismo equipo</div>
+</div>
+</div>
+</div>
+<div class="money">
+<div class="money-title">💰 Forma 2: Gastas menos en pauta</div>
+<div class="grid grid-2">
+<div>
+<p><strong>Antes:</strong> Gastas $500K/mes en Meta Ads sin saber qué funciona → ROAS 1.2 (pierdes)</p>
+<p><strong>Ahora:</strong> El sistema mata los ads con ROAS <0.8 y escala los >3.0 → ROAS 2.5 (ganas)</p>
+</div>
+<div>
+<div class="stat text-accent">$1.2M</div>
+<div class="stat-label">ahorro/mes en pauta mal gastada</div>
+</div>
+</div>
+</div>
+<div class="money">
+<div class="money-title">💰 Forma 3: Cobras comisión (si eres plataforma)</div>
+<div class="grid grid-2">
+<div>
+<p>Si eres Indisutex (matriz con 4 marcas), cobras comisión sobre el GMV de cada marca:</p>
+<ul>
+<li>GMV &lt; $10M/mes → <strong>4.5%</strong></li>
+<li>GMV $10M-$40M/mes → <strong>3.0%</strong></li>
+<li>GMV &gt; $40M/mes → <strong>1.75%</strong></li>
+</ul>
+</div>
+<div>
+<div class="stat text-primary">$1.35M</div>
+<div class="stat-label">comisión/mes si 4 marcas facturan $30M c/u (3% × $30M × 4 = $3.6M) — ejemplo</div>
+</div>
+</div>
+</div>
+</section>
+
+<!-- Slide 8: Cómo ganas dinero (2) -->
+<section class="slide">
+<h1>Y hay más formas de ganar</h1>
+<h2>Modelos de negocio adicionales</h2>
+<div class="grid grid-2">
+<div class="card card-warm">
+<h3>💼 Trafficker affiliate</h3>
+<p>¿Conoces a alguien bueno para pauta? Ellos invierten en ads, tú pones los productos. Por cada venta que generan, cobran comisión. <strong>Tú no arriesgas plata en pauta.</strong></p>
+<div class="example">
+<div class="example-title">Ejemplo</div>
+<div class="example-body">Sebastián invierte $200K en ads de Stitch. Genera 8 ventas ($400K). Cobra 10% = $40K. Sebastián gana $40K, tú ganas $360K sin arriesgar tu plata.</div>
+</div>
+</div>
+<div class="card card-warm">
+<h3>🏪 Marketplace cross-brand</h3>
+<p>Si un cliente busca algo que Saramantha no tiene, pero Lovely Pijamas sí → el sistema recomienda el producto de la otra marca. <strong>Lead compartido, comisión de referral.</strong></p>
+<div class="example">
+<div class="example-title">Ejemplo</div>
+<div class="example-body">Cliente pide "pijama de Stitch talla L". La IA busca en tu catálogo. Si no lo tienes, automáticamente recomienda el producto de Lovely Pijamas (que sí tiene). Si compra, Saramantha cobra 5% de referral. Todo automático, sin intervención humana.</div>
+</div>
+</div>
+<div class="card card-warm">
+<h3>🌐 SEO orgánico gratis</h3>
+<p>Cada marca tiene su página web gratis en CommerceFlow. Cuando alguien busca en Google "pijamas en Colombia", aparece tu tienda. <strong>Tráfico gratis para siempre.</strong></p>
+<div class="example">
+<div class="example-title">Ejemplo</div>
+<div class="example-body">Un cliente busca "batola Stitch comprar" en Google → encuentra /t/saramantha/p/PIJ-BATOLA-STITCH-003 → hace clic → escribe por WhatsApp → compra. Cero costo de adquisición.</div>
+</div>
+</div>
+<div class="card card-warm">
+<h3>🎯 CAPI = más tracking = mejor optimización</h3>
+<p>El sistema envía conversiones a Meta/Google/TikTok directamente desde el servidor. Esto recupera el 30% de tracking que se pierde por bloqueo de cookies. <strong>Mejor data = mejor pauta = más ventas.</strong></p>
+</div>
+</div>
+</section>
+
+<!-- Slide 9: Pensamiento ágil - ROI -->
+<section class="slide">
+<h1>¿Cuánto dinero puedes ganar?</h1>
+<h2>Un ejemplo real con números</h2>
+<div class="thinking">
+<div class="thinking-title">🧮 Calculemos juntos</div>
+<p>Supongamos que eres Saramantha. Hoy facturas $10M COP/mes vendiendo por WhatsApp manualmente.</p>
+</div>
+<table>
+<tr><th>Concepto</th><th>Hoy (sin sistema)</th><th>Con CommerceFlow</th><th>Diferencia</th></tr>
+<tr><td>Ventas/mes</td><td>$10M</td><td>$25M (2.5x por IA 24/7)</td><td class="text-primary">+$15M</td></tr>
+<tr><td>Gasto en pauta</td><td>$3M (ROAS 1.2)</td><td>$3M (ROAS 2.5)</td><td class="text-primary">—</td></tr>
+<tr><td>Devoluciones</td><td>$2M (20.5%)</td><td>$0.5M (detecta devolvedores)</td><td class="text-primary">+$1.5M</td></tr>
+<tr><td>Costo operativo</td><td>$2M (2 asesores)</td><td>$1M (1 asesor + IA)</td><td class="text-primary">+$1M</td></tr>
+<tr><td>Comisión plataforma</td><td>$0</td><td>-$0.45M (4.5% de $10M adicional)</td><td class="text-danger">-$0.45M</td></tr>
+<tr style="font-weight:700;background:var(--surface2)"><td>Ganancia neta</td><td>$3M</td><td>$20.05M</td><td class="text-primary">+$17.05M/mes</td></tr>
+</table>
+<div class="money">
+<div class="money-title">💰 El retorno de inversión</div>
+<p>Si CommerceFlow cuesta $1.5M COP/mes (comisión 4.5% sobre $10M base), y te genera $17M adicionales:</p>
+<div class="stat text-primary">11x ROI</div>
+<div class="stat-label">Por cada $1 que inviertes en CommerceFlow, ganas $11</div>
+</div>
+<p class="muted">Nota: estos son ejemplos ilustrativos basados en datos reales de Saramantha. Los resultados reales dependen del volumen de conversaciones, margen de producto, y ejecución.</p>
+</section>
+
+<!-- Slide 10: Los 14 módulos explicados -->
+<section class="slide">
+<h1>Tu panel de control</h1>
+<h2>14 secciones, cada una para una necesidad</h2>
+<div class="grid grid-2">
+<div class="card card-accent"><h3>📊 Resumen</h3><p>Tus números clave en una pantalla: cuánto vendiste, cuánto gastaste en pauta, cuántos pedidos. Como el tablero de tu carro.</p></div>
+<div class="card card-accent"><h3>💬 Mensajería</h3><p>Todos tus WhatsApp, Messenger e Instagram en un solo lugar. Con botones para que la IA te sugiera respuestas.</p></div>
+<div class="card card-accent"><h3>🖼️ Catálogo Visual</h3><p>Tus productos con fotos. Click en uno → lo mandas al chat del cliente. Como un catálogo físico pero digital.</p></div>
+<div class="card card-accent"><h3>📦 Pedidos & Pagos</h3><p>Lista de todos los pedidos. Sabes cuál está pagado, cuál pendiente, cuál despachado. Con links de pago automáticos.</p></div>
+<div class="card card-accent"><h3>📋 Kanban</h3><p>Tus pedidos en columnas como un Trello. Arrastras de "nuevo" a "despachado". Ves dónde se atascan.</p></div>
+<div class="card card-accent"><h3>🎭 Orquestador</h3><p>El "director de orquesta". Lanzas los 10 asistentes en secuencia con un clic. Ves qué respondió cada uno.</p></div>
+<div class="card card-warm"><h3>🎯 Atribución de Pauta</h3><p>La sección que te dice qué anuncios funcionan. ROAS, CPA, y veredicto: matar, pausar, escalar. <strong>La que más dinero te ahorra.</strong></p></div>
+<div class="card card-warm"><h3>💵 Monetización</h3><p>Si eres plataforma: cuánta comisión cobras a cada marca este mes. Con factura automática.</p></div>
+<div class="card card-warm"><h3>👛 Wallet</h3><p>Si eres trafficker: tu saldo, tus ganancias, tus retiros. Con doble seguridad (2FA) para que nadie te robe.</p></div>
+<div class="card card-accent"><h3>🚚 Inteligencia Logística</h3><p>Quién es buen cliente, quién es malo, qué transportadora sirve, qué paquetes están stuck.</p></div>
+<div class="card card-accent"><h3>🏪 Marketplace</h3><p>Productos de otras marcas que puedes recomendar. Si los vendes, ganas comisión de referral.</p></div>
+<div class="card card-accent"><h3>⚠️ Novedades</h3><p>Los problemas logísticos: paquetes perdidos, devoluciones, daños. Con seguimiento hasta resolución.</p></div>
+<div class="card card-accent"><h3>🔌 Integraciones</h3><p>Conecta con Shopify, WooCommerce, Dropi, MercadoPago, etc. Todo en un solo lugar.</p></div>
+<div class="card card-accent"><h3>⚙️ Configuración</h3><p>Ajusta tu estrategia de pago (anticipado vs contra entrega), umbrales de ROAS, URLs de webhook.</p></div>
+</div>
+</section>
+
+<!-- Slide 11: Un día usando CommerceFlow -->
+<section class="slide">
+<h1>Un día en la vida con CommerceFlow</h1>
+<h2>Así se sentiría tu día de trabajo</h2>
+<div class="card card-accent">
+<h3>🌅 7:00 AM — Llegas al trabajo</h3>
+<p>Abres el panel. Ves que durante la noche, la IA atendió 12 conversaciones. 3 ya son ventas confirmadas (pagaron por Wompi). 4 están esperando tu llamada. 5 son clientes problemáticos que la IA ya identificó.</p>
+<p class="text-primary">→ Ya tienes $150K COP vendidos antes de tomar café.</p>
+</div>
+<div class="card card-accent" style="margin-top:16px">
+<h3>🕙 10:00 AM — Revisas pauta</h3>
+<p>En el módulo de Atribución, ves: el ad de "Batola Stitch" tiene ROAS 3.2 → el sistema ya lo escaló (más presupuesto). El ad de "Pijama Cowboy" tiene ROAS 0.6 → el sistema ya lo pausó. No tuviste que hacer nada.</p>
+<p class="text-primary">→ Ahorraste $200K COP en pauta mal gastada, automáticamente.</p>
+</div>
+<div class="card card-accent" style="margin-top:16px">
+<h3>🕐 1:00 PM — Almuerzo tranquilo</h3>
+<p>La IA sigue atendiendo. Un cliente nuevo escribió, la IA lo perfiló (detal), le mostró catálogo, cotizó envío, y está esperando confirmación de dirección. Tú solo cierras cuando el cliente ya está listo.</p>
+<p class="text-primary">→ Mientras almuerzas, se generaron 2 ventas más.</p>
+</div>
+<div class="card card-accent" style="margin-top:16px">
+<h3>🕓 4:00 PM — Gestionas novedades</h3>
+<p>El módulo de Novedades te muestra 1 caso: un paquete de Interrapidísimo lleva 4 días parado. Le das click → ves el historial → llamas a la transportadora → resuelves. El sistema registra todo.</p>
+<p class="text-primary">→ Resolviste en 15 min lo que antes tomaba 2h de investigación.</p>
+</div>
+<div class="card card-accent" style="margin-top:16px">
+<h3>🌙 6:00 PM — Te vas a casa</h3>
+<p>Cerraste 8 ventas hoy ($400K COP). La IA atenderá esta noche. Mañana llegarás a más ventas ya hechas.</p>
+<p class="text-primary">→ Total del día: $550K COP en ventas, 4h de trabajo real, 0 estrés.</p>
+</div>
+</section>
+
+<!-- Slide 12: Para cada rol -->
+<section class="slide">
+<h1>Para cada persona del equipo</h1>
+<h2>CommerceFlow ayuda a todos</h2>
+<div class="grid grid-2">
+<div class="card card-accent">
+<h3>👑 Si eres el dueño (Admin)</h3>
+<ul>
+<li>Ves toda la operación en un solo panel</li>
+<li>Sabes cuánto vende cada marca, cada canal, cada asesor</li>
+<li>Decides la estrategia de pago (anticipado vs contra entrega)</li>
+<li>Configuras comisiones de traffickers</li>
+<li>Recibes facturas automáticas</li>
+</ul>
+</div>
+<div class="card card-accent">
+<h3>💬 Si eres asesor de ventas</h3>
+<ul>
+<li>Un solo inbox para WhatsApp + Messenger + IG</li>
+<li>La IA responde, muestra productos, cotiza y cierra ventas automáticamente</li>
+<li>Catálogo visual para mandar productos en 1 clic</li>
+<li>La IA filtra a los clientes problemáticos por ti</li>
+<li>Cierras más ventas en menos tiempo</li>
+</ul>
+</div>
+<div class="card card-accent">
+<h3>📦 Si eres operador logístico</h3>
+<ul>
+<li>Ves todos los pedidos en Kanban (arrastra de estado en estado)</li>
+<li>Alertas de paquetes stuck automáticamente</li>
+<li>CRM de novedades con evidencia y mensajes</li>
+<li>Reintentos de entrega automatizados</li>
+<li>Scores de transportadoras para elegir la mejor</li>
+</ul>
+</div>
+<div class="card card-warm">
+<h3>🎯 Si eres trafficker (affiliate)</h3>
+<ul>
+<li>Creas campañas de pauta desde el panel</li>
+<li>Ves qué venden tus anuncios en tiempo real</li>
+<li>Tu wallet acumula comisiones automáticamente</li>
+<li>Retiras con 2FA (seguro, nadie te roba)</li>
+<li>Si el vendedor falla, recibes compensación automática</li>
+</ul>
+</div>
+<div class="card card-warm">
+<h3>📢 Si eres marketing</h3>
+<ul>
+<li>Ves ROAS, CPA, ROI de cada anuncio</li>
+<li>Verdict engine: matar/pausar/escalar con 1 clic</li>
+<li>CAPI server-side: +30% tracking de conversiones</li>
+<li>Detección de canibalización entre ads</li>
+<li>Remarketing automatizado para carritos abandonados</li>
+</ul>
+</div>
+<div class="card card-accent">
+<h3>🛒 Si eres el comprador final</h3>
+<ul>
+<li>Te responden en 3 segundos (no 3 horas)</li>
+<li>Te muestran fotos y precios claramente</li>
+<li>Te cotizan envío al instante</li>
+<li>Te mandan link de pago seguro</li>
+<li>Si hay problema con tu paquete, lo gestionan</li>
+</ul>
+</div>
+</div>
+</section>
+
+<!-- Slide 13: Seguridad explicada simple -->
+<section class="slide">
+<h1>¿Es seguro?</h1>
+<h2>Tu dinero y tus datos están protegidos</h2>
+<div class="grid grid-2">
+<div class="card card-accent">
+<h3>🔐 Tu wallet tiene doble candado</h3>
+<p>Para retirar dinero, necesitas tu teléfono + un código que cambia cada 30 segundos (Google Authenticator). Aunque alguien sepa tu contraseña, no puede retirar sin tu teléfono.</p>
+<p class="text-primary">Esto se llama "2FA" y es lo que usan los bancos.</p>
+</div>
+<div class="card card-accent">
+<h3>🛡️ Cada marca ve solo lo suyo</h3>
+<p>Saramantha no puede ver los pedidos de Lovely Pijamas. Cada marca tiene su espacio separado, como apartamentos diferentes en un edificio. Ni siquiera nosotros podemos mezclar los datos.</p>
+<p class="text-primary">Esto se llama "multi-tenant" y es estándar bancario.</p>
+</div>
+<div class="card card-accent">
+<h3>✅ Nadie puede falsificar mensajes</h3>
+<p>Si alguien intenta mandar un mensaje falso por WhatsApp haciéndose pasar por un cliente, el sistema lo detecta. Cada mensaje viene con una "firma" criptográfica que no se puede falsificar.</p>
+<p class="text-primary">Esto se llama "HMAC" y lo usan todas las apps serias.</p>
+</div>
+<div class="card card-accent">
+<h3>📋 Todo queda registrado</h3>
+<p>Cada venta, cada cambio de estado, cada retiro, cada llamada — todo queda en un registro permanente. Si hay un problema, puedes ver exactamente qué pasó, cuándo, y quién lo hizo.</p>
+<p class="text-primary">Esto se llama "audit trail" y es obligatorio en fintech.</p>
+</div>
+</div>
+<div class="card card-warm">
+<h3>🚫 Lo que NO puede pasar</h3>
+<ul>
+<li>❌ Un trafficker no puede retirar tu dinero sin 2FA</li>
+<li>❌ Una marca no puede ver los datos de otra</li>
+<li>❌ Un mensaje falso no puede entrar sin firma verificada</li>
+<li>❌ Un asesor no puede borrar el historial de ventas</li>
+<li>❌ Un devolvedor no puede comprar sin pago anticipado (si lo configuras)</li>
+</ul>
+</div>
+</div>
+</section>
+
+<!-- Slide 14: Lo que NO hace -->
+<section class="slide">
+<h1>Somos honestos</h1>
+<h2>Lo que CommerceFlow NO hace (todavía)</h2>
+<div class="thinking">
+<div class="thinking-title">🧠 Pensamiento ágil: expectativas claras</div>
+<p>Ningún producto es perfecto. Esto es lo que CommerceFlow NO hace hoy, para que tomes una decisión informada:</p>
+</div>
+<div class="grid grid-2">
+<div class="card card-warm">
+<h3>❌ No reemplaza al humano en casos edge</h3>
+<p>La IA hace el 95% del trabajo automáticamente: responde, muestra productos, cotiza, cierra ventas, sigue envíos. El 5% restante (quejas complejas, negociaciones especiales, casos únicos) puede escalar a humano. Pero por defecto, la IA hace todo.</p>
+<p class="text-primary">La IA es tu vendedora automática. Tú solo supervisas.</p>
+</div>
+<div class="card card-warm">
+<h3>❌ No inventa productos</h3>
+<p>La IA solo puede mostrar lo que tú ya cargaste en el catálogo. Si no tienes fotos de calidad ni descripciones, la IA no puede mejorarlas (todavía).</p>
+<p class="text-primary">El enriquecimiento VLM ayuda, pero necesitas fotos básicas.</p>
+</div>
+<div class="card card-warm">
+<h3>❌ No gestiona inventario real (todavía)</h3>
+<p>Los adapters de Shopify/WooCommerce son stubs hoy. Sync de inventario en tiempo real llega en Cycle 3.</p>
+<p class="text-primary">Hoy gestionas inventario manualmente o via NocoDB.</p>
+</div>
+<div class="card card-warm">
+<h3>❌ No hace llamadas por voz (todavía)</h3>
+<p>La IA es texto. Si un cliente prefiere llamada, tienes que hacerla tú. Integración de voz (ASR+TTS) está en el roadmap 2027.</p>
+<p class="text-primary">Pero la IA prepara todos los datos para que la llamada dure 2 min, no 20.</p>
+</div>
+<div class="card card-warm">
+<h3>❌ No garantiza que el cliente pague</h3>
+<p>La IA puede pedir pago anticipado, pero si configuras "contra entrega", el riesgo de no-pago sigue. Lo que sí hace: <strong>detectar a los devolvedores</strong> para que no les aceptes contra entrega.</p>
+</div>
+<div class="card card-warm">
+<h3>❌ No es gratis</h3>
+<p>Cobramos comisión sobre GMV (4.5%/3%/1.75%). Pero como viste en el cálculo, el ROI es 11x — por cada $1 que nos pagas, ganas $11.</p>
+</div>
+</div>
+</section>
+
+<!-- Slide 15: Pensamiento ágil - Decisión -->
+<section class="slide">
+<h1>El momento de decidir</h1>
+<h2>¿Vale la pena?</h2>
+<div class="thinking">
+<div class="thinking-title">🧠 Pensamiento ágil: la decisión</div>
+<p>Hagamos el ejercicio mental. Imagínate en 3 meses:</p>
+</div>
+<div class="grid grid-2">
+<div class="card card-danger">
+<h3>😮‍💨 Sin CommerceFlow (en 3 meses)</h3>
+<ul>
+<li>Sigues respondiendo WhatsApp a las 11pm</li>
+<li>Perdiste $600K en pauta que no sabes si funcionó</li>
+<li>20% de tus pedidos se devolvieron ($1.2M perdido)</li>
+<li>No sabes cuál marca vende más</li>
+<li>3 asesores quemados, 1 se fue</li>
+<li>Competencia te está ganando clientes</li>
+</ul>
+</div>
+<div class="card card-accent">
+<h3>🚀 Con CommerceFlow (en 3 meses)</h3>
+<ul>
+<li>IA atiende 24/7, tú cierras lo importante</li>
+<li>ROAS medible, ads malos pausados automáticamente</li>
+<li>Devoluciones reducidas a 5% (detectas devolvedores)</li>
+<li>Dashboard te dice qué marca vende más</li>
+<li>1 asesor + IA = trabajo de 3</li>
+<li>SEO orgánico creciendo cada semana</li>
+<li>+ $15M COP/mes adicionales</li>
+</ul>
+</div>
+</div>
+<div class="money">
+<div class="money-title">💰 La pregunta real</div>
+<p>¿Puedes permitirte <strong>NO</strong> tener CommerceFlow mientras tu competencia sí lo tiene?</p>
+<p>En commerce conversacional LATAM, el que responde primero gana. Si tu competencia responde en 3 segundos (con IA) y tú en 3 horas (manual), pierdes.</p>
+<p class="text-primary" style="font-weight:700;margin-top:14px">No es "¿puedo pagar CommerceFlow?" Es "¿puedo permitirme perder clientes por no tenerlo?"</p>
+</div>
+</section>
+
+<!-- Slide 16: Cómo empezar -->
+<section class="slide">
+<h1>Cómo empezar</h1>
+<h2>3 pasos, 24 horas</h2>
+<div class="card card-accent">
+<h3><span class="step-num">1</span> Agenda una demo (30 min)</h3>
+<p>Te mostramos el panel con datos reales de tu industria. Vemos juntos cómo se aplicaría a tu marca. Sin compromiso.</p>
+</div>
+<div class="card card-accent" style="margin-top:16px">
+<h3><span class="step-num">2</span> Activa tu marca (2h)</h3>
+<ul>
+<li>Importamos tu catálogo (CSV o desde Shopify/WooCommerce)</li>
+<li>Conectamos tu WhatsApp Business + Messenger + Instagram</li>
+<li>Configuramos tu estrategia de pago (anticipado/COD/híbrido)</li>
+<li>Creamos tu página web SEO (/t/tumarca)</li>
+<li>Configuramos los 26 agentes con tu tono de voz</li>
+</ul>
+</div>
+<div class="card card-accent" style="margin-top:16px">
+<h3><span class="step-num">3</span> Vende (24h después)</h3>
+<p>La IA empieza a atender. Tú ves los resultados en el dashboard. Semana 1: +30% conversaciones atendidas. Semana 2: +15% ventas. Semana 4: ROAS mejorado 2x.</p>
+</div>
+<div class="grid grid-3" style="margin-top:20px">
+<div class="card"><div class="stat text-primary">30 min</div><div class="stat-label">Para la demo</div></div>
+<div class="card"><div class="stat text-primary">2 horas</div><div class="stat-label">Para activar</div></div>
+<div class="card"><div class="stat text-primary">24 horas</div><div class="stat-label">Para vender más</div></div>
+</div>
+</section>
+
+<!-- Slide 17: Cierre -->
+<section class="slide center">
+<div class="emoji" style="font-size:4em;margin-bottom:24px">💬</div>
+<h1>Hablemos</h1>
+<p class="big text-primary" style="font-weight:600;margin-bottom:16px">Tu competencia ya está respondiendo en 3 segundos</p>
+<p class="muted" style="max-width:580px;line-height:1.6">No te prometemos magia. Te prometemos un sistema que trabaja 24/7, detecta clientes problemáticos, sabe qué pauta funciona, y te ayuda a vender más sin contratar más gente.</p>
+<div class="grid grid-3" style="margin-top:36px;max-width:700px">
+<div class="card"><h3>📅 Demo gratis</h3><p>30 min. Vemos tu caso real.</p></div>
+<div class="card"><h3>🚀 Activación</h3><p>2h. Tu marca funcionando.</p></div>
+<div class="card"><h3>📈 Resultados</h3><p>Semana 1: más ventas.</p></div>
+</div>
+<div style="margin-top:36px;padding:20px 30px;background:var(--surface2);border-radius:14px;border:1px solid var(--border)">
+<p style="font-size:1.1em;margin:0">📧 <strong>ventas@commerceflow.app</strong></p>
+<p style="margin:8px 0 0">📍 Bogotá, Colombia · LATAM</p>
+<p class="muted" style="margin:4px 0 0;font-size:.9em">Indisutex SAS · Saramantha · Majestic · Lovely · Reina</p>
+</div>
+<p class="muted" style="margin-top:30px;font-size:.82em">CommerceFlow OS · Comercio Conversacional + Atribución de Pauta<br>No es magia. Es tecnología que trabaja para ti.</p>
+</section>
+
+</div>
+
+<div class="counter" id="counter">1 / 17</div>
+<div class="nav">
+<button onclick="prev()">←</button>
+<button onclick="next()">→</button>
+</div>
+
+<script>
+let current=0;const slides=document.querySelectorAll('.slide');const total=slides.length;
+function show(n){slides[current].classList.remove('active');current=(n+total)%total;slides[current].classList.add('active');updateProgress();}
+function next(){show(current+1)}function prev(){show(current-1)}
+function updateProgress(){document.getElementById('counter').textContent=(current+1)+' / '+total;document.getElementById('progress').style.width=((current+1)/total*100)+'%';}
+document.addEventListener('keydown',e=>{if(e.key==='ArrowRight'||e.key===' ')next();if(e.key==='ArrowLeft')prev();if(e.key==='f')document.documentElement.requestFullscreen?.();});
+// Touch swipe
+let touchStartX=0;document.addEventListener('touchstart',e=>touchStartX=e.touches[0].clientX);
+document.addEventListener('touchend',e=>{const diff=e.changedTouches[0].clientX-touchStartX;if(Math.abs(diff)>50){if(diff<0)next();else prev();}});
+updateProgress();
+</script>
+</body>
+</html>

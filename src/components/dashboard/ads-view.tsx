@@ -23,7 +23,7 @@ import { toast } from 'sonner'
 import { useTenantId } from '@/hooks/use-tenant'
 import {
   Target, TrendingUp, TrendingDown, DollarSign, Percent, Flame, Skull, Pause,
-  Play, Rocket, Eye, AlertTriangle, Search, Gauge,
+  Play, Rocket, Eye, AlertTriangle, Search, Gauge, Sparkles,
 } from 'lucide-react'
 
 type AdRow = {
@@ -52,22 +52,22 @@ type AdsData = {
 
 const verdictMeta = (v: AdRow['verdict']) => {
   switch (v) {
-    case 'scale': return { label: 'Escalar', cls: 'bg-emerald-500/10 text-emerald-600 ring-emerald-500/20', icon: Rocket, desc: 'ROAS ≥ 2x y volumen — subir presupuesto' }
-    case 'optimize': return { label: 'Optimizar', cls: 'bg-sky-500/10 text-sky-600 ring-sky-500/20', icon: Gauge, desc: 'ROAS 1-2x — probar variantes creativas' }
-    case 'watch': return { label: 'Vigilar', cls: 'bg-slate-500/10 text-slate-600 ring-slate-500/20', icon: Eye, desc: 'Bajo volumen — esperar más data' }
-    case 'pause': return { label: 'Pausar', cls: 'bg-amber-500/10 text-amber-600 ring-amber-500/20', icon: Pause, desc: 'ROAS bajo + gasto material — pausar' }
-    case 'kill': return { label: 'Apagar', cls: 'bg-rose-500/10 text-rose-600 ring-rose-500/20', icon: Skull, desc: 'Quema presupuesto sin ventas' }
-    case 'cannibalize': return { label: 'Canibaliza', cls: 'bg-violet-500/10 text-violet-600 ring-violet-500/20', icon: Flame, desc: 'Atribuye conversiones falsas — apagar YA' }
-    default: return { label: v, cls: 'bg-slate-500/10 text-slate-600', icon: Eye, desc: '' }
+    case 'scale': return { label: 'Escalar', cls: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 ring-emerald-500/20', icon: Rocket, desc: 'ROAS ≥ 2x y volumen — subir presupuesto' }
+    case 'optimize': return { label: 'Optimizar', cls: 'bg-sky-500/10 text-sky-700 dark:text-sky-300 ring-sky-500/20', icon: Gauge, desc: 'ROAS 1-2x — probar variantes creativas' }
+    case 'watch': return { label: 'Vigilar', cls: 'bg-slate-500/10 text-slate-700 dark:text-slate-300 ring-slate-500/20', icon: Eye, desc: 'Bajo volumen — esperar más data' }
+    case 'pause': return { label: 'Pausar', cls: 'bg-amber-500/10 text-amber-700 dark:text-amber-300 ring-amber-500/20', icon: Pause, desc: 'ROAS bajo + gasto material — pausar' }
+    case 'kill': return { label: 'Apagar', cls: 'bg-rose-500/10 text-rose-700 dark:text-rose-300 ring-rose-500/20', icon: Skull, desc: 'Quema presupuesto sin ventas' }
+    case 'cannibalize': return { label: 'Canibaliza', cls: 'bg-violet-500/10 text-violet-700 dark:text-violet-300 ring-violet-500/20', icon: Flame, desc: 'Atribuye conversiones falsas — apagar YA' }
+    default: return { label: v, cls: 'bg-slate-500/10 text-slate-700 dark:text-slate-300', icon: Eye, desc: '' }
   }
 }
 
 const platformMeta = (name: string) => {
   switch (name) {
-    case 'meta': return { label: 'Meta', cls: 'bg-sky-500/10 text-sky-600' }
-    case 'google': return { label: 'Google', cls: 'bg-amber-500/10 text-amber-600' }
+    case 'meta': return { label: 'Meta', cls: 'bg-sky-500/10 text-sky-700 dark:text-sky-300' }
+    case 'google': return { label: 'Google', cls: 'bg-amber-500/10 text-amber-700 dark:text-amber-300' }
     case 'tiktok': return { label: 'TikTok', cls: 'bg-slate-900/10 text-slate-700 dark:text-slate-300' }
-    default: return { label: name, cls: 'bg-slate-500/10 text-slate-600' }
+    default: return { label: name, cls: 'bg-slate-500/10 text-slate-700 dark:text-slate-300' }
   }
 }
 
@@ -226,7 +226,10 @@ export function AdsView() {
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          <div className="overflow-x-auto scroll-thin">
+          <div className="relative">
+            {/* Scroll hint — right-edge gradient shadow indicating horizontal overflow */}
+            <div aria-hidden className="pointer-events-none absolute top-0 right-0 bottom-0 w-8 bg-gradient-to-l from-muted/60 to-transparent z-10" />
+            <div className="overflow-x-auto scroll-thin">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -273,7 +276,7 @@ export function AdsView() {
                         </span>
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
-                        <div className={cn('font-medium', r.metrics.orderCount === 0 ? 'text-rose-600' : 'text-emerald-600')}>{r.metrics.orderCount}</div>
+                        <div className={cn('font-medium', r.metrics.orderCount === 0 ? 'text-rose-700 dark:text-rose-300' : 'text-emerald-700 dark:text-emerald-300')}>{r.metrics.orderCount}</div>
                         <div className="text-[10px] text-muted-foreground">{r.metrics.units} und</div>
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
@@ -281,8 +284,8 @@ export function AdsView() {
                         <div className="text-[10px] text-muted-foreground">AOV {formatCurrency(r.metrics.aov)}</div>
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
-                        {r.metrics.cpa === null ? <span className="text-rose-600 text-xs">∞</span> : (
-                          <span className={cn('text-xs', (r.metrics.cpa || 0) > data.thresholds.cpaTarget ? 'text-rose-600' : 'text-muted-foreground')}>
+                        {r.metrics.cpa === null ? <span className="text-rose-700 dark:text-rose-300 text-xs">∞</span> : (
+                          <span className={cn('text-xs', (r.metrics.cpa || 0) > data.thresholds.cpaTarget ? 'text-rose-700 dark:text-rose-300' : 'text-muted-foreground')}>
                             {formatCurrency(r.metrics.cpa)}
                           </span>
                         )}
@@ -293,10 +296,10 @@ export function AdsView() {
                             <TooltipTrigger asChild>
                               <span className={cn(
                                 'inline-flex items-center gap-1 text-xs font-semibold px-1.5 py-0.5 rounded',
-                                r.metrics.roas >= 2 ? 'bg-emerald-500/10 text-emerald-600'
-                                  : r.metrics.roas >= 1 ? 'bg-sky-500/10 text-sky-600'
-                                  : r.metrics.roas > 0 ? 'bg-rose-500/10 text-rose-600'
-                                  : 'bg-slate-500/10 text-slate-600'
+                                r.metrics.roas >= 2 ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+                                  : r.metrics.roas >= 1 ? 'bg-sky-500/10 text-sky-700 dark:text-sky-300'
+                                  : r.metrics.roas > 0 ? 'bg-rose-500/10 text-rose-700 dark:text-rose-300'
+                                  : 'bg-slate-500/10 text-slate-700 dark:text-slate-300'
                               )}>
                                 {r.metrics.roas > 0 ? formatMultiplier(r.metrics.roas) : '—'}
                               </span>
@@ -312,7 +315,7 @@ export function AdsView() {
                         </TooltipProvider>
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
-                        <span className={cn('text-xs font-medium', r.metrics.roi >= 0 ? 'text-emerald-600' : 'text-rose-600')}>
+                        <span className={cn('text-xs font-medium', r.metrics.roi >= 0 ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-300')}>
                           {formatMultiplier(r.metrics.roi)}
                         </span>
                       </TableCell>
@@ -362,33 +365,73 @@ export function AdsView() {
                 })}
               </TableBody>
             </Table>
+            </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Methodology explainer */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">¿Cómo se calcula? (Pensamiento ágil para el trafficker)</CardTitle>
-          <CardDescription>Métricas clave y lógica de detección de canibalización</CardDescription>
-        </CardHeader>
-        <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-          <div className="space-y-2">
-            <div className="flex justify-between"><span className="text-muted-foreground">CPA</span><code className="text-xs">inversión ÷ pedidos reales</code></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">ROAS</span><code className="text-xs">ingresos cobrados ÷ inversión</code></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">ROI</span><code className="text-xs">(utilidad neta) ÷ inversión</code></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">CPL</span><code className="text-xs">inversión ÷ conversiones reportadas</code></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">CVR</span><code className="text-xs">pedidos ÷ clicks</code></div>
-          </div>
-          <div className="space-y-2 text-xs text-muted-foreground">
-            <p><strong className="text-foreground">Canibalización</strong>: la plataforma reporta conversiones pero no llegan pedidos reales (gap &gt; 0). El anuncio "roba" crédito de ventas que vienen por otro canal.</p>
-            <p><strong className="text-foreground">Apagar (kill)</strong>: gasto &gt; CPA objetivo y cero ventas reales.</p>
-            <p><strong className="text-foreground">Pausar</strong>: ROAS &lt; {data.thresholds.roasKill}x y gasto material (&gt; 2x CPA objetivo).</p>
-            <p><strong className="text-foreground">Escalar</strong>: ROAS ≥ 2x con ≥ 2 pedidos.</p>
-            <p className="text-primary"><strong>Atribución</strong>: last-click por defecto (configurable a first-touch, lineal o time-decay). El <code>click_id</code> (fbclid/gclid/ttclid) se captura al aterrizar y se pega al pedido.</p>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Methodology explainer — broken into 2 cards for better spacing */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">¿Cómo se calcula? — Métricas clave</CardTitle>
+            <CardDescription>Fórmulas usadas en cada columna de la tabla de arriba</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="grid grid-cols-1 gap-2.5">
+              <div className="flex justify-between items-center p-2.5 rounded-lg border bg-muted/20">
+                <span className="text-sm font-medium">CPA</span>
+                <code className="text-xs bg-background px-2 py-1 rounded border">inversión ÷ pedidos reales</code>
+              </div>
+              <div className="flex justify-between items-center p-2.5 rounded-lg border bg-muted/20">
+                <span className="text-sm font-medium">ROAS</span>
+                <code className="text-xs bg-background px-2 py-1 rounded border">ingresos cobrados ÷ inversión</code>
+              </div>
+              <div className="flex justify-between items-center p-2.5 rounded-lg border bg-muted/20">
+                <span className="text-sm font-medium">ROI</span>
+                <code className="text-xs bg-background px-2 py-1 rounded border">utilidad neta ÷ inversión</code>
+              </div>
+              <div className="flex justify-between items-center p-2.5 rounded-lg border bg-muted/20">
+                <span className="text-sm font-medium">CPL</span>
+                <code className="text-xs bg-background px-2 py-1 rounded border">inversión ÷ conversiones reportadas</code>
+              </div>
+              <div className="flex justify-between items-center p-2.5 rounded-lg border bg-muted/20">
+                <span className="text-sm font-medium">CVR</span>
+                <code className="text-xs bg-background px-2 py-1 rounded border">pedidos ÷ clicks</code>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Reglas de veredicto y atribución</CardTitle>
+            <CardDescription>Umbrales: ROAS kill &lt; {data.thresholds.roasKill}x · CPA objetivo {formatCurrency(data.thresholds.cpaTarget)}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            <div className="p-3 rounded-lg border-l-4 border-violet-500 bg-violet-500/5">
+              <div className="flex items-center gap-2 font-medium text-violet-700 dark:text-violet-300"><Flame className="size-4" /> Canibalización</div>
+              <p className="text-xs text-muted-foreground mt-1">La plataforma reporta conversiones pero no llegan pedidos reales (gap &gt; 0). El anuncio "roba" crédito de ventas que vienen por otro canal.</p>
+            </div>
+            <div className="p-3 rounded-lg border-l-4 border-rose-500 bg-rose-500/5">
+              <div className="flex items-center gap-2 font-medium text-rose-700 dark:text-rose-300"><Skull className="size-4" /> Apagar (kill)</div>
+              <p className="text-xs text-muted-foreground mt-1">Gasto &gt; CPA objetivo y cero ventas reales.</p>
+            </div>
+            <div className="p-3 rounded-lg border-l-4 border-amber-500 bg-amber-500/5">
+              <div className="flex items-center gap-2 font-medium text-amber-700 dark:text-amber-300"><Pause className="size-4" /> Pausar</div>
+              <p className="text-xs text-muted-foreground mt-1">ROAS &lt; {data.thresholds.roasKill}x y gasto material (&gt; 2x CPA objetivo).</p>
+            </div>
+            <div className="p-3 rounded-lg border-l-4 border-emerald-500 bg-emerald-500/5">
+              <div className="flex items-center gap-2 font-medium text-emerald-700 dark:text-emerald-300"><Rocket className="size-4" /> Escalar</div>
+              <p className="text-xs text-muted-foreground mt-1">ROAS ≥ 2x con ≥ 2 pedidos.</p>
+            </div>
+            <div className="p-3 rounded-lg border-l-4 border-primary bg-primary/5">
+              <div className="flex items-center gap-2 font-medium text-primary"><Sparkles className="size-4" /> Atribución</div>
+              <p className="text-xs text-muted-foreground mt-1">Last-click por defecto (configurable a first-touch, lineal o time-decay). El <code className="text-[11px]">click_id</code> (fbclid/gclid/ttclid) se captura al aterrizar y se pega al pedido.</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   )
 }

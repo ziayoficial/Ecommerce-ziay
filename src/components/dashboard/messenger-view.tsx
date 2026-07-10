@@ -49,7 +49,7 @@ const channelMeta = (type: string) => {
     case 'whatsapp': return { color: 'bg-emerald-500/10 text-emerald-600 ring-emerald-500/20', dot: 'bg-emerald-500', label: 'WhatsApp' }
     case 'messenger': return { color: 'bg-sky-500/10 text-sky-600 ring-sky-500/20', dot: 'bg-sky-500', label: 'Messenger' }
     case 'instagram': return { color: 'bg-fuchsia-500/10 text-fuchsia-600 ring-fuchsia-500/20', dot: 'bg-fuchsia-500', label: 'Instagram' }
-    default: return { color: 'bg-slate-500/10 text-slate-600 ring-slate-500/20', dot: 'bg-slate-500', label: type }
+    default: return { color: 'bg-slate-500/10 text-slate-700 dark:text-slate-300 ring-slate-500/20', dot: 'bg-slate-500', label: type }
   }
 }
 
@@ -58,8 +58,8 @@ const statusMeta = (s: string) => {
     case 'open': return { label: 'Abierta', cls: 'bg-sky-500/10 text-sky-600' }
     case 'pending': return { label: 'Pendiente', cls: 'bg-amber-500/10 text-amber-600' }
     case 'resolved': return { label: 'Resuelta', cls: 'bg-emerald-500/10 text-emerald-600' }
-    case 'closed': return { label: 'Cerrada', cls: 'bg-slate-500/10 text-slate-600' }
-    default: return { label: s, cls: 'bg-slate-500/10 text-slate-600' }
+    case 'closed': return { label: 'Cerrada', cls: 'bg-slate-500/10 text-slate-700 dark:text-slate-300' }
+    default: return { label: s, cls: 'bg-slate-500/10 text-slate-700 dark:text-slate-300' }
   }
 }
 
@@ -208,7 +208,7 @@ export function MessengerView() {
             </Tabs>
           </div>
           <div className="flex items-center gap-1.5 text-[11px]">
-            <CircleDot className={cn('size-3', connected ? 'text-emerald-500' : 'text-slate-400')} />
+            <CircleDot className={cn('size-3', connected ? 'text-emerald-600' : 'text-muted-foreground')} />
             <span className="text-muted-foreground">{connected ? 'Tiempo real conectado' : 'Conectando socket...'}</span>
           </div>
         </div>
@@ -247,7 +247,7 @@ export function MessengerView() {
                       {c.customer.country && <span className="text-[10px] text-muted-foreground">{c.customer.country}</span>}
                       {c.priority === 'urgent' && <Badge variant="destructive" className="text-[9px] h-4 px-1">URGENTE</Badge>}
                     </div>
-                    <p className="text-xs text-muted-foreground truncate mt-1">
+                    <p className="text-xs text-muted-foreground line-clamp-2 mt-1 leading-snug">
                       {c.lastMessage?.direction === 'outbound' && 'Tú: '}
                       {c.lastMessage?.body || 'Sin mensajes'}
                     </p>
@@ -266,9 +266,16 @@ export function MessengerView() {
       {/* Thread */}
       <Card className="flex flex-col overflow-hidden">
         {!active ? (
-          <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground gap-3">
-            <MessageCircle className="size-12 opacity-30" />
-            <p className="text-sm">Selecciona una conversación para empezar</p>
+          <div className="flex-1 flex flex-col items-center justify-center gap-3 p-8 text-center bg-muted/20">
+            <div className="size-16 rounded-2xl bg-primary/10 ring-1 ring-primary/20 flex items-center justify-center">
+              <MessageCircle className="size-8 text-primary" />
+            </div>
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-foreground">Selecciona una conversación</p>
+              <p className="text-xs text-muted-foreground max-w-xs">
+                Elige una conversación de la izquierda para ver el hilo completo, los datos del cliente y los pedidos asociados.
+              </p>
+            </div>
           </div>
         ) : (
           <>
@@ -397,7 +404,12 @@ export function MessengerView() {
       {/* Customer panel */}
       <Card className="hidden lg:flex flex-col overflow-hidden">
         {!active ? (
-          <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">Sin cliente</div>
+          <div className="flex-1 flex flex-col items-center justify-center p-6 text-center gap-2">
+            <div className="size-12 rounded-xl bg-muted/60 ring-1 ring-border flex items-center justify-center">
+              <User className="size-5 text-muted-foreground" />
+            </div>
+            <p className="text-xs text-muted-foreground">Sin cliente seleccionado</p>
+          </div>
         ) : (
           <ScrollArea className="flex-1 scroll-thin">
             <div className="p-4 space-y-4">

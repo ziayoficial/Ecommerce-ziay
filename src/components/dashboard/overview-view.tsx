@@ -51,9 +51,9 @@ function Kpi({ icon: Icon, label, value, sub, trend, accent }: {
         </div>
         {trend && (
           <div className="flex items-center gap-1 mt-3 text-xs">
-            {trend === 'up' && <TrendingUp className="size-3.5 text-emerald-500" />}
-            {trend === 'down' && <TrendingDown className="size-3.5 text-rose-500" />}
-            <span className={trend === 'up' ? 'text-emerald-600' : trend === 'down' ? 'text-rose-600' : 'text-muted-foreground'}>
+            {trend === 'up' && <TrendingUp className="size-3.5 text-emerald-600" />}
+            {trend === 'down' && <TrendingDown className="size-3.5 text-rose-600" />}
+            <span className={trend === 'up' ? 'text-emerald-700 dark:text-emerald-400 font-medium' : trend === 'down' ? 'text-rose-700 dark:text-rose-400 font-medium' : 'text-muted-foreground'}>
               {trend === 'up' ? 'Tendencia positiva' : trend === 'down' ? 'Revisar' : 'Estable'}
             </span>
           </div>
@@ -117,12 +117,12 @@ export function OverviewView() {
 
       {/* Revenue vs Spend chart */}
       <Card>
-        <CardHeader className="flex flex-row items-start justify-between space-y-0">
-          <div>
+        <CardHeader className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 space-y-0">
+          <div className="min-w-0">
             <CardTitle className="text-base">Ingresos vs. Inversión en pauta</CardTitle>
-            <CardDescription>Últimos 14 días · COP</CardDescription>
+            <CardDescription className="truncate md:whitespace-normal">Últimos 14 días · COP</CardDescription>
           </div>
-          <div className="flex items-center gap-4 text-xs">
+          <div className="flex items-center gap-4 text-xs shrink-0">
             <span className="flex items-center gap-1.5"><span className="size-2.5 rounded-sm bg-primary" /> Ingresos</span>
             <span className="flex items-center gap-1.5"><span className="size-2.5 rounded-sm bg-rose-400" /> Pauta</span>
           </div>
@@ -141,8 +141,18 @@ export function OverviewView() {
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-              <XAxis dataKey="date" tickFormatter={shortDate} tick={{ fontSize: 11 }} stroke="var(--muted-foreground)" />
-              <YAxis tickFormatter={(v) => formatCurrency(v, 'COP', { compact: true })} tick={{ fontSize: 11 }} stroke="var(--muted-foreground)" />
+              <XAxis
+                dataKey="date"
+                tickFormatter={shortDate}
+                tick={{ fontSize: 11 }}
+                stroke="var(--muted-foreground)"
+                interval="preserveStartEnd"
+                minTickGap={24}
+                angle={-35}
+                textAnchor="end"
+                height={50}
+              />
+              <YAxis tickFormatter={(v) => formatCurrency(v, 'COP', { compact: true })} tick={{ fontSize: 11 }} stroke="var(--muted-foreground)" width={64} />
               <Tooltip
                 contentStyle={{ background: 'var(--background)', border: '1px solid var(--border)', borderRadius: 12, fontSize: 12 }}
                 formatter={(v: number, n) => [formatCurrency(v), n === 'revenue' ? 'Ingresos' : 'Pauta']}

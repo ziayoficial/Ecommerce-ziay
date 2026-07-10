@@ -29,14 +29,18 @@ export function Topbar({ active, country, onCountryChange }: {
     <header className="h-16 shrink-0 border-b bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-30">
       <div className="h-full flex items-center gap-3 px-4 md:px-6">
         <div className="flex-1 min-w-0">
-          <h1 className="font-semibold text-base md:text-lg leading-tight truncate">{item?.label}</h1>
-          <p className="text-xs text-muted-foreground leading-tight truncate hidden sm:block">
+          <h1 className="font-semibold text-sm md:text-lg leading-tight line-clamp-2 sm:line-clamp-1">{item?.label}</h1>
+          <p className="text-[11px] md:text-xs text-muted-foreground leading-snug line-clamp-1 hidden sm:block">
             {active === 'overview' && 'Tu negocio en una pantalla · ingresos, ROAS, CPA y canales'}
             {active === 'messenger' && 'Bandeja unificada WhatsApp + Messenger + Instagram · atribución de campaña'}
+            {active === 'catalog' && 'Catálogo visual-primero · filtra por diseño/categoría · chatea con la IA'}
             {active === 'orders' && 'Gestión de pedidos · pago anticipado, contra entrega e híbrido configurable'}
+            {active === 'kanban' && 'Tablero §15.1 · 8 columnas · arrastra para cambiar de etapa'}
+            {active === 'orchestrator' && 'Pipeline de 9 agentes §12 · ejecuta todo o paso a paso'}
             {active === 'ads' && 'Rendimiento por anuncio · CPA, ROAS, ROI y detección de canibalización'}
             {active === 'monetization' && 'Comisión sobre GMV · reconocimiento en 2 momentos · embudo de cobro'}
-            {active === 'settings' && 'Estrategia de pago por canal/país · umbrales de auto-pausa · integraciones'}
+            {active === 'integrations' && '5 rutas de catálogo + 3 logística · cotizador · VLM'}
+            {active === 'settings' && 'Estrategia de pago por canal/país · umbrales · integraciones'}
           </p>
         </div>
 

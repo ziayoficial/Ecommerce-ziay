@@ -34,10 +34,10 @@ type Channel = {
 }
 
 const channelMeta: Record<string, { icon: typeof Phone; label: string; color: string }> = {
-  whatsapp: { icon: Phone, label: 'WhatsApp', color: 'bg-emerald-500/10 text-emerald-600' },
-  messenger: { icon: Send, label: 'Messenger', color: 'bg-sky-500/10 text-sky-600' },
-  instagram: { icon: Instagram, label: 'Instagram', color: 'bg-fuchsia-500/10 text-fuchsia-600' },
-  telegram: { icon: Send, label: 'Telegram', color: 'bg-slate-500/10 text-slate-600' },
+  whatsapp: { icon: Phone, label: 'WhatsApp', color: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' },
+  messenger: { icon: Send, label: 'Messenger', color: 'bg-sky-500/10 text-sky-700 dark:text-sky-300' },
+  instagram: { icon: Instagram, label: 'Instagram', color: 'bg-fuchsia-500/10 text-fuchsia-700 dark:text-fuchsia-300' },
+  telegram: { icon: Send, label: 'Telegram', color: 'bg-slate-500/10 text-slate-700 dark:text-slate-300' },
 }
 
 export function ChannelsManager() {

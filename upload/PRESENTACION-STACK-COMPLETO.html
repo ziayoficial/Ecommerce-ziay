@@ -1,0 +1,1065 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CommerceFlow OS · Stack Tecnológico</title>
+<style>
+:root{--bg:#0a0f0d;--surface:#111815;--surface2:#1a2420;--border:#2a3a34;--text:#e8f0ec;--text2:#9ab0a8;--primary:#10b981;--primary2:#34d399;--accent:#f59e0b;--danger:#ef4444;--radius:12px}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;background:var(--bg);color:var(--text)}
+.deck{width:100vw;height:100vh;position:relative}
+.slide{position:absolute;inset:0;display:none;flex-direction:column;padding:50px 70px 90px 70px;overflow-y:auto}
+.slide.active{display:flex;animation:fadeIn .4s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
+h1{font-size:2.4em;font-weight:800;margin-bottom:12px;line-height:1.2}
+h2{font-size:1.4em;font-weight:700;margin-bottom:16px;color:var(--primary2)}
+h3{font-size:1.1em;font-weight:600;margin:12px 0 6px;color:var(--primary2)}
+p{font-size:1em;line-height:1.5;margin-bottom:8px;color:var(--text)}
+ul,ol{margin:6px 0 12px 20px}li{font-size:.95em;line-height:1.6;margin-bottom:4px}
+.badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:.7em;font-weight:600;margin:2px}
+.badge-primary{background:rgba(16,185,129,.15);color:var(--primary2);border:1px solid rgba(16,185,129,.3)}
+.badge-accent{background:rgba(245,158,11,.15);color:var(--accent);border:1px solid rgba(245,158,11,.3)}
+.grid{display:grid;gap:14px;margin:12px 0}
+.grid-2{grid-template-columns:1fr 1fr}.grid-3{grid-template-columns:1fr 1fr 1fr}.grid-4{grid-template-columns:1fr 1fr 1fr 1fr}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px}
+.card-accent{border-left:4px solid var(--primary)}
+.stat{font-size:2.2em;font-weight:800;color:var(--primary2);line-height:1}
+.stat-label{font-size:.8em;color:var(--text2);margin-top:2px}
+table{width:100%;border-collapse:collapse;margin:10px 0;font-size:.85em}
+th{background:var(--surface2);padding:8px 10px;text-align:left;font-weight:600;border-bottom:2px solid var(--border);color:var(--primary2)}
+td{padding:6px 10px;border-bottom:1px solid var(--border);color:var(--text)}
+code{background:var(--surface2);padding:2px 6px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:.8em;color:var(--primary2)}
+pre{background:var(--surface2);padding:14px;border-radius:8px;overflow-x:auto;font-family:'JetBrains Mono',monospace;font-size:.75em;color:var(--text);border:1px solid var(--border)}
+.nav{position:fixed;bottom:16px;right:16px;display:flex;gap:6px;z-index:1000}
+.nav button{background:var(--surface2);border:1px solid var(--border);color:var(--text);width:36px;height:36px;border-radius:8px;cursor:pointer;font-size:1em;display:flex;align-items:center;justify-content:center}
+.nav button:hover{background:var(--primary);color:var(--bg)}
+.counter{position:fixed;bottom:16px;left:16px;color:var(--text2);font-size:.8em;z-index:1000;background:var(--surface);padding:6px 14px;border-radius:20px;border:1px solid var(--border)}
+.progress{position:fixed;top:0;left:0;height:3px;background:var(--primary);z-index:1000;transition:width .3s}
+.center{display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;height:100%}
+.muted{color:var(--text2)}.text-primary{color:var(--primary2)}.text-accent{color:var(--accent)}
+@media(max-width:768px){.slide{padding:24px 20px}.grid-2,.grid-3,.grid-4{grid-template-columns:1fr}h1{font-size:1.6em}}
+</style>
+</head>
+<body>
+<div class="progress" id="progress" style="width:0%"></div>
+<div class="deck" id="deck">
+
+<!-- Slide 1 -->
+<section class="slide active center">
+<div style="font-size:3em;margin-bottom:16px">⚙️</div>
+<h1>CommerceFlow OS</h1>
+<p class="big text-primary" style="font-weight:600">Stack Tecnológico Completo</p>
+<p class="muted" style="margin-top:20px">30 slides · Para developers, CTOs y arquitectos</p>
+<div style="margin-top:30px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
+<span class="badge badge-primary">Next.js 16</span><span class="badge badge-primary">React 19</span>
+<span class="badge badge-primary">TypeScript 5</span><span class="badge badge-primary">Prisma 6</span>
+<span class="badge badge-primary">Tailwind 4</span><span class="badge badge-primary">Socket.io</span>
+<span class="badge badge-primary">z-ai-web-dev-sdk</span><span class="badge badge-accent">62 Modelos</span>
+<span class="badge badge-accent">44 APIs</span><span class="badge badge-accent">26 Agentes</span>
+</div>
+</section>
+
+<!-- Slide 2: Overview -->
+<section class="slide">
+<h1>Stack Overview</h1>
+<h2>Capa por capa</h2>
+<table>
+<tr><th>Capa</th><th>Tecnología</th><th>Versión</th><th>Propósito</th></tr>
+<tr><td>Framework</td><td>Next.js</td><td>16.1.3</td><td>App Router, SSR + SPA híbrido</td></tr>
+<tr><td>UI Library</td><td>React</td><td>19</td><td>use(), actions, streaming</td></tr>
+<tr><td>Lenguaje</td><td>TypeScript</td><td>5.x</td><td>Strict mode, type-safety E2E</td></tr>
+<tr><td>ORM</td><td>Prisma</td><td>6.11.1</td><td>62 modelos, SQLite→Postgres</td></tr>
+<tr><td>Styling</td><td>Tailwind CSS</td><td>4.x</td><td>oklch, dark mode, responsive</td></tr>
+<tr><td>UI Components</td><td>shadcn/ui</td><td>New York</td><td>48 componentes (Radix)</td></tr>
+<tr><td>Real-time</td><td>Socket.io</td><td>4.8.3</td><td>Mini-service puerto 3003</td></tr>
+<tr><td>AI SDK</td><td>z-ai-web-dev-sdk</td><td>0.0.18</td><td>LLM glm-4.6 + VLM glm-4.6v</td></tr>
+<tr><td>2FA</td><td>OTPAuth</td><td>9.5.1</td><td>TOTP Google Authenticator</td></tr>
+<tr><td>Drag & Drop</td><td>@dnd-kit</td><td>6.3.1</td><td>Kanban drag & drop</td></tr>
+<tr><td>Gráficas</td><td>Recharts</td><td>2.x</td><td>Area, Pie, Bar charts</td></tr>
+<tr><td>State</td><td>Zustand</td><td>5.x</td><td>Tenant store (client state)</td></tr>
+<tr><td>Server State</td><td>@tanstack/react-query</td><td>5.82</td><td>Disponible (no usado aún)</td></tr>
+<tr><td>Runtime</td><td>Node.js / Bun</td><td>20 / 1.x</td><td>Next.js + chat-service</td></tr>
+<tr><td>DB Dev</td><td>SQLite</td><td>—</td><td>File-based, 0 config</td></tr>
+<tr><td>DB Prod</td><td>PostgreSQL</td><td>16-alpine</td><td>Docker, RLS, pgvector</td></tr>
+<tr><td>Reverse Proxy</td><td>Caddy</td><td>2.x</td><td>Auto-HTTPS, dynamic port</td></tr>
+<tr><td>Container</td><td>Docker Compose</td><td>—</td><td>11 servicios orquestados</td></tr>
+</table>
+</section>
+
+<!-- Slide 3: Next.js 16 -->
+<section class="slide">
+<h1>Next.js 16 · App Router</h1>
+<h2>SSR + SPA híbrido con Turbopack</h2>
+<div class="grid grid-2">
+<div class="card card-accent">
+<h3>✨ Features clave</h3>
+<ul>
+<li><strong>App Router:</strong> file-based routing con layouts anidados</li>
+<li><strong>Server Components:</strong> render en servidor, 0 JS client</li>
+<li><strong>Streaming SSR:</strong> React 19 streaming, Suspense</li>
+<li><strong>Turbopack:</strong> bundler 10x más rápido que Webpack (dev)</li>
+<li><strong>Route Handlers:</strong> API routes en app/api/</li>
+<li><strong>generateStaticParams:</strong> SSG para SSR pages</li>
+<li><strong>generateMetadata:</strong> SEO dinámico por página</li>
+</ul>
+</div>
+<div class="card card-accent">
+<h3>📂 Estructura</h3>
+<pre>src/app/
+  layout.tsx          # Root layout
+  page.tsx            # SPA dashboard (/)
+  globals.css         # Tailwind + oklch
+  sitemap.ts          # Dynamic sitemap
+  robots.ts           # robots.txt
+  api/                # 44 route handlers
+  t/[slug]/
+    page.tsx          # SSR tienda
+    p/[sku]/
+      page.tsx        # SSR producto</pre>
+</div>
+</div>
+<div class="card">
+<h3>Configuración (next.config.ts)</h3>
+<pre>const nextConfig: NextConfig = {
+  output: "standalone",
+  reactStrictMode: true,
+  allowedDevOrigins: ["127.0.0.1", "localhost", "0.0.0.0"],
+  typescript: { ignoreBuildErrors: false },
+};</pre>
+</div>
+</section>
+
+<!-- Slide 4: React 19 -->
+<section class="slide">
+<h1>React 19</h1>
+<h2>Features modernas utilizadas</h2>
+<div class="grid grid-2">
+<div class="card card-accent">
+<h3> Hooks usados</h3>
+<ul>
+<li><strong>useState:</strong> estado local en 17 componentes dashboard</li>
+<li><strong>useEffect:</strong> fetch de APIs en mount (con cleanup)</li>
+<li><strong>useCallback:</strong> memoización de fetch functions</li>
+<li><strong>useRef:</strong> auto-scroll en messenger thread</li>
+<li><strong>useMemo:</strong> filtros derivados en kanban/orders</li>
+<li><strong>useSyncExternalStore:</strong> useMounted hook (sin hydration mismatch)</li>
+</ul>
+</div>
+<div class="card card-accent">
+<h3>🚀 Concurrent features</h3>
+<ul>
+<li><strong>Streaming SSR:</strong> páginas SSR usan Suspense</li>
+<li><strong>Optimistic updates:</strong> messenger send (optimistic append)</li>
+<li><strong>Transitions:</strong> useTransition en view switching</li>
+<li><strong>Form actions:</strong> disponible (no usado, forms manuales)</li>
+</ul>
+</div>
+</div>
+<div class="card">
+<h3>Patrones de rendering</h3>
+<table>
+<tr><th>Page</th><th>Rendering</th><th>Por qué</th></tr>
+<tr><td>/ (dashboard)</td><td>CSR (SPA)</td><td>App interactiva, no necesita SEO</td></tr>
+<tr><td>/t/[slug]</td><td>SSR + SSG</td><td>SEO, Schema.org, indexable</td></tr>
+<tr><td>/t/[slug]/p/[sku]</td><td>SSR + SSG</td><td>SEO producto, JSON-LD</td></tr>
+<tr><td>/api/*</td><td>Edge/Node</td><td>Route handlers, 44 endpoints</td></tr>
+</table>
+</div>
+</section>
+
+<!-- Slide 5: TypeScript 5 -->
+<section class="slide">
+<h1>TypeScript 5 · Strict Mode</h1>
+<h2>Type-safety end-to-end</h2>
+<div class="grid grid-2">
+<div class="card card-accent">
+<h3>⚙️ Configuración</h3>
+<ul>
+<li><strong>strict: true</strong> — no implicit any</li>
+<li><strong>noUncheckedIndexedAccess</strong> — array access es T | undefined</li>
+<li><strong>exactOptionalPropertyTypes</strong> — opcional ≠ undefined</li>
+<li><strong>noFallthroughCasesInSwitch</strong> — switch exhaustivo</li>
+<li><strong>0 errores</strong> en src/ (verificado con tsc --noEmit)</li>
+</ul>
+</div>
+<div class="card card-accent">
+<h3>🔧 Tipos compartidos</h3>
+<ul>
+<li><strong>Prisma types:</strong> generados desde schema.prisma</li>
+<li><strong>API contracts:</strong> request/response tipados en cada route</li>
+<li><strong>Adapter interfaces:</strong> EcommerceAdapter, LogisticsAdapter, PaymentAdapter, AdPlatformAdapter, LLMProvider</li>
+<li><strong>Agent types:</strong> 26 agentes con nombres tipados</li>
+<li><strong>View IDs:</strong> ViewId union type para dashboard navigation</li>
+</ul>
+</div>
+</div>
+<div class="card">
+<h3>Pattern: Adapter interfaces</h3>
+<pre>interface PaymentAdapter {
+  name: string;
+  createPaymentLink(opts: PaymentLinkOpts): Promise&lt;PaymentResult&gt;;
+  verifyPayment(paymentId: string): Promise&lt;PaymentResult&gt;;
+  refund(paymentId: string, amount?: number): Promise&lt;PaymentResult&gt;;
+  webhookVerify(rawBody: string, signature: string): boolean;
+}</pre>
+<p class="muted">4 implementaciones: MercadoPago, Wompi, Stripe, PayU — todas siguen el mismo contrato.</p>
+</div>
+</section>
+
+<!-- Slide 6: Prisma 6 -->
+<section class="slide">
+<h1>Prisma 6 · 62 Modelos</h1>
+<h2>SQLite dev → PostgreSQL prod</h2>
+<div class="grid grid-2">
+<div class="card card-accent">
+<h3>📊 Modelo de datos</h3>
+<ul>
+<li><strong>62 modelos</strong> Prisma</li>
+<li><strong>91 índices</strong> en 45 modelos</li>
+<li><strong>44 modelos</strong> con tenantId (multi-tenant)</li>
+<li><strong>13 modelos</strong> globales (Tenant, Setting, Trafficker...)</li>
+<li><strong>6 modelos</strong> con tenantId opcional</li>
+<li><strong>0 columnas Json</strong> (SQLite usa String + JSON.stringify)</li>
+</ul>
+</div>
+<div class="card card-accent">
+<h3>🔌 Client</h3>
+<pre>// src/lib/db.ts
+import { PrismaClient } from '@prisma/client';
+
+const globalForPrisma = globalThis as unknown as {
+  prisma: PrismaClient | undefined;
+};
+
+export const db = globalForPrisma.prisma ?? new PrismaClient({
+  log: process.env.NODE_ENV === 'development'
+    ? ['query', 'warn', 'error']
+    : ['error'],
+});
+
+if (process.env.NODE_ENV !== 'production') {
+  globalForPrisma.prisma = db;
+}</pre>
+</div>
+</div>
+<div class="card">
+<h3>Modelos por dominio</h3>
+<table>
+<tr><th>Dominio</th><th>Modelos</th><th>Ejemplos</th></tr>
+<tr><td>Core commerce</td><td>8</td><td>Tenant, User, Channel, Customer, Conversation, Message, Product, Order</td></tr>
+<tr><td>Order lifecycle</td><td>3</td><td>OrderItem, OrderEvent, VolumePrice</td></tr>
+<tr><td>Logistics</td><td>8</td><td>Carrier, Shipment, GuideTracking, GuideMovement, NovedadCase, NovedadEvidence, NovedadMessage, RedeliveryRequest</td></tr>
+<tr><td>Attribution</td><td>5</td><td>AdPlatform, Campaign, Ad, AdSpend, Attribution</td></tr>
+<tr><td>Fintech</td><td>8</td><td>Trafficker, TraffickerCampaign, TraffickerSale, TraffickerTransaction, TraffickerCompensation, WalletAccount, WalletTransaction, WithdrawalRequest</td></tr>
+<tr><td>Intelligence</td><td>6</td><td>CustomerScore, CarrierScore, BuyerBehavior, BehaviorAlert, ConversationalCart, CartItem</td></tr>
+<tr><td>Marketing</td><td>7</td><td>PixelConfig, ConversionEvent, SEOConfig, GeoTarget, RemarketingCampaign, RemarketingMessage, CustomerNotification</td></tr>
+<tr><td>Config</td><td>4</td><td>Setting, AutomationRule, AuditLog, TwoFactorConfig</td></tr>
+<tr><td>Content</td><td>5</td><td>SalesSpeech, Objection, ThemeDesign, CategoryCombo, ProductEnrichment</td></tr>
+<tr><td>Marketplace</td><td>3</td><td>MarketplaceListing, LeadShareConfig, LeadReferral</td></tr>
+<tr><td>Vision</td><td>2</td><td>ImageIdentification, DeliveryHistory</td></tr>
+<tr><td>Billing</td><td>3</td><td>CommissionEntry, Invoice, GuideTracking</td></tr>
+</table>
+</div>
+</section>
+
+<!-- Slide 7: Tailwind CSS 4 -->
+<section class="slide">
+<h1>Tailwind CSS 4</h1>
+<h2>oklch colors + dark mode + responsive</h2>
+<div class="grid grid-2">
+<div class="card card-accent">
+<h3>🎨 Color system (oklch)</h3>
+<pre>:root {
+  --primary: oklch(0.62 0.15 158);
+  --primary-foreground: oklch(0.98 0.01 158);
+  --background: oklch(0.98 0.01 120);
+  --foreground: oklch(0.15 0.01 120);
+  /* ... 20+ tokens */
+}
+.dark {
+  --background: oklch(0.12 0.01 120);
+  --foreground: oklch(0.95 0.01 120);
+  /* ... */
+}</pre>
+<p class="muted">Esmeralda como primario — NO indigo/blue (regla del proyecto).</p>
+</div>
+<div class="card card-accent">
+<h3>🌓 Dark mode</h3>
+<ul>
+<li><strong>next-themes:</strong> ThemeProvider con enableSystem</li>
+<li><strong>@custom-variant dark:</strong> Tailwind 4 dark variant</li>
+<li><strong>useMounted hook:</strong> evita hydration mismatch en theme toggle</li>
+<li><strong>suppressHydrationWarning:</strong> en &lt;html&gt;</li>
+<li><strong>class strategy:</strong> .dark en &lt;html&gt;</li>
+</ul>
+</div>
+</div>
+<div class="card">
+<h3>Responsive + a11y</h3>
+<ul>
+<li><strong>Mobile-first:</strong> sm: 640px, md: 768px, lg: 1024px, xl: 1280px</li>
+<li><strong>Mobile nav:</strong> Sheet con NAV_ITEMS (hamburger menu)</li>
+<li><strong>Touch targets:</strong> min 44px en botones interactivos</li>
+<li><strong>prefers-reduced-motion:</strong> disable animations</li>
+<li><strong>Sticky footer:</strong> min-h-screen flex flex-col, mt-auto en footer</li>
+<li><strong>Custom scrollbar:</strong> scroll-thin class</li>
+</ul>
+</div>
+</section>
+
+<!-- Slide 8: shadcn/ui -->
+<section class="slide">
+<h1>shadcn/ui · 48 Componentes</h1>
+<h2>New York style · Radix primitives</h2>
+<div class="grid grid-3">
+<div class="card"><h3>Layout (7)</h3><p>aspect-ratio, card, resizable, scroll-area, separator, sidebar, tabs</p></div>
+<div class="card"><h3>Forms (13)</h3><p>button, checkbox, input, input-otp, label, radio-group, select, slider, switch, textarea, toggle, toggle-group, form</p></div>
+<div class="card"><h3>Overlays (10)</h3><p>alert-dialog, dialog, drawer, sheet, popover, tooltip, hover-card, sonner, toast, toaster</p></div>
+<div class="card"><h3>Navigation (4)</h3><p>breadcrumb, menubar, navigation-menu, pagination</p></div>
+<div class="card"><h3>Data Display (8)</h3><p>avatar, badge, calendar, carousel, chart, progress, skeleton, table</p></div>
+<div class="card"><h3>Menus (4)</h3><p>command, context-menu, dropdown-menu, accordion</p></div>
+<div class="card"><h3>Feedback (2)</h3><p>alert, sonner</p></div>
+<div class="card"><h3>Custom</h3><p>collapsible</p></div>
+</div>
+<div class="card" style="margin-top:16px">
+<h3>Patrones de uso</h3>
+<ul>
+<li><strong>Error states:</strong> Alert variant="destructive" con AlertTriangle icon + Reintentar button</li>
+<li><strong>Loading:</strong> Skeleton placeholders (card shape, text rows)</li>
+<li><strong>Empty states:</strong> icon + mensaje + CTA</li>
+<li><strong>Toast:</strong> sonner (no use-toast hook — orphaned)</li>
+<li><strong>Forms:</strong> raw Input/Select/Button (no react-hook-form — disponible pero no usado)</li>
+</ul>
+</div>
+</section>
+
+<!-- Slide 9: Socket.io -->
+<section class="slide">
+<h1>Socket.io · Mini-service :3003</h1>
+<h2>Real-time con rooms por tenant + conversation</h2>
+<div class="grid grid-2">
+<div class="card card-accent">
+<h3>🏗️ Arquitectura</h3>
+<pre>mini-services/chat-service/
+  index.ts          # Bun + socket.io
+  package.json      # socket.io 4.7.5
+
+src/lib/socket.ts   # Client singleton
+  getSocket(auth?: {
+    tenantId: string,
+    conversationId?: string
+  })</pre>
+<p class="muted">Caddy forwards via ?XTransformPort=3003</p>
+</div>
+<div class="card card-accent">
+<h3>🔒 Security</h3>
+<ul>
+<li><strong>Auth gate:</strong> socket.handshake.auth.tenantId requerido</li>
+<li><strong>CHAT_STRICT_AUTH=true:</strong> reject sin auth (prod)</li>
+<li><strong>Dev fallback:</strong> ten-saramantha con console.warn</li>
+<li><strong>CORS:</strong> CHAT_CORS_ORIGIN env (split by comma)</li>
+<li><strong>Rooms:</strong> tenant:{id} + conv:{id}</li>
+</ul>
+</div>
+</div>
+<div class="card">
+<h3>📡 Eventos</h3>
+<table>
+<tr><th>Evento</th><th>Dirección</th><th>Scope</th><th>Propósito</th></tr>
+<tr><td>message:sent</td><td>client→server</td><td>conv</td><td>Cliente envía mensaje</td></tr>
+<tr><td>message:new</td><td>server→client</td><td>conv</td><td>Nuevo mensaje (outbound o inbound)</td></tr>
+<tr><td>conversation:updated</td><td>server→client</td><td>conv</td><td>Actualizar preview en lista</td></tr>
+<tr><td>agent:typing</td><td>client→server→broadcast</td><td>conv</td><td>Indicador "escribiendo..."</td></tr>
+<tr><td>status:change</td><td>client→server→broadcast</td><td>tenant</td><td>Cambio de estado (pedido, novedad)</td></tr>
+<tr><td>hello</td><td>server→client</td><td>socket</td><td>Bienvenida en connect</td></tr>
+</table>
+</div>
+</section>
+
+<!-- Slide 10: z-ai-web-dev-sdk -->
+<section class="slide">
+<h1>z-ai-web-dev-sdk</h1>
+<h2>LLM glm-4.6 + VLM glm-4.6v</h2>
+<div class="grid grid-2">
+<div class="card card-accent">
+<h3>🤖 LLM (glm-4.6)</h3>
+<p>Usado en 5 rutas IA:</p>
+<ul>
+<li>POST /api/agents/[agentName] — 26 agentes</li>
+<li>POST /api/ai-reply — reply contextual</li>
+<li>POST /api/orchestrate — pipeline de 9 pasos</li>
+<li>POST /api/address-analysis — validación de dirección</li>
+<li>POST /api/buyer-behavior — análisis de comportamiento</li>
+</ul>
+<pre>const zai = await ZAI.create();
+const res = await zai.chat.completions.create({
+  model: 'glm-4.6',
+  messages: [...],
+  temperature: 0.7,
+});</pre>
+</div>
+<div class="card card-accent">
+<h3>👁️ VLM (glm-4.6v)</h3>
+<p>Visión para 2 features:</p>
+<ul>
+<li>POST /api/product-enrichment — enriquecer producto desde imagen</li>
+<li>POST /api/agents/vision — identificar producto desde foto del cliente</li>
+</ul>
+<pre>const res = await zai.chat.completions.createVision({
+  model: 'glm-4.6v',
+  messages: [{
+    role: 'user',
+    content: [
+      { type: 'image_url', image_url: { url } },
+      { type: 'text', text: prompt }
+    ]
+  }]
+});</pre>
+</div>
+</div>
+<div class="card">
+<h3>Fallback determinístico</h3>
+<p>Cada agente tiene un fallback map que genera respuesta básica si ZAI falla. El pipeline nunca se rompe — siempre devuelve algo.</p>
+</div>
+</section>
+
+<!-- Slide 11: LLM Adapter -->
+<section class="slide">
+<h1>LLM Adapter · 4 Providers</h1>
+<h2>Multi-provider con failover</h2>
+<div class="card">
+<pre>// src/lib/llm/adapter.ts
+interface LLMProvider {
+  name: string;
+  chat(messages: Message[], opts?: ChatOptions): Promise&lt;string&gt;;
+}
+
+class ZaiProvider implements LLMProvider { ... }     // glm-4.6 (default)
+class OpenAIProvider implements LLMProvider { ... }  // GPT-4 (dynamic import)
+class XAIProvider implements LLMProvider { ... }     // Grok (fetch x.ai)
+class OllamaProvider implements LLMProvider { ... }  // Local LLM (fetch :11434)
+
+function getLLMProvider(name?: string): LLMProvider
+function getAvailableProviders(): { name: string; available: boolean }[]</pre>
+</div>
+<div class="grid grid-2" style="margin-top:16px">
+<div class="card card-accent">
+<h3>🔄 Failover logic</h3>
+<ol>
+<li>Si tenant tiene proveedorIa configurado → usar ese</li>
+<li>Si falla → fallback a ZaiProvider (default)</li>
+<li>Si ZAI falla → fallback determinístico por agente</li>
+<li>Health endpoint reporta disponibilidad de cada provider</li>
+</ol>
+</div>
+<div class="card card-accent">
+<h3>📊 Health check</h3>
+<table>
+<tr><th>Provider</th><th>Env var</th><th>Status</th></tr>
+<tr><td>Zai</td><td>—</td><td>ok (default)</td></tr>
+<tr><td>OpenAI</td><td>OPENAI_API_KEY</td><td>not_configured</td></tr>
+<tr><td>xAI</td><td>XAI_API_KEY</td><td>not_configured</td></tr>
+<tr><td>Ollama</td><td>OLLAMA_BASE_URL</td><td>not_configured</td></tr>
+</table>
+</div>
+</div>
+</section>
+
+<!-- Slide 12: Vision + Embeddings -->
+<section class="slide">
+<h1>Vision Pipeline + Embeddings</h1>
+<h2>IA más allá del chat</h2>
+<div class="grid grid-2">
+<div class="card card-accent">
+<h3>👁️ Vision (src/lib/vision/pipeline.ts)</h3>
+<ul>
+<li><strong>identifyImage(url, tenantCtx?):</strong> VLM identifica producto desde foto</li>
+<li><strong>enrichProductImage(url, productName, tenantCtx?):</strong> genera SEO tags, materiales, colores, medidas</li>
+<li><strong>Persiste:</strong> ImageIdentification y ProductEnrichment en DB</li>
+</ul>
+<p class="muted">OCR + CLIP documentados como aspiracionales. Solo VLM implementado.</p>
+</div>
+<div class="card card-accent">
+<h3>🔢 Embeddings (src/lib/embeddings/service.ts)</h3>
+<ul>
+<li><strong>embed(text):</strong> vector de 256 dimensiones (dev: hash determinístico)</li>
+<li><strong>cosineSimilarity(a, b):</strong> similitud coseno</li>
+<li><strong>embedAndStoreMessage(messageId, text):</strong> escribe a Message.embedding</li>
+<li><strong>embedAndStoreProduct(productId, text, kind):</strong> escribe a Product.embeddingTexto/Visual</li>
+<li><strong>searchSimilar(text, opts?):</strong> top-N por similitud</li>
+</ul>
+<p class="muted">Producción: pgvector en PostgreSQL. Dev: scan in-memory.</p>
+</div>
+</div>
+<div class="card">
+<h3>Esquema DB de embeddings</h3>
+<pre>model Message {
+  // ...
+  embedding Bytes?  // 256-dim float vector
+}
+
+model Product {
+  // ...
+  embeddingTexto  Bytes?  // embedding del texto (nombre + descripción)
+  embeddingVisual Bytes?  // embedding de la imagen (VLM)
+}</pre>
+</div>
+</section>
+
+<!-- Slide 13: 26 Agentes -->
+<section class="slide">
+<h1>26 Agentes Conversacionales</h1>
+<h2>Prompts especializados + fallback determinístico</h2>
+<div class="grid grid-3">
+<div class="card card-accent">
+<h3 class="text-primary">Pre-venta (10)</h3>
+<ol>
+<li>buyer_behavior 🛡️</li>
+<li>profile 🎯</li>
+<li>speech 💬</li>
+<li>catalog 🖼️</li>
+<li>cart_builder 🛒</li>
+<li>quote 🧮</li>
+<li>objection 🛡️</li>
+<li>address 📍</li>
+<li>logistics 🚚</li>
+<li>checkout ✅</li>
+</ol>
+</div>
+<div class="card card-accent">
+<h3 class="text-primary">Post-venta (4)</h3>
+<ol>
+<li>guide_tracking 📦</li>
+<li>novedades ⚠️</li>
+<li>redelivery 🔄</li>
+<li>remarketing 💌</li>
+</ol>
+<h3 class="text-accent" style="margin-top:16px">Especializados (7)</h3>
+<ul>
+<li>vision 👁️</li>
+<li>address_analysis 📐</li>
+<li>sales_retainer 🔒</li>
+<li>logistics_notifier 📢</li>
+<li>traffic_orchestrator 🎯</li>
+<li>guide_alert 🚨</li>
+<li>theme 🎨</li>
+</ul>
+</div>
+<div class="card card-accent">
+<h3 class="text-primary">Inteligencia (5)</h3>
+<ol>
+<li>customer_score 📊</li>
+<li>carrier_score 🚚</li>
+<li>product_enrichment 🏷️</li>
+<li>marketplace 🏪</li>
+<li>affiliator 💰</li>
+</ol>
+</div>
+</div>
+<div class="card">
+<h3>Implementación (src/lib/agents/prompts.ts)</h3>
+<p>Cada agente tiene: nombre, label, prompt system, fallback map. El fallback genera respuesta básica si el LLM falla. Cada agente puede ser llamado individualmente o en secuencia (orquestador).</p>
+<p class="muted">API: POST /api/agents/{agentName} · POST /api/orchestrate { action: "full" | "step" }</p>
+</div>
+</section>
+
+<!-- Slide 14: 18 Adapters -->
+<section class="slide">
+<h1>18 Adapters</h1>
+<h2>Interfaces comunes + implementaciones reales/stub</h2>
+<table>
+<tr><th>Adapter</th><th>Tipo</th><th>Real HTTP?</th><th>Env creds</th><th>Webhook verify?</th></tr>
+<tr><td>WooCommerce</td><td>Ecommerce</td><td>Stub</td><td>Consumer key/secret</td><td>—</td></tr>
+<tr><td>Shopify</td><td>Ecommerce</td><td>Stub</td><td>Access token</td><td>—</td></tr>
+<tr><td>Supabase</td><td>Ecommerce</td><td>Stub</td><td>URL + API key</td><td>—</td></tr>
+<tr><td>WhatsApp Catalog</td><td>Ecommerce</td><td>Stub</td><td>—</td><td>—</td></tr>
+<tr><td>Dropi</td><td>Logistics</td><td>Stub</td><td>API key</td><td>—</td></tr>
+<tr><td>99envios</td><td>Logistics</td><td>Stub</td><td>API key</td><td>—</td></tr>
+<tr><td>Aveonline</td><td>Logistics</td><td>Stub</td><td>API key</td><td>—</td></tr>
+<tr><td>MercadoPago</td><td>Payment</td><td><strong>✅ Real</strong></td><td>Access token</td><td>✅ HMAC-SHA256</td></tr>
+<tr><td>Wompi</td><td>Payment</td><td><strong>✅ Real</strong></td><td>Public + private key</td><td>✅ HMAC-SHA256</td></tr>
+<tr><td>Stripe</td><td>Payment</td><td><strong>✅ Real</strong></td><td>Secret key</td><td>✅ HMAC-SHA256</td></tr>
+<tr><td>PayU</td><td>Payment</td><td><strong>✅ Real</strong></td><td>API key + merchant</td><td>✅ MD5</td></tr>
+<tr><td>Google Ads</td><td>Ad Platform</td><td><strong>✅ Real</strong></td><td>Developer token + access</td><td>—</td></tr>
+<tr><td>TikTok Ads</td><td>Ad Platform</td><td><strong>✅ Real</strong></td><td>Access token</td><td>—</td></tr>
+</table>
+<div class="card" style="margin-top:16px">
+<h3>4 Interfaces</h3>
+<pre>EcommerceAdapter  { buscarProductos, obtenerProducto, crearPedido, actualizarInventario }
+LogisticsAdapter  { cotizarFlete, generarGuia, consultarEstadoGuia, reportarNovedad }
+PaymentAdapter    { createPaymentLink, verifyPayment, refund, webhookVerify }
+AdPlatformAdapter { fetchCampaignPerformance, fetchAdPerformance }</pre>
+</div>
+</section>
+
+<!-- Slide 15: Webhooks -->
+<section class="slide">
+<h1>6 Webhooks con HMAC</h1>
+<h2>Verificación de firma en todos</h2>
+<div class="grid grid-2">
+<div class="card card-accent">
+<h3>📨 Webhooks de canal (2)</h3>
+<table>
+<tr><th>Webhook</th><th>Signature</th><th>Secret env</th></tr>
+<tr><td>WhatsApp</td><td>x-hub-signature-256 (HMAC-SHA256)</td><td>WA_APP_SECRET</td></tr>
+<tr><td>Meta Messenger</td><td>x-hub-signature-256 (HMAC-SHA256)</td><td>META_APP_SECRET</td></tr>
+</table>
+<p><strong>GET verification:</strong> hub.verify_token vs env. <strong>No fallback</strong> — 403 si env no set.</p>
+<p><strong>POST:</strong> raw body → HMAC → timingSafeEqual → parse → AuditLog</p>
+</div>
+<div class="card card-accent">
+<h3>💳 Webhooks de pago (4)</h3>
+<table>
+<tr><th>Webhook</th><th>Signature</th><th>Secret env</th></tr>
+<tr><td>MercadoPago</td><td>x-signature (HMAC-SHA256 ts+v1)</td><td>MERCADOPAGO_WEBHOOK_SECRET</td></tr>
+<tr><td>Wompi</td><td>X-Events-Signature (HMAC-SHA256)</td><td>WOMPI_EVENT_SECRET</td></tr>
+<tr><td>Stripe</td><td>stripe-signature (HMAC-SHA256 t+v1)</td><td>STRIPE_WEBHOOK_SECRET</td></tr>
+<tr><td>PayU</td><td>MD5 signature</td><td>PAYU_API_KEY + MERCHANT_ID</td></tr>
+</table>
+<p>Cada webhook: verify → parse → lookup Order by paymentRef → update Order.paymentStatus → create OrderEvent</p>
+</div>
+</div>
+<div class="card">
+<h3>Helper HMAC (src/lib/middleware/hmac.ts)</h3>
+<pre>import crypto from 'crypto';
+
+export function verifyMetaSignature(rawBody: string, signature: string, appSecret: string): boolean {
+  if (!signature || !appSecret) return false;
+  const expected = 'sha256=' + crypto.createHmac('sha256', appSecret).update(rawBody).digest('hex');
+  return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
+}</pre>
+</div>
+</section>
+
+<!-- Slide 16: Multi-tenant -->
+<section class="slide">
+<h1>Multi-tenant Architecture</h1>
+<h2>Aislamiento en 3 capas</h2>
+<div class="grid grid-3">
+<div class="card card-accent">
+<h3>1️⃣ App Layer</h3>
+<ul>
+<li><strong>tenantId guards:</strong> 16 API rutas endurecidas</li>
+<li><strong>400 si missing:</strong> reads requieren tenantId</li>
+<li><strong>403 si mismatch:</strong> PATCH verifica ownership</li>
+<li><strong>X-Tenant-Id header:</strong> para wallet/auth</li>
+</ul>
+</div>
+<div class="card card-accent">
+<h3>2️⃣ ORM Layer</h3>
+<ul>
+<li><strong>Prisma extension:</strong> $allModels interceptor</li>
+<li><strong>Auto-inject tenantId:</strong> en findMany/create/update</li>
+<li><strong>TENANT_SCOPED_MODELS:</strong> 44 modelos con tenantId</li>
+<li><strong>assertTenantAccess():</strong> helper que throw si missing</li>
+</ul>
+</div>
+<div class="card card-accent">
+<h3>3️⃣ DB Layer</h3>
+<ul>
+<li><strong>RLS policies:</strong> SQL DDL para PostgreSQL</li>
+<li><strong>10 modelos críticos:</strong> Order, Conversation, Message, Customer, Product, Channel, Shipment, NovedadCase, WalletTransaction, ConversionEvent</li>
+<li><strong>current_setting('app.current_tenant'):</strong> session var</li>
+</ul>
+</div>
+</div>
+<div class="card">
+<h3>RLS SQL Policy (ejemplo)</h3>
+<pre>-- src/lib/rls.ts → RLS_SQL_POLICIES
+CREATE POLICY tenant_isolation ON "Order"
+  USING (tenant_id = current_setting('app.current_tenant')::text);
+
+-- Activar RLS
+ALTER TABLE "Order" ENABLE ROW LEVEL SECURITY;
+
+-- Set tenant en sesión (app code)
+SET app.current_tenant = 'ten-saramantha';</pre>
+</div>
+</section>
+
+<!-- Slide 17: Security -->
+<section class="slide">
+<h1>Security Layer</h1>
+<h2>Defense-in-depth</h2>
+<div class="grid grid-2">
+<div class="card card-accent">
+<h3>🔐 AuthN/AuthZ</h3>
+<ul>
+<li><strong>2FA TOTP:</strong> OTPAuth, Google Authenticator</li>
+<li><strong>Backup codes:</strong> 10 códigos de recuperación</li>
+<li><strong>Auth headers:</strong> X-Tenant-Id, X-Trafficker-Id</li>
+<li><strong>NextAuth.js v4:</strong> disponible (no configurado)</li>
+</ul>
+</div>
+<div class="card card-accent">
+<h3>🛡️ Rate Limiting</h3>
+<ul>
+<li><strong>src/lib/middleware/rate-limit.ts</strong></li>
+<li><strong>10 req/min:</strong> 5 rutas LLM</li>
+<li><strong>In-memory Map:</strong> IP → timestamps</li>
+<li><strong>Sliding window:</strong> GC cada 5 min</li>
+<li><strong>429 response:</strong> con Retry-After header</li>
+</ul>
+</div>
+<div class="card card-accent">
+<h3>📋 Audit Trail</h3>
+<ul>
+<li><strong>AuditLog model:</strong> tenantId, userId, action, meta</li>
+<li><strong>OrderEvent:</strong> lifecycle de pedidos</li>
+<li><strong>GuideMovement:</strong> eventos de transportadora</li>
+<li><strong>@@index:</strong> tenantId + createdAt</li>
+</ul>
+</div>
+<div class="card card-accent">
+<h3>🔌 Socket.io Security</h3>
+<ul>
+<li><strong>Auth gate:</strong> handshake.auth.tenantId</li>
+<li><strong>CHAT_STRICT_AUTH=true:</strong> prod mode</li>
+<li><strong>Room isolation:</strong> io.to(room) vs io.emit()</li>
+<li><strong>CORS configurable:</strong> CHAT_CORS_ORIGIN</li>
+</ul>
+</div>
+</div>
+</section>
+
+<!-- Slide 18: SSR SEO -->
+<section class="slide">
+<h1>SSR SEO Pages</h1>
+<h2>Schema.org + sitemap dinámico</h2>
+<div class="grid grid-2">
+<div class="card card-accent">
+<h3>🌐 /t/[slug] — Tienda</h3>
+<ul>
+<li><strong>Server Component:</strong> async + DB queries</li>
+<li><strong>generateStaticParams:</strong> pre-render all tenants</li>
+<li><strong>generateMetadata:</strong> title, description, OG, Twitter</li>
+<li><strong>JSON-LD:</strong> OnlineStore + ItemList + FAQPage</li>
+<li><strong>Render:</strong> header + hero + product grid (top 20) + SEO content + footer</li>
+</ul>
+</div>
+<div class="card card-accent">
+<h3>🌐 /t/[slug]/p/[sku] — Producto</h3>
+<ul>
+<li><strong>Server Component:</strong> tenant + product + enrichment</li>
+<li><strong>generateStaticParams:</strong> all products × tenants</li>
+<li><strong>JSON-LD:</strong> Product + BreadcrumbList + Offer</li>
+<li><strong>additionalProperty:</strong> diseño, categoría, colores, materiales</li>
+<li><strong>WhatsApp CTA:</strong> prefilled message</li>
+</ul>
+</div>
+</div>
+<div class="card">
+<h3>🗺️ Sitemap + Robots</h3>
+<pre>// src/app/sitemap.ts — dynamic
+- /                        (priority 1.0, daily)
+- /directorio              (priority 0.9, daily)
+- /t/{slug}                (priority 0.8, weekly) × N tenants
+- /t/{slug}/p/{sku}        (priority 0.7, weekly) × M products
+
+// src/app/robots.ts
+User-agent: *
+Allow: /t/
+Allow: /directorio
+Disallow: /api/
+Disallow: /dashboard
+Sitemap: {baseUrl}/sitemap.xml</pre>
+</div>
+</section>
+
+<!-- Slide 19: Fintech -->
+<section class="slide">
+<h1>Fintech Layer</h1>
+<h2>Wallet + 2FA + Comisiones + Trafficker</h2>
+<div class="grid grid-2">
+<div class="card card-accent">
+<h3>👛 Wallet</h3>
+<ul>
+<li><strong>Balance:</strong> último WalletTransaction.balanceAfter</li>
+<li><strong>15 categorías:</strong> commission, refund, withdrawal, fee, adjustment, bonus, penalty, etc.</li>
+<li><strong>Inbound/outbound:</strong> dirección de cada transacción</li>
+<li><strong>Metadata:</strong> JSON string para contexto extra</li>
+<li><strong>@@index:</strong> traffickerId + createdAt, tenantId + createdAt</li>
+</ul>
+</div>
+<div class="card card-accent">
+<h3>🔒 2FA TOTP</h3>
+<ul>
+<li><strong>OTPAuth:</strong> RFC 6238 TOTP</li>
+<li><strong>Google Authenticator:</strong> compatible</li>
+<li><strong>Secret + backup codes:</strong> en TwoFactorConfig</li>
+<li><strong>verifyTOTP(code, secret):</strong> con ventana de ±1 step</li>
+<li><strong>Obligatorio:</strong> para request_withdrawal</li>
+</ul>
+</div>
+</div>
+<div class="card">
+<h3>💰 Trafficker Affiliate</h3>
+<pre>Trafficker → crea Campaign → invierte en pauta
+  → Cliente compra → TraffickerSale (attributed)
+  → Vendedor confirma → commission reconocida
+  → Vendedor falla → TraffickerCompensation (auto)
+  → Trafficker retira → 2FA required → WithdrawalRequest
+  → Admin procesa → WalletTransaction (outbound)</pre>
+<p class="muted">Compensación: seller_no_ship 100%, seller_delayed 50%, seller_cancelled 100%, delivery_failed 50%, product_damaged 25%</p>
+</div>
+</section>
+
+<!-- Slide 20: Docker -->
+<section class="slide">
+<h1>Docker Compose · 11 Servicios</h1>
+<pre>docker compose up -d</pre>
+<table>
+<tr><th>Servicio</th><th>Imagen</th><th>Puerto</th><th>Healthcheck</th><th>Depends on</th></tr>
+<tr><td>postgres</td><td>postgres:16-alpine</td><td>5432</td><td>pg_isready</td><td>—</td></tr>
+<tr><td>redis</td><td>redis:7-alpine</td><td>6379</td><td>redis-cli ping</td><td>—</td></tr>
+<tr><td>minio</td><td>minio/minio</td><td>9000/9001</td><td>mc ready</td><td>—</td></tr>
+<tr><td>nocodb</td><td>nocodb/nocodb</td><td>1684</td><td>HTTP /</td><td>postgres</td></tr>
+<tr><td>n8n</td><td>n8nio/n8n</td><td>5678</td><td>HTTP /healthz</td><td>postgres</td></tr>
+<tr><td>ollama</td><td>ollama/ollama</td><td>11434</td><td>HTTP /api/tags</td><td>—</td></tr>
+<tr><td>uptime-kuma</td><td>louislam/uptime-kuma</td><td>3001</td><td>HTTP /</td><td>—</td></tr>
+<tr><td>app</td><td>custom (Dockerfile)</td><td>3000</td><td>HTTP /api/health</td><td>postgres, redis</td></tr>
+<tr><td>chat-service</td><td>custom (Bun)</td><td>3003</td><td>HTTP /</td><td>—</td></tr>
+<tr><td>caddy</td><td>custom (Caddyfile)</td><td>80/443</td><td>HTTP /</td><td>app, chat-service</td></tr>
+</table>
+<div class="card">
+<h3>Dockerfile (multi-stage)</h3>
+<pre>FROM node:20-alpine AS deps     # Install
+FROM node:20-alpine AS builder  # next build (standalone)
+FROM node:20-alpine AS runner   # Copy standalone + public + prisma
+# Non-root user, 3000 exposed, CMD node server.js</pre>
+</div>
+</section>
+
+<!-- Slide 21: Caddy -->
+<section class="slide">
+<h1>Caddy Gateway</h1>
+<h2>Reverse proxy + auto-HTTPS + dynamic port</h2>
+<div class="card">
+<h3>Caddyfile (dev)</h3>
+<pre>:81 {
+  @transform_port_query { query XTransformPort=* }
+  handle @transform_port_query {
+    reverse_proxy localhost:{query.XTransformPort}
+  }
+  handle {
+    reverse_proxy localhost:3000
+  }
+}</pre>
+</div>
+<div class="card" style="margin-top:16px">
+<h3>Caddyfile (prod)</h3>
+<pre>commerceflow.app {
+  # Socket.io → chat-service
+  @socket path /socket.io/
+  handle @socket {
+    reverse_proxy chat-service:3003
+  }
+
+  # Next.js → app
+  handle {
+    reverse_proxy app:3000
+  }
+
+  # Auto-HTTPS (Let's Encrypt)
+  # Security headers
+  header {
+    X-Frame-Options DENY
+    X-Content-Type-Options nosniff
+    Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    Referrer-Policy strict-origin-when-cross-origin
+  }
+}</pre>
+</div>
+<div class="grid grid-2" style="margin-top:16px">
+<div class="card card-accent">
+<h3>📍 XTransformPort</h3>
+<p>El sandbox expone 1 puerto. Caddy enruta dinámicamente via query param <code>?XTransformPort=3003</code>. Frontend usa paths relativos + query param para cross-service.</p>
+</div>
+<div class="card card-accent">
+<h3>🔌 Socket.io client</h3>
+<pre>// Frontend
+io("/?XTransformPort=3003", {
+  transports: ['websocket', 'polling'],
+  reconnection: true,
+  reconnectionAttempts: 10,
+})</pre>
+</div>
+</div>
+</section>
+
+<!-- Slide 22: Performance -->
+<section class="slide">
+<h1>Performance</h1>
+<h2>91 índices + caching + streaming</h2>
+<div class="grid grid-2">
+<div class="card card-accent">
+<h3>🗄️ Database</h3>
+<ul>
+<li><strong>91 índices</strong> en 45 modelos</li>
+<li><strong>Composite uniques:</strong> [tenantId, sku], [tenantId, phone], etc.</li>
+<li><strong>@@index en FKs:</strong> Order.customerId, Message.conversationId</li>
+<li><strong>@@index en filtros:</strong> tenantId, status, createdAt</li>
+<li><strong>Prisma log:</strong> query logging en dev</li>
+</ul>
+</div>
+<div class="card card-accent">
+<h3>⚡ Frontend</h3>
+<ul>
+<li><strong>Code splitting:</strong> cada vista se carga on-demand</li>
+<li><strong>Skeleton loaders:</strong> feedback visual inmediato</li>
+<li><strong>Optimistic UI:</strong> messenger send</li>
+<li><strong>useCallback/useMemo:</strong> evitar re-renders</li>
+<li><strong>CSS animations:</strong> animate-fade-in-up (GPU)</li>
+<li><strong>prefers-reduced-motion:</strong> disable para a11y</li>
+</ul>
+</div>
+<div class="card card-accent">
+<h3>🚀 SSR</h3>
+<ul>
+<li><strong>Streaming SSR:</strong> React 19 Suspense</li>
+<li><strong>generateStaticParams:</strong> SSG en build time</li>
+<li><strong>Cache headers:</strong> en API routes (Cache-Control)</li>
+<li><strong>Standalone output:</strong> Docker-optimized</li>
+</ul>
+</div>
+<div class="card card-accent">
+<h3>📊 Bundle size</h3>
+<ul>
+<li><strong>48 shadcn components:</strong> tree-shakeable</li>
+<li><strong>Recharts:</strong> lazy loaded</li>
+<li><strong>Framer Motion:</strong> disponible pero 0 imports</li>
+<li><strong>Deps audit:</strong> bun audit clean</li>
+</ul>
+</div>
+</div>
+</section>
+
+<!-- Slide 23: DevOps -->
+<section class="slide">
+<h1>DevOps</h1>
+<h2>Health + Monitoring + Logging</h2>
+<div class="grid grid-2">
+<div class="card card-accent">
+<h3>🏥 Health endpoint</h3>
+<p><code>GET /api/health</code> — status consolidado:</p>
+<table>
+<tr><th>Check</th><th>Status</th></tr>
+<tr><td>database</td><td>ok (SELECT 1)</td></tr>
+<tr><td>tenants</td><td>ok (5 active)</td></tr>
+<tr><td>llm_zai</td><td>ok (default)</td></tr>
+<tr><td>llm_chatgpt</td><td>not_configured</td></tr>
+<tr><td>llm_xai</td><td>not_configured</td></tr>
+<tr><td>llm_ollama</td><td>not_configured</td></tr>
+<tr><td>adapter_*  (4)</td><td>not_configured</td></tr>
+<tr><td>logistics_* (3)</td><td>not_configured</td></tr>
+<tr><td>webhook_whatsapp</td><td>warning</td></tr>
+<tr><td>webhook_meta</td><td>warning</td></tr>
+</table>
+</div>
+<div class="card card-accent">
+<h3>📊 Uptime Kuma</h3>
+<ul>
+<li><strong>Ping:</strong> GET /api/health/uptime cada 30s</li>
+<li><strong>Response:</strong> 200 + latency, 503 if DB down</li>
+<li><strong>Alerts:</strong> email/Slack/Telegram configurable</li>
+<li><strong>Docker:</strong> uptime-kuma service en compose</li>
+</ul>
+<pre>// /api/health/uptime
+GET → { ok: true, latency: 12ms }
+503 → { ok: false, error: 'DB unreachable' }</pre>
+</div>
+</div>
+<div class="card">
+<h3>📋 Logging</h3>
+<ul>
+<li><strong>Prisma query log:</strong> dev mode (query, warn, error)</li>
+<li><strong>Console.log:</strong> solo en chat-service (server-side)</li>
+<li><strong>Error handling:</strong> try/catch en cada route handler</li>
+<li><strong>AuditLog:</strong> persistente en DB para acciones críticas</li>
+</ul>
+</div>
+</div>
+</section>
+
+<!-- Slide 24: Roadmap -->
+<section class="slide">
+<h1>Roadmap</h1>
+<h2>Qué sigue</h2>
+<div class="grid grid-2">
+<div class="card card-accent">
+<h3>🔴 Cycle 2 (próximo)</h3>
+<ul>
+<li><strong>TOTP encryption at rest:</strong> encriptar secrets en DB</li>
+<li><strong>PostgreSQL migration:</strong> SQLite → managed Postgres</li>
+<li><strong>RLS activation:</strong> aplicar SQL policies en Postgres</li>
+<li><strong>pgvector:</strong> embeddings en producción</li>
+<li><strong>Customer.consentAt:</strong> Habeas Data Colombia</li>
+</ul>
+</div>
+<div class="card card-accent">
+<h3>🟡 Cycle 3 (Q3 2026)</h3>
+<ul>
+<li><strong>OCR + CLIP:</strong> Tesseract.js + @xenova/transformers</li>
+<li><strong>Real adapter implementations:</strong> WooCommerce, Shopify, Dropi HTTP real</li>
+<li><strong>NextAuth.js:</strong> SSO con Google/Microsoft</li>
+<li><strong>i18n:</strong> next-intl (ES/EN/PT)</li>
+<li><strong>Mobile app:</strong> React Native (Expo)</li>
+</ul>
+</div>
+<div class="card card-accent">
+<h3>🟢 Cycle 4 (Q4 2026)</h3>
+<ul>
+<li><strong>Schema-per-tenant:</strong> para enterprise</li>
+<li><strong>K8s:</strong> Helm charts</li>
+<li><strong>Redis adapter:</strong> Socket.io multi-instancia</li>
+<li><strong>CDN:</strong> Cloudflare para imágenes</li>
+<li><strong>A/B testing:</strong> framework para prompts</li>
+</ul>
+</div>
+<div class="card card-accent">
+<h3>🔵 Cycle 5 (2027)</h3>
+<ul>
+<li><strong>Voice agents:</strong> ASR + TTS integration</li>
+<li><strong>Video calls:</strong> para ventas high-touch</li>
+<li><strong>AR try-on:</strong> para moda</li>
+<li><strong>Blockchain:</strong> smart contracts para comisiones</li>
+<li><strong>AI copilot:</strong> para operadores (in-app)</li>
+</ul>
+</div>
+</div>
+</section>
+
+<!-- Slide 25: Contacto -->
+<section class="slide center">
+<div style="font-size:3em;margin-bottom:16px">⚙️</div>
+<h1>Stack Tecnológico</h1>
+<p class="big text-primary" style="font-weight:600">CommerceFlow OS</p>
+<p class="muted" style="margin-top:20px">Next.js 16 · React 19 · TypeScript 5 · Prisma 6 · Tailwind 4<br>shadcn/ui · Socket.io · z-ai-web-dev-sdk · Docker · Caddy</p>
+<div class="grid grid-4" style="margin-top:30px;max-width:800px">
+<div class="card"><div class="stat">62</div><div class="stat-label">Modelos Prisma</div></div>
+<div class="card"><div class="stat">44</div><div class="stat-label">API Routes</div></div>
+<div class="card"><div class="stat">26</div><div class="stat-label">Agentes IA</div></div>
+<div class="card"><div class="stat">18</div><div class="stat-label">Adapters</div></div>
+</div>
+<p class="muted" style="margin-top:30px;font-size:.85em">Indisutex SAS · Bogotá, Colombia · LATAM</p>
+</section>
+
+</div>
+
+<div class="counter" id="counter">1 / 25</div>
+<div class="nav">
+<button onclick="prev()">←</button>
+<button onclick="next()">→</button>
+</div>
+
+<script>
+let current=0;const slides=document.querySelectorAll('.slide');const total=slides.length;
+function show(n){slides[current].classList.remove('active');current=(n+total)%total;slides[current].classList.add('active');updateProgress();}
+function next(){show(current+1)}function prev(){show(current-1)}
+function updateProgress(){document.getElementById('counter').textContent=(current+1)+' / '+total;document.getElementById('progress').style.width=((current+1)/total*100)+'%';}
+document.addEventListener('keydown',e=>{if(e.key==='ArrowRight'||e.key===' ')next();if(e.key==='ArrowLeft')prev();if(e.key==='f')document.documentElement.requestFullscreen?.();});
+updateProgress();
+</script>
+</body>
+</html>

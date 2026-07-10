@@ -32,25 +32,25 @@ type Order = {
 
 const statusMeta = (s: string) => {
   switch (s) {
-    case 'new': return { label: 'Nuevo', cls: 'bg-slate-500/10 text-slate-600', icon: Clock }
-    case 'pending_payment': return { label: 'Pago pendiente', cls: 'bg-amber-500/10 text-amber-600', icon: Clock }
-    case 'paid': return { label: 'Pagado', cls: 'bg-emerald-500/10 text-emerald-600', icon: CheckCircle2 }
-    case 'preparing': return { label: 'Preparando', cls: 'bg-sky-500/10 text-sky-600', icon: Package }
-    case 'shipped': return { label: 'Enviado', cls: 'bg-violet-500/10 text-violet-600', icon: Truck }
-    case 'delivered': return { label: 'Entregado', cls: 'bg-emerald-500/10 text-emerald-600', icon: CheckCircle2 }
-    case 'returned': return { label: 'Devuelto', cls: 'bg-rose-500/10 text-rose-600', icon: XCircle }
-    case 'cancelled': return { label: 'Cancelado', cls: 'bg-slate-500/10 text-slate-600', icon: XCircle }
-    default: return { label: s, cls: 'bg-slate-500/10 text-slate-600', icon: Clock }
+    case 'new': return { label: 'Nuevo', cls: 'bg-slate-500/10 text-slate-700 dark:text-slate-300', icon: Clock }
+    case 'pending_payment': return { label: 'Pago pendiente', cls: 'bg-amber-500/10 text-amber-700 dark:text-amber-300', icon: Clock }
+    case 'paid': return { label: 'Pagado', cls: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300', icon: CheckCircle2 }
+    case 'preparing': return { label: 'Preparando', cls: 'bg-sky-500/10 text-sky-700 dark:text-sky-300', icon: Package }
+    case 'shipped': return { label: 'Enviado', cls: 'bg-violet-500/10 text-violet-700 dark:text-violet-300', icon: Truck }
+    case 'delivered': return { label: 'Entregado', cls: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300', icon: CheckCircle2 }
+    case 'returned': return { label: 'Devuelto', cls: 'bg-rose-500/10 text-rose-700 dark:text-rose-300', icon: XCircle }
+    case 'cancelled': return { label: 'Cancelado', cls: 'bg-slate-500/10 text-slate-700 dark:text-slate-300', icon: XCircle }
+    default: return { label: s, cls: 'bg-slate-500/10 text-slate-700 dark:text-slate-300', icon: Clock }
   }
 }
 
 const platformMeta = (p?: string) => {
   switch (p) {
-    case 'meta': return { label: 'Meta', cls: 'bg-sky-500/10 text-sky-600' }
-    case 'google': return { label: 'Google', cls: 'bg-amber-500/10 text-amber-600' }
+    case 'meta': return { label: 'Meta', cls: 'bg-sky-500/10 text-sky-700 dark:text-sky-300' }
+    case 'google': return { label: 'Google', cls: 'bg-amber-500/10 text-amber-700 dark:text-amber-300' }
     case 'tiktok': return { label: 'TikTok', cls: 'bg-slate-900/10 text-slate-700 dark:text-slate-300' }
-    case 'organic': return { label: 'Orgánico', cls: 'bg-emerald-500/10 text-emerald-600' }
-    default: return { label: p || '—', cls: 'bg-slate-500/10 text-slate-600' }
+    case 'organic': return { label: 'Orgánico', cls: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' }
+    default: return { label: p || '—', cls: 'bg-slate-500/10 text-slate-700 dark:text-slate-300' }
   }
 }
 
@@ -118,7 +118,7 @@ export function OrdersView() {
               <CardTitle className="text-base">Pedidos</CardTitle>
               <CardDescription>{orders.length} pedidos · {advanceOrders.length} anticipado · {codOrders.length} contra entrega</CardDescription>
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2 items-center">
               <div className="relative">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
                 <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar # pedido..." className="pl-8 h-9 w-44" />
@@ -155,9 +155,9 @@ export function OrdersView() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-28">Pedido</TableHead>
-                    <TableHead>Cliente</TableHead>
-                    <TableHead className="w-32">Items</TableHead>
+                    <TableHead className="w-32">Pedido</TableHead>
+                    <TableHead className="min-w-[180px]">Cliente</TableHead>
+                    <TableHead className="min-w-[240px]">Items</TableHead>
                     <TableHead className="w-28">Pago</TableHead>
                     <TableHead className="w-32">Total</TableHead>
                     <TableHead className="w-32">Estado</TableHead>
@@ -177,11 +177,13 @@ export function OrdersView() {
                           <div className="text-[10px] text-muted-foreground">{shortDate(o.createdAt)}</div>
                         </TableCell>
                         <TableCell>
-                          <div className="font-medium text-sm">{o.customer.name}</div>
-                          <div className="text-[11px] text-muted-foreground">{o.city}, {o.country}</div>
+                          <div className="font-medium text-sm line-clamp-2 leading-tight" title={o.customer.name}>{o.customer.name}</div>
+                          <div className="text-[11px] text-muted-foreground line-clamp-1" title={`${o.city || '—'}, ${o.country || '—'}`}>{o.city || '—'}{o.country ? `, ${o.country}` : ''}</div>
                         </TableCell>
-                        <TableCell className="text-xs text-muted-foreground max-w-32 truncate">
-                          {o.items.map(i => `${i.quantity}x ${i.name}`).join(', ')}
+                        <TableCell>
+                          <div className="text-xs text-muted-foreground line-clamp-2 leading-snug" title={o.items.map(i => `${i.quantity}x ${i.name}`).join(', ')}>
+                            {o.items.map(i => `${i.quantity}x ${i.name}`).join(', ')}
+                          </div>
                         </TableCell>
                         <TableCell>
                           <Badge variant={o.paymentMode === 'advance' ? 'default' : 'secondary'} className="text-[10px] gap-1">

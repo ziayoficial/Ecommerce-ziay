@@ -29,10 +29,20 @@ type GlobalCfg = Record<string, string>
 
 const channelMeta = (type: string) => {
   switch (type) {
-    case 'whatsapp': return { color: 'bg-emerald-500/10 text-emerald-600 ring-emerald-500/20', label: 'WhatsApp' }
-    case 'messenger': return { color: 'bg-sky-500/10 text-sky-600 ring-sky-500/20', label: 'Messenger' }
-    case 'instagram': return { color: 'bg-fuchsia-500/10 text-fuchsia-600 ring-fuchsia-500/20', label: 'Instagram' }
-    default: return { color: 'bg-slate-500/10 text-slate-600 ring-slate-500/20', label: type }
+    case 'whatsapp': return { color: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 ring-emerald-500/30', label: 'WhatsApp', icon: '💬', border: 'border-l-emerald-500' }
+    case 'messenger': return { color: 'bg-sky-500/10 text-sky-700 dark:text-sky-300 ring-sky-500/30', label: 'Messenger', icon: '📩', border: 'border-l-sky-500' }
+    case 'instagram': return { color: 'bg-fuchsia-500/10 text-fuchsia-700 dark:text-fuchsia-300 ring-fuchsia-500/30', label: 'Instagram', icon: '📷', border: 'border-l-fuchsia-500' }
+    case 'telegram': return { color: 'bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 ring-cyan-500/30', label: 'Telegram', icon: '✈️', border: 'border-l-cyan-500' }
+    default: return { color: 'bg-slate-500/10 text-slate-700 dark:text-slate-300 ring-slate-500/30', label: type, icon: '🔌', border: 'border-l-slate-500' }
+  }
+}
+
+const strategyMeta = (s: string) => {
+  switch (s) {
+    case 'advance': return { label: 'Anticipado', icon: CreditCard, cls: 'bg-primary/10 text-primary ring-primary/30' }
+    case 'cod': return { label: 'Contra entrega', icon: Truck, cls: 'bg-amber-500/10 text-amber-700 dark:text-amber-300 ring-amber-500/30' }
+    case 'hybrid': return { label: 'Híbrido', icon: Percent, cls: 'bg-violet-500/10 text-violet-700 dark:text-violet-300 ring-violet-500/30' }
+    default: return { label: s, icon: CreditCard, cls: 'bg-slate-500/10 text-slate-700 dark:text-slate-300 ring-slate-500/30' }
   }
 }
 
@@ -100,20 +110,25 @@ export function SettingsView() {
         <CardContent className="space-y-4">
           {channels.map((ch) => {
             const cm = channelMeta(ch.type)
+            const sm = strategyMeta(ch.paymentStrategy)
+            const StratIcon = sm.icon
             return (
-              <div key={ch.id} className="p-4 rounded-xl border space-y-3">
+              <div key={ch.id} className={cn('p-4 rounded-xl border border-l-4 space-y-3 transition-all hover:shadow-sm', cm.border)}>
                 <div className="flex items-center justify-between gap-3 flex-wrap">
-                  <div className="flex items-center gap-3">
-                    <span className={cn('size-9 rounded-lg flex items-center justify-center ring-1 text-xs font-medium', cm.color)}>
-                      {ch.country || '🌍'}
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className={cn('size-11 rounded-xl flex items-center justify-center ring-1 text-lg shrink-0', cm.color)} aria-hidden>
+                      {cm.icon}
                     </span>
-                    <div>
-                      <div className="font-medium text-sm">{ch.displayName}</div>
-                      <div className="text-xs text-muted-foreground">{ch.name} · {ch.country || 'Internacional'}</div>
+                    <div className="min-w-0">
+                      <div className="font-medium text-sm flex items-center gap-2 flex-wrap">
+                        <span className="truncate">{ch.displayName}</span>
+                        <Badge variant="outline" className={cn('text-[9px] h-4 px-1 shrink-0', cm.color)}>{cm.label}</Badge>
+                      </div>
+                      <div className="text-xs text-muted-foreground truncate" title={`${ch.name} · ${ch.country || 'Internacional'}`}>{ch.name} · {ch.country || 'Internacional'}</div>
                     </div>
                   </div>
                   <Select value={ch.paymentStrategy} onValueChange={(v) => updateChannel(ch.id, 'paymentStrategy', v)}>
-                    <SelectTrigger className="w-40 h-9"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="w-44 h-9 shrink-0"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="advance"><span className="flex items-center gap-2"><CreditCard className="size-3.5" /> Anticipado</span></SelectItem>
                       <SelectItem value="cod"><span className="flex items-center gap-2"><Truck className="size-3.5" /> Contra entrega</span></SelectItem>
@@ -122,11 +137,18 @@ export function SettingsView() {
                   </Select>
                 </div>
 
+                {/* Active strategy badge — visual differentiation per channel type */}
+                <div className={cn('inline-flex items-center gap-1.5 text-[11px] px-2 py-0.5 rounded-full ring-1', sm.cls)}>
+                  <StratIcon className="size-3" />
+                  <span className="font-medium">{sm.label}</span>
+                </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div className="space-y-1">
                     <Label className="text-xs text-muted-foreground">Mín. para prepago (híbrido)</Label>
                     <Input
                       type="number"
+                      className="tabular-nums"
                       value={ch.requirePrepayMin ?? ''}
                       onChange={(e) => updateChannel(ch.id, 'requirePrepayMin', Number(e.target.value))}
                       placeholder="Ej. 250000"
@@ -137,6 +159,7 @@ export function SettingsView() {
                     <Label className="text-xs text-muted-foreground">% descuento prepago</Label>
                     <Input
                       type="number" step="0.5"
+                      className="tabular-nums"
                       value={ch.prepayDiscountPct ?? ''}
                       onChange={(e) => updateChannel(ch.id, 'prepayDiscountPct', Number(e.target.value))}
                       placeholder="Ej. 5"
@@ -147,6 +170,7 @@ export function SettingsView() {
                     <Label className="text-xs text-muted-foreground">Recargo envío COD</Label>
                     <Input
                       type="number"
+                      className="tabular-nums"
                       value={ch.codFee ?? ''}
                       onChange={(e) => updateChannel(ch.id, 'codFee', Number(e.target.value))}
                       placeholder="Ej. 8000"
@@ -179,18 +203,18 @@ export function SettingsView() {
             <CardDescription>Reglas de auto-pausa y escalado de anuncios</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label className="text-xs text-muted-foreground">ROAS mínimo (auto-pausa)</Label>
-                <Input type="number" step="0.1" value={global.roas_kill_threshold || ''} onChange={(e) => setGlobal({ ...global, roas_kill_threshold: e.target.value })} />
+                <Input type="number" step="0.1" className="tabular-nums" value={global.roas_kill_threshold || ''} onChange={(e) => setGlobal({ ...global, roas_kill_threshold: e.target.value })} />
               </div>
               <div className="space-y-1">
                 <Label className="text-xs text-muted-foreground">CPA objetivo (COP)</Label>
-                <Input type="number" value={global.cpa_target || ''} onChange={(e) => setGlobal({ ...global, cpa_target: e.target.value })} />
+                <Input type="number" className="tabular-nums" value={global.cpa_target || ''} onChange={(e) => setGlobal({ ...global, cpa_target: e.target.value })} />
               </div>
               <div className="space-y-1">
                 <Label className="text-xs text-muted-foreground">Valor máx. para COD (COP)</Label>
-                <Input type="number" value={global.cod_max_order_value || ''} onChange={(e) => setGlobal({ ...global, cod_max_order_value: e.target.value })} />
+                <Input type="number" className="tabular-nums" value={global.cod_max_order_value || ''} onChange={(e) => setGlobal({ ...global, cod_max_order_value: e.target.value })} />
               </div>
               <div className="space-y-1">
                 <Label className="text-xs text-muted-foreground">Moneda por defecto</Label>
@@ -287,10 +311,10 @@ function IntegrationsReal() {
 
   const statusMeta = (s: string) => {
     switch (s) {
-      case 'ok': return { label: 'Configurado', dot: 'bg-emerald-500', badge: 'bg-emerald-500/10 text-emerald-600' }
-      case 'warning': return { label: 'Parcial', dot: 'bg-amber-500', badge: 'bg-amber-500/10 text-amber-600' }
-      case 'error': return { label: 'Error', dot: 'bg-rose-500', badge: 'bg-rose-500/10 text-rose-600' }
-      default: return { label: 'No configurado', dot: 'bg-slate-400', badge: 'bg-slate-500/10 text-slate-500' }
+      case 'ok': return { label: 'Configurado', dot: 'bg-emerald-500', badge: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' }
+      case 'warning': return { label: 'Parcial', dot: 'bg-amber-500', badge: 'bg-amber-500/10 text-amber-700 dark:text-amber-300' }
+      case 'error': return { label: 'Error', dot: 'bg-rose-500', badge: 'bg-rose-500/10 text-rose-700 dark:text-rose-300' }
+      default: return { label: 'No configurado', dot: 'bg-slate-400', badge: 'bg-slate-500/10 text-slate-700 dark:text-slate-300' }
     }
   }
 

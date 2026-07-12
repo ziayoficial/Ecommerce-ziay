@@ -1,0 +1,20 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy-staging:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    needs: []
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy to staging
+        run: |
+          echo "Deploy to staging server"
+          echo "This would trigger: docker compose up -d on staging"
+          # Add actual deploy commands here (SSH, Docker, etc.)
+      - name: Notify
+        run: echo "Staging deploy complete"

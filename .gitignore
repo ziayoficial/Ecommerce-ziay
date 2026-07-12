@@ -52,3 +52,10 @@ prompt
 server.log
 # Skills directory
 /skills/
+# Playwright + Vitest (TESTS-CICD-001)
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/test.db
+/test.db-journal

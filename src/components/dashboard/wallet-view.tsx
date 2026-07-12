@@ -166,13 +166,13 @@ export function WalletView() {
       if (!res.ok) {
         // If API fails (e.g. admin not a trafficker), use demo data
         const demoData: WalletData = {
+          trafficker: { id: 'demo', name: 'Sebastian Marin', email: 'sebastian@trafficker.co', phone: null, status: 'active' },
           balance: 1850000,
-          stats: { totalInbound: 2400000, totalOutbound: 550000, netFlow: 1850000, transactionCount: 8 },
-          byCategory: { 'inbound:commission': 2400000, 'outbound:withdrawal': 550000 },
+          stats: { inbound: 2400000, outbound: 550000, net: 1850000, transactions: 8, pending: 0, commissions: 2400000 },
           transactions: [
-            { id: 'demo-1', direction: 'inbound', type: 'commission', category: 'commission', amount: 400000, balanceAfter: 1850000, description: 'Comisión venta Batola Stitch', reference: 'sale-001', referenceType: 'sale', status: 'completed', createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString() },
-            { id: 'demo-2', direction: 'inbound', type: 'commission', category: 'commission', amount: 350000, balanceAfter: 1450000, description: 'Comisión venta Pijama Hello Kitty', reference: 'sale-002', referenceType: 'sale', status: 'completed', createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString() },
-            { id: 'demo-3', direction: 'outbound', type: 'withdrawal', category: 'withdrawal_request', amount: 300000, balanceAfter: 1100000, description: 'Retiro a Nequi ****6554', reference: 'wd-001', referenceType: 'withdrawal', status: 'completed', createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1005).toISOString() },
+            { id: 'demo-1', direction: 'inbound', type: 'commission', category: 'commission', amount: 400000, balanceBefore: 1450000, balanceAfter: 1850000, description: 'Comisión venta Batola Stitch', reference: 'sale-001', referenceType: 'sale', status: 'completed', createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString() },
+            { id: 'demo-2', direction: 'inbound', type: 'commission', category: 'commission', amount: 350000, balanceBefore: 1100000, balanceAfter: 1450000, description: 'Comisión venta Pijama Hello Kitty', reference: 'sale-002', referenceType: 'sale', status: 'completed', createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString() },
+            { id: 'demo-3', direction: 'outbound', type: 'withdrawal', category: 'withdrawal_request', amount: 300000, balanceBefore: 1400000, balanceAfter: 1100000, description: 'Retiro a Nequi ****6554', reference: 'wd-001', referenceType: 'withdrawal', status: 'completed', createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString() },
           ],
           accounts: [
             { id: 'demo-acc-1', accountType: 'nequi', accountHolder: 'Sebastian Marin', accountNumber: '****6554', bankName: null, isDefault: true, verified: true },
@@ -180,6 +180,7 @@ export function WalletView() {
           pendingWithdrawals: [],
           withdrawalHistory: [],
           twoFactorEnabled: false,
+          twoFactor: null,
         }
         setData(demoData)
         return

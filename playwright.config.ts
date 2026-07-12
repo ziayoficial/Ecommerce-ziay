@@ -26,7 +26,7 @@ export default defineConfig({
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     locale: 'es-CO',
-    timezone: 'America/Bogota',
+    timezoneId: 'America/Bogota',
   },
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },

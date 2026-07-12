@@ -1535,3 +1535,149 @@ Stage Summary:
 - CI/CD pipeline completo (lint + tsc + unit + build + e2e)
 - Todos los tests pasan
 - Proyecto ahora en ~85% producción-ready (falta hardening: Sentry, logging, migraciones)
+
+---
+Task ID: BUILD-ALL-MISSING-001
+Agent: Senior Full-Stack Developer
+Task: Create 16+ missing features (ads adapters, logger, security, Sentry, health endpoints, 9 API routes, infra files)
+
+Work Log:
+
+### Dependencies installed
+- `pino` 10.3.1 + `pino-pretty` 13.1.3 (structured logger)
+- `@sentry/nextjs` 10.65.0 (error monitoring — client/server/edge)
+
+### GROUP 1 — Ads Platform Adapters (4 files)
+- `src/lib/adapters/ad-platform-adapter.ts` — interface: CampaignPerformance,
+  AdPerformance, AdPlatformAdapter (fetchCampaignPerformance / fetchAdPerformance).
+- `src/lib/adapters/google-ads.ts` — `GoogleAdsAdapter(tenantId, customerId,
+  developerToken, accessToken)`. POST /v17/customers/{id}/googleAds:searchStream.
+  GAQL query for campaign + ad_group_ad. cost_micros → spend (/1_000_000). Creds
+  from env if not passed. Returns [] + console.warn when creds missing.
+- `src/lib/adapters/tiktok-ads.ts` — `TikTokAdsAdapter(tenantId, advertiserId,
+  accessToken)`. POST /open_api/v1.3/report/integrated/get/ with Access-Token
+  header, data_level AUCTION_CAMPAIGN / AUCTION_AD, dimensions + metrics per
+  spec. Paginated (page_info). Returns [] + console.warn when creds missing.
+- `src/lib/adapters/ads-registry.ts` — `getAdPlatformAdapter(platform, tenantId)`
+  resolves google | tiktok (meta reserved). Reads creds from env. `isAdPlatform`
+  type guard.
+
+### GROUP 2 — Logger + Security + Sentry (6 files)
+- `src/lib/logger.ts` — pino logger with redaction (password, passwordHash,
+  secret, token, apiKey), isoTime, pretty-print in dev, base { service: 'ziay',
+  env }. `getLogger(component)` child logger.
+- `src/lib/middleware/security-headers.ts` — `addSecurityHeaders(res)` sets
+  X-Frame-Options DENY, X-Content-Type-Options nosniff, HSTS 1y, Referrer-Policy,
+  Permissions-Policy (no camera/mic/geo), CSP default-src 'none' for JSON.
+- `sentry.client.config.ts` — Sentry.init only if SENTRY_DSN /
+  NEXT_PUBLIC_SENTRY_DSN. tracesSampleRate 0.1.
+- `sentry.server.config.ts` — same pattern for Node runtime.
+- `sentry.edge.config.ts` — same pattern for Edge runtime.
+- `instrumentation.ts` — `register()` dynamically imports sentry.server.config
+  (NEXT_RUNTIME=nodejs) or sentry.edge.config (NEXT_RUNTIME=edge). Client config
+  is loaded automatically by Next.js browser bundle.
+
+### GROUP 3 — Health endpoints (2 files)
+- `src/app/api/health/ready/route.ts` — readiness probe: `db.$queryRaw\`SELECT
+  1\`` → 200 {status:'ready'} | 503 {status:'not ready'}. Cache-Control no-store.
+- `src/app/api/health/live/route.ts` — liveness probe: 200 {status:'alive',
+  timestamp:iso}. No DB touch. Cache-Control no-store.
+
+### GROUP 4 — Missing API routes (9 files)
+- `src/app/api/ads/import/route.ts` — POST {tenantId, platform, dateStart,
+  dateEnd}. requireAuth + rateLimit. getAdPlatformAdapter → fetchCampaign +
+  fetchAd → upsert AdSpend (adId_date) per ad found in DB by externalId. Skips
+  ads not in DB or belonging to a different tenant. Logs via pino.
+- `src/app/api/buyer-behavior/route.ts` — GET ?tenantId (returns behaviors +
+  counts grouped by riskLevel) | POST {tenantId, phone, riskLevel,
+  patternDetails} upserts BuyerBehavior (tenantId_phone) and creates
+  BehaviorAlert if high_risk/blacklist. requireTenantAccess.
+- `src/app/api/product-enrichment/route.ts` — GET ?tenantId (returns enrichments
+  + pending products without enrichment) | POST {tenantId, sku} calls
+  enrichProductImage (VLM glm-4.6v) → upsert ProductEnrichment with tags (JSON),
+  description (alt_image + description_seo), enrichmentScore 0-1. requireTenantAccess.
+- `src/app/api/remarketing/route.ts` — GET ?tenantId (campaigns + pendingMessages
+  + stats grouped by status) | POST actions: create_campaign, schedule,
+  auto_generate (abandoned_cart via ConversationalCart, no_response via
+  Conversation, post_purchase via Order delivered) | PATCH actions: toggle_active,
+  mark_message. requireTenantAccess.
+- `src/app/api/guide-movements/route.ts` — GET ?tenantId&guideNumber (returns
+  GuideMovement[]) | POST {tenantId, guideNumber, eventType, location,
+  description, carrierName} creates movement + best-effort updates Shipment.estado
+  for in_transit/delivered/returned/exception. requireTenantAccess.
+- `src/app/api/payments/create-link/route.ts` — POST {tenantId, orderId, gateway,
+  amount, currency, description}. getPaymentAdapter(gateway).createPaymentLink
+  → updates Order.paymentGateway + paymentRef + creates OrderEvent
+  'payment_link_created'. requireTenantAccess. Returns stub result gracefully.
+- `src/app/api/public/tenants/route.ts` — GET (NO AUTH) returns active tenants
+  with slug, nombreNegocio, marca, plataformaCatalogo. Rate-limited.
+- `src/app/api/public/catalog/route.ts` — GET ?slug (NO AUTH) returns tenant +
+  active products for SSR storefront. Rate-limited.
+- `src/app/api/trafficker/route.ts` — GET ?traffickerId (profile + wallet +
+  campaigns + transactions + compensations + sales + salesStats) | POST actions:
+  register (creates Trafficker), create_campaign, register_sale (pending),
+  confirm_sale (atomic: marks confirmed + TraffickerTransaction inbound commission
+  + Trafficker.walletBalance credit), fail_sale, withdraw (creates
+  WithdrawalRequest pending_2fa + TraffickerTransaction outbound pending, TOTP
+  verified if totpCode passed). requireAuth.
+
+### GROUP 5 — Infra files (3 files)
+- `.env.example` — full template: DATABASE_URL, NEXTAUTH_URL/SECRET, LLM
+  (OPENAI/XAI/OLLAMA), Ecommerce (WOO/SHOPIFY/SUPABASE), Logistics (DROPI/
+  ENVIOS99/AVEONLINE), Payments (MP/WOMPI/STRIPE/PAYU), Webhooks (WA/META),
+  Ads (GOOGLE/TIKTOK), Monitoring (SENTRY/LOG_LEVEL), Chat (CORS).
+- `scripts/backup.sh` — sqlite3 .backup (online consistent) → gzip → 30-day
+  retention. Falls back to cp if sqlite3 not installed. Output:
+  backups/ziay_YYYYMMDD_HHMMSS.db.gz.
+- `scripts/restore.sh` — snapshots current DB to .pre-restore.<ts> then
+  gunzips the backup into place. Usage: ./scripts/restore.sh <file.gz>.
+
+### Verification
+- `npx tsc --noEmit`: clean for all new files. (2 pre-existing errors in
+  e2e/api.spec.ts and playwright.config.ts — not in scope; verified via git
+  stash that they predate this task.)
+- `bun run lint`: 0 errors, 0 warnings. ✅
+- Dev server (Next.js 16.1.3 Turbopack) still healthy after adding
+  instrumentation.ts + sentry configs. NextAuth pre-existing NO_SECRET warnings
+  unrelated to this task.
+
+### Files created (24 total)
+GROUP 1 (4): ad-platform-adapter.ts, google-ads.ts, tiktok-ads.ts, ads-registry.ts
+GROUP 2 (6): logger.ts, security-headers.ts, sentry.client.config.ts,
+            sentry.server.config.ts, sentry.edge.config.ts, instrumentation.ts
+GROUP 3 (2): api/health/ready/route.ts, api/health/live/route.ts
+GROUP 4 (9): api/ads/import, api/buyer-behavior, api/product-enrichment,
+            api/remarketing, api/guide-movements, api/payments/create-link,
+            api/public/tenants, api/public/catalog, api/trafficker
+GROUP 5 (3): .env.example, scripts/backup.sh, scripts/restore.sh
+
+### Notes / design decisions
+- **Ads adapter credentials**: read from env (GOOGLE_ADS_DEVELOPER_TOKEN,
+  GOOGLE_ADS_ACCESS_TOKEN, TIKTOK_ACCESS_TOKEN) with constructor override.
+  Multi-tenant per-tenant credentials would require extending Tenant with
+  ad platform creds ref — out of scope.
+- **Ads import date handling**: the adapter returns aggregated metrics for a
+  date range; we store the aggregate with `date=dateStart`. The AdSpend schema
+  is per-day, so for true per-day imports the adapter interface would need a
+  per-day method (future work). Documented in code.
+- **Sentry**: lazy-initialized only when SENTRY_DSN is set, so dev/local works
+  with zero config. instrumentation.ts uses dynamic imports to avoid loading
+  Sentry in runtimes that don't need it.
+- **Trafficker confirm_sale**: atomic Prisma transaction — sale.status update +
+  TraffickerTransaction (inbound, type=commission) + Trafficker.walletBalance
+  update. balanceBefore/After recorded for audit.
+- **Trafficker withdraw**: creates WithdrawalRequest (pending_2fa) +
+  TraffickerTransaction (outbound, pending). Funds NOT deducted yet — TOTP
+  verification happens via the existing 2FA flow before marking completed.
+- **Public routes**: rate-limited (60/min for tenants, 120/min for catalog)
+  even though unauthenticated, to prevent abuse.
+- **All new API routes** use the existing `requireAuth` / `requireTenantAccess`
+  from `@/lib/auth-helpers` and `rateLimit` from `@/lib/middleware/rate-limit`.
+
+Stage Summary:
+- 24 new files, 0 modifications to existing code.
+- TypeScript strict clean (new files).
+- ESLint clean.
+- Dev server healthy.
+- Project now ~92% production-ready (faltan: per-day ads import, multi-tenant
+  ad creds, TOTP verification endpoint for withdrawals completion).

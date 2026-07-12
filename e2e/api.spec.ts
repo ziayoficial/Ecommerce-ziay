@@ -78,10 +78,8 @@ test.describe('Protected APIs', () => {
     const protectedRoutes = ['/api/agents', '/api/tenants', '/api/overview', '/api/orders']
     for (const route of protectedRoutes) {
       const res = await request.get(route, { maxRedirects: 0 })
-      expect([302, 307, 401, 403]).toContain(
-        res.status(),
-        `${route} should be protected, got ${res.status()}`,
-      )
+      const protectedStatuses = [302, 307, 401, 403]
+      expect(protectedStatuses).toContain(res.status())
       if (res.status() >= 300 && res.status() < 400) {
         const loc = res.headers()['location'] ?? ''
         expect(loc).toMatch(/\/login/)

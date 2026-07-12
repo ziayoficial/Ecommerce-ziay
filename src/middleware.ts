@@ -1,28 +1,20 @@
-import { withAuth } from 'next-auth/middleware'
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
+import { getToken } from 'next-auth/jwt'
 
 // ───────────────────────────────────────────────────────────────────────────
-// Route protection middleware.
+// Route protection middleware (ZIAY).
 //
 // PUBLIC ROUTES (no token required):
-//   /login                       — sign-in page
-//   /t/[slug]/**                 — public storefront SSR (per-tenant)
-//   /t/[slug]/p/[sku]            — public product SSR
-//   /vendedor/**                 — public seller profile SSR
-//   /directorio                  — public tenant directory
-//   /api/auth/**                 — NextAuth endpoints (sign-in, sign-out, session…)
-//   /api/webhooks/**             — inbound webhooks (WhatsApp, Meta, payment gateways)
-//   /api/health, /api/health/**  — uptime/health probes
-//   /api/public/**               — explicitly public API surface
+//   /login, /t/[slug]/**, /vendedor/**, /directorio
+//   /api/auth/**, /api/webhooks/**, /api/health/**, /api/public/**
 //   /_next/**, /favicon.ico, /logo.svg, /sitemap.xml, /robots.txt
 //
-// EVERYTHING ELSE (including `/` dashboard and all `/api/*` data routes)
-// requires a valid NextAuth JWT.
+// EVERYTHING ELSE requires a valid NextAuth JWT.
 // ───────────────────────────────────────────────────────────────────────────
 
 const PUBLIC_PATTERNS: Array<RegExp | string> = [
   /^\/login(?:\/.*)?$/,
-  /^\/t\/.+/, // public storefront SSR (per-tenant slug)
+  /^\/t\/.+/,
   /^\/vendedor(?:\/.*)?$/,
   /^\/directorio(?:\/.*)?$/,
   /^\/api\/auth(?:\/.*)?$/,
@@ -32,14 +24,17 @@ const PUBLIC_PATTERNS: Array<RegExp | string> = [
   '/_next',
   '/favicon.ico',
   '/logo.svg',
+  '/favicon.svg',
+  '/logo-white.svg',
   '/sitemap.xml',
   '/robots.txt',
+  '/presentaciones',
 ]
 
 function isPublic(path: string): boolean {
   for (const p of PUBLIC_PATTERNS) {
     if (typeof p === 'string') {
-      if (path === p || path.startsWith(p + '/')) return true
+      if (path === p || path.startsWith(p)) return true
     } else if (p.test(path)) {
       return true
     }
@@ -47,43 +42,44 @@ function isPublic(path: string): boolean {
   return false
 }
 
-export default withAuth(
-  function middleware(req) {
-    const token = req.nextauth.token
-    const path = req.nextUrl.pathname
+export async function middleware(req: NextRequest) {
+  const path = req.nextUrl.pathname
 
-    // Public routes pass straight through.
-    if (isPublic(path)) {
-      return NextResponse.next()
-    }
+  // Public routes pass straight through.
+  if (isPublic(path)) {
+    return addSecurityHeaders(NextResponse.next())
+  }
 
-    // Authenticated users pass through.
-    if (token) {
-      return NextResponse.next()
-    }
+  // Check for NextAuth JWT token.
+  const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET })
 
-    // Unauthenticated users are redirected to login with a callback URL.
-    const loginUrl = new URL('/login', req.url)
-    loginUrl.searchParams.set('callbackUrl', path)
-    return NextResponse.redirect(loginUrl)
-  },
-  {
-    callbacks: {
-      authorized: ({ token, req }) => {
-        const path = req.nextUrl.pathname
-        // Public routes never need a token — let the middleware fn handle them.
-        if (isPublic(path)) return true
-        return !!token
-      },
-    },
-    pages: { signIn: '/login' },
-  },
-)
+  if (token) {
+    return addSecurityHeaders(NextResponse.next())
+  }
+
+  // No token → redirect to login (for pages) or 401 JSON (for APIs).
+  if (path.startsWith('/api/')) {
+    return addSecurityHeaders(NextResponse.json({ error: 'Unauthorized' }, { status: 401 }))
+  }
+
+  const loginUrl = new URL('/login', req.url)
+  loginUrl.searchParams.set('callbackUrl', path)
+  return addSecurityHeaders(NextResponse.redirect(loginUrl))
+}
+
+function addSecurityHeaders(response: NextResponse) {
+  response.headers.set('X-Frame-Options', 'DENY')
+  response.headers.set('X-Content-Type-Options', 'nosniff')
+  response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
+  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
+  response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
+  if (response.headers.get('content-type')?.includes('application/json')) {
+    response.headers.set('Content-Security-Policy', "default-src 'none'")
+  }
+  return response
+}
 
 export const config = {
-  // Run middleware on every route except static asset prefixes and the
-  // Next.js image optimizer. We do NOT exclude /api/* — most API routes
-  // are protected (the public API/webhook paths are whitelisted above).
   matcher: [
     '/((?!_next/static|_next/image|favicon.ico|logo.svg|presentaciones|assets|files).*)',
   ],

@@ -1,0 +1,24 @@
+// CommerceFlow OS — Sentry edge config (Edge runtime)
+//
+// Saramantha §13 — captura errores y performance en el runtime de Edge
+// (middleware, edge API routes). Solo se inicializa si SENTRY_DSN está
+// configurado.
+//
+// Cargado dinámicamente por instrumentation.ts cuando
+// process.env.NEXT_RUNTIME === 'edge'.
+//
+// Env vars:
+//   - SENTRY_DSN
+
+import * as Sentry from '@sentry/nextjs'
+
+const SENTRY_DSN =
+  process.env.SENTRY_DSN || process.env.NEXT_PUBLIC_SENTRY_DSN
+
+if (SENTRY_DSN) {
+  Sentry.init({
+    dsn: SENTRY_DSN,
+    tracesSampleRate: 0.1,
+    environment: process.env.NODE_ENV,
+  })
+}

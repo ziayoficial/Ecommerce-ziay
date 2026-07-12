@@ -107,7 +107,7 @@ export default async function SellerPage({ searchParams }: PageProps) {
                 )) *
               100
       ),
-    db.tenant.findUnique({ where: { id: seller.tenantId } }),
+    db.tenant.findUnique({ where: { id: seller.tenantId ?? '' }}),
   ])
 
   const kpis = [

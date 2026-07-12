@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { requireAuth } from '@/lib/auth-helpers'
 
 // Overview KPIs: revenue, orders, conversations, ad spend, ROAS, CPA, channel split
 export async function GET(req: NextRequest) {
+  const { error } = await requireAuth()
+  if (error) return error
+
   const days = Number(req.nextUrl.searchParams.get('days') || '14')
   const tenantId = req.nextUrl.searchParams.get('tenantId') || undefined
   const since = new Date()

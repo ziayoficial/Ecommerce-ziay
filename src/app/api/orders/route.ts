@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { requireAuth } from '@/lib/auth-helpers'
 
 export async function GET(req: NextRequest) {
+  const { error } = await requireAuth()
+  if (error) return error
+
   const status = req.nextUrl.searchParams.get('status') || undefined
   const mode = req.nextUrl.searchParams.get('mode') || undefined
   const q = req.nextUrl.searchParams.get('q') || undefined

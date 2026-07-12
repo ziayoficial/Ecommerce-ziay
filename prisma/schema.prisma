@@ -72,17 +72,23 @@ model Tenant {
 // ───────────────────────────────────────────────────────────────────────────
 model User {
   id        String   @id @default(cuid())
-  tenantId  String
+  // tenantId is optional: platform-level users (e.g. trafficker, finance, operator)
+  // do not belong to a single tenant.
+  tenantId  String?
   email     String   @unique
   name      String
-  role      String   @default("agent") // admin | agent | trafficker | finance
+  role      String   @default("agent") // admin | agent | trafficker | finance | operator | marketing
   avatarUrl String?
+  // ── Auth (NextAuth v4 Credentials provider) ──
+  passwordHash String?
+  status       String   @default("active") // active | suspended | invited
+  lastLoginAt  DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  tenant      Tenant        @relation(fields: [tenantId], references: [id])
-  assignedConv Conversation[] @relation("AgentConvos")
-  auditLogs   AuditLog[]
+  tenant        Tenant?          @relation(fields: [tenantId], references: [id])
+  assignedConv  Conversation[]   @relation("AgentConvos")
+  auditLogs     AuditLog[]
 }
 
 // ───────────────────────────────────────────────────────────────────────────

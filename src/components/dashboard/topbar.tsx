@@ -1,15 +1,41 @@
 'use client'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useTheme } from 'next-themes'
-import { Sun, Moon, Search, Bell, Globe, Building2 } from 'lucide-react'
+import { useSession, signOut } from 'next-auth/react'
+import {
+  Sun, Moon, Search, Bell, Globe, Building2, LogOut, User as UserIcon, ChevronDown, ShieldCheck,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
+  DropdownMenuSeparator, DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Badge } from '@/components/ui/badge'
 import { ViewId, NAV_ITEMS } from './sidebar'
 import { useMounted } from '@/hooks/use-mounted'
 import { useTenantStore } from '@/hooks/use-tenant'
+
+// Map role → display label + accent color
+const ROLE_META: Record<string, { label: string; className: string }> = {
+  admin:     { label: 'Admin',     className: 'bg-primary/15 text-primary ring-primary/25' },
+  agent:     { label: 'Agente',    className: 'bg-teal-500/15 text-teal-700 ring-teal-500/25' },
+  trafficker:{ label: 'Trafficker',className: 'bg-cyan-500/15 text-cyan-700 ring-cyan-500/25' },
+  finance:   { label: 'Finance',   className: 'bg-amber-500/15 text-amber-700 ring-amber-500/25' },
+  operator:  { label: 'Operator',  className: 'bg-violet-500/15 text-violet-700 ring-violet-500/25' },
+  marketing: { label: 'Marketing', className: 'bg-rose-500/15 text-rose-700 ring-rose-500/25' },
+}
+
+// Build initials from a name (e.g. "Valentina Restrepo" → "VR")
+function initials(name?: string | null): string {
+  if (!name) return '?'
+  const parts = name.trim().split(/\s+/).slice(0, 2)
+  return parts.map((p) => p.charAt(0).toUpperCase()).join('') || '?'
+}
 
 export function Topbar({ active, country, onCountryChange }: {
   active: ViewId
@@ -18,12 +44,26 @@ export function Topbar({ active, country, onCountryChange }: {
 }) {
   const { theme, setTheme } = useTheme()
   const mounted = useMounted()
+  const { data: session, status } = useSession()
+  const [signingOut, setSigningOut] = useState(false)
   const item = NAV_ITEMS.find(n => n.id === active)
   const { tenants, activeTenant, setTenants, setActive } = useTenantStore()
 
   useEffect(() => {
     fetch('/api/tenants').then(r => r.json()).then(d => setTenants(d.tenants || []))
   }, [setTenants])
+
+  const user = session?.user
+  const roleMeta = user?.role ? ROLE_META[user.role] || ROLE_META.agent : ROLE_META.agent
+  // Prefer session tenant name; fall back to tenant switcher's active tenant.
+  const tenantName = user?.tenantName || activeTenant?.marca || '—'
+
+  async function handleLogout() {
+    setSigningOut(true)
+    // signOut redirects to /login (configured in authOptions.pages.signIn).
+    // We pass callbackUrl to bounce back to /login explicitly.
+    await signOut({ callbackUrl: '/login', redirect: true })
+  }
 
   return (
     <header className="h-16 shrink-0 border-b bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-30">
@@ -86,7 +126,7 @@ export function Topbar({ active, country, onCountryChange }: {
           </SelectContent>
         </Select>
 
-        <Button variant="ghost" size="icon" className="relative h-9 w-9">
+        <Button variant="ghost" size="icon" className="relative h-9 w-9" aria-label="Notificaciones">
           <Bell className="size-4" />
           <span className="absolute top-1.5 right-1.5 size-2 rounded-full bg-rose-500" />
         </Button>
@@ -99,12 +139,81 @@ export function Topbar({ active, country, onCountryChange }: {
           {mounted && theme === 'dark' ? <Sun className="size-4" /> : <Moon className="size-4" />}
         </Button>
 
-        <div className="hidden md:flex items-center gap-2 pl-2 border-l">
-          <div className="size-8 rounded-full bg-primary/15 ring-1 ring-primary/25 flex items-center justify-center text-xs font-semibold text-primary">VR</div>
-          <div className="text-xs leading-tight">
-            <div className="font-medium">Valentina R.</div>
-            <div className="text-muted-foreground">Admin · {activeTenant?.marca || '—'}</div>
-          </div>
+        {/* User menu — authenticated identity + logout */}
+        <div className="flex items-center gap-2 pl-2 border-l">
+          {status === 'loading' ? (
+            <div className="hidden md:flex items-center gap-2">
+              <div className="size-8 rounded-full bg-muted animate-pulse" />
+              <div className="space-y-1">
+                <div className="h-3 w-24 bg-muted rounded animate-pulse" />
+                <div className="h-2.5 w-16 bg-muted rounded animate-pulse" />
+              </div>
+            </div>
+          ) : user ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className="flex items-center gap-2 rounded-md px-1.5 py-1 hover:bg-accent transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  aria-label="Menú de usuario"
+                >
+                  <Avatar className="size-8 ring-1 ring-primary/25">
+                    <AvatarFallback className="bg-primary/15 text-primary text-xs font-semibold">
+                      {initials(user.name)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="hidden md:block text-xs leading-tight text-left">
+                    <div className="font-medium line-clamp-1 max-w-[140px]">
+                      {user.name || user.email}
+                    </div>
+                    <div className="text-muted-foreground flex items-center gap-1">
+                      <span className={`inline-flex items-center rounded-full px-1.5 py-px text-[10px] font-semibold ring-1 ${roleMeta.className}`}>
+                        {roleMeta.label}
+                      </span>
+                      <span className="line-clamp-1 max-w-[80px]">· {tenantName}</span>
+                    </div>
+                  </div>
+                  <ChevronDown className="hidden md:block size-3.5 text-muted-foreground" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-64">
+                <DropdownMenuLabel className="flex flex-col gap-1">
+                  <span className="font-medium truncate">{user.name || 'Usuario'}</span>
+                  <span className="text-xs font-normal text-muted-foreground truncate">{user.email}</span>
+                  <span className="flex items-center gap-1.5 pt-1">
+                    <Badge variant="secondary" className={`${roleMeta.className} border-0 font-semibold`}>
+                      <ShieldCheck className="size-3" />
+                      {roleMeta.label}
+                    </Badge>
+                    {user.tenantName && (
+                      <Badge variant="outline" className="font-normal">
+                        <Building2 className="size-3" />
+                        {user.tenantName}
+                      </Badge>
+                    )}
+                  </span>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem disabled className="text-xs text-muted-foreground">
+                  <UserIcon className="size-3.5" />
+                  ID: <span className="font-mono truncate">{user.id}</span>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={handleLogout}
+                  disabled={signingOut}
+                  className="text-destructive focus:text-destructive focus:bg-destructive/5"
+                >
+                  <LogOut className="size-3.5" />
+                  {signingOut ? 'Cerrando sesión…' : 'Cerrar sesión'}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            /* Fallback if middleware ever lets an unauthenticated user through */
+            <Button asChild size="sm" variant="outline">
+              <a href="/login">Iniciar sesión</a>
+            </Button>
+          )}
         </div>
       </div>
     </header>

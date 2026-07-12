@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { requireAuth } from '@/lib/auth-helpers'
 
 export async function GET(req: NextRequest) {
+  const { error } = await requireAuth()
+  if (error) return error
+
   const status = req.nextUrl.searchParams.get('status') || undefined
   const channel = req.nextUrl.searchParams.get('channel') || undefined
   const q = req.nextUrl.searchParams.get('q') || undefined
@@ -42,6 +46,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const { error } = await requireAuth()
+  if (error) return error
+
   const body = await req.json()
   const { conversationId, body: text, direction = 'outbound' } = body
   if (!conversationId || !text) {

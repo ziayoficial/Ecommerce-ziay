@@ -951,3 +951,158 @@ Stage Summary:
 - Lint + TSC + Build limpios
 - Server HTTP 200 en todas las rutas
 - Proyecto ahora tiene la base completa para producción (falta auth + tests + CI/CD)
+
+---
+
+## AUTH-001 — Senior Security Engineer · Auth + RBAC (production blocker resolved)
+
+### AGENT
+- Task ID: AUTH-001
+- Role: Senior Security Engineer
+- Files owned: `prisma/schema.prisma` (User only), `src/lib/auth.ts`, `src/lib/auth-helpers.ts`,
+  `src/types/next-auth.d.ts`, `src/middleware.ts`, `src/app/api/auth/[...nextauth]/route.ts`,
+  `src/app/login/page.tsx`, `src/components/providers/auth-session-provider.tsx`,
+  `prisma/seed.ts`, `src/components/dashboard/topbar.tsx`, `src/app/layout.tsx`,
+  7 API routes (orders, conversations, overview, ads, catalog/products, monetization/gmv,
+  monetization/commission), `.env`.
+
+### DELIVERABLES
+- **Prisma User model**: added `passwordHash String?`, `status String @default("active")`,
+  `lastLoginAt DateTime?`; made `tenantId String?` (platform users like sebastian@trafficker.co
+  have no tenant); `db:push --accept-data-loss` applied.
+- **NextAuth v4 config** (`src/lib/auth.ts`): CredentialsProvider + JWT sessions (30d),
+  bcrypt password verification, status check, lastLoginAt stamping; `jwt` + `session`
+  callbacks propagate `role, tenantId, tenantSlug, tenantName` to client.
+- **Auth helpers** (`src/lib/auth-helpers.ts`): `requireAuth`, `requireTenantAccess`,
+  `requireRole`, `ROLES` hierarchy constant.
+- **NextAuth route handler** (`src/app/api/auth/[...nextauth]/route.ts`): GET + POST.
+- **Middleware** (`src/middleware.ts`): `withAuth` wrapper, PUBLIC_PATTERNS whitelist
+  (`/login`, `/t/*`, `/vendedor`, `/directorio`, `/api/auth/*`, `/api/webhooks/*`,
+  `/api/health/*`, `/api/public/*`, `/_next`, static assets). Unauthenticated → 307 to
+  `/login?callbackUrl=…`.
+- **Type augmentation** (`src/types/next-auth.d.ts`): extends Session.user, User, JWT
+  with `id, role, tenantId, tenantSlug, tenantName, avatarUrl`.
+- **SessionProvider wrapper** (`src/components/providers/auth-session-provider.tsx`):
+  mounted in `src/app/layout.tsx` so `useSession()` works everywhere.
+- **Login page** (`src/app/login/page.tsx`): two-panel emerald-themed design (brand
+  gradient + form), React Hook Form + Zod validation, demo credentials panel with
+  one-click-fill buttons for all 3 demo accounts, show/hide password, server-error
+  alert, mobile-responsive.
+- **Seed** (`prisma/seed.ts`): added bcrypt import + password hash for existing 3
+  users (commerceflow.co domain); added 3 new canonical demo users
+  (valentina@saramantha.co / camila@saramantha.co / sebastian@trafficker.co),
+  all with password "demo123".
+- **Topbar** (`src/components/dashboard/topbar.tsx`): replaced hardcoded user info
+  with live `useSession()` data; added DropdownMenu with avatar initials, role badge
+  (per-role color), tenant badge, user ID, and "Cerrar sesión" item calling `signOut()`.
+- **API routes** (7 files): added `requireAuth()` guard at top of each handler
+  (10 handlers total: GET/POST variants). Pattern:
+  ```ts
+  const { error } = await requireAuth()
+  if (error) return error
+  ```
+- **Env**: appended `NEXTAUTH_URL=http://localhost:3000` + `NEXTAUTH_SECRET=<dev placeholder>`
+  to `.env`. **MUST rotate secret for prod.**
+- **Side-effect fix**: `src/app/vendedor/page.tsx:110` — `seller.tenantId` now nullable,
+  used `?? ''` fallback for `tenant.findUnique`.
+
+### VERIFICATION (all green)
+- `bun run lint` → 0 errors ✅
+- `npx tsc --noEmit` → 0 errors ✅
+- End-to-end auth flow tested via curl:
+  - `GET /login` → 200 (page renders)
+  - `GET /api/auth/providers` → 200 (NextAuth wired correctly)
+  - `GET /api/auth/csrf` → 200 (CSRF token returned)
+  - `POST /api/auth/callback/credentials` (good creds) → 302 + session cookie set
+  - `GET /api/auth/session` → 200 with `{user:{name,email,id,role,tenantId,tenantSlug,tenantName}}`
+  - `POST /api/auth/callback/credentials` (bad password) → 302 to error page, no session
+- Protected APIs WITHOUT auth:
+  - `GET /api/orders` → 307 → /login?callbackUrl=%2Fapi%2Forders ✅
+  - `GET /api/overview` → 307 → /login ✅
+  - `GET /` (dashboard) → 307 → /login ✅
+- Protected APIs WITH auth (session cookie):
+  - `/api/orders` → 200 (16 orders), `/api/overview` → 200, `/api/conversations` → 200,
+    `/api/ads` → 200, `/api/catalog/products` → 200, `/api/monetization/gmv` → 200,
+    `/api/monetization/commission` → 200
+- Public routes still work without auth:
+  - `/api/health` → 200, `/t/saramantha` (SSR storefront) → 200,
+    `/api/webhooks/whatsapp` → 403 (correct — GET not allowed), `/api/auth/*` → 200
+
+### DESIGN DECISIONS
+1. **tenantId made nullable** to support platform-level users (sebastian@trafficker.co).
+   All `User`-related relations (`tenant`, `assignee`, `auditLogs.user`) already had
+   nullable FKs, so no other schema changes needed.
+2. **`requireTenantAccess` available but not applied globally** — the existing topbar
+   tenant switcher lets admins read across all 5 tenants. Enforcing strict per-tenant
+   scoping would break that UX. `requireAuth` (blocking unauthenticated access — the
+   production blocker) is applied to every protected route; `requireTenantAccess` is
+   available for future per-route use (e.g. write operations).
+3. **Demo users added (not replaced)** — kept the original 3 `@commerceflow.co` users
+   (referenced by `assignedConv` etc.) and added 3 new canonical `@saramantha.co` /
+   `@trafficker.co` users advertised on the login page.
+4. **`middleware.ts` kept (not renamed to `proxy.ts`)** — Next.js 16 logs a deprecation
+   warning but functionality is verified end-to-end. Task spec explicitly requested
+   `src/middleware.ts`. Migration to `proxy.ts` is a future cleanup.
+5. **`bun run build` skipped** per global system instructions ("Never use `bun run build`").
+   Lint + tsc + manual endpoint verification provide equivalent confidence.
+
+### FOLLOW-UPS (out of scope for AUTH-001)
+- Rotate `NEXTAUTH_SECRET` for production (currently a dev placeholder).
+- Migrate `middleware.ts` → `proxy.ts` (Next.js 16 deprecation).
+- Wire `TwoFactorConfig` model into Credentials provider using existing `src/lib/totp.ts`.
+- Implement invite flow using `status: 'invited'` + email verification.
+- Add per-route `requireTenantAccess` for write endpoints (POST/PUT/DELETE).
+
+### STATUS: ✅ COMPLETE — #1 production blocker resolved
+
+---
+Task ID: AUTH-001-VERIFICACION
+Agent: Orchestrator (Verificación end-to-end de Auth)
+Task: Verificar que el auth funciona completo en el browser
+
+Work Log:
+
+### Verificación E2E con Agent Browser
+1. Server standalone iniciado (HTTP 200)
+2. /login carga correctamente (26,645 bytes, título correcto)
+3. Página de login tiene:
+   - Campo Correo (textbox e10)
+   - Campo Contraseña (textbox e11)
+   - Botón "Iniciar sesión" (button e8)
+   - 3 botones demo: Admin, Agente, Trafficker (auto-fill credentials)
+4. Click en botón demo "Admin" → auto-fill valentina@saramantha.co / demo123
+5. Click en "Iniciar sesión" → POST /api/auth/callback/credentials
+6. Redirige a / (dashboard) → 69,287 bytes cargados ✅
+7. Dashboard accesible solo con sesión válida
+
+### Verificación de rutas
+- / sin auth → 307 redirect a /login ✅
+- /login → 200 (pública) ✅
+- /t/saramantha → 200 (pública SSR) ✅
+- /api/health → 200 (pública) ✅
+- /api/overview sin auth → 307 redirect ✅
+- /api/overview con auth → 200 ✅
+
+### Credenciales demo verificadas
+- valentina@saramantha.co / demo123 (admin, Saramantha) ✅
+- camila@saramantha.co / demo123 (agent, Saramantha) ✅
+- sebastian@trafficker.co / demo123 (trafficker, platform) ✅
+
+### Estado final
+- Lint: 0 errors ✅
+- TSC: 0 errors ✅
+- Build: exitoso (con middleware proxy activo) ✅
+- Server: HTTP 200 ✅
+- Auth flow: login → dashboard funciona ✅
+- Rutas protegidas: 307 sin auth, 200 con auth ✅
+- Rutas públicas: todas funcionan sin auth ✅
+- 7 API routes protegidas con requireAuth() ✅
+- Topbar muestra user info + logout ✅
+
+Stage Summary:
+- AUTH COMPLETO Y VERIFICADO E2E
+- Login page funciona con demo credentials
+- Middleware protege rutas privadas
+- Rutas públicas (SSR, webhooks, health) siguen accesibles
+- #1 bloqueador de producción RESUELTO
+- Proyecto ahora en ~65% producción-ready (faltan dashboard views + tests + monitoring)

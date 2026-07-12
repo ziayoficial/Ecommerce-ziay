@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { requireAuth } from '@/lib/auth-helpers'
 
 // GET /api/monetization/gmv?tenantId=...&period=2026-07
 // Returns GMV (sum of orders with origen='agente_whatsapp'), commission recognized,
 // pending commission, current tramo, fee base, and projected invoice total.
 export async function GET(req: NextRequest) {
+  const { error } = await requireAuth()
+  if (error) return error
+
   const tenantId = req.nextUrl.searchParams.get('tenantId')
   if (!tenantId) return NextResponse.json({ error: 'tenantId required' }, { status: 400 })
 

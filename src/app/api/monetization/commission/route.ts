@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { requireAuth } from '@/lib/auth-helpers'
 
 // GET /api/monetization/commission?tenantId=...
 // Returns list of commission entries (recognized + pending)
 export async function GET(req: NextRequest) {
+  const { error } = await requireAuth()
+  if (error) return error
+
   const tenantId = req.nextUrl.searchParams.get('tenantId')
   if (!tenantId) return NextResponse.json({ error: 'tenantId required' }, { status: 400 })
 
@@ -49,6 +53,9 @@ export async function GET(req: NextRequest) {
 // Body: { orderId, etapaReconocimiento: 'datos_completados' | 'despachado' }
 // Creates or updates a commission entry, applying the two-moment recognition (Saramantha §17.7)
 export async function POST(req: NextRequest) {
+  const { error } = await requireAuth()
+  if (error) return error
+
   const { orderId, etapaReconocimiento } = await req.json()
   if (!orderId || !etapaReconocimiento) return NextResponse.json({ error: 'orderId and etapaReconocimiento required' }, { status: 400 })
 

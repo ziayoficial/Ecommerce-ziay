@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { requireAuth } from '@/lib/auth-helpers'
 
 // Ad-level performance: per-ad sales qty, revenue, spend, CPA, ROAS, ROI,
 // cannibalization detection + kill recommendation.
 export async function GET(req: NextRequest) {
+  const { error } = await requireAuth()
+  if (error) return error
+
   const days = Number(req.nextUrl.searchParams.get('days') || '14')
   const platform = req.nextUrl.searchParams.get('platform') || undefined
   const tenantId = req.nextUrl.searchParams.get('tenantId') || undefined

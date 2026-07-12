@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { requireAuth } from '@/lib/auth-helpers'
 
 // GET /api/catalog/products?tenantId=...&q=...
 export async function GET(req: NextRequest) {
+  const { error } = await requireAuth()
+  if (error) return error
+
   const tenantId = req.nextUrl.searchParams.get('tenantId')
   const q = req.nextUrl.searchParams.get('q') || ''
   if (!tenantId) return NextResponse.json({ error: 'tenantId required' }, { status: 400 })

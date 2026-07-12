@@ -2,6 +2,7 @@
 // 4 tenants Indisutex: Saramantha, Sublimados Majestic, Lovely Pijamas, Sueño de Reina
 // Run: bun run db:seed
 import { db } from '../src/lib/db'
+import * as bcrypt from 'bcryptjs'
 
 const daysAgo = (n: number, h = 0, m = 0) => {
   const d = new Date(); d.setDate(d.getDate() - n); d.setHours(h, m, 0, 0); return d
@@ -78,12 +79,32 @@ async function main() {
   })
 
   // ── Users (1 admin per tenant + shared agents) ────────────────────
-  await db.user.upsert({ where: { email: 'valentina@commerceflow.co' }, update: {},
-    create: { id: 'user-valentina', tenantId: saramantha.id, email: 'valentina@commerceflow.co', name: 'Valentina Restrepo', role: 'admin' }})
-  await db.user.upsert({ where: { email: 'camila@commerceflow.co' }, update: {},
-    create: { id: 'user-camila', tenantId: saramantha.id, email: 'camila@commerceflow.co', name: 'Camila Torres', role: 'agent' }})
-  await db.user.upsert({ where: { email: 'sebastian@commerceflow.co' }, update: {},
-    create: { id: 'user-sebastian', tenantId: saramantha.id, email: 'sebastian@commerceflow.co', name: 'Sebastián Marín', role: 'trafficker' }})
+  // Existing demo users (commerceflow.co domain) — preserve IDs, add auth.
+  const demoPasswordHash = await bcrypt.hash('demo123', 10)
+  await db.user.upsert({ where: { email: 'valentina@commerceflow.co' },
+    update: { passwordHash: demoPasswordHash, status: 'active' },
+    create: { id: 'user-valentina', tenantId: saramantha.id, email: 'valentina@commerceflow.co', name: 'Valentina Restrepo', role: 'admin', passwordHash: demoPasswordHash, status: 'active' }})
+  await db.user.upsert({ where: { email: 'camila@commerceflow.co' },
+    update: { passwordHash: demoPasswordHash, status: 'active' },
+    create: { id: 'user-camila', tenantId: saramantha.id, email: 'camila@commerceflow.co', name: 'Camila Torres', role: 'agent', passwordHash: demoPasswordHash, status: 'active' }})
+  await db.user.upsert({ where: { email: 'sebastian@commerceflow.co' },
+    update: { passwordHash: demoPasswordHash, status: 'active' },
+    create: { id: 'user-sebastian', tenantId: saramantha.id, email: 'sebastian@commerceflow.co', name: 'Sebastián Marín', role: 'trafficker', passwordHash: demoPasswordHash, status: 'active' }})
+
+  // ── Auth demo users (canonical @saramantha.co / @trafficker.co) ──
+  // These are the credentials advertised on the /login page:
+  //   valentina@saramantha.co / demo123   → admin  · Saramantha
+  //   camila@saramantha.co    / demo123   → agent  · Saramantha
+  //   sebastian@trafficker.co / demo123   → trafficker (platform, no tenant)
+  await db.user.upsert({ where: { email: 'valentina@saramantha.co' },
+    update: { passwordHash: demoPasswordHash, status: 'active', tenantId: saramantha.id, role: 'admin', name: 'Valentina Restrepo' },
+    create: { id: 'user-valentina-sara', tenantId: saramantha.id, email: 'valentina@saramantha.co', name: 'Valentina Restrepo', role: 'admin', passwordHash: demoPasswordHash, status: 'active' }})
+  await db.user.upsert({ where: { email: 'camila@saramantha.co' },
+    update: { passwordHash: demoPasswordHash, status: 'active', tenantId: saramantha.id, role: 'agent', name: 'Camila Torres' },
+    create: { id: 'user-camila-sara', tenantId: saramantha.id, email: 'camila@saramantha.co', name: 'Camila Torres', role: 'agent', passwordHash: demoPasswordHash, status: 'active' }})
+  await db.user.upsert({ where: { email: 'sebastian@trafficker.co' },
+    update: { passwordHash: demoPasswordHash, status: 'active', tenantId: null, role: 'trafficker', name: 'Sebastián Marín' },
+    create: { id: 'user-sebastian-traf', tenantId: null, email: 'sebastian@trafficker.co', name: 'Sebastián Marín', role: 'trafficker', passwordHash: demoPasswordHash, status: 'active' }})
 
   // ── Channels ─────────────────────────────────────────────────────
   // Saramantha: WhatsApp CO + Messenger INTL + Instagram

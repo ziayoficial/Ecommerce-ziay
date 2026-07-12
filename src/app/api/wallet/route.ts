@@ -66,14 +66,24 @@ async function resolveTrafficker(req: NextRequest) {
     }
   }
   const t = await db.trafficker.findUnique({ where: { email: email.toLowerCase() } })
-  if (!t) {
-    return {
-      session,
-      error: NextResponse.json({ error: 'Trafficker not found for this user' }, { status: 404 }),
-      trafficker: null,
+  if (t) {
+    return { session, error: null, trafficker: t }
+  }
+
+  // 3) Logged-in user is NOT a trafficker (e.g. admin/agent/finance).
+  //    For admins/finance, show the first trafficker as a demo view.
+  if (role === 'admin' || role === 'finance') {
+    const demoTrafficker = await db.trafficker.findFirst({ orderBy: { createdAt: 'asc' } })
+    if (demoTrafficker) {
+      return { session, error: null, trafficker: demoTrafficker }
     }
   }
-  return { session, error: null, trafficker: t }
+
+  return {
+    session,
+    error: NextResponse.json({ error: 'Trafficker not found for this user' }, { status: 404 }),
+    trafficker: null,
+  }
 }
 
 const FEE_PCT = 0.01 // 1% withdrawal fee

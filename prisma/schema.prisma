@@ -577,3 +577,550 @@ model AuditLog {
   tenant Tenant? @relation(fields: [tenantId], references: [id])
   user   User?   @relation(fields: [userId], references: [id])
 }
+
+// ───────────────────────────────────────────────────────────────────────────
+// 10. INTELLIGENCE LAYER — buyer risk scoring, carrier scoring, guide tracking
+// (added by BUILD-SCHEMA-PAGES-INFRA-001; do NOT modify existing models above)
+// ───────────────────────────────────────────────────────────────────────────
+
+model CustomerScore {
+  id               String   @id @default(cuid())
+  tenantId         String
+  phone            String
+  score            Float    // 0-100, 0 = devolvedor, 100 = confiable
+  category         String   // confiable | riesgo | devolvedor
+  totalPedidos     Int      @default(0)
+  pedidosEntregados Int     @default(0)
+  pedidosDevueltos Int      @default(0)
+  lastOrderAt      DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([tenantId, phone])
+  @@index([tenantId])
+}
+
+model CarrierScore {
+  id              String   @id @default(cuid())
+  tenantId        String
+  carrierName     String
+  score           Float
+  totalGuias      Int      @default(0)
+  entregadas      Int      @default(0)
+  devueltas       Int      @default(0)
+  avgDeliveryDays Float?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([tenantId, carrierName])
+  @@index([tenantId])
+}
+
+model GuideTracking {
+  id          String   @id @default(cuid())
+  tenantId    String
+  guideNumber String
+  carrierName String?
+  status      String   // created | in_transit | delivered | returned | stuck
+  lastEventAt DateTime?
+  daysStuck   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([tenantId, guideNumber])
+}
+
+model GuideMovement {
+  id          String   @id @default(cuid())
+  tenantId    String
+  guideNumber String
+  eventType   String   // created | picked_up | in_transit | delivered | returned | exception
+  location    String?
+  description String?
+  carrierName String?
+  rawData     String?
+  createdAt   DateTime @default(now())
+
+  @@index([tenantId, guideNumber])
+  @@index([tenantId])
+}
+
+model BuyerBehavior {
+  id             String   @id @default(cuid())
+  tenantId       String
+  phone          String
+  riskLevel      String   // normal | caution | high_risk | blacklist
+  patternDetails String?
+  totalReturns   Int      @default(0)
+  totalOrders    Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([tenantId, phone])
+  @@index([tenantId])
+}
+
+model BehaviorAlert {
+  id              String   @id @default(cuid())
+  tenantId        String
+  buyerBehaviorId String
+  alertType       String
+  message         String
+  createdAt       DateTime @default(now())
+
+  @@index([tenantId])
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// 11. CONVERSATIONAL CART — in-chat cart building & conversion
+// ───────────────────────────────────────────────────────────────────────────
+
+model ConversationalCart {
+  id             String   @id @default(cuid())
+  tenantId       String
+  conversationId String
+  status         String   @default("building") // building | confirmed | converted
+  total          Float    @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  items          CartItem[]
+
+  @@index([tenantId])
+  @@index([conversationId])
+}
+
+model CartItem {
+  id          String   @id @default(cuid())
+  cartId      String
+  sku         String
+  productName String
+  quantity    Int
+  unitPrice   Float
+  total       Float
+  cart        ConversationalCart @relation(fields: [cartId], references: [id], onDelete: Cascade)
+
+  @@index([cartId])
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// 12. NOVEDADES CRM — claims / cases for lost packages, damaged products, etc.
+// ───────────────────────────────────────────────────────────────────────────
+
+model NovedadCase {
+  id           String   @id @default(cuid())
+  tenantId     String
+  caseNumber   String   @unique
+  orderId      String?
+  phone        String
+  customerName String
+  guideNumber  String?
+  carrierName  String?
+  type         String   // paquete_perdido | producto_danado | direccion_incorrecta | retraso | otro
+  status       String   @default("open") // open | assigned | resolved | escalated | closed
+  priority     String   @default("normal")
+  description  String
+  resolution   String?
+  assignedTo   String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  resolvedAt   DateTime?
+  evidence     NovedadEvidence[]
+  messages     NovedadMessage[]
+
+  @@index([tenantId])
+  @@index([tenantId, status])
+}
+
+model NovedadEvidence {
+  id          String   @id @default(cuid())
+  caseId      String
+  url         String
+  type        String   // image | document | video
+  uploadedBy  String?
+  createdAt   DateTime @default(now())
+  case        NovedadCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@index([caseId])
+}
+
+model NovedadMessage {
+  id          String   @id @default(cuid())
+  caseId      String
+  authorName  String
+  authorRole  String   // agent | carrier | customer | system
+  body        String
+  createdAt   DateTime @default(now())
+  case        NovedadCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@index([caseId])
+}
+
+model RedeliveryRequest {
+  id              String   @id @default(cuid())
+  tenantId        String
+  guideNumber     String
+  customerPhone   String
+  customerName    String
+  originalAddress String
+  newAddress      String?
+  reason          String
+  status          String   @default("pending") // pending | scheduled | completed | cancelled
+  attemptNumber   Int      @default(1)
+  scheduledAt     DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime @default(now())
+  attempts        RedeliveryAttempt[]
+
+  @@index([tenantId])
+  @@index([tenantId, status])
+}
+
+model RedeliveryAttempt {
+  id              String   @id @default(cuid())
+  redeliveryId    String
+  attemptNumber   Int
+  status          String   // pending | success | failed
+  carrierResponse String?
+  agentNote       String?
+  attemptedAt     DateTime @default(now())
+  redelivery      RedeliveryRequest @relation(fields: [redeliveryId], references: [id], onDelete: Cascade)
+
+  @@index([redeliveryId])
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// 13. PRODUCT ENRICHMENT — AI-driven product metadata enrichment
+// ───────────────────────────────────────────────────────────────────────────
+
+model ProductEnrichment {
+  id              String   @id @default(cuid())
+  tenantId        String
+  sku             String
+  tags            String   // JSON array
+  materials       String?
+  colors          String?
+  measurements    String?
+  description     String?
+  enrichmentScore Float    @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([tenantId, sku])
+  @@index([tenantId])
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// 14. FINTECH LAYER — trafficker wallets, withdrawals, 2FA, compensation
+// ───────────────────────────────────────────────────────────────────────────
+
+model Trafficker {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  name          String
+  phone         String?
+  walletBalance Float   @default(0)
+  status        String   @default("active") // active | suspended | kyc_pending
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  campaigns     TraffickerCampaign[]
+  transactions  TraffickerTransaction[]
+  compensations TraffickerCompensation[]
+
+  @@index([email])
+}
+
+model TraffickerCampaign {
+  id            String   @id @default(cuid())
+  traffickerId  String
+  tenantId      String
+  name          String
+  platform      String   // meta | google | tiktok
+  budget        Float
+  spend         Float    @default(0)
+  status        String   @default("active")
+  startDate     DateTime?
+  endDate       DateTime?
+  createdAt     DateTime @default(now())
+  trafficker    Trafficker @relation(fields: [traffickerId], references: [id], onDelete: Cascade)
+  sales         TraffickerSale[]
+
+  @@index([traffickerId])
+  @@index([tenantId])
+}
+
+model TraffickerSale {
+  id            String   @id @default(cuid())
+  traffickerId  String
+  tenantId      String
+  campaignId    String
+  orderId       String?
+  amount        Float
+  commission    Float
+  status        String   @default("pending") // pending | confirmed | failed | compensated
+  createdAt     DateTime @default(now())
+  campaign      TraffickerCampaign @relation(fields: [campaignId], references: [id])
+
+  @@index([traffickerId])
+  @@index([tenantId])
+}
+
+model TraffickerTransaction {
+  id            String   @id @default(cuid())
+  traffickerId  String
+  direction     String   // inbound | outbound
+  type          String   // commission | withdrawal | refund | fee | bonus | penalty
+  category      String
+  amount        Float
+  balanceBefore Float
+  balanceAfter  Float
+  description   String?
+  reference     String?
+  referenceType String?
+  status        String   @default("completed")
+  metadata      String?
+  createdAt     DateTime @default(now())
+  trafficker    Trafficker @relation(fields: [traffickerId], references: [id], onDelete: Cascade)
+
+  @@index([traffickerId, createdAt])
+}
+
+model TraffickerCompensation {
+  id            String   @id @default(cuid())
+  traffickerId  String
+  tenantId      String
+  saleId        String?
+  reason        String   // seller_no_ship | seller_delayed | seller_cancelled | delivery_failed | product_damaged
+  amount        Float
+  createdAt     DateTime @default(now())
+  trafficker    Trafficker @relation(fields: [traffickerId], references: [id])
+
+  @@index([tenantId])
+}
+
+model WalletAccount {
+  id            String   @id @default(cuid())
+  traffickerId  String?
+  tenantId      String?
+  userId        String?
+  accountType   String   // bank | nequi | daviplata | paypal | wise
+  accountHolder String
+  accountNumber String
+  bankName      String?
+  documentType  String?
+  documentNumber String?
+  isDefault     Boolean @default(false)
+  verified      Boolean @default(false)
+  createdAt     DateTime @default(now())
+  withdrawals   WithdrawalRequest[]
+}
+
+model WalletTransaction {
+  id            String   @id @default(cuid())
+  traffickerId  String?
+  tenantId      String?
+  direction     String   // inbound | outbound
+  type          String
+  category      String
+  amount        Float
+  balanceBefore Float    @default(0)
+  balanceAfter  Float    @default(0)
+  description   String?
+  reference     String?
+  referenceType String?
+  status        String   @default("completed")
+  metadata      String?
+  createdAt     DateTime @default(now())
+
+  @@index([traffickerId, createdAt])
+  @@index([tenantId, createdAt])
+}
+
+model WithdrawalRequest {
+  id              String   @id @default(cuid())
+  traffickerId    String?
+  tenantId        String?
+  walletAccountId String
+  amount          Float
+  fee             Float    @default(0)
+  netAmount       Float    @default(0)
+  totpRequired    Boolean  @default(true)
+  totpVerified    Boolean  @default(false)
+  totpVerifiedAt  DateTime?
+  status          String   @default("pending_2fa") // pending_2fa | pending_processing | processing | completed | rejected
+  rejectionReason String?
+  externalReference String?
+  processedAt     DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime @default(now())
+  walletAccount   WalletAccount @relation(fields: [walletAccountId], references: [id])
+
+  @@index([traffickerId])
+  @@index([tenantId])
+  @@index([status])
+}
+
+model TwoFactorConfig {
+  id            String   @id @default(cuid())
+  traffickerId  String?  @unique
+  tenantId      String?  @unique
+  userId        String?
+  secret        String
+  backupCodes   String?
+  enabled       Boolean  @default(false)
+  enabledAt     DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// 15. MARKETPLACE — lead sharing between tenants, public listings
+// ───────────────────────────────────────────────────────────────────────────
+
+model MarketplaceListing {
+  id          String   @id @default(cuid())
+  tenantId    String
+  productId   String?
+  sku         String
+  name        String
+  price       Float
+  imageUrl    String?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([active])
+}
+
+model LeadShareConfig {
+  id          String   @id @default(cuid())
+  tenantId    String   @unique
+  shareLeads  Boolean  @default(false)
+  commissionPct Float  @default(5)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model LeadReferral {
+  id            String   @id @default(cuid())
+  fromTenantId  String
+  toTenantId    String
+  customerPhone String
+  customerName  String?
+  reason        String
+  commission    Float    @default(0)
+  status        String   @default("pending") // pending | converted | expired
+  createdAt     DateTime @default(now())
+
+  @@index([fromTenantId])
+  @@index([toTenantId])
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// 16. ATTRIBUTION / PIXEL / SEO — server-side pixel firing, SEO configs
+// ───────────────────────────────────────────────────────────────────────────
+
+model PixelConfig {
+  id          String   @id @default(cuid())
+  tenantId    String
+  platform    String   // meta | google | tiktok
+  pixelId     String
+  apiToken    String
+  testMode    Boolean  @default(false)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  @@unique([tenantId, platform])
+  @@index([tenantId])
+}
+
+model ConversionEvent {
+  id          String   @id @default(cuid())
+  tenantId    String
+  pixelConfigId String?
+  eventType   String   // Purchase | AddToCart | Lead | etc.
+  value       Float?
+  currency    String   @default("COP")
+  status      String   @default("pending") // pending | sent | failed
+  response    String?
+  createdAt   DateTime @default(now())
+
+  @@index([tenantId, eventType, createdAt])
+  @@index([pixelConfigId])
+}
+
+model SEOConfig {
+  id              String   @id @default(cuid())
+  tenantId        String
+  metaTitle       String?
+  metaDescription String?
+  keywords        String?
+  ogImage         String?
+  jsonLd          String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([tenantId])
+}
+
+model GeoTarget {
+  id          String   @id @default(cuid())
+  tenantId    String
+  country     String   @default("CO")
+  region      String?
+  city        String?
+  active      Boolean  @default(true)
+
+  @@unique([tenantId, country, region, city])
+  @@index([tenantId])
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// 17. REMARKETING — abandoned cart, no-response, post-purchase flows
+// ───────────────────────────────────────────────────────────────────────────
+
+model RemarketingCampaign {
+  id          String   @id @default(cuid())
+  tenantId    String
+  name        String
+  trigger     String   // abandoned_cart | no_response | post_purchase
+  template    String
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  messages    RemarketingMessage[]
+
+  @@index([tenantId])
+}
+
+model RemarketingMessage {
+  id            String   @id @default(cuid())
+  tenantId      String
+  campaignId    String
+  customerPhone String
+  customerName  String?
+  status        String   @default("pending") // pending | sent | delivered | failed
+  scheduledAt   DateTime
+  sentAt        DateTime?
+  createdAt     DateTime @default(now())
+  campaign      RemarketingCampaign @relation(fields: [campaignId], references: [id])
+
+  @@index([tenantId, status, scheduledAt])
+}
+
+model CustomerNotification {
+  id            String   @id @default(cuid())
+  tenantId      String
+  customerPhone String
+  customerName  String?
+  type          String   // shipping_update | delivery_confirmation | remarketing
+  channel       String   @default("whatsapp")
+  body          String
+  status        String   @default("pending") // pending | sent | delivered | failed
+  scheduledAt   DateTime?
+  sentAt        DateTime?
+  metadata      String?
+  createdAt     DateTime @default(now())
+
+  @@index([tenantId, status])
+  @@index([tenantId, scheduledAt])
+}

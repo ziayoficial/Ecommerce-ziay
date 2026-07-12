@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { verifyMetaSignature } from '@/lib/middleware/hmac'
 
 // Meta (Messenger + Instagram + WhatsApp) ad platform webhook + lead/attributions.
 export async function GET(req: NextRequest) {
@@ -15,7 +16,37 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const body = await req.json()
+  // ── HMAC verification (Saramantha §10) ───────────────────────────────
+  // Meta firma el body con HMAC-SHA256 usando el App Secret y lo envía en
+  // el header `X-Hub-Signature-256`. Si la firma no verifica, devolvemos 403.
+  // En dev-mode (sin META_APP_SECRET configurado), aceptamos cualquier firma
+  // no vacía para no romper el flujo local.
+  const rawBody = await req.text()
+  const signature = req.headers.get('x-hub-signature-256') ?? ''
+  const appSecret = process.env.META_APP_SECRET ?? ''
+
+  let sigValid: boolean
+  if (!appSecret) {
+    // Dev-mode fallback.
+    sigValid = signature.length > 0
+  } else {
+    sigValid = verifyMetaSignature(rawBody, signature, appSecret)
+  }
+
+  if (!sigValid) {
+    await db.auditLog.create({
+      data: { action: 'webhook.meta.invalid_sig', entity: 'Webhook', meta: rawBody.slice(0, 1000) },
+    })
+    return NextResponse.json({ error: 'invalid signature' }, { status: 403 })
+  }
+
+  let body: unknown = {}
+  try {
+    body = rawBody ? JSON.parse(rawBody) : {}
+  } catch {
+    body = {}
+  }
+
   await db.auditLog.create({
     data: { action: 'webhook.meta.inbound', entity: 'Webhook', meta: JSON.stringify(body).slice(0, 1000) },
   })

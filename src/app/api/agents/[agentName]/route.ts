@@ -63,7 +63,8 @@ export async function POST(
     return NextResponse.json({ reply, agent: agentName, confidence: 0.9 })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'unknown error'
-    // Deterministic fallback per agent
+    // Deterministic fallback per agent (kept generic for the 16 new agents
+    // added in BUILD-AGENTS-LIB-001 — they can be specialized later).
     const fallbacks: Record<AgentName, string> = {
       profile: '¿Para ti o para surtir tu negocio?',
       speech: '¡Hola! ¿Qué producto te interesa?',
@@ -75,6 +76,23 @@ export async function POST(
       logistics: '¿A qué ciudad enviamos y cuántas unidades?',
       vision: 'Por favor envíame una foto clara del producto para identificarlo.',
       checkout: '¿Confirmas el pedido?',
+      // BUILD-AGENTS-LIB-001 — 16 new agent fallbacks
+      buyer_behavior: 'Déjame revisar tu historial para recomendarte la mejor opción.',
+      cart_builder: '¿Qué productos y cantidades quieres agregar al carrito?',
+      guide_tracking: '¿Me compartes el número de guía o pedido para rastrearlo?',
+      novedades: 'Tengo una novedad con tu envío, ¿me confirmas tu dirección actual?',
+      redelivery: 'Para re-agendar la entrega, ¿qué horario te queda mejor?',
+      remarketing: '¡Hola! Tengo una novedad que te puede interesar, ¿te acuerdo?',
+      guide_alert: 'Alerta operativa generada — el equipo revisará el caso.',
+      sales_retainer: 'Entiendo. ¿Te ofrezco pago contra entrega para que no pierdas el producto?',
+      logistics_notifier: 'Tu pedido va en camino — te aviso en cada hito.',
+      customer_score: 'Calculando score de cliente…',
+      carrier_score: 'Calculando score de transportadoras…',
+      product_enrichment: 'Enriqueciendo producto…',
+      marketplace: 'Evaluando viabilidad de publicación en marketplace…',
+      affiliator: 'Procesando atribución de afiliado…',
+      traffic_orchestrator: 'Analizando redistribución de presupuesto…',
+      address_analysis: 'Analizando calidad de la dirección…',
     }
     return NextResponse.json({ reply: fallbacks[agentName as AgentName], agent: agentName, confidence: 0.3, error: message })
   }

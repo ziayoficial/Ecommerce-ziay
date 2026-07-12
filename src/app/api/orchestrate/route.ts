@@ -57,6 +57,23 @@ const FALLBACKS: Record<AgentName, string> = {
   logistics: '¿A qué ciudad enviamos y cuántas unidades?',
   vision: 'Por favor envíame una foto clara del producto para identificarlo.',
   checkout: '¿Confirmas el pedido?',
+  // BUILD-AGENTS-LIB-001 — 16 new agent fallbacks (generic)
+  buyer_behavior: 'Déjame revisar tu historial para recomendarte la mejor opción.',
+  cart_builder: '¿Qué productos y cantidades quieres agregar al carrito?',
+  guide_tracking: '¿Me compartes el número de guía o pedido para rastrearlo?',
+  novedades: 'Tengo una novedad con tu envío, ¿me confirmas tu dirección actual?',
+  redelivery: 'Para re-agendar la entrega, ¿qué horario te queda mejor?',
+  remarketing: '¡Hola! Tengo una novedad que te puede interesar, ¿te acuerdo?',
+  guide_alert: 'Alerta operativa generada — el equipo revisará el caso.',
+  sales_retainer: 'Entiendo. ¿Te ofrezco pago contra entrega para que no pierdas el producto?',
+  logistics_notifier: 'Tu pedido va en camino — te aviso en cada hito.',
+  customer_score: 'Calculando score de cliente…',
+  carrier_score: 'Calculando score de transportadoras…',
+  product_enrichment: 'Enriqueciendo producto…',
+  marketplace: 'Evaluando viabilidad de publicación en marketplace…',
+  affiliator: 'Procesando atribución de afiliado…',
+  traffic_orchestrator: 'Analizando redistribución de presupuesto…',
+  address_analysis: 'Analizando calidad de la dirección…',
 }
 
 export async function POST(req: NextRequest) {

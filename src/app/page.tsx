@@ -10,6 +10,10 @@ import { KanbanView } from '@/components/dashboard/kanban-view'
 import { OrchestratorView } from '@/components/dashboard/orchestrator-view'
 import { AdsView } from '@/components/dashboard/ads-view'
 import { MonetizationView } from '@/components/dashboard/monetization-view'
+import { WalletView } from '@/components/dashboard/wallet-view'
+import { LogisticsIntelligenceView } from '@/components/dashboard/logistics-intelligence-view'
+import { MarketplaceView } from '@/components/dashboard/marketplace-view'
+import { NovedadesView } from '@/components/dashboard/novedades-view'
 import { IntegrationsView } from '@/components/dashboard/integrations-view'
 import { SettingsView } from '@/components/dashboard/settings-view'
 import { Zap, Github, BookOpen } from 'lucide-react'
@@ -39,6 +43,10 @@ export default function Home() {
               {view === 'orchestrator' && <OrchestratorView />}
               {view === 'ads' && <AdsView />}
               {view === 'monetization' && <MonetizationView />}
+              {view === 'wallet' && <WalletView />}
+              {view === 'logistics' && <LogisticsIntelligenceView />}
+              {view === 'marketplace' && <MarketplaceView />}
+              {view === 'novedades' && <NovedadesView />}
               {view === 'integrations' && <IntegrationsView />}
               {view === 'settings' && <SettingsView />}
             </div>

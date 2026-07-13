@@ -1874,3 +1874,32 @@ Stage Summary:
 - Migrar el resto de vistas (catalog, ads, monetization, wallet, logistics, marketplace, novedades, integrations, settings) al mismo patrón de skeleton/error/empty states.
 - Persistir `collapsedCols` del Kanban en `localStorage` para recordar preferencia del usuario.
 - Conectar el badge de notificaciones a un panel flotante real (hoy sólo muestra el count).
+
+---
+
+## CREDENTIALS-001 · senior-fullstack-developer · 2026-01-13
+
+**Scope**: Credential management system for the 21 ZIAY adapters (catalog, logistics, payments, ads, channels, AI). Before this, adapters read from `process.env` with no UI panel. Now credentials live in the `Setting` model under the `cred::` prefix and are managed via a masked REST API + category-grouped collapsible panel inside `IntegrationsView`.
+
+### Files
+- **NEW** `src/lib/adapters/credential-fields.ts` — registry with `IntegrationConfig[]` for all 21 integrations (catalog 4, logistics 3, payments 4, ads 3, channels 3, ai 3), category metadata (`CATEGORY_META` + `CATEGORY_ORDER`), and helpers `maskSecret`, `isIntegrationConfigured`, `getIntegrationsByCategory`, `getIntegrationById`.
+- **NEW** `src/app/api/integrations/credentials/route.ts` — `GET / POST / DELETE / PUT` handlers, all gated by `requireAuth()`. Stores values in `Setting` rows with key `cred::{integrationId}` and JSON-stringified field map. GET masks every value (`••••` + last4). POST whitelists field keys against the registry + merges with existing values (PATCH-style). DELETE supports whole-integration and single-field removal.
+- **MODIFIED** `src/components/dashboard/integrations-view.tsx` — added `CredentialPanel` + `CredentialCard` components rendered below the existing `/api/health` table. Fetches state on mount, groups integrations by category, each card is a `Collapsible` with show/hide password toggles, Guardar (POST) + Eliminar (DELETE) buttons. Masked re-display after save.
+- **NEW** `.env.example` — reference of every env var the system uses (DB, Auth, LLM, Catalog, Logistics, Payments, Ads, Channels, Webhooks, Monitoring, Chat). Documents that runtime credentials should live in the DB panel.
+
+### Key design decisions
+1. **Mask-before-return** — every API response value is masked with `maskSecret()` (`'••••' + last4`). The browser never sees raw secrets after a save.
+2. **Draft-state footgun avoided** — `buildSavePayload()` strips fields whose draft still equals the masked server value, so the user doesn't accidentally overwrite the stored secret with the literal string `"••••abcd"`.
+3. **Whitelist on POST** — the API only accepts field keys declared in the registry for that integration.
+4. **Merge semantics on POST** — POST merges with existing stored values (PATCH-style), so users can update a single field without resending the whole payload.
+5. **Auth everywhere** — `requireAuth()` is the first call in all 4 handlers.
+
+### Quality
+- `npx tsc --noEmit` → **0 errors** ✅
+- `bun run lint` (eslint .) → **0 errors** ✅
+- Dev log inspected — only pre-existing next-auth JWT decryption noise (unrelated to this scope).
+
+### Notes for future agents
+- The API also exposes `PUT` to return the full registry for diagnostics; the UI imports the registry directly.
+- The `Setting` model is tenant-agnostic today. If per-tenant credentials are needed later, add `tenantId` to `Setting` and update the `where` clauses — the rest is tenant-agnostic.
+- `maskSecret` handles short values gracefully: `value.length <= 4` returns `'••••'` to avoid leaking the full value when the secret is shorter than 4 chars.

@@ -1,0 +1,288 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { db } from '@/lib/db'
+import { requireAuth } from '@/lib/auth-helpers'
+import {
+  INTEGRATION_REGISTRY,
+  getIntegrationById,
+  maskSecret,
+  isIntegrationConfigured,
+  type CredentialField,
+  type IntegrationConfig,
+} from '@/lib/adapters/credential-fields'
+
+// ───────────────────────────────────────────────────────────────────────────
+// Credential management endpoint — stores integration credentials in the
+// Setting model under the key prefix `cred::{integrationId}`.
+//
+// Security:
+//   - All routes require an authenticated session (requireAuth).
+//   - GET never returns raw secrets — values are masked ("••••" + last4).
+//   - POST/DELETE return masked values too, so the client never sees the
+//     raw secret after the request completes.
+//
+// Storage convention:
+//   Setting.key   = `cred::{integrationId}`
+//   Setting.value = JSON.stringify({ [fieldKey]: rawValue, ... })
+// ───────────────────────────────────────────────────────────────────────────
+
+const CRED_PREFIX = 'cred::'
+
+/** Strip the `cred::` prefix to recover the integration id from a Setting key. */
+function keyToIntegrationId(key: string): string {
+  return key.startsWith(CRED_PREFIX) ? key.slice(CRED_PREFIX.length) : key
+}
+
+/** Build the Setting key for an integration id. */
+function integrationIdToKey(id: string): string {
+  return `${CRED_PREFIX}${id}`
+}
+
+/**
+ * Mask every field of a credential payload. Password / text / url are all
+ * masked uniformly — even URLs and consumer keys can contain secrets we
+ * never want to ship back to the browser.
+ */
+function maskAllFields(
+  integration: IntegrationConfig,
+  raw: Record<string, string>,
+): Record<string, string> {
+  const masked: Record<string, string> = {}
+  for (const field of integration.fields) {
+    const v = raw[field.key]
+    masked[field.key] = v ? maskSecret(v) : ''
+  }
+  // Also include any unknown keys (legacy / forward-compat) — masked too.
+  for (const k of Object.keys(raw)) {
+    if (masked[k] === undefined && raw[k]) {
+      masked[k] = maskSecret(String(raw[k]))
+    }
+  }
+  return masked
+}
+
+/** Safely parse the JSON value of a Setting row. Returns {} on any error. */
+function parseCredValue(value: string | null | undefined): Record<string, string> {
+  if (!value) return {}
+  try {
+    const parsed = JSON.parse(value)
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      const out: Record<string, string> = {}
+      for (const [k, v] of Object.entries(parsed)) {
+        if (typeof v === 'string') out[k] = v
+        else if (v !== null && v !== undefined) out[k] = String(v)
+      }
+      return out
+    }
+  } catch {
+    // fall through
+  }
+  return {}
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// GET /api/integrations/credentials
+// Returns all saved credentials, masked, grouped by integration id.
+// ───────────────────────────────────────────────────────────────────────────
+export async function GET() {
+  const { error } = await requireAuth()
+  if (error) return error
+
+  // Only Setting rows whose key starts with `cred::`
+  const rows = await db.setting.findMany({
+    where: { key: { startsWith: CRED_PREFIX } },
+    select: { key: true, value: true },
+  })
+
+  const integrations: Record<
+    string,
+    { configured: boolean; fields: Record<string, string> }
+  > = {}
+
+  for (const row of rows) {
+    const integrationId = keyToIntegrationId(row.key)
+    const config = getIntegrationById(integrationId)
+    const raw = parseCredValue(row.value)
+    if (config) {
+      integrations[integrationId] = {
+        configured: isIntegrationConfigured(config, raw),
+        fields: maskAllFields(config, raw),
+      }
+    } else {
+      // Unknown integration id (e.g. registry was pruned) — return masked.
+      const masked: Record<string, string> = {}
+      for (const [k, v] of Object.entries(raw)) {
+        if (v) masked[k] = maskSecret(String(v))
+      }
+      integrations[integrationId] = {
+        configured: Object.values(raw).some(Boolean),
+        fields: masked,
+      }
+    }
+  }
+
+  return NextResponse.json({ integrations })
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// POST /api/integrations/credentials
+// Body: { integration: string, fields: Record<string, string> }
+//   - `integration` MUST exist in INTEGRATION_REGISTRY
+//   - `fields` keys MUST match declared field keys (others are silently
+//     dropped to prevent stuffing arbitrary data)
+//   - Empty-string field values are stored (so users can clear a field)
+//   - Returns masked values for the saved integration
+// ───────────────────────────────────────────────────────────────────────────
+export async function POST(req: NextRequest) {
+  const { error } = await requireAuth()
+  if (error) return error
+
+  let body: unknown
+  try {
+    body = await req.json()
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+  }
+
+  const { integration, fields } = (body ?? {}) as {
+    integration?: unknown
+    fields?: unknown
+  }
+
+  if (typeof integration !== 'string' || !integration) {
+    return NextResponse.json({ error: '`integration` (string) is required' }, { status: 400 })
+  }
+  if (typeof fields !== 'object' || fields === null || Array.isArray(fields)) {
+    return NextResponse.json({ error: '`fields` (object) is required' }, { status: 400 })
+  }
+
+  const config = getIntegrationById(integration)
+  if (!config) {
+    return NextResponse.json(
+      { error: `Unknown integration: ${integration}` },
+      { status: 400 },
+    )
+  }
+
+  // Whitelist field keys against the registry — drop unknown keys.
+  const allowedKeys = new Set(config.fields.map((f: CredentialField) => f.key))
+  const sanitized: Record<string, string> = {}
+  for (const [k, v] of Object.entries(fields as Record<string, unknown>)) {
+    if (!allowedKeys.has(k)) continue
+    if (v === null || v === undefined) {
+      sanitized[k] = ''
+    } else if (typeof v === 'string') {
+      sanitized[k] = v
+    } else {
+      sanitized[k] = String(v)
+    }
+  }
+
+  // Merge with existing stored values so callers can PATCH a single field
+  // without resending the whole payload. (A caller that wants to truly
+  // clear a field sends an empty string for that key, which overwrites.)
+  const settingKey = integrationIdToKey(integration)
+  const existing = await db.setting.findUnique({ where: { key: settingKey } })
+  const existingFields = existing ? parseCredValue(existing.value) : {}
+  const merged: Record<string, string> = { ...existingFields }
+  for (const [k, v] of Object.entries(sanitized)) {
+    merged[k] = v
+  }
+
+  await db.setting.upsert({
+    where: { key: settingKey },
+    update: { value: JSON.stringify(merged) },
+    create: { key: settingKey, value: JSON.stringify(merged) },
+  })
+
+  return NextResponse.json({
+    integration,
+    configured: isIntegrationConfigured(config, merged),
+    fields: maskAllFields(config, merged),
+  })
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// DELETE /api/integrations/credentials
+// Body:
+//   { integration: "mercadopago" }                       → remove whole integration
+//   { integration: "mercadopago", field: "accessToken" } → remove a single field
+// ───────────────────────────────────────────────────────────────────────────
+export async function DELETE(req: NextRequest) {
+  const { error } = await requireAuth()
+  if (error) return error
+
+  let body: unknown
+  try {
+    body = await req.json()
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+  }
+
+  const { integration, field } = (body ?? {}) as {
+    integration?: unknown
+    field?: unknown
+  }
+
+  if (typeof integration !== 'string' || !integration) {
+    return NextResponse.json({ error: '`integration` (string) is required' }, { status: 400 })
+  }
+
+  const settingKey = integrationIdToKey(integration)
+  const existing = await db.setting.findUnique({ where: { key: settingKey } })
+  if (!existing) {
+    return NextResponse.json(
+      { error: 'No credentials stored for this integration' },
+      { status: 404 },
+    )
+  }
+
+  const config = getIntegrationById(integration)
+
+  // Case A: delete a single field
+  if (typeof field === 'string' && field) {
+    const raw = parseCredValue(existing.value)
+    delete raw[field]
+    if (Object.keys(raw).length === 0) {
+      await db.setting.delete({ where: { key: settingKey } })
+      return NextResponse.json({
+        integration,
+        configured: false,
+        fields: {},
+        deleted: 'all',
+      })
+    }
+    await db.setting.update({
+      where: { key: settingKey },
+      data: { value: JSON.stringify(raw) },
+    })
+    return NextResponse.json({
+      integration,
+      configured: config ? isIntegrationConfigured(config, raw) : Object.values(raw).some(Boolean),
+      fields: config ? maskAllFields(config, raw) : Object.fromEntries(
+        Object.entries(raw).map(([k, v]) => [k, v ? maskSecret(String(v)) : '']),
+      ),
+      deleted: 'field',
+    })
+  }
+
+  // Case B: delete the whole integration
+  await db.setting.delete({ where: { key: settingKey } })
+  return NextResponse.json({
+    integration,
+    configured: false,
+    fields: {},
+    deleted: 'all',
+  })
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Optional route — expose the registry to the client so the UI can render
+// without hardcoding the field metadata. The same module is imported
+// directly by the client component (`@/lib/adapters/credential-fields`),
+// but this endpoint is handy for diagnostics / future admin tools.
+// ───────────────────────────────────────────────────────────────────────────
+export async function PUT() {
+  const { error } = await requireAuth()
+  if (error) return error
+  return NextResponse.json({ registry: INTEGRATION_REGISTRY })
+}

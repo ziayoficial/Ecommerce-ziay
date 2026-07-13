@@ -3433,3 +3433,1346 @@ stay in `index.tsx`. Sub-components receive props (or pre-computed memos).
 - Service split: both `walletService` and `traffickerService` exported from
   the same barrel (`@/lib/services`), so consumers can adopt the new name
   incrementally without breaking.
+
+---
+
+Task ID: AUDIT-GAP-1-SKELETONS
+Agent: Explore
+Task: Audit skeleton/error/empty states in 9 dashboard views NOT covered by UX-IMPROVE-001
+
+Work Log:
+- Read last ~200 lines of worklog.md for context (UX-IMPROVE-001 established the 5-pattern standard: Skeleton loader, Alert w/ retry, Empty state w/ CTA, Refresh btn, "Actualizado hace X min" — applied to overview/messenger/orders/kanban only).
+- Confirmed scope: 9 views listed in task description (catalog-visual, ads, monetization, orchestrator, settings, channels-manager, marketplace/index, logistics/index, novedades/index).
+- Read each of the 9 view files end-to-end (line counts: 312, 437, 250, 337, 360, 432, 385, 311, 252).
+- For marketplace, also read marketplace-shared.tsx to verify the shared `EmptyState` component (icon + title + description, NO CTA button).
+- For novedades, also read novedades-list.tsx to verify the empty-state block in the cases list (Package icon + "Sin casos…" message, NO CTA button).
+- For each view, checked the 5 patterns against: actual fetch/error handling code, the JSX returned while `loading=true`, the JSX returned when data array is empty, presence of a `RefreshCw`/refresh button, and presence of a "Actualizado hace…" timestamp.
+- Read-only audit — NO files modified.
+
+Stage Summary:
+
+Gaps table (✅ = present · ⚠️ = partial · ❌ = missing):
+
+| View | Loading skeleton | Error state w/ retry | Empty state w/ CTA | Refresh btn | Last updated | GAPS |
+|------|------|------|------|------|------|------|
+| catalog-visual-view.tsx | ✅ (4× Skeleton h-48) | ❌ (`.catch(() => setLoading(false))` silent) | ✅ (Package icon + msg + "Limpiar filtros" CTA) | ❌ | ❌ | Error state, Refresh btn, Last updated (3) |
+| ads-view.tsx | ✅ (4× Skeleton h-20 + h-96) | ❌ (`.catch(() => setLoading(false))` silent) | ❌ (table renders with 0 rows, no empty card) | ❌ | ❌ | Error state, Empty state, Refresh btn, Last updated (4) |
+| monetization-view.tsx | ✅ (4× Skeleton h-24 + h-72) | ❌ (`.catch(() => setLoading(false))` silent) | ⚠️ (text-only "Sin comisiones reconocidas todavía" — no icon, no CTA) | ❌ | ❌ | Error state, Empty state (no icon/CTA), Refresh btn, Last updated (4) |
+| orchestrator-view.tsx | ❌ (uses `Loader2` spinner, no Skeleton) | ⚠️ (error shown in custom red div with AlertTriangle, no Alert component, no retry btn — user must click "Ejecutar todo" again) | ✅ (Bot icon + msg + descriptive CTA text pointing to existing Ejecutar todo / Siguiente paso buttons) | ❌ (RotateCcw "Reiniciar" resets state, doesn't refetch; no refresh btn) | ❌ | Loading skeleton, Error state w/ retry, Refresh btn, Last updated (4) |
+| settings-view.tsx | ⚠️ (outer: ✅ 3× Skeleton h-40; inner `IntegrationsReal` sub-component: ❌ uses plain text "Cargando estado de integraciones…") | ❌ (outer fetch has NO `.catch` at all; inner `.catch(() => setLoading(false))` silent) | ❌ (no empty state for channels or integration checks) | ❌ | ❌ | Error state, Empty state, Refresh btn, Last updated + IntegrationsReal skeleton (4) |
+| channels-manager.tsx | ✅ (3× Skeleton h-20) | ❌ (`.catch(() => setLoading(false))` silent) | ✅ (MessageCircle icon + msg + descriptive CTA pointing to "Nuevo canal" button in header) | ❌ (load() only via useEffect/after save/delete — no visible refresh btn) | ❌ | Error state, Refresh btn, Last updated (3) |
+| marketplace/index.tsx | ✅ (3× Skeleton h-24 + h-96) | ❌ (`catch { toast.error('No se pudo cargar el marketplace') }` — toast only, no Alert, no retry btn) | ⚠️ (shared `EmptyState` in marketplace-shared.tsx has icon + title + description, NO CTA button) | ✅ (RefreshCw "Actualizar" button in header) | ❌ | Error state, Empty state (no CTA), Last updated (3) |
+| logistics/index.tsx | ✅ (4× Skeleton h-24 + h-96) | ❌ (`catch { toast.error('No se pudo cargar inteligencia logística') }` — toast only, no Alert, no retry btn) | ❌ (no empty state at view level; sub-tabs may render blank) | ✅ (RefreshCw "Actualizar" button in header) | ❌ | Error state, Empty state, Last updated (3) |
+| novedades/index.tsx | ✅ (4× Skeleton h-24 + 2× h-96) | ❌ (all 3 fetches use `catch { toast.error(...) }` — toast only, no Alert, no retry btn) | ⚠️ (NovedadesList empty: Package icon + "Sin casos para estos filtros." — no CTA btn) | ❌ (no visible Refresh btn; reload only via filter changes / dialog callbacks) | ❌ | Error state, Empty state (no CTA), Refresh btn, Last updated (4) |
+
+Total gap count: **32 gaps across 9 views** (3 + 4 + 4 + 4 + 4 + 3 + 3 + 3 + 4)
+
+Pattern-by-pattern gap counts (how many of the 9 views are missing it):
+- Loading skeleton: 2 gaps (orchestrator-view, settings-view/IntegrationsReal)
+- Error state w/ retry: 9 gaps (NONE of the 9 views use the Alert + retry pattern — all either silently swallow or use toast.error)
+- Empty state w/ CTA: 6 gaps (ads-view, settings-view have none; monetization, marketplace, novedades, [settings] have partial icon+msg without CTA)
+- Refresh btn: 7 gaps (only marketplace/index and logistics/index have a visible RefreshCw button)
+- Last updated indicator: 9 gaps (NONE of the 9 views show "Actualizado hace X min")
+
+Top-priority fixes for a future Implement agent:
+1. **Last updated indicator** — 0/9 views have it. Trivial to add (track `lastUpdated` state, format with existing `timeAgo` helper from `@/lib/format`).
+2. **Error state w/ retry** — 0/9 views use the Alert + Reintentar pattern. All 9 either silently swallow errors (catalog-visual, ads, monetization, channels-manager) or surface them only via `toast.error` (marketplace, logistics, novedades, orchestrator, settings). Standardize on the overview-view pattern (Alert component + Reintentar button calling `load()`).
+3. **Refresh btn** — only 2/9 (marketplace, logistics) have it. Add `RefreshCw` button wired to existing `load` callback in the other 7.
+4. **Empty state w/ CTA** — 4/9 fully missing (ads, settings), 3/9 partial (monetization text-only, marketplace+novedades icon+msg-no-CTA). Adopt the catalog-visual pattern (icon + message + "Limpiar filtros"/"Crear" CTA).
+
+Files that are CLEANEST (fewest gaps, can serve as reference for the others):
+- `catalog-visual-view.tsx` (3 gaps, but already has good empty-state CTA pattern)
+- `channels-manager.tsx` (3 gaps, has good empty state)
+- `marketplace/index.tsx` and `logistics/index.tsx` (3 gaps each, already have RefreshCw button — best templates for the refresh pattern)
+
+Files in WORST shape:
+- `ads-view.tsx`, `monetization-view.tsx`, `orchestrator-view.tsx`, `settings-view.tsx`, `novedades/index.tsx` (4 gaps each).
+- `settings-view.tsx` is the only one with TWO sub-components that need fixing (outer + `IntegrationsReal`).
+
+---
+Task ID: AUDIT-GAP-4-DB
+Agent: Explore
+Task: Audit Prisma schema indexes, N+1 risks, missing transactions, pagination patterns
+
+Work Log:
+- Read last ~200 lines of worklog.md for context (project: CommerceFlow OS / ZIAY, multi-tenant, Prisma + SQLite dev / PostgreSQL prod, service-layer migration SPRINT6/7/8).
+- Read `prisma/schema.prisma` (1,158 lines, 41 models) end-to-end. Cataloged every `@@index`, `@@unique`, `@unique`, and FK `@relation` directive.
+- Read `prisma/migrations/1_postgres_indexes/migration.sql` (184 lines) — confirmed it only re-states indexes for the new intelligence/fintech/marketplace tables (CustomerScore, GuideTracking, Trafficker*, Wallet*, etc.) + 10 RLS policies. Does NOT add missing indexes for the original 9 core models (Conversation, Message, Order, OrderItem, OrderEvent, Customer, Product, Channel, User).
+- Read `prisma/migrations/0_init/migration.sql` (1,126 lines) — provider-flavored SQLite CREATE TABLE only; no supplementary indexes.
+- Audited ALL 41 models for tenantId / createdAt / status @@index coverage and FK indexes.
+- Searched `src/lib/services/*.ts` (13 services) and `src/app/api/**/route.ts` (~50 routes) for:
+  - N+1 patterns: `await db.X.findUnique(...)` / `db.X.create(...)` inside `.map()` or `for...of` loops.
+  - Missing `$transaction`: sequential `await db.X.create/update(...)` followed by another write.
+  - Pagination: `skip + take` (offset) vs `cursor: { id } + skip: 1 + take` (keyset).
+- Read in detail: order.service, conversation.service, ads.service, overview.service, monetization.service, novedades.service, logistics.service, wallet.service, trafficker.service, catalog.service, conversions.service, marketplace.service, notification.service; routes /api/conversations, /api/conversations/[id], /api/orders/[id], /api/ads/import, /api/conversions, /api/remarketing, /api/channels, /api/payments/config, /api/monetization/commission, /api/novedades, /api/shipping/guide, /api/buyer-behavior, /api/agents/[agentName], /api/orchestrate, /api/integrations/credentials; adapters whatsapp-catalog, woocommerce, shopify, supabase-catalog, payment-webhook-utils; lib/queue.ts.
+- Read-only audit — NO files modified.
+
+Stage Summary:
+
+### 1. SCHEMA INDEX AUDIT (41 models)
+
+| Model | Has @@index on tenantId? | Has @@index on createdAt? | Has @@index on status? | Missing indexes (high-priority FKs + filter cols) | Notes |
+|---|---|---|---|---|---|
+| Tenant | n/a (root) | ❌ | n/a | createdAt (for "recent tenants" admin queries) | Has @unique slug. Root table — low risk. |
+| User | ❌ | ❌ | ❌ | tenantId, status, role, lastLoginAt | FK tenantId has no index. `@unique email` creates one. |
+| Channel | ❌ | ❌ | n/a | tenantId, type, active, country | FK tenantId not indexed. Hot path: per-tenant channel list. |
+| Customer | ❌ | ❌ | n/a | tenantId, phone, psid, igId, country | FK tenantId not indexed. Lookups by phone/psid/igId are common in webhooks. |
+| **Conversation** | ❌ | ❌ | ❌ | tenantId, customerId, channelId, assigneeId, status, lastMessageAt | **CRITICAL** — most-read table in the app (messenger inbox). 0 @@index directives. |
+| **Message** | ❌ | ❌ | ❌ | tenantId, conversationId, createdAt, status | **CRITICAL** — full-text + timeline queries. 0 @@index. Has `embedding Bytes?` for future pgvector. |
+| Product | ⚠️ via @@unique[tenantId,sku] | ❌ | n/a | active, categoria, diseno (composite w/ tenantId) | Only composite unique — single-column tenantId index missing. |
+| **Order** | ❌ | ❌ | ❌ | tenantId, customerId, status, paymentStatus, paymentMode, createdAt, sourceAdId, clickId, conversationId | **CRITICAL** — KPIs, kanban, attribution, webhooks all hit this. 0 @@index. Has `@unique number`. |
+| **OrderItem** | ❌ | ❌ | n/a | orderId, productId | **CRITICAL** — every order detail + COGS calc. 0 @@index. |
+| **OrderEvent** | ❌ | ❌ | n/a | orderId, type, createdAt | **CRITICAL** — order audit timeline. 0 @@index. |
+| VolumePrice | ⚠️ via @@unique | n/a | n/a | productId | FK productId not indexed. |
+| SalesSpeech | ⚠️ via @@unique | n/a | n/a | — | Small table; low risk. |
+| Objection | ⚠️ via @@unique | n/a | n/a | — | Small table. |
+| ThemeDesign | ⚠️ via @@unique | n/a | n/a | — | Small table. |
+| CategoryCombo | ⚠️ via @@unique | n/a | n/a | — | Small table. |
+| DeliveryHistory | ❌ | ❌ | n/a | tenantId, contactoId | No index. |
+| ImageIdentification | ❌ | ❌ | n/a | tenantId, contactoId, skuDetectado | No index. |
+| AdPlatform | n/a (root) | ❌ | n/a | — | Root table, tiny. |
+| Campaign | ❌ | ❌ | ❌ | tenantId, platformId, externalId, status | FK tenantId + platformId not indexed. |
+| Ad | ❌ | ❌ | ❌ | campaignId, status, autoKill | FK campaignId not indexed. Has `@unique externalId`. |
+| AdSpend | ⚠️ via @@unique[adId,date] | n/a | n/a | — | Composite unique covers most queries. |
+| Attribution | ❌ | ❌ | n/a | orderId, adId | FK orderId + adId not indexed. Used in attribution joins. |
+| Carrier | ⚠️ via @@unique | n/a | n/a | — | Small table. |
+| **Shipment** | ❌ | ❌ | ❌ (estado) | tenantId, orderId, numeroGuia, estado, transportadoraCanonica | **HIGH** — guide tracking queries. 0 @@index. |
+| **CommissionEntry** | ❌ | ❌ | n/a | tenantId, orderId | 0 @@index. Used in GMV aggregation joins. |
+| **Invoice** | ❌ | ❌ | ❌ (estado) | tenantId, periodo, estado | 0 @@index. |
+| AutomationRule | ❌ | ❌ | n/a | tenantId, active, trigger | No index. |
+| Setting | n/a | n/a | n/a | — | `@unique key` is enough. |
+| **AuditLog** | ❌ | ❌ | n/a | tenantId, userId, action, entity, entityId, createdAt | **CRITICAL** — append-only, grows fastest. 0 @@index. Every channel/ad/order write fans out to AuditLog. |
+| CustomerScore | ✅ | ❌ | ❌ | (none critical) | Has @@index([tenantId]). Could add `category`. |
+| CarrierScore | ✅ | ❌ | ❌ | (none critical) | Has @@index([tenantId]). |
+| GuideTracking | ✅ | ❌ | ✅ (in composite) | — | Has @@index([tenantId]) + @@index([tenantId, guideNumber]). |
+| GuideMovement | ✅ | ❌ | n/a | — | Has @@index([tenantId, guideNumber]) + @@index([tenantId]). createdAt not in index — movement timeline queries will scan. |
+| BuyerBehavior | ✅ | ❌ | ❌ | riskLevel (for filter) | Has @@index([tenantId]) + @@unique([tenantId, phone]). |
+| BehaviorAlert | ✅ | ❌ | n/a | buyerBehaviorId | Has @@index([tenantId]). FK buyerBehaviorId not indexed — getAlerts batches the lookup in JS instead. |
+| ConversationalCart | ✅ | ❌ | ❌ | — | Has @@index([tenantId]) + @@index([conversationId]). |
+| CartItem | ✅ (cartId) | n/a | n/a | — | Has @@index([cartId]). |
+| NovedadCase | ✅ | ❌ | ✅ (composite) | orderId, phone, guideNumber | Has @@index([tenantId]) + @@index([tenantId, status]). createdAt not covered. |
+| NovedadEvidence | ✅ (caseId) | ❌ | n/a | — | Has @@index([caseId]). |
+| NovedadMessage | ✅ (caseId) | ❌ | n/a | — | Has @@index([caseId]). |
+| RedeliveryRequest | ✅ | ❌ | ✅ (composite) | guideNumber | Has @@index([tenantId]) + @@index([tenantId, status]). |
+| RedeliveryAttempt | ✅ (redeliveryId) | ❌ | n/a | — | Has @@index([redeliveryId]). |
+| ProductEnrichment | ✅ | ❌ | n/a | — | Has @@index([tenantId]) + @@unique([tenantId, sku]). |
+| Trafficker | n/a | ❌ | ❌ | status | Has @@index([email]) + `@unique email`. |
+| TraffickerCampaign | ✅ | ❌ | ❌ | status, platform | Has @@index([traffickerId]) + @@index([tenantId]). |
+| TraffickerSale | ✅ | ❌ | ❌ | campaignId, status | Has @@index([traffickerId]) + @@index([tenantId]). FK campaignId not indexed. |
+| TraffickerTransaction | ✅ (composite) | ✅ (composite) | ❌ | status | Has @@index([traffickerId, createdAt]). |
+| TraffickerCompensation | ✅ | ❌ | n/a | saleId | Has @@index([tenantId]). FK saleId not indexed; traffickerId not indexed. |
+| WalletAccount | ❌ | ❌ | n/a | traffickerId, tenantId, userId, isDefault | 0 @@index. |
+| WalletTransaction | ✅ (composite) | ✅ (composite) | ❌ | — | Has @@index([traffickerId, createdAt]) + @@index([tenantId, createdAt]). |
+| WithdrawalRequest | ✅ | ❌ | ✅ | — | Has 3 single-column indexes (traffickerId, tenantId, status). |
+| TwoFactorConfig | n/a (root-level) | ❌ | n/a | userId | `@unique traffickerId` + `@unique tenantId`. FK userId not indexed. |
+| MarketplaceListing | ✅ | ❌ | n/a | active (composite w/ tenantId would help) | Has @@index([tenantId]) + @@index([active]). Separate single-column — composite would be better. |
+| LeadShareConfig | n/a | ❌ | n/a | — | `@unique tenantId` is enough. |
+| LeadReferral | ✅ | ❌ | ❌ | status | Has @@index([fromTenantId]) + @@index([toTenantId]). |
+| PixelConfig | ✅ | ❌ | n/a | — | Has @@index([tenantId]) + @@unique([tenantId, platform]). |
+| ConversionEvent | ✅ (composite) | ✅ (composite) | n/a | — | Has @@index([tenantId, eventType, createdAt]) + @@index([pixelConfigId]). ✅ Best-indexed model. |
+| SEOConfig | ✅ | ❌ | n/a | — | Has @@index([tenantId]). |
+| GeoTarget | ✅ | n/a | n/a | active | Has @@index([tenantId]) + @@unique([tenantId, country, region, city]). |
+| RemarketingCampaign | ✅ | ❌ | n/a | trigger, active | Has @@index([tenantId]). |
+| RemarketingMessage | ✅ (composite) | ❌ | ✅ (composite) | — | Has @@index([tenantId, status, scheduledAt]). |
+| CustomerNotification | ✅ (composite) | ❌ | ✅ (composite) | — | Has @@index([tenantId, status]) + @@index([tenantId, scheduledAt]). |
+
+**Schema index gap summary:**
+- **9 CRITICAL models with 0 @@index**: Conversation, Message, Order, OrderItem, OrderEvent, AuditLog, Shipment, CommissionEntry, Invoice (+ WalletAccount).
+- **6 HIGH-priority models with partial/no index**: User, Channel, Customer, Product (only composite), Campaign, Ad, Attribution.
+- The migration `1_postgres_indexes/migration.sql` does NOT backfill the missing core indexes — it only re-states indexes for the new (intelligence/fintech/marketplace) models. **The core commerce models will full-scan on every query in PostgreSQL production.**
+
+---
+
+### 2. N+1 QUERY RISKS (top 10)
+
+| # | File:line | Pattern | Impact | Fix |
+|---|---|---|---|---|
+| 1 | `src/app/api/ads/import/route.ts:103` | `for (const cp of campaignPerf) { … for (const ap of adPerf) { const ad = await adsService.findAdByExternalId(ap.adId) } }` | N queries per import (1 per ad × M campaigns). At 50 ads × 5 campaigns = 250 round trips. | Batch: `db.ad.findMany({ where: { externalId: { in: [...] } } })` once, build a Map. |
+| 2 | `src/app/api/conversions/route.ts:107-119` | `Promise.all(pixels.map(p => conversionsService.createEvent({...})))` | N inserts per pixel (typically 1-3, but parallel inserts still N×RTT). | Replace with single `db.conversionEvent.createMany({ data: pixels.map(...) })`. |
+| 3 | `src/app/api/remarketing/route.ts:294-303, 316-325, 338-347` | 3 separate `for (const c of carts) { await db.remarketingMessage.create({...}) }` loops (abandoned_cart, no_response, post_purchase) | N inserts, one per cart/conv/order, up to 100 per trigger. | Use `db.remarketingMessage.createMany({ data: [...] })` after building the array. |
+| 4 | `src/app/api/monetization/commission/route.ts:68` | `db.order.findMany({ where: { tenantId, origen: 'agente_whatsapp' }})` loads ALL orders into memory just to compute `totalGmv = sum(o.total)` | O(N) memory + scan; called on every commission POST. | Replace with `db.order.aggregate({ where, _sum: { total: true } })`. |
+| 5 | `src/lib/services/monetization.service.ts:41-44` | `db.order.findMany({ where: { tenantId, origen: 'agente_whatsapp' }, include: { commissionEntries: true } })` for GMV + reconocida | Loads every order + nested commission entries into Node memory. At 10k orders × 5 entries = 50k rows per request. | Use `aggregate` for sums + `groupBy` for status funnel. |
+| 6 | `src/lib/services/overview.service.ts:28-32` | `db.order.findMany({ where: { createdAt: { gte: since } }, include: { items: true, sourceAd: true } })` for KPI cards | Loads N orders × M items into memory; series reduce is O(N). At 14d × 100 orders/day = 1400 orders + items in JS. | Use `aggregate` for revenue/cogs + `groupBy` by day for series. |
+| 7 | `src/app/api/orchestrate/route.ts:152-173` | `for (const step of ORCHESTRATOR_STEPS) { reply = await callAgent(...); await db.conversation.update(...) }` | Sequential agent calls (9 steps), each may persist. Each step is a separate LLM round-trip + DB write. | Inherent to orchestration — but the `db.conversation.update` should be a single write at the end. |
+| 8 | `src/app/api/agents/[agentName]/route.ts:50-71` | Sequential side-effects: `db.conversation.update` + `db.imageIdentification.create` after agent call | 2 writes per agent call (acceptable but not batched). | Wrap in `$transaction` (see risk #4 below). |
+| 9 | `src/lib/adapters/whatsapp-catalog.ts:166-180` (and woocommerce/shopify/supabase-catalog variants) | `db.product.findMany({ sku: { in: [...] }})` IS batched (good) — but then `itemsData.map(...).filter(...)` builds items in JS before `createMany` | N+1-safe pattern, but `find(prod by sku)` inside map could be pre-built as a Map (already done). | No fix needed — flagged as positive example. |
+| 10 | `src/lib/services/ads.service.ts:36-51` (`getAds`) | `db.ad.findMany({ include: { campaign: { include: { platform: true }}, spend: { where: { date: { gte: since }}}, orders: { where: { createdAt: { gte: since }}, include: { items: true }} }})` | Single query but at scale could fetch thousands of rows × nested items. Not classic N+1, but heavy payload. | Add `select` projections; consider separate aggregate query for spend/orders counts. |
+
+---
+
+### 3. MISSING $TRANSACTION RISKS (top 10)
+
+| # | File:line | Sequential writes | Risk on partial failure | Fix |
+|---|---|---|---|---|
+| 1 | `src/lib/adapters/whatsapp-catalog.ts:146-188` (`crearPedido`) | `db.order.create` → `db.orderItem.createMany` → `db.orderEvent.create` | Order exists without items or opening event. | Wrap all 3 in `db.$transaction([...])`. |
+| 2 | `src/lib/adapters/woocommerce.ts:198-221` (`crearPedido`) | Same pattern: `db.order.create` → `db.orderItem.createMany` → `db.orderEvent.create` | Same as #1. | Same fix. |
+| 3 | `src/lib/adapters/shopify.ts:209-230` AND `:301-325` (2 methods) | Same pattern, twice. | Same. | Same fix. |
+| 4 | `src/lib/adapters/supabase-catalog.ts:252-276` (`crearPedido`) | Same pattern. | Same. | Same fix. |
+| 5 | `src/lib/adapters/payment-webhook-utils.ts:93-112` (`applyPaymentUpdate`) | `db.order.update` (paymentStatus, paidAt) → `db.orderEvent.create` (audit) | Order marked paid but no event recorded → broken audit trail for finance reconciliation. | Wrap in `db.$transaction([...])`. Used by 4 webhook routes (MP/Wompi/Stripe/PayU). |
+| 6 | `src/lib/services/logistics.service.ts:237-277` (`persistShipmentGuide`) | `db.shipment.create` → `db.order.update` → `db.orderEvent.create` → `db.auditLog.create` | **DOCUMENTED** as intentionally not-transactional (carrier-side guide already generated, can't un-generate). But Order.status=shipped could land without OrderEvent or AuditLog. | Wrap at minimum the `shipment.create` + `order.update` + `orderEvent.create` in `$transaction`; keep `auditLog.create` best-effort. |
+| 7 | `src/lib/services/conversation.service.ts:127-143` (`sendMessage`) AND `src/app/api/conversations/route.ts:84-90` (duplicate) | `db.message.create` → `db.conversation.update` (lastMessageAt, unreadCount) | Message saved but conversation's `lastMessageAt` not bumped → messenger list shows stale timestamp. | Wrap in `$transaction([...])` OR use a single SQL `UPDATE ... RETURNING` pattern. |
+| 8 | `src/app/api/channels/route.ts:73-98` (POST), `:131-135` (PATCH), `:159-161` (DELETE) | `db.channel.{create,update,update}` → `db.auditLog.create` | Channel mutated but audit log missing. | Wrap in `$transaction`. |
+| 9 | `src/lib/services/ads.service.ts:76-104` (`updateAd`) | `db.ad.update` → `db.auditLog.create` | **DOCUMENTED** as best-effort (audit non-fatal). Acceptable, but if kill-switch fires and audit fails silently, there's no record of who killed the ad. | Wrap in `$transaction` so kill action + audit are atomic; log + 500 if audit fails. |
+| 10 | `src/lib/services/monetization.service.ts:178-219` (`generateInvoice`) | `db.invoice.{update,create}` → `db.auditLog.create` | Invoice persisted but audit missing. | Wrap in `$transaction`. |
+| 11 (bonus) | `src/lib/services/logistics.service.ts:343-365` (`upsertBuyerBehavior`) | `db.buyerBehavior.upsert` → conditional `db.behaviorAlert.create` | Behavior flipped to `high_risk` but no alert created → ops team misses it. | Wrap in `$transaction`. |
+| 12 (bonus) | `src/app/api/payments/config/route.ts:61-67` | `db.channel.update` → `for (const [k,v] of Object.entries(fields.global)) { await db.setting.upsert({...}) }` | Channel updated but some settings upserts may fail mid-loop. | Wrap in `$transaction` OR use `db.setting.createMany`/`upsertMany` if available. |
+
+**Positive examples (already using $transaction correctly):**
+- `src/lib/services/order.service.ts:119` (`updateOrder` with event) ✅
+- `src/lib/services/novedades.service.ts:128, 285, 386, 449, 491, 525` (createCase, redelivery, status transitions) ✅
+- `src/lib/services/wallet.service.ts:265` (`processWithdrawal` — 4 writes atomic) ✅
+- `src/lib/services/trafficker.service.ts:302, 367, 493` (confirmSale, rejectSale, compensateSale) ✅
+- `src/lib/queue.ts:286` (catalog-sync: per-product upserts + audit in one tx) ✅
+- `src/lib/services/ads.service.ts:152` (`importAdSpend` batched upserts) ✅
+- `src/lib/services/catalog.service.ts:82` (`syncCatalog` batched upserts) ✅
+- `src/app/api/novedades/route.ts:232, 258, 315, 335` (case resolve/escalate/close) ✅
+
+---
+
+### 4. PAGINATION PATTERNS
+
+| Pattern | Location | Status |
+|---|---|---|
+| Cursor-based (keyset) | `src/lib/services/order.service.ts:69` — `cursor: { id }, skip: 1, take: limit+1` | ✅ Correct |
+| Cursor-based (keyset) | `src/lib/services/conversation.service.ts:66` — same pattern, orderBy `lastMessageAt desc` | ✅ Correct (cursor on `id` works because orderBy is stable) |
+| Cursor-based (keyset) | `src/lib/services/novedades.service.ts:81` — same pattern | ✅ Correct |
+| Hard cap (no pagination) | `trafficker.service.ts:152` (`take: 100`), `marketplace.service.ts:43,101` (`take: 60`), `monetization.service.ts` (`findMany` no limit), `conversions.service.ts:29` (`take: 100`), `logistics.service.ts` (`take: 50`), `order.service.ts:159` (kanban `take: 200`), `novedades.service.ts:244` (redelivery `take: 200`) | ⚠️ Acceptable for MVP; will silently truncate at scale. Should add cursor for any list > 200 rows. |
+| Offset pagination (`skip: N, take: M`) | **NONE FOUND** | ✅ No offset pagination in the codebase — every paginated route uses keyset. |
+
+**Pagination verdict:** ✅ Cursor-based pagination is correctly implemented in the 3 services that paginate (order, conversation, novedades). The hard-cap pattern in ~7 other services is a soft risk at scale (silent truncation, not a perf issue).
+
+---
+
+### 5. ADDITIONAL FINDINGS
+
+- **`@unique` constraints are well-placed** for business-logic uniqueness: Tenant.slug, User.email, Order.number, Ad.externalId, AdSpend(adId,date), Carrier(tenantId,nombreCanonico), NovedadCase.caseNumber, Trafficker.email, Setting.key, ProductEnrichment(tenantId,sku), PixelConfig(tenantId,platform), GeoTarget(tenantId,country,region,city). ✅
+- **Composite `@@unique`** correctly used where business logic implies per-tenant uniqueness: Product(tenantId,sku), VolumePrice(tenantId,productId,tipoCliente,cantidadMinima), SalesSpeech(tenantId,perfil), Objection(tenantId,tipoObjecion), ThemeDesign(tenantId,tema), CategoryCombo(tenantId,categoria), CustomerScore(tenantId,phone), BuyerBehavior(tenantId,phone), CarrierScore(tenantId,carrierName). ✅
+- **Missing `@@unique` candidates:**
+  - `Order.sourceAdId` + `clickId` — should consider composite unique to prevent duplicate attribution rows.
+  - `Attribution(orderId, adId, model)` — currently no unique constraint; could create duplicate attribution entries per (order, ad, model).
+  - `CommissionEntry.orderId` — should be `@unique` (1:1 with order per the upsert logic in `/api/monetization/commission`). Currently the route does `findFirst + update/create` which is racy under concurrent calls.
+  - `WalletAccount(traffickerId, accountNumber)` — could prevent duplicate accounts.
+  - `WithdrawalRequest` — no natural unique key; consider `(walletAccountId, amount, createdAt)` to detect double-submits.
+- **`onDelete: Cascade` is set** on Message→Conversation, OrderItem→Order, OrderEvent→Order, AdSpend→Ad, CartItem→ConversationalCart, NovedadEvidence→NovedadCase, NovedadMessage→NovedadCase, RedeliveryAttempt→RedeliveryRequest, TraffickerCampaign→Trafficker, TraffickerTransaction→Trafficker. ✅
+- **Missing `onDelete` rules** on most other FKs — Prisma defaults to `Restrict`, which means deleting a Tenant will fail until all child rows are deleted manually. Acceptable for multi-tenant SaaS (tenants are rarely hard-deleted) but worth documenting.
+- **`Bytes?` columns** (Message.embedding, Product.embeddingTexto, Product.embeddingVisual) — comment says "Bytes in SQLite, vector in PG" but the migration file's `CREATE EXTENSION vector` is commented out. No `Unsupported("vector")` columns exist yet. ⚠️ Future pgvector migration not started.
+
+---
+
+**Total risk count: 47 risks identified**
+- **9 CRITICAL** models with 0 @@index (Conversation, Message, Order, OrderItem, OrderEvent, AuditLog, Shipment, CommissionEntry, Invoice, + WalletAccount = 10)
+- **6 HIGH** models with partial indexes (User, Channel, Customer, Product, Campaign, Ad, Attribution)
+- **10 N+1 query risks** (4 critical: ads/import, conversions, remarketing auto-generate, monetization commission; 6 medium)
+- **12 missing-$transaction risks** (4 critical: adapter order-create × 4 variants, payment-webhook-utils; 8 medium)
+- **Pagination**: ✅ 3 services use cursor correctly; 7 services use hard caps (soft risk)
+- **5 missing `@@unique` candidates** for business-logic uniqueness
+
+**Top-priority fixes for a future Implement agent:**
+1. **Add @@index to 9 CRITICAL models** — single migration `prisma/migrations/2_core_indexes/migration.sql` with `CREATE INDEX IF NOT EXISTS` for tenantId, createdAt, status on Conversation, Message, Order, OrderItem, OrderEvent, AuditLog, Shipment, CommissionEntry, Invoice. Estimated p95 improvement: 10-100× on tenant-scoped queries at 10k+ rows.
+2. **Wrap payment-webhook `applyPaymentUpdate`** in `$transaction` — affects 4 webhook routes (MP/Wompi/Stripe/PayU). Payment audit trail integrity.
+3. **Wrap adapter `crearPedido` (×4 adapters)** in `$transaction` — order creation atomicity.
+4. **Batch the ads/import `findAdByExternalId` loop** — single `findMany` + Map lookup.
+5. **Replace `monetization.service.getGMV` + `overview.service.getKPIs` in-memory reduces** with `aggregate` + `groupBy` — will eliminate the heaviest read paths.
+6. **Add `@@unique` to CommissionEntry.orderId** + convert the `findFirst + update/create` to a true `upsert` — closes a race condition.
+
+---
+
+## AUDIT-GAP-5-TESTS-I18N — Explore (audit only, no source changes)
+
+**Task ID:** AUDIT-GAP-5-TESTS-I18N
+**Agent:** Explore
+**Task:** Audit test coverage gaps + i18n string extraction opportunities
+**Mode:** Read-only audit. Zero files modified (no source code, no test files
+touched). This entry is the only write.
+
+### Work Log
+
+1. Read last ~200 lines of `worklog.md` for context (SPRINT8 service migration,
+   final-split refactor, 65 vitest tests passing across 6 files).
+2. Read `package.json` — confirmed test scripts: `vitest run` (unit),
+   `playwright test` (e2e), `vitest run --coverage` (coverage).
+3. Enumerated all test files via Glob:
+   - **6 vitest files** (unit/integration):
+     `src/lib/totp.test.ts`, `src/lib/format.test.ts`,
+     `src/lib/middleware/__tests__/{hmac,rate-limit}.test.ts`,
+     `src/lib/adapters/__tests__/{payment-registry,payment-adapter}.test.ts`.
+   - **4 Playwright spec files** under `e2e/`:
+     `{auth,api,dashboard,ssr-pages}.spec.ts`.
+4. Enumerated **53 API routes** under `src/app/api/**/route.ts` + `api-docs/route.ts`.
+5. Enumerated **13 service files** under `src/lib/services/*.ts` (excluding
+   `index.ts` barrel).
+6. Cross-referenced: ZERO service files have a sibling `.test.ts`. ZERO API
+   routes have a sibling `.test.ts`. E2E smoke-tests cover only 7 routes
+   (`health`, `agents`, `tenants`, `overview`+`orders` redirect-only,
+   `webhooks/mercadopago`, `webhooks/whatsapp`).
+7. Read `src/lib/i18n.ts` — lightweight `t(key, locale)` setup, 3 locales
+   (es-CO default, es-MX placeholder, en-US), 31 keys covering app/nav/common/
+   login/error/notfound. **No i18n.test.ts exists** — i18n module itself untested.
+8. Grep'd `src/components/dashboard/*.tsx` (48 files) and `src/app/*.tsx`
+   (10 non-API files) for hardcoded Spanish strings: `Cargando`, `Error`,
+   `Guardar`, `Cancelar`, `Cerrar`, `Buscar`, `Filtrar`, `Crear`, `Editar`,
+   `Eliminar`, `Aceptar`.
+9. Manually inspected each match to filter out JS `Error` constructor / TS
+   `Error & {...}` type annotations vs actual translatable UI strings.
+
+### Stage Summary — Test Coverage Table
+
+**Services (`src/lib/services/*.ts`) — 13 files, 0 with unit tests**
+
+| Service | Lines | Has test? | Test file |
+|---|---:|---|---|
+| `novedades.service.ts` | 605 | ❌ No | — |
+| `trafficker.service.ts` | 547 | ❌ No | — |
+| `logistics.service.ts` | 429 | ❌ No | — |
+| `wallet.service.ts` | 388 | ❌ No | — |
+| `catalog.service.ts` | 270 | ❌ No | — |
+| `monetization.service.ts` | 252 | ❌ No | — |
+| `marketplace.service.ts` | 237 | ❌ No | — |
+| `notification.service.ts` | 204 | ❌ No | — |
+| `conversation.service.ts` | 189 | ❌ No | — |
+| `order.service.ts` | 187 | ❌ No | — |
+| `ads.service.ts` | 182 | ❌ No | — |
+| `overview.service.ts` | 150 | ❌ No | — |
+| `conversions.service.ts` | 126 | ❌ No | — |
+
+**API routes (`src/app/api/**/route.ts`) — 53 files, 0 with unit tests.
+Coverage column = e2e smoke only.**
+
+| API route | Lines | Has test? | Test file |
+|---|---:|---|---|
+| `/api/wallet/route.ts` | 450 | ❌ No (e2e: dashboard marker only) | — |
+| `/api/trafficker/route.ts` | 377 | ❌ No | — |
+| `/api/novedades/route.ts` | 356 | ❌ No | — |
+| `/api/remarketing/route.ts` | 353 | ❌ No | — |
+| `/api/integrations/credentials/route.ts` | 297 | ❌ No | — |
+| `/api/health/route.ts` | 258 | ✅ e2e smoke | `e2e/api.spec.ts` |
+| `/api/redelivery/route.ts` | 218 | ❌ No | — |
+| `/api/orchestrate/route.ts` | 202 | ❌ No | — |
+| `/api/marketplace/route.ts` | 188 | ❌ No | — |
+| `/api/channels/route.ts` | 173 | ❌ No | — |
+| `/api-docs/route.ts` | 171 | ❌ No | — |
+| `/api/conversions/route.ts` | 165 | ❌ No | — |
+| `/api/ads/route.ts` | 160 | ❌ No | — |
+| `/api/product-enrichment/route.ts` | 152 | ❌ No | — |
+| `/api/ads/import/route.ts` | 155 | ❌ No | — |
+| `/api/novedades/[id]/route.ts` | 125 | ❌ No | — |
+| `/api/shipping/guide/route.ts` | 124 | ❌ No | — |
+| `/api/agents/[agentName]/route.ts` | 118 | ❌ No | — |
+| `/api/notifications/route.ts` | 112 | ❌ No | — |
+| `/api/guide-movements/route.ts` | 104 | ❌ No | — |
+| `/api/conversations/route.ts` | 99 | ❌ No | — |
+| `/api/buyer-behavior/route.ts` | 94 | ❌ No | — |
+| `/api/ai-reply/route.ts` | 83 | ❌ No | — |
+| `/api/orders/route.ts` | 80 | ❌ No (e2e: redirect-only check) | — |
+| `/api/webhooks/payu/route.ts` | 96 | ❌ No | — |
+| `/api/webhooks/stripe/route.ts` | 85 | ❌ No | — |
+| `/api/webhooks/wompi/route.ts` | 82 | ❌ No | — |
+| `/api/payments/config/route.ts` | 78 | ❌ No | — |
+| `/api/shipping/quote/route.ts` | 76 | ❌ No | — |
+| `/api/public/catalog/route.ts` | 70 | ❌ No | — |
+| `/api/webhooks/whatsapp/route.ts` | 68 | ✅ e2e verify-token | `e2e/api.spec.ts` |
+| `/api/webhooks/meta/route.ts` | 63 | ❌ No | — |
+| `/api/conversations/[id]/route.ts` | 52 | ❌ No | — |
+| `/api/ads/[id]/route.ts` | 52 | ❌ No | — |
+| `/api/catalog/products/route.ts` | 50 | ❌ No | — |
+| `/api/tenants/route.ts` | 45 | ✅ e2e (auth + slug) | `e2e/api.spec.ts` |
+| `/api/monetization/generate-invoice/route.ts` | 43 | ❌ No | — |
+| `/api/public/tenants/route.ts` | 38 | ❌ No | — |
+| `/api/orders/[id]/route.ts` | 42 | ❌ No | — |
+| `/api/health/ready/route.ts` | 37 | ❌ No | — |
+| `/api/catalog/send-to-chat/route.ts` | 37 | ❌ No | — |
+| `/api/monetization/gmv/route.ts` | 33 | ❌ No | — |
+| `/api/agents/route.ts` | 32 | ✅ e2e (count=26) | `e2e/api.spec.ts` |
+| `/api/overview/route.ts` | 38 | ❌ No (e2e: redirect-only) | — |
+| `/api/logistics-intelligence/route.ts` | 36 | ❌ No | — |
+| `/api/health/uptime/route.ts` | 13 | ❌ No | — |
+| `/api/health/live/route.ts` | 11 | ❌ No | — |
+| `/api/auth/[...nextauth]/route.ts` | 8 | ⚠️ implicit e2e (auth.spec) | — |
+| `/api/webhooks/mercadopago/route.ts` | 79 | ✅ e2e ACK | `e2e/api.spec.ts` |
+| `/api/payments/create-link/route.ts` | 134 | ❌ No | — |
+| `/api/monetization/commission/route.ts` | 90 | ❌ No | — |
+| `/api/catalog/sync/route.ts` | 108 | ❌ No | — |
+| `/api/route.ts` | 18 | ❌ No (no db, no test needed) | — |
+
+**Coverage ratio:** 6 vitest files + 4 e2e spec files. **0/13 services
+unit-tested. 0/53 API routes unit-tested. 7/53 routes e2e smoke-tested
+(13%).**
+
+### Top 10 most critical untested services/routes
+
+Ranked by (financial impact × atomicity × line count):
+
+1. **`src/lib/services/wallet.service.ts`** (388 LOC) — balance, 2FA trio,
+   withdrawals, `processWithdrawal` atomic `$transaction`. Money movement.
+   Critical untested.
+2. **`src/lib/services/trafficker.service.ts`** (547 LOC) — sales,
+   `confirmSale` / `failSale` / `requestWithdrawal` atomic transactions.
+   Money + commission calculation.
+3. **`src/lib/services/novedades.service.ts`** (605 LOC) — largest service;
+   incidents + 9 redelivery methods, all transactional. CRM core.
+4. **`src/lib/services/logistics.service.ts`** (429 LOC) —
+   `persistShipmentGuide` atomic (Shipment + Order + OrderEvent + AuditLog),
+   guide movements, buyer-behavior scoring.
+5. **`src/app/api/wallet/route.ts`** (450 LOC) — largest API route; wallet
+   actions + 2FA + withdrawals + account registration. No e2e beyond a marker
+   regex.
+6. **`src/app/api/webhooks/stripe/route.ts`** (85 LOC) — real payment webhook;
+   signature verification + payment processing. No test (no signature fixture).
+7. **`src/app/api/webhooks/wompi/route.ts`** (82 LOC) — real payment webhook;
+   same risk profile as stripe. No test.
+8. **`src/app/api/webhooks/payu/route.ts`** (96 LOC) — real payment webhook.
+   No test.
+9. **`src/lib/services/monetization.service.ts`** (252 LOC) — GMV, commissions,
+   invoice generation. Financial reporting.
+10. **`src/lib/services/marketplace.service.ts`** (237 LOC) — cross-tenant
+    listings + referrals. Permission/scope-sensitive (tenant isolation).
+
+### Stage Summary — i18n Gaps
+
+**`src/lib/i18n.ts`** has 31 keys for `app.*`, `nav.*`, `common.*`,
+`login.*`, `error.*`, `notfound.*`. No keys for `action.*` (Crear/Editar/
+Eliminar/Aceptar), `toast.*` (Error al …), `status.*` (Cargando/Cerrando),
+`search.*` (Buscar/Filtrar), or domain-specific labels.
+
+**Hardcoded Spanish strings per file** (count of clearly-translatable
+occurrences, after filtering JS `Error` constructor and TS type annotations):
+
+| File | Count | Sample hardcoded strings |
+|---|---:|---|
+| `src/components/dashboard/integrations/integrations-credentials.tsx` | 9 | "Guardar", "Eliminar", "Eliminar credenciales de …", "Error desconocido" ×3 |
+| `src/components/dashboard/topbar.tsx` | 4 | "Buscar…", "Buscar pedidos, clientes y navegar (Cmd+K)", "Cerrar sesión", "Cerrando sesión…" |
+| `src/components/dashboard/settings-view.tsx` | 3 | "Guardar" ×2, "Cargando estado de integraciones..." |
+| `src/components/dashboard/novedades/index.tsx` | 3 | "Error al cargar novedades", "Error al cargar el detalle", "Error al cargar reintentos" |
+| `src/components/dashboard/novedades-dialogs.tsx` | 4 | "Cancelar" ×2, "Crear caso", "Crear reintento", "Error al crear caso", "Error al crear reintento" |
+| `src/components/dashboard/novedades-detail.tsx` | 4 | "Cancelar", "Cerrar", "Error al enviar mensaje", "Error al agregar evidencia" |
+| `src/components/dashboard/novedades-redelivery.tsx` | 3 | "Guardar" ×2, "Cancelar" |
+| `src/components/dashboard/orders-view.tsx` | 5 | "Buscar # pedido, cliente, ciudad...", "Buscar pedidos", "Filtrar por estado", "Cancelar" ×2 |
+| `src/components/dashboard/orchestrator-view.tsx` | 3 | "Error desconocido" ×2, "Error en la ejecución" |
+| `src/components/dashboard/wallet/index.tsx` | 3 | "Error al iniciar 2FA", "Error al crear retiro", "Error al registrar cuenta" |
+| `src/components/dashboard/wallet/wallet-dialogs.tsx` | 2 | "Cancelar" ×2 |
+| `src/components/dashboard/wallet/wallet-2fa.tsx` | 1 | "Cancelar" |
+| `src/components/dashboard/wallet/wallet-withdrawals.tsx` | 1 | "Error al procesar" |
+| `src/components/dashboard/marketplace/index.tsx` | 2 | "Guardar", "Cancelar" |
+| `src/components/dashboard/marketplace/marketplace-listings.tsx` | 1 | "Cancelar" |
+| `src/components/dashboard/channels-manager.tsx` | 4 | "Editar canal", "Nuevo canal", "Cancelar", "Guardar", "Guardando..." |
+| `src/components/dashboard/integrations/index.tsx` | 4 | "Buscar", "Error desconocido" ×2, "Error en la cotización" |
+| `src/components/dashboard/logistics/logistics-scores.tsx` | 1 | "Buscar" |
+| `src/components/dashboard/logistics/logistics-guides.tsx` | 1 | "Crear novedad" |
+| `src/components/dashboard/ads-view.tsx` | 1 | "Buscar" |
+| `src/components/dashboard/catalog-visual-view.tsx` | 1 | "Buscar" |
+| `src/components/dashboard/messenger-view.tsx` | 2 | "Buscar", "Crear pedido desde chat" |
+| `src/components/dashboard/novedades-list.tsx` | 1 | "Buscar" |
+| `src/app/login/page.tsx` | 1 | "Error:" (inline label) |
+| `src/app/global-error.tsx` | 1 | "Error crítico del sistema" |
+
+**Totals per string (translatable occurrences):**
+
+| String | Occurrences | Files | Existing i18n key? |
+|---|---:|---:|---|
+| `Buscar` (and variants) | 10 | 8 | ✅ `common.search` exists but unused |
+| `Cancelar` | 12 | 9 | ✅ `common.cancel` exists but unused |
+| `Guardar` / `Guardando...` | 8 | 5 | ✅ `common.save` exists but unused |
+| `Cerrar` / `Cerrando sesión` | 2 | 2 | ✅ `common.close` exists but unused |
+| `Cargando ...` | 1 | 1 | ✅ `common.loading` exists but unused |
+| `Error ...` (toast/label, not constructor) | 17 | 9 | ✅ `common.error` exists but unused |
+| `Crear ...` | 4 | 3 | ❌ no `common.create` key |
+| `Editar ...` | 1 | 1 | ❌ no `common.edit` key |
+| `Eliminar ...` | 3 | 1 | ✅ `common.delete` exists but unused |
+| `Filtrar ...` | 1 | 1 | ❌ no `common.filter` key |
+| `Aceptar` | 0 | 0 | ❌ no `common.accept` key (none used yet) |
+
+### Total gaps
+
+- **Test coverage:** 13/13 services untested · 53/53 API routes lack unit
+  tests · 46/53 API routes lack even e2e smoke · 1/1 i18n module untested.
+  **Top-10 critical-untested list above.**
+- **i18n:** **~63 translatable hardcoded Spanish strings across 25 files**.
+  5 of the 11 target keywords (`Buscar`, `Cancelar`, `Guardar`, `Cerrar`,
+  `Error`) already have i18n keys defined in `src/lib/i18n.ts` but the
+  components bypass them and inline the Spanish literal. 3 keywords (`Crear`,
+  `Editar`, `Filtrar`) have **no key yet** and would need dictionary additions.
+  `Aceptar` is not currently used in any audited file.
+
+### Next actions (recommended, not executed)
+
+1. Add `i18n.test.ts` for the `t()`/`getLocale()` functions (key fallback,
+   unknown locale, env override).
+2. Add unit tests for the top-3 money-moving services: `wallet.service.ts`,
+  `trafficker.service.ts`, `monetization.service.ts` — focus on the atomic
+  `$transaction` methods (mock Prisma client).
+3. Add webhook route tests with signature fixtures for `stripe`, `wompi`,
+  `payu`, `meta` (the 4 untested webhook routes).
+4. Extend the i18n dictionary with `common.create`, `common.edit`,
+  `common.filter`, `common.accept`, plus a `toast.*` namespace for the
+  `Error al …` strings (17 occurrences).
+5. Sweep `src/components/dashboard/**/*.tsx` to replace the ~63 hardcoded
+  Spanish literals with `t('…')` calls — purely mechanical, no behavior
+  change.
+
+---
+
+## AUDIT-GAP-3-CODEQUALITY — Explore (code quality audit)
+
+**Task:** Audit `src/` for `any` types, `console.*`, TODO/FIXME/XXX, suppression directives, hardcoded URLs/credentials, magic numbers, and dead code (unused imports). No files modified.
+
+### Method
+- Used `Grep` (ripgrep) for all pattern-based scans across `src/`.
+- Ran `bunx eslint .` to confirm dead code / unused imports.
+- Cross-referenced TODO hits against SPRINT8-SERVICES-REST-001 worklog entry (lines 3298–3314) which documented the 10 intentional "migrate to service layer" TODOs.
+
+### Findings
+
+#### 1. `any` types — **68 occurrences across 25 files**
+Breakdown: 48 `: any` + 18 `as any` + 2 `any[]` (no `Array<any>`).
+Top offenders:
+| File | Count | Pattern |
+|---|---|---|
+| `src/app/api/trafficker/route.ts` | 7 | `body: any` on 6 handler fns + 1 `let body: any` |
+| `src/lib/queue.ts` | 6 | BullMQ dynamic imports — `bullmqQueue: any`, `bullmqWorker: any`, `(job: any)` |
+| `src/components/dashboard/wallet/index.tsx` | 5 | `catch (e: any)` x5 in demo handlers |
+| `src/app/api/remarketing/route.ts` | 5 | `body: any` in CRUD + `let body: any` x2 |
+| `src/lib/auth.ts` | 9 (as any) | `(session.user as any).X = token.X` x6 (NextAuth session augmentation) |
+| `src/lib/adapters/google-ads.ts` | 4 + 2 `any[]` | `mapCampaign(r: any)`, `mapAd(r: any)`, `runQuery<{ results?: any[] }>` |
+| `src/app/api/novedades/route.ts` | 2 + 2 (as any) | `let body: any` + session cast |
+| `src/app/api/redelivery/route.ts` | 2 | `let body: any` x2 |
+| `src/app/api/wallet/route.ts` | 1 + 2 (as any) | session cast |
+| 16 other files | 1 each | mostly `let body: any` for JSON parse |
+
+**Notable:** All 9 `as any` in `auth.ts`/`auth-helpers.ts`/`novedades/route.ts`/`wallet/route.ts`/`messenger-view.tsx` are NextAuth session augmentation (role/tenantId/tenantSlug/tenantName added to session.user) — could be eliminated by extending the `Session` type via `next-auth.d.ts` (which exists at `src/types/next-auth.d.ts`).
+
+#### 2. `console.*` — **23 occurrences across 11 files** (should use `@/lib/logger` instead)
+| File | Line | Call |
+|---|---|---|
+| `src/components/dashboard/overview-view.tsx` | 130, 148 | `console.error('Overview fetch failed', err)` |
+| `src/components/dashboard/kanban-view.tsx` | 291 | `console.error('Kanban fetch failed', err)` |
+| `src/components/dashboard/orders-view.tsx` | 101 | `console.error('Orders fetch failed', err)` |
+| `src/components/dashboard/messenger-view.tsx` | 100 | `console.error('loadConvs failed', err)` |
+| `src/lib/redis.ts` | 70, 73, 79 | `console.error/log/warn('[redis] ...')` |
+| `src/lib/adapters/tiktok-ads.ts` | 88, 114, 181, 188, 203 | `console.warn/error` (5x) |
+| `src/lib/adapters/google-ads.ts` | 77, 100, 137, 145 | `console.warn/error` (4x) |
+| `src/lib/adapters/payment-webhook-utils.ts` | 21, 116 | `console.error('[auditLog:...]')` |
+| `src/lib/vision/pipeline.ts` | 151 | `console.error('[vision/pipeline] failed to persist ...')` |
+| `src/app/error.tsx` | 14 | `console.error(error)` (Next.js error boundary — may be intentional) |
+| `src/app/global-error.tsx` | 12 | `console.error('Global error:', error)` (Next.js error boundary — may be intentional) |
+| `src/app/login/page.tsx` | 116 | `console.error(err)` (client-side login form) |
+
+**Severity:** Production-side adapters (tiktok-ads, google-ads, payment-webhook-utils, vision/pipeline) and the redis client should route through `logger`. The two Next.js error-boundary `console.error` calls are arguably acceptable (errors before React tree mounts).
+
+#### 3. TODO/FIXME/XXX — **21 occurrences across 13 files** (0 FIXME, 0 XXX)
+- **10 intentional** — `// TODO: migrate to service layer` in API routes (tenants, catalog/sync, remarketing, channels, shipping/quote, ai-reply, payments/config, agents/[agentName], orchestrate, integrations/credentials). Documented in SPRINT8-SERVICES-REST-001 (worklog line 3298–3314) with rationale "1-2 simple db calls OK to leave inline".
+- **6 roadmap** — `// TODO (futuro):` in adapter files (whatsapp-catalog, dropi x2, woocommerce, 99envios, shopify, aveonline) — future webhook/cache/GraphQL enhancements, not actionable.
+- **4 actionable** —
+  - `src/lib/adapters/registry.ts:35` — `TODO: cargar creds reales desde secret manager usando tenant.credencialesCatalogoRef`
+  - `src/lib/adapters/registry.ts:38` — `TODO: cargar OAuth access token desde secret manager`
+  - `src/lib/carriers.ts:63` — `TODO(onboarding): el carrier rawName no está en el catálogo canónico`
+  - `src/lib/carriers.ts:11` — descriptive mention of the above (not an actionable TODO marker itself)
+
+#### 4. Suppression directives — **2 occurrences across 2 files**
+| File | Line | Directive | Rationale |
+|---|---|---|---|
+| `src/lib/middleware/rate-limit.ts` | 109 | `// @ts-expect-error — ip exists at runtime in some deployment targets` | Documented |
+| `src/middleware.ts` | 131 | `// @ts-expect-error — ip is not in the NextRequest type but exists at runtime` | Documented |
+
+Both are the same pattern (Next.js `req.ip` runtime field). No `@ts-ignore`, no `@ts-nocheck`, no `eslint-disable` anywhere in `src/`.
+
+#### 5. Hardcoded URLs/credentials — **~12 actionable + 8 acceptable env-fallbacks**
+**Actionable (no env override):**
+| File | Line | URL | Notes |
+|---|---|---|---|
+| `src/lib/adapters/stripe.ts` | 29 | `https://api.stripe.com/v1` | Hardcoded; should use `process.env.STRIPE_API_BASE` |
+| `src/lib/adapters/mercadopago.ts` | 25 | `https://api.mercadopago.com` | Hardcoded |
+| `src/lib/adapters/dropi.ts` | 33 | `https://api.dropi.co/api/v1` | Hardcoded |
+| `src/lib/adapters/99envios.ts` | 35 | `https://api.99envios.app/v1` | Hardcoded |
+| `src/lib/adapters/aveonline.ts` | 33 | `https://api.aveonline.co/api` | Hardcoded |
+| `src/lib/adapters/google-ads.ts` | 38 | `https://googleads.googleapis.com/v17` | Hardcoded |
+| `src/lib/adapters/tiktok-ads.ts` | 42 | `https://business-api.tiktok.com/open_api/v1.3` | Hardcoded |
+| `src/lib/adapters/whatsapp-catalog.ts` | 34 | `https://graph.facebook.com/${VER}` | Hardcoded |
+| `src/lib/queue.ts` | 396 | `https://graph.facebook.com/v19.0/${pixelId}/events` | Pixel event — hardcoded |
+| `src/lib/queue.ts` | 426 | `https://www.google-analytics.com/mp/collect` | GA4 — hardcoded |
+| `src/lib/queue.ts` | 453 | `https://business-api.tiktok.com/open_api/v1.3/event/track/` | TikTok pixel — hardcoded |
+| `src/lib/adapters/payu.ts` | 112 | `ipAddress: '127.0.0.1'` | Suspicious — test value sent in prod body |
+
+**Acceptable (env-var fallbacks):** `OPENAI_BASE_URL ?? 'https://api.openai.com/v1'`, `OLLAMA_BASE_URL ?? 'http://localhost:11434'`, `PAYU_API_BASE ?? 'https://api.payulatam.com/...'`, `WOMPI_API_BASE ?? 'https://production.wompi.co/v1'`, `NEXT_PUBLIC_BASE_URL ?? 'http://localhost:3000'` (in `app/robots.ts`, `app/sitemap.ts`, `app/t/[slug]/page.tsx`, `app/t/[slug]/p/[sku]/page.tsx`). Health-check `127.0.0.1` in `api/health/route.ts:168` is correct (internal TCP probe).
+
+**No hardcoded credentials found.** No `sk-...`, `Bearer ...`, `password=`, or `api_key=` literals in `src/`.
+
+#### 6. Magic numbers — **top 20 (of ~33 candidates)**
+| # | File:Line | Value | Meaning |
+|---|---|---|---|
+| 1 | `lib/cache.ts:37` | `1000` | MAX_ENTRIES (env-overridable, OK) |
+| 2 | `lib/cache.ts:57` | `5 * 60 * 1000` | 5-min TTL |
+| 3 | `lib/middleware/rate-limit.ts:31` | `5 * 60 * 1000` | 5-min GC interval |
+| 4 | `lib/middleware/rate-limit.ts:119` | `60 * 60 * 1000` | 1-hour GC maxAge |
+| 5 | `lib/middleware/idempotency.ts:31,41` | `5 * 60 * 1000` | 5-min idempotency TTL |
+| 6 | `middleware.ts:85` | `60` | RATE_LIMIT_MAX req/min |
+| 7 | `middleware.ts:86` | `60_000` | RATE_LIMIT_WINDOW ms |
+| 8 | `middleware.ts:188` | `31536000` | HSTS max-age (1 year) |
+| 9 | `lib/socket.ts:13` | `1500` | reconnection delay ms |
+| 10 | `lib/socket.ts:14` | `10000` | socket timeout ms |
+| 11 | `lib/redis.ts:65` | `times * 500, 2000` | retry backoff cap |
+| 12 | `lib/agents/prompts/guide_alert.ts:21` | `48 * 3600 * 1000` | 48h stuck cutoff |
+| 13 | `lib/services/monetization.service.ts:24-25` | `10_000_000`, `40_000_000`, `4.5`, `3.0`, `1.75` | GMV tier thresholds + commission %s |
+| 14 | `app/api/health/route.ts:59-65` | `250`, `1000` | latency warning/error ms |
+| 15 | `app/api/health/route.ts:223` | `10`, `25` | free-disk % error/warning thresholds |
+| 16 | `app/api/wallet/route.ts:100` | `1000` | FEE_MIN COP |
+| 17 | `components/dashboard/wallet/wallet-dialogs.tsx:81` | `0.01`, `1000` | 1% withdrawal fee, min fee |
+| 18 | `components/dashboard/logistics/logistics-scores.tsx:177-238` | `80`, `50` | delivery-rate thresholds |
+| 19 | `components/dashboard/kanban-view.tsx:416` | `50` | stuckPct warning |
+| 20 | `components/dashboard/catalog-visual-view.tsx:95,257-259` | `300`, `500` | UI setTimeout delays |
+| 21 | `lib/embeddings/service.ts:166,200` | `1000`, `500` | Prisma `take` limits |
+| 22 | `lib/services/*/` (8 files) | `100` / `200` | Prisma `take` limits |
+| 23 | `lib/adapters/tiktok-ads.ts:199` | `100` | pagination guard |
+| 24 | `lib/adapters/shopify.ts:157,243` | `250` | Shopify product limit |
+
+Most are embedded in business logic; should ideally be extracted to named constants (e.g. `STUCK_SHIPMENT_HOURS = 48`, `RATE_LIMIT_MAX_PER_MIN = 60`, `LATENCY_WARN_MS = 250`).
+
+#### 7. Dead code / unused imports — **0 issues**
+- `bunx eslint .` → **exit 0** (clean, no warnings, no errors).
+- `npx tsc --noEmit` previously verified clean per worklog (line 3302, 3419).
+- No `@typescript-eslint/no-unused-vars` violations reported.
+
+### Summary Table
+
+| Category | Count | Top 5 files |
+|----------|-------|-------------|
+| `any` types | 68 (across 25 files) | `lib/auth.ts` (9), `app/api/trafficker/route.ts` (7), `lib/queue.ts` (6), `components/dashboard/wallet/index.tsx` (5), `app/api/remarketing/route.ts` (5) |
+| `console.*` | 23 (across 11 files) | `lib/adapters/tiktok-ads.ts` (5), `lib/adapters/google-ads.ts` (4), `lib/redis.ts` (3), `lib/adapters/payment-webhook-utils.ts` (2), `components/dashboard/overview-view.tsx` (2) |
+| TODO/FIXME/XXX | 21 (across 13 files) | `app/api/*/route.ts` (10 "migrate to service layer" — intentional), `lib/adapters/*` (6 "TODO futuro" — roadmap), `lib/carriers.ts` (2), `lib/adapters/registry.ts` (2) |
+| Suppression directives | 2 (across 2 files) | `lib/middleware/rate-limit.ts:109`, `middleware.ts:131` (both `@ts-expect-error` for `req.ip`) |
+| Hardcoded URLs | 12 actionable (8 acceptable env-fallbacks) | `lib/adapters/stripe.ts`, `lib/adapters/mercadopago.ts`, `lib/adapters/dropi.ts`, `lib/adapters/99envios.ts`, `lib/adapters/aveonline.ts` (5 of 8 adapter files with no env override) |
+| Magic numbers | ~33 candidates | `lib/cache.ts`, `lib/middleware/rate-limit.ts`, `lib/middleware/idempotency.ts`, `middleware.ts`, `lib/services/monetization.service.ts` |
+| Dead code (unused imports) | **0** | (eslint clean — exit 0) |
+
+**Total actionable issues: ~159** (68 any + 23 console + 4 real TODOs + 2 suppressions + 12 hardcoded URLs + 33 magic numbers + 17 documented-but-deferrable TODOs).
+
+### Recommendations (prioritized)
+1. **High** — Replace the 12 `console.*` calls in `lib/adapters/*` and `lib/redis.ts` with `logger` from `@/lib/logger` (redacts secrets automatically).
+2. **High** — Extend `Session` type in `src/types/next-auth.d.ts` to eliminate the 9 `as any` casts in `auth.ts`/`auth-helpers.ts`/`novedades/route.ts`/`wallet/route.ts`/`messenger-view.tsx`.
+3. **Medium** — Move adapter API base URLs to env vars with the existing fallback pattern (`process.env.X_API_BASE ?? 'https://...'`) — uniform across stripe/mercadopago/dropi/99envios/aveonline/google-ads/tiktok-ads/whatsapp-catalog.
+4. **Medium** — Replace `let body: any` (×17 in API routes) with `z.object({...}).parse(await req.json())` using Zod (already a project dependency via shadcn form primitives).
+5. **Medium** — Fix `lib/adapters/payu.ts:112` hardcoded `ipAddress: '127.0.0.1'` — should derive from request headers in the webhook path.
+6. **Low** — Extract magic numbers in `monetization.service.ts`, `rate-limit.ts`, `idempotency.ts`, `cache.ts`, `health/route.ts` into named constants.
+7. **Low** — The 21 TODO comments: 10 are intentional (documented), 6 are roadmap ("TODO futuro"), 4 are real (registry secret-manager, carriers onboarding). Leave the documented ones; convert the 4 real ones into GitHub issues or address them.
+8. **No action** — Dead code: eslint is clean. No `@ts-ignore`, no `eslint-disable`, no hardcoded credentials.
+
+Work Log:
+- Read worklog last 200 lines (lines 3235–3434) to understand SPRINT8 context — confirmed 10 intentional "migrate to service layer" TODOs are documented.
+- Ran 14 Grep searches across `src/` for: `: any`, `as any`, `any[]`/`Array<any>`, `Record<string, any>` (acceptable, not flagged), `console.(log|error|warn|info|debug)(`, `TODO|FIXME|XXX`, `@ts-ignore|@ts-expect-error|eslint-disable|@ts-nocheck`, `http(s)://(localhost|api.openai.com|graph.facebook.com|...)`, generic URL regex, `sk-...|Bearer ...|password=|api_key=`, `setTimeout(...,\d{3,})`, generic `\d{4,}`, `(>=|<=|>)\d{2,}`, `(take|limit|timeout|...)\s*[:=]\s*\d{3,}`.
+- Verified `payu.ts:112` `127.0.0.1` is a hardcoded prod body value (suspicious — should be derived from request).
+- Verified 4 `localhost:3000` BASE_URL occurrences are env-var fallbacks (`process.env.NEXT_PUBLIC_BASE_URL ?? ... ?? 'http://localhost:3000'`) — acceptable pattern.
+- Confirmed `src/types/next-auth.d.ts` exists — can be used to eliminate the 9 `as any` session casts.
+- Ran `bunx eslint .` → exit 0 (no dead code / unused imports).
+- Did NOT modify any files (audit-only task).
+
+---
+
+## AUDIT-GAP-2-A11Y — Explore (WCAG AA accessibility audit, 9 dashboard views)
+
+**Task ID:** AUDIT-GAP-2-A11Y
+**Agent:** Explore
+**Task:** Audit WCAG AA accessibility in 9 dashboard views NOT covered by UX-IMPROVE-001
+
+**Scope:** Read-only audit. No files modified. Each view scanned for:
+aria-label on icon-only buttons, aria-live regions, aria-current/pressed,
+focus-visible:ring-2, alt text, aria-hidden on decor icons, semantic HTML,
+keyboard navigation. The 3 directory-based views (marketplace, logistics,
+novedades) audited as the union of index.tsx + their sub-files since
+they render together.
+
+### Work Log
+
+- Read worklog tail (lines 3235–3435) to understand prior agent context.
+- Listed dashboard/ directory; confirmed 9 audit targets exist.
+- Read full content of each of the 9 view files (and the sub-files for
+  marketplace/{index,marketplace-listings,marketplace-my,marketplace-referrals,
+  marketplace-shared}.tsx, logistics/{index,logistics-scores,logistics-guides,
+  logistics-alerts,logistics-shared}.tsx, novedades/{index,shared,novedades-list,
+  novedades-detail,novedades-redelivery,novedades-history,novedades-dialogs}.tsx).
+- For each view, inspected JSX for icon-only buttons (lucide icons inside
+  Button without text), dynamic loading regions, stateful toggles, <img> alt
+  attributes, decorative lucide usage, semantic landmarks, and keyboard
+  accessibility (div onClick vs native <button>, focus styling).
+- Counted gaps per WCAG category per view.
+- Compiled the summary table below.
+
+### Stage Summary
+
+| View | aria-label on icon btns | aria-live regions | aria-current/pressed | focus-visible rings | alt text | aria-hidden decor | semantic HTML | keyboard nav | GAPS COUNT |
+|---|---|---|---|---|---|---|---|---|---|
+| catalog-visual-view.tsx | 6 (grid/list toggle, Eye, MessageSquare×2, Send chat) | 2 (chat history, aiLoading dots) | 1 (viewMode toggle lacks aria-pressed) | 1 (X badge icons not focusable; div onClick cards have no ring) | 0 (all img have alt=name) | 0 (lucide default) | 2 (top-level div, clickable div cards not <button>) | 3 (div onClick cards not keyboard-accessible; X badge icons not buttons) | **15** |
+| ads-view.tsx | 0 (all buttons have text) | 1 (loading skeleton lacks aria-busy) | 0 | 1 (TooltipTrigger wraps <span> — not focusable) | 0 (no <img>) | 0 (lucide default; line 231 already aria-hidden) | 1 (no <main>/<section>) | 1 (TooltipTrigger spans not keyboard-reachable) | **4** |
+| monetization-view.tsx | 0 (no icon-only btns) | 1 (loading skeleton) | 1 (active tramo row lacks aria-current="true") | 0 (no interactive elements beyond table) | 0 (no <img>) | 0 (lucide default) | 1 (no <main>/<section>) | 0 | **3** |
+| orchestrator-view.tsx | 0 (reset btn has aria-label; others have text) | 3 (timeline log, error message role="alert" missing, progress bar role/aria-valuenow missing) | 1 (current step indicator lacks aria-current="step") | 0 (shadcn Button handles) | 0 (no <img>) | 0 (lucide default) | 1 (no <main>/<section>; <label> not associated with Select via htmlFor) | 1 (label-Select association missing) | **6** |
+| settings-view.tsx | 0 (all buttons have text) | 2 (loading skeleton, "Cargando estado de integraciones…" lacks role="status") | 0 (Switch handles aria-checked) | 0 | 0 (no <img>) | 1 (emoji icons in integration list spans not aria-hidden) | 2 (no <main>/<section>; many <Label> not bound via htmlFor; inputs not in <form>) | 0 (interactive elements work) | **5** |
+| channels-manager.tsx | 2 (Edit2 icon button line 148, Trash2 icon button line 149) | 1 (loading skeleton) | 0 | 0 (shadcn Button handles) | 0 (no <img>) | 0 (lucide default) | 2 (no <main>/<section>; multiple <Label> not bound via htmlFor; native confirm() instead of Dialog) | 1 (labels not associated with inputs) | **6** |
+| marketplace/index.tsx (+4 sub-files) | 0 (all buttons have text) | 1 (loading skeleton lacks aria-busy) | 0 (shadcn Tabs/Switch handle) | 0 | 0 (ListingCard img has alt={listing.name}) | 0 (lucide default) | 1 (no <main>/<section>; no <form> wrapping inputs) | 0 | **2** |
+| logistics/index.tsx (+4 sub-files) | 0 (all buttons have text) | 1 (loading skeleton) | 0 (shadcn Tabs handles) | 0 | 0 (no <img>; chart is SVG) | 0 (lucide default) | 2 (no <main>/<section>; recharts <BarChart> missing role="img" + <title>/<desc>) | 1 (search Input and category Select have no <Label> association in CustomerScoresTab) | **4** |
+| novedades/index.tsx (+6 sub-files) | 1 (Send button in novedades-detail.tsx line 278 is icon-only) | 4 (index skeleton, detail loading skeleton, messages list, redelivery loading skeleton) | 2 (selected list row lacks aria-current="true"; showAddrForm/showNoteForm toggles lack aria-pressed) | 2 (novedades-list.tsx native <button> lacks focus-visible:ring class; novedades-detail.tsx evidence <a> tag has hover:ring but no focus-visible:ring) | 2 (novedades-list.tsx line 119 thumbnail alt="" and novedades-detail.tsx line 228 evidence img alt="" — empty alts are WCAG-valid for decorative but lose info for AT users) | 0 (lucide default) | 2 (no <main>/<section>; <Label> in CreateCaseDialog/CreateRedeliveryDialog not bound via htmlFor; inputs not in <form>) | 1 (dialog labels not associated with inputs) | **14** |
+
+**Total gap count across the 9 views: 59**
+
+### Key findings
+
+1. **No view uses semantic `<main>`, `<header>`, `<section>`, or `<article>`** — every
+   view renders a top-level `<div className="space-y-…">` instead. This is a
+   systemic gap (also affects the views already covered by UX-IMPROVE-001).
+   Lowest-effort fix: wrap each view's root in `<main aria-label="…">`.
+
+2. **Loading skeletons never declare `aria-busy` or `role="status"`** — 8 of 9 views
+   render `<Skeleton>` blocks during fetch but screen readers receive no "loading"
+   announcement. Each `<Skeleton>` block (or its parent) should be wrapped with
+   `aria-busy="true"` and `role="status"` (or use `aria-live="polite"`).
+
+3. **Icon-only buttons are the most common gap type (9 instances total)** —
+   the worst offender is `catalog-visual-view.tsx` (6 missing aria-labels:
+   view-mode toggle, Eye, MessageSquare×2, Send). `channels-manager.tsx`
+   has the most impactful gaps (Edit2 + Trash2 — destructive action without
+   accessible name).
+
+4. **Click-to-act `<div onClick>` patterns in `catalog-visual-view.tsx`** are
+   the worst keyboard-nav regression: cards in grid/list view are not focusable,
+   have no `role="button"`, no `tabIndex={0}`, and no `onKeyDown` handler.
+   Keyboard-only users cannot open product detail.
+
+5. **TooltipTrigger wrapping `<span>` in `ads-view.tsx`** (lines 296, 325) is
+   inaccessible — `<span>` is not focusable, so the tooltip's extra context
+   (gross profit / net profit / verdict explanation) is unavailable to keyboard
+   and screen-reader users. Fix: use a `<button type="button">` trigger or add
+   `tabIndex={0} role="button"`.
+
+6. **`<Label>` without `htmlFor` is systemic** in `settings-view.tsx`,
+   `channels-manager.tsx`, `orchestrator-view.tsx`, and the novedades dialogs
+   (~25 instances combined). shadcn `<Label>` auto-binds only when wrapping the
+   input; these are siblings, so binding is lost. Marketplace's `PublishListingDialog`
+   and `ReferButton` are the only places that do it right (`htmlFor="p-sku"` etc.) —
+   good template to copy.
+
+7. **`orchestrator-view.tsx` has the most dynamic-content gaps** — timeline log
+   (no `role="log"` / `aria-live="polite"`), error message (no `role="alert"`),
+   and progress bar (no `role="progressbar"` + `aria-valuenow`/`aria-valuemax`).
+   ARIA live regions would let screen-reader users follow pipeline execution.
+
+8. **novedades/index.tsx is the noisiest view** (14 gaps) primarily because it
+   composes 6 sub-files, each contributing 1–3 gaps. The detail-panel messages
+   list and selected-row indicator are the highest-impact gaps: blind users
+   can't tell which case is selected or when new messages arrive.
+
+9. **Empty `alt=""` on thumbnails/evidence (novedades)** is technically valid
+   (decorative), but loses information for screen-reader users who'd benefit
+   from "Foto del caso #N" or "Evidencia: imagen". Worth promoting to
+   descriptive alts.
+
+10. **`recharts` charts in `ads-view.tsx` and `logistics-scores.tsx`** have no
+    `role="img"` + `<title>`/`<desc>` alternative text. The data is also in
+    adjacent tables (so info isn't fully lost), but the chart itself is silent
+    to AT. Low priority since tables duplicate the data.
+
+11. **Native `confirm()` in `channels-manager.tsx` line 169** is technically
+    keyboard-accessible but bad UX and inconsistent with the rest of the app
+    (which uses Dialog). Replace with a shadcn `<AlertDialog>`.
+
+### Recommended fix priority (for a follow-up Build agent)
+
+| Priority | View | Fix |
+|---|---|---|
+| P0 (blocking keyboard use) | catalog-visual-view.tsx | Convert `<div onClick>` cards to `<button>` or add `role="button" tabIndex={0} onKeyDown` |
+| P0 (destructive without name) | channels-manager.tsx | Add `aria-label="Editar canal"` and `aria-label="Desactivar canal"` to Edit2/Trash2 buttons |
+| P1 (icon-only btns) | catalog-visual-view.tsx | Add aria-labels to all 6 icon-only buttons |
+| P1 (live regions) | orchestrator-view.tsx | `role="alert"` on error block; `role="progressbar" aria-valuenow={progressPct} aria-valuemax={100}` on progress bar; `aria-live="polite"` on timeline |
+| P1 (selected state) | novedades-list.tsx | `aria-current="true"` on selected `<button>` |
+| P2 (live regions) | all 9 views | Add `aria-busy="true"` to each loading-skeleton wrapper |
+| P2 (label binding) | settings-view.tsx, channels-manager.tsx, orchestrator-view.tsx, novedades-dialogs.tsx | Add `htmlFor` to all `<Label>` elements (or wrap inputs in `<Label>`) |
+| P2 (semantic landmarks) | all 9 views | Wrap top-level `<div>` in `<main>` (or `<section aria-label="…">`) |
+| P3 (decorative emoji) | settings-view.tsx | `aria-hidden="true"` on emoji spans in IntegrationsReal |
+| P3 (chart a11y) | ads-view.tsx, logistics-scores.tsx | Add `<title>` to `<svg>` via recharts `<title>` wrapper or wrap in `<figure role="img" aria-label="…">` |
+| P3 (native confirm) | channels-manager.tsx | Replace `confirm()` with `<AlertDialog>` |
+| P3 (descriptive alt) | novedades-list.tsx, novedades-detail.tsx | Replace `alt=""` with `alt={\`Evidencia del caso ${c.caseNumber}\`}` etc. |
+
+
+---
+Task ID: FIX-5-TESTS-I18N-001
+Agent: senior-test-engineer
+Task: Unit tests for wallet/trafficker/novedades services + i18n extraction
+
+Work Log:
+- Read worklog.md (last ~300 lines) to load AUDIT-GAP-5-TESTS-I18N context —
+  0/13 services unit-tested, 63 hardcoded Spanish strings, 31 i18n keys (3 locales).
+- Read existing test patterns: `src/lib/totp.test.ts`, `src/lib/format.test.ts`,
+  `src/lib/adapters/__tests__/payment-adapter.test.ts`,
+  `src/lib/adapters/__tests__/payment-registry.test.ts`,
+  `src/lib/middleware/__tests__/{hmac,rate-limit}.test.ts` — confirmed vitest +
+  describe/it/expect + co-located `__tests__/` directory convention.
+- Read `src/lib/services/{wallet,trafficker,novedades}.service.ts` end-to-end
+  to map every method's actual behaviour (the task spec had a few
+  inaccuracies — e.g. `getWalletDashboard` returns
+  `{ transactions, accounts, withdrawals, twoFactor }` not "balance, stats";
+  `processWithdrawal` writes a `WalletTransaction` not a `TraffickerTransaction`;
+  `createCase` writes a system `NovedadMessage` not an `AuditLog`; there is no
+  `processRedelivery` method, only `schedule/complete/cancelRedeliveryAttempt`).
+  Tests assert actual behaviour, with comments referencing the task's named
+  scenarios where they diverge.
+- Updated `vitest.config.ts` `include` to also pick up `tests/**/*.test.ts`
+  (project previously only matched `src/**`).
+- Created `tests/unit/wallet.service.test.ts` (23 tests):
+  - `getWalletDashboard` parallel Promise.all, twoFactor=null branch, error wrap
+  - `getTwoFactorConfig` returns row / null / error wrap
+  - `enableTwoFactor` flips enabled=true + stamps enabledAt
+  - `registerWalletAccount` clears old defaults when isDefault, null coercion,
+    isDefault=false skips updateMany, error wrap
+  - `createWithdrawalRequest` status=pending_2fa when totpVerified=false,
+    status=pending_processing when totpVerified=true, error wrap
+  - `processWithdrawal` atomic $transaction: trafficker.update balance,
+    walletTransaction.create (outbound, withdrawal), withdrawalRequest.update
+    → completed, auditLog.create; externalReference=null when omitted; tx
+    rejection propagates wrapped error
+  - `recordTransaction` Promise.all(walletTransaction.create + trafficker.update),
+    category fallback to type, abs(amount) on negatives, error wrap
+- Created `tests/unit/trafficker.service.test.ts` (19 tests):
+  - `getTraffickerByEmail` lowercases email, returns null, error wrap
+  - `createTrafficker` defaults walletBalance=0/status=active, phone=null
+  - `registerSale` creates Sale(status=pending), does NOT create
+    TraffickerTransaction (commission is recorded at confirm time), orderId=null
+  - `confirmSale` atomic $transaction: sale→confirmed, trafficker.balance +=
+    commission, TraffickerTransaction(commission, inbound, completed); rolls
+    back when sale or trafficker missing
+  - `failSale` atomic $transaction: when compensationPct=0 → Sale→failed only
+    + AuditLog, NO balance change, NO TraffickerTransaction; when pct>0 →
+    Sale→failed + Compensation + Trafficker.update balance += amount +
+    TraffickerTransaction + WalletTransaction + AuditLog; rolls back when sale
+    missing
+  - `requestWithdrawal` atomic $transaction: WithdrawalRequest(pending_2fa) +
+    TraffickerTransaction(outbound, pending, balanceBefore===balanceAfter — NO
+    deduction yet); totpVerified=true → status=pending_processing; error wrap
+- Created `tests/unit/novedades.service.test.ts` (34 tests):
+  - `getCases` (task: listCases) pagination take=limit+1, cursor skip:1,
+    OR clause on q, "all" sentinels ignored, take=200 default, error wrap
+  - `getCaseById` messages asc + evidence desc, null when missing,
+    tenantId optional, error wrap
+  - `createCase` atomic $transaction: Case + system NovedadMessage (the audit
+    trail), random caseNumber generator `NV-YYYY-XXXXX`, priority default
+    "normal", authorName default "system", error wrap
+  - `addMessage` validates authorRole enum (agent|carrier|customer|system),
+    defaults to "agent" on invalid/omitted, error wrap
+  - `updateCase` (task: updateStatus) patches only supplied fields, supports
+    resolvedAt=null, omits undefined fields, error wrap
+  - `createRedeliveryRequest` atomic $transaction: RedeliveryRequest(pending,
+    attemptNumber=1) + RedeliveryAttempt(pending), newAddress=null default,
+    error wrap
+  - `processRedelivery` covers `scheduleRedeliveryAttempt` (request→scheduled,
+    attempt agentNote), `completeRedelivery` (request→completed, attempt→success,
+    carrierResponse), `cancelRedelivery` (request→cancelled, attempt→failed,
+    agentNote default "Cancelled by agent"); skips attempt update when
+    latestAttemptId is null; carrierResponse=null when omitted
+- Read `src/lib/i18n.ts` — 3 locales (es-CO canonical, es-MX placeholder,
+  en-US), 31 keys. Added 9 new common.* keys to each locale:
+  - `common.create` (Crear/Create/Crear)
+  - `common.edit` (Editar/Edit/Editar)
+  - `common.filter` (Filtrar/Filter/Filtrar)
+  - `common.accept` (Aceptar/Accept/Aceptar)
+  - `common.last_updated` (Actualizado hace {time}/Updated {time} ago/…)
+  - `common.empty_title` (Sin resultados/No results/…)
+  - `common.empty_desc` (No hay datos para mostrar/No data to display/…)
+  - `common.error_title` (Error/Error/Error)
+  - `common.error_desc` (No se pudo cargar la información/Could not load
+    information/…)
+  - (`common.refresh` and `common.retry` already existed — skipped)
+  Did NOT modify any view files to USE these new keys (separate sweep).
+- Created `tests/unit/i18n.test.ts` (39 tests):
+  - Locale-parity guard: every canonical key returns a non-key, non-empty,
+    non-whitespace value in all 3 locales
+  - Sample value assertions for common.{save,create,edit,filter,accept,refresh,
+    retry,last_updated,empty_title,empty_desc,error_title,error_desc} across
+    locales (Guardar/Save, Crear/Create, Editar/Edit, Filtrar/Filter, …)
+  - `t()` fallback chain: unknown key returns the key itself
+  - `getLocale()` env-var resolution: defaults es-CO when unset/unknown,
+    honours es-CO/es-MX/en-US; explicit locale argument overrides env
+  - `getAvailableLocales()` returns 3 locales, fresh array each call
+  - Canonical-key-list guard: no key returns a translation in one locale but
+    the key itself (missing) in another
+- Mock strategy: `vi.hoisted()` to build the `db` + `logger` mock objects so
+  they're available to `vi.mock()` factories (which Vitest hoists above
+  imports). `db.$transaction` is a `vi.fn` that invokes the supplied callback
+  with the same `db` object so inner-writes can be asserted. `@sentry/nextjs`
+  stubbed to keep `captureError` side-effect-free.
+- Fixed two `tsc` errors in `tests/unit/novedades.service.test.ts` where I
+  passed `null` to `assignedTo`/`resolution` (the `updateCase` patch type is
+  `string | undefined` for those fields, only `resolvedAt` accepts `Date | null`).
+  Replaced the null assertion with a `resolvedAt: null` test + an
+  "omits undefined fields" test.
+
+Stage Summary:
+- New test files (4):
+  - `tests/unit/wallet.service.test.ts` — 23 tests
+  - `tests/unit/trafficker.service.test.ts` — 19 tests
+  - `tests/unit/novedades.service.test.ts` — 34 tests
+  - `tests/unit/i18n.test.ts` — 39 tests
+- Test count: 65 → 180 (115 new tests, all passing). Target was 80+.
+- Test files: 6 → 10.
+- i18n keys added: 9 new keys × 3 locales = 27 new translation entries in
+  `src/lib/i18n.ts` (`common.{create,edit,filter,accept,last_updated,
+  empty_title,empty_desc,error_title,error_desc}`). `common.refresh` and
+  `common.retry` already existed and were left as-is.
+- Files modified:
+  - `vitest.config.ts` — added `tests/**/*.test.ts` to `include`
+  - `src/lib/i18n.ts` — appended 9 new common.* keys per locale
+- Files created (all new — no source files touched):
+  - `tests/unit/wallet.service.test.ts`
+  - `tests/unit/trafficker.service.test.ts`
+  - `tests/unit/novedades.service.test.ts`
+  - `tests/unit/i18n.test.ts`
+- Verification:
+  - `bunx vitest run` → 10 test files, 180 tests passing (was 6/65)
+  - `bun run lint` → exit 0
+  - `npx tsc --noEmit` → exit 0
+- Scope respected: no source files modified except `i18n.ts` (allowed by task);
+  no `src/components/dashboard/**` touched; no services or API routes modified;
+  no `prisma/schema.prisma` modified.
+
+---
+Task ID: FIX-3-UXA11Y-VIEWS-5-9
+Agent: frontend-styling-expert
+Task: UX skeleton/error/empty + WCAG AA fixes on 5 views (settings, channels, marketplace, logistics, novedades)
+
+Work Log:
+
+### settings-view.tsx (5 a11y + 4 UX gaps closed)
+- Imported `useCallback`, `Alert`/`AlertTitle`/`AlertDescription`, `AlertCircle`, `RefreshCw`, `Inbox`; added `timeAgo` from `@/lib/format`.
+- Replaced inner silent `fetch('/api/payments/config').then(...)` (no .catch) with a `loadData(showRefreshing)` async callback that sets `error`/`refreshing`/`lastUpdated` state and is wired to `useEffect`.
+- Added early-return error Alert + "Reintentar" button bound to `loadData(true)`.
+- Added friendly empty state (`<section aria-label="Configuración">` + Inbox icon + "Aún no hay configuración" + Refrescar CTA) when `channels.length === 0 && Object.keys(global).length === 0`.
+- Added visible header row: "Actualizado hace X min" indicator (`timeAgo(lastUpdated)`) + Refrescar button with `RefreshCw` spinner.
+- Wrapped the entire return tree in `<section aria-label="Configuración">`.
+- Wrapped each channel row's inputs + Save button in a `<form onSubmit={...}>` (Enter submits), Save button converted to `type="submit"`.
+- Wrapped the global thresholds card in a single `<form>` (inputs grid + Switch + Save button all inside), Save button converted to `type="submit"`.
+- Bound ALL `<Label>`s via `htmlFor` + added matching `id` on Inputs and SelectTriggers (`ch-${id}-prepaymin`, `ch-${id}-disc`, `ch-${id}-codfee`, `cfg-roas-kill`, `cfg-cpa-target`, `cfg-cod-max`, `cfg-currency`).
+- Added `role="status"` + `aria-live="polite"` + `aria-busy="true"` to the loading-skeleton wrapper.
+- In `IntegrationsReal` sub-component: replaced `"Cargando estado de integraciones..."` text with 4 skeleton rows (icon + name + detail + badge) wrapped in `role="status"` + `aria-busy="true"`.
+- Added `aria-hidden` to the decorative emoji span inside `IntegrationsReal`'s check row.
+
+### channels-manager.tsx (6 a11y + 3 UX gaps closed)
+- Imported `Alert`/`AlertTitle`/`AlertDescription`, `AlertDialog` family, `RefreshCw`, `AlertCircle`, `timeAgo`.
+- Added `refreshing`, `error`, `lastUpdated`, `confirmDeactivate` state; converted `load` to async try/catch that sets `error` and `lastUpdated`; `useEffect` calls `void load()`.
+- Added loading state with full Card layout (Header + content skeletons) and `aria-busy="true"` on the CardContent.
+- Added early-return error Alert + "Reintentar" bound to `void load(true)`, wrapped in `<section aria-label="Canales">`.
+- Wrapped main view in `<section aria-label="Canales">`; added "Actualizado hace X min" indicator + visible Refrescar button next to "Nuevo canal".
+- Added `aria-label="Editar canal ${c.displayName}"` to Edit2 button and `aria-label="Eliminar canal ${c.displayName}"` to Trash2 button.
+- Replaced native `confirm()` + `deactivateChannel` function with a shadcn `<AlertDialog>` driven by `confirmDeactivate` state (Cancel + destructive "Desactivar" action) — consistent with rest of app.
+- Bound ALL `<Label>`s in `ChannelDialog` via `htmlFor` + added matching `id` on Inputs and SelectTriggers (`cd-type`, `cd-country`, `cd-name`, `cd-display-name`, `cd-strategy`, `cd-prepay-min`, `cd-prepay-disc`, `cd-waba-id`, `cd-phone-id`, `cd-wa-token`, `cd-page-id`, `cd-account-id`, `cd-page-token`, `cd-ig-id`, `cd-ig-handle`, `cd-ig-token`, `cd-verify-token`, `cd-app-secret`).
+
+### marketplace/index.tsx + marketplace-shared.tsx (2 a11y + 3 UX gaps closed)
+- index.tsx: imported `Alert`/`AlertTitle`/`AlertDescription`, `AlertCircle`, `timeAgo`; added `error`, `lastUpdated` state.
+- index.tsx: `load()` now sets `error` + `lastUpdated`; keeps the existing `toast.error` for in-flight refresh failures so toasts still fire.
+- index.tsx: Added early-return error Alert + "Reintentar" (only when `error && !data` to avoid clobbering partial data).
+- index.tsx: Wrapped all return trees in `<section aria-label="Marketplace">`.
+- index.tsx: Added `aria-busy="true"` + `role="status"` to the loading skeleton wrapper.
+- index.tsx: Added "Actualizado hace X min" indicator next to the existing Refresh button (Refresh button already present, kept as-is).
+- marketplace-shared.tsx: Extended `EmptyState` component with optional `actionLabel` + `onAction` props; renders a `<Button size="sm" variant="outline">` below the description when both are provided. (Backward-compatible — existing callers passing only icon/title/description render unchanged.)
+
+### logistics/index.tsx + logistics-scores.tsx (4 a11y + 3 UX gaps closed)
+- index.tsx: imported `Alert`/`AlertTitle`/`AlertDescription`, `AlertCircle`, `Inbox`, `timeAgo`; added `error`, `lastUpdated` state.
+- index.tsx: `load()` now sets `error` + `lastUpdated`; keeps the existing `toast.error` for in-flight refresh failures.
+- index.tsx: Added early-return error Alert + "Reintentar" (only when `error && !data`).
+- index.tsx: Added friendly empty state (Inbox icon + "Aún no hay datos logísticos" + Refrescar CTA) when `stats.totalCustomers === 0 && stats.totalCarriers === 0 && stats.stuckCount === 0 && stats.totalAlerts === 0`.
+- index.tsx: Wrapped all return trees in `<section aria-label="Inteligencia logística">`.
+- index.tsx: Added `aria-busy="true"` + `role="status"` to loading skeleton.
+- index.tsx: Added "Actualizado hace X min" indicator next to existing Refresh button.
+- logistics-scores.tsx: Imported `Label`; added `<Label htmlFor="li-search-phone" className="sr-only">` for the search Input (visually-hidden label), and `aria-label="Filtrar por categoría"` on the category SelectTrigger + `id="li-category-filter"`.
+- logistics-scores.tsx: Wrapped the `<BarChart>` in a `<figure role="img" aria-label="Tasa de entrega por transportadora: …">` with a dynamic aria-label listing each carrier + delivery rate, exposing the chart data to screen-reader users.
+
+### novedades/index.tsx + 5 sub-files (14 a11y + 4 UX gaps closed)
+- index.tsx: imported `Button`, `Alert`/`AlertTitle`/`AlertDescription`, `RefreshCw`, `cn`, `timeAgo`; added `refreshing`, `error`, `lastUpdated` state.
+- index.tsx: `loadCases` converted to accept optional `showRefreshing` flag; sets `error` + `lastUpdated`; keeps the existing `toast.error`. Preserved the original `setLoading(true)` at start of `loadCases` to maintain exact data-flow behavior on filter change.
+- index.tsx: Added `aria-busy="true"` + `role="status"` to the loading skeleton wrapper.
+- index.tsx: Added early-return error Alert + "Reintentar" (only when `error && cases.length === 0 && tab === 'cases'`).
+- index.tsx: Added visible header row: "Actualizado hace X min" + Refrescar button (with RefreshCw spinner) — both bound to `loadCases(true)`.
+- index.tsx: Wrapped all return trees in `<section aria-label="Novedades">`.
+- novedades-list.tsx: Added `aria-current="true"` to the selected list row button (only when `isSelected`).
+- novedades-list.tsx: Added `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring` to the list `<button>` rows for keyboard navigation.
+- novedades-list.tsx: Replaced `alt=""` on the thumbnail `<img>` with `alt={\`Miniatura del caso ${c.caseNumber}\`}` for descriptive alt text.
+- novedades-list.tsx: Added `aria-hidden` to the decorative Package icon in the placeholder div.
+- novedades-list.tsx: Added a "Crear caso" CTA Button to the empty state (calls existing `onCreateOpen`).
+- novedades-detail.tsx: Added `aria-label="Enviar mensaje"` to the icon-only Send button.
+- novedades-detail.tsx: Added `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring` to the evidence `<a>` tag (already had `hover:ring-2`).
+- novedades-detail.tsx: Added `aria-label={\`Abrir evidencia del caso ${c.caseNumber}\`}` to the evidence `<a>` tag.
+- novedades-detail.tsx: Replaced `alt=""` on the evidence image with `alt={\`Evidencia del caso ${c.caseNumber}\`}`.
+- novedades-detail.tsx: Added `aria-hidden` to the decorative FileImage icon inside the non-image evidence branch.
+- novedades-detail.tsx: Bound the `<Label>` in the inline evidence dialog via `htmlFor="nd-evidence-url"` + `id` on the Input.
+- novedades-redelivery.tsx: Added `aria-pressed={showAddrForm}` to "Confirmar dirección" toggle and `aria-pressed={showNoteForm}` to "Asignar humano" toggle.
+- novedades-dialogs.tsx: Bound ALL `<Label>`s in `CreateCaseDialog` via `htmlFor` + ids (`cc-customer-name`, `cc-phone`, `cc-guide-number`, `cc-carrier`, `cc-type`, `cc-priority`, `cc-description`).
+- novedades-dialogs.tsx: Bound ALL `<Label>`s in `CreateRedeliveryDialog` via `htmlFor` + ids (`cr-guide-number`, `cr-customer-name`, `cr-customer-phone`, `cr-original-address`, `cr-new-address`, `cr-reason`).
+
+Stage Summary:
+- 11 files modified across 5 views (and their sibling sub-files in marketplace/, logistics/, novedades/).
+- Net diff: +591 lines added, −246 lines replaced/modified.
+- Per-file diff stats (added/removed):
+  - channels-manager.tsx: +150 / −57
+  - logistics/index.tsx: +62 / −6
+  - logistics/logistics-scores.tsx: +50 / −40
+  - marketplace/index.tsx: +36 / −5
+  - marketplace/marketplace-shared.tsx: +9 / −1
+  - novedades/index.tsx: +55 / −7
+  - novedades/novedades-detail.tsx: +8 / −7
+  - novedades/novedades-dialogs.tsx: +26 / −26
+  - novedades/novedades-list.tsx: +9 / −4
+  - novedades/novedades-redelivery.tsx: +2 / −2
+  - settings-view.tsx: +188 / −91
+- Verification:
+  - `npx tsc --noEmit` on the 11 modified files: **0 errors**. (4 pre-existing TS6053 errors about missing test files `tests/unit/*.test.ts` are unrelated — they were referenced in `tsconfig.json`'s include pattern before this task.)
+  - `npx eslint <11 modified files>`: **exit 0** — clean.
+  - `bun run lint` (full repo): reports **2 errors** in `ads-view.tsx:129` and `monetization-view.tsx:73`, both for `react-hooks/set-state-in-effect` on the pattern `useEffect(() => { return load() }, [load])`. These files are **out of scope** for this task (not in the 5 listed views) and were modified by other concurrent agents. All 11 files in this task's scope pass eslint cleanly; the channels-manager.tsx change deliberately uses the pattern `useEffect(() => { void load() }, [load])` which avoids the rule.
+- All business logic, API calls, fetch URLs, request/response handling, and component composition preserved byte-for-byte. Only UX/A11y layer added (error states, empty states, refresh buttons, last-updated indicators, semantic landmarks, label bindings, alt text, aria-* attributes, focus-visible rings, and AlertDialog replacement for native confirm()).
+
+---
+Task ID: FIX-2-UXA11Y-VIEWS-1-4
+Agent: frontend-styling-expert
+Task: UX skeleton/error/empty + WCAG AA fixes on 4 views (catalog-visual, ads, monetization, orchestrator)
+
+Work Log:
+
+- Read worklog tail (lines 3439–3638 of AUDIT-GAP-1-SKELETONS + lines 4069–4190 of AUDIT-GAP-2-A11Y) for full gap context.
+- Read gold-standard pattern files: `overview-view.tsx` (Alert+Reintentar+Skeleton+lastUpdated+refreshing state) and `marketplace/index.tsx` (RefreshCw button pattern with `refreshing && 'animate-spin'`).
+- Read all 4 target views end-to-end (312/437/250/337 lines original).
+- Confirmed `timeAgo` helper exists in `@/lib/format` (line 26). Confirmed `Alert`/`AlertTitle`/`AlertDescription` in `@/components/ui/alert`. Confirmed `Label` in `@/components/ui/label`.
+
+### catalog-visual-view.tsx (312 → 399 lines)
+- **UX**: Added `error`/`refreshing`/`lastUpdated` state. Extracted fetch into `load(showRefreshing)` useCallback for the refresh button; kept a separate inline `useEffect` (mirroring overview-view pattern) so the lint rule `react-hooks/set-state-in-effect` doesn't fire on synchronous setState in the effect body.
+- **UX**: Added error Alert (`variant="destructive"` + AlertCircle + Reintentar button) before the loading skeleton.
+- **UX**: Added header row at top of section: "Actualizado hace X min" (using `timeAgo(lastUpdated.toISOString())`) + visible Refresh button (RefreshCw with `aria-label="Refrescar"`, spin animation when refreshing).
+- **A11y**: Wrapped top-level `<div>` in `<section aria-label="Catálogo visual">` (in all 3 return paths: error/loading/main).
+- **A11y**: Added `aria-busy="true"` to loading skeleton section.
+- **A11y**: Added `aria-label` + `aria-pressed` to grid/list viewMode toggle buttons; wrapped the toggle group in `role="group" aria-label="Modo de vista"`.
+- **A11y**: Added `aria-hidden` to the 3 X badge clear-icons inside filter chips (Busqueda/Diseno/Categoria).
+- **A11y**: Converted the grid-card `<div onClick>` and list-row `<div onClick>` to `role="button" tabIndex={0} onKeyDown={handleEnterSpace}` with `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`. Each card has a descriptive `aria-label={`Ver producto ${p.name}`}`.
+- **A11y**: The Eye/MessageSquare decorative buttons inside grid card hover overlay and list row kept as `<Button>` (per audit) but with `aria-label` + `tabIndex={-1}` + `pointer-events-none` (decorative — the parent card is the actual interactive element).
+- **A11y**: Added `aria-hidden` to the hover overlay wrapper div and to the Sparkles decor icon in the Metadata badge.
+- **A11y**: Added `aria-label="Enviar mensaje"` to the chat-input Send icon-only button.
+
+### ads-view.tsx (437 → 530 lines)
+- **UX**: Added `error`/`refreshing`/`lastUpdated` state. Extracted fetch into `load(showRefreshing)` useCallback; kept separate inline `useEffect` (same pattern as catalog-visual to satisfy the lint rule).
+- **UX**: Added error Alert + Reintentar button.
+- **UX**: Added empty state when `data.rows.length === 0`: Megaphone icon in a tinted square + "Aún no hay anuncios importados" message + "Importar anuncios" CTA button (Upload icon, triggers `toast.info('Importación de anuncios próximamente')` — same demo-toast pattern as the existing "Apagar todos los canibalizadores" button on line 172).
+- **UX**: Added header row: lastUpdated + Refresh button (RefreshCw, `aria-label="Refrescar"`).
+- **A11y**: Wrapped top-level `<div>` in `<section aria-label="Anuncios">` (3 paths: error/loading/main).
+- **A11y**: Added `aria-busy="true"` to loading skeleton section.
+- **A11y**: Made the 2 TooltipTrigger spans keyboard-accessible: added `tabIndex={0} role="button" className="... focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"` to the ROAS multiplier span (line ~388) and the verdict label span (line ~417). Now keyboard focus shows the tooltip.
+- **A11y**: Wrapped the AreaChart `<ResponsiveContainer>` in `<figure role="img" aria-label="Inversión diaria en pauta durante los últimos 14 días en COP">` for AT users.
+- Imports added: `useCallback`, `Alert/AlertDescription/AlertTitle`, `timeAgo`, `RefreshCw/AlertCircle/Megaphone/Upload`.
+
+### monetization-view.tsx (250 → 330 lines)
+- **UX**: Added `error`/`refreshing`/`lastUpdated` state. Extracted Promise.all fetch into `load(showRefreshing)` useCallback; kept separate inline `useEffect`.
+- **UX**: Added error Alert + Reintentar button.
+- **UX**: Improved empty state (was text-only "Sin comisiones reconocidas todavía"): now a centered column with Receipt icon in a ringed square + descriptive text ("Cuando los pedidos por agente_whatsapp se despachen, las comisiones reconocidas aparecerán aquí automáticamente.") + "Refrescar" CTA button (RefreshCw).
+- **UX**: Added header row: lastUpdated + Refresh button.
+- **A11y**: Wrapped top-level `<div>` in `<section aria-label="Monetización">` (3 paths).
+- **A11y**: Added `aria-busy="true"` to loading skeleton section.
+- **A11y**: Added `aria-current={t.active ? 'true' : undefined}` to the 3 tramo row divs.
+- Imports added: `useCallback`, `Button` (was not imported before), `Alert/AlertDescription/AlertTitle`, `timeAgo`, `RefreshCw/AlertCircle`.
+- Note: pre-existing unused `Wallet` import and unused `totals` state preserved as-is (they were unused in the original file; removing them would exceed the "only UX/A11y layer" scope).
+
+### orchestrator-view.tsx (337 → 387 lines)
+- **UX**: Added `lastUpdated` state. Set it after successful `runFull` and `runStep` completions (in the try block, before the catch). Displayed as "Última ejecución hace X min" in header (defaults to "Sin ejecuciones en esta sesión").
+- **UX**: Added visible Refresh button at the top of the section (RefreshCw, `aria-label="Refrescar"`, spin animation when `running === 'full'`). Separate from the RotateCcw reset button (which still resets state). Wired to `runFull` — closest equivalent to a "refresh" in this tool view.
+- **UX**: Replaced the custom red error div with shadcn `Alert variant="destructive"` + AlertCircle + Reintentar button (calls `runFull`). Added `role="alert"` to the Alert for AT users.
+- **UX**: Added 3 Skeleton timeline-entry placeholders (matching the loaded timeline entry layout: 9×9 square + 2-line text) when `running === 'full' && timeline.length === 0`. Container has `aria-busy="true" aria-label="Cargando respuestas del pipeline"`. Kept the Loader2 spinners on the run buttons (visual indicator of which action is in progress).
+- **A11y**: Wrapped top-level `<div>` in `<section aria-label="Orquestador">`.
+- **A11y**: Added `aria-current={isCurrent ? 'step' : undefined}` to each step indicator div in the 9-step visual stepper.
+- **A11y**: Added `role="progressbar"` + `aria-valuenow={completedSteps.size}` + `aria-valuemin={0}` + `aria-valuemax={ORCHESTRATOR_STEPS.length}` + `aria-label` to the progress bar div.
+- **A11y**: Replaced plain `<label>` with shadcn `<Label htmlFor="orchestrator-scenario">` + added `id="orchestrator-scenario"` to the `<SelectTrigger>`.
+- Imports added: `Skeleton`, `Alert/AlertDescription/AlertTitle`, `Label`, `timeAgo`, `RefreshCw/AlertCircle`. Removed `AlertTriangle` (no longer used after the Alert swap).
+
+### Verification iterations
+- First lint run: 3 errors (catalog-visual JSX closing tag at line 378 — I left `</div>` instead of `</section>` after the section wrap; ads-view + monetization-view `react-hooks/set-state-in-effect` rule firing on `useEffect(() => { return load() }, [load])` because `load()` synchronously calls `setError(null)`).
+- Fix 1: Changed `</div>` → `</section>` at end of catalog-visual main return.
+- Fix 2: Refactored ads-view, monetization-view, AND catalog-visual to follow the overview-view pattern: keep the `load(useRefreshing)` useCallback for the Refresh button, but inline the fetch in the `useEffect` (so the effect body has no synchronous setState — only setState inside `.then()`/`.catch()` callbacks). This duplicates the fetch logic (matching overview-view's intentional duplication) and satisfies the lint rule.
+- Final lint run: exit 0.
+- Final tsc --noEmit run: exit 0.
+
+Stage Summary:
+
+- Files modified: 4 (only the 4 listed in scope — no other files touched).
+- Line counts before → after:
+  - `catalog-visual-view.tsx`: 312 → 399 (+87)
+  - `ads-view.tsx`: 437 → 530 (+93)
+  - `monetization-view.tsx`: 250 → 330 (+80)
+  - `orchestrator-view.tsx`: 337 → 387 (+50)
+  - Total: 1336 → 1646 lines (+310, +23%)
+- Verification results:
+  - `bun run lint` → exit 0 (0 errors, 0 warnings)
+  - `npx tsc --noEmit` → exit 0
+- Patterns copied from `overview-view.tsx`: Alert+Reintentar error state, `lastUpdated` + `timeAgo()` header indicator, `refreshing` state + RefreshCw spin animation, inline useEffect fetch + separate `load` useCallback for refresh button (avoids `react-hooks/set-state-in-effect` lint violation).
+- Patterns copied from `marketplace/index.tsx`: RefreshCw button with `disabled={refreshing}` + `cn('size-4', refreshing && 'animate-spin')`.
+- Business logic preserved byte-for-byte: same API endpoints, same request bodies, same response field extraction (products, conversations, ads, totals, entries, timeline). Only the UX/A11y layer changed.
+- All 4 views now have: error Alert + Reintentar, loading skeleton with `aria-busy`, Refresh button with lastUpdated indicator, semantic `<section aria-label>` wrap.
+- View-specific extras: catalog-visual keyboard-accessible cards (role=button + onKeyDown); ads-view chart `<figure role="img">` + keyboard-accessible tooltip triggers + empty state with CTA; monetization-view aria-current on active tramo + iconified empty state; orchestrator-view progressbar role + aria-valuenow/min/max + Label htmlFor binding + aria-current="step" on stepper + Skeleton timeline placeholder during runFull.
+
+
+---
+
+Task ID: FIX-1-DB-001
+Agent: senior-backend-architect
+Task: DB indexes + payment webhook $transaction + ads/import N+1 fix
+
+Work Log:
+- Read worklog tail (AUDIT-GAP-4-DB at line 3493, total 4190 lines) for the 47 DB
+  risks identified by the prior Explore audit. Scope: 9 CRITICAL models with 0
+  @@index, 1 N+1 query risk (ads/import), 1 missing-$transaction risk
+  (payment-webhook-utils), 3 missing @@unique candidates.
+- Read prisma/schema.prisma (1,158 lines, 41 models) end-to-end to map each
+  audit-recommended index to the actual schema field names. Discovered
+  naming drift between the audit/task spec and the schema:
+    * Conversation.assignedUserId → actual field is `assigneeId`
+    * Message.senderRole         → actual field is `direction` (inbound|outbound)
+    * OrderEvent.eventType       → actual field is `type`
+    * Shipment.(status, carrierId, guideNumber)
+                                → actual fields are `estado`, `transportadoraCanonica`, `numeroGuia`
+    * CommissionEntry.(traffickerId, status)
+                                → no such fields; closest is `etapaReconocimiento`
+    * Invoice.status             → actual field is `estado`
+    * WalletAccount.status       → no such field; closest are `verified`/`isDefault`
+  Used the actual schema field names in @@index directives; documented the
+  mapping in inline comments + migration.sql header.
+- Read prisma/migrations/1_postgres_indexes/migration.sql (184 lines) to mirror
+  the existing PG-dialect, idempotent `CREATE INDEX IF NOT EXISTS` style.
+- Edited prisma/schema.prisma to add @@index directives to the 10 target models:
+    Conversation: 4 indexes (tenantId, tenantId+status, tenantId+lastMessageAt, assigneeId)
+    Message:      4 indexes (conversationId, conversationId+createdAt, tenantId, direction)
+    Order:        5 indexes (tenantId, tenantId+status, tenantId+createdAt, customerId, paymentStatus)
+    OrderItem:    2 indexes (orderId, productId)
+    OrderEvent:   3 indexes (orderId, orderId+createdAt, type)
+    AuditLog:     5 indexes (tenantId, userId, createdAt, action, tenantId+createdAt)
+    Shipment:     5 indexes (tenantId, orderId, estado, transportadoraCanonica, numeroGuia)
+    CommissionEntry: 2 indexes (tenantId, etapaReconocimiento) + @@unique([orderId])
+    Invoice:      4 indexes (tenantId, tenantId+periodo, estado, createdAt)
+    WalletAccount: 4 indexes (tenantId, traffickerId, userId, verified) + @@unique([traffickerId, accountNumber])
+  Plus the 3 audit-recommended @@unique candidates:
+    Attribution       @@unique([orderId, adId, model]) + @@index([adId])
+    CommissionEntry   @@unique([orderId])              — closes the race in
+      /api/monetization/commission POST (findFirst+update/create pattern that
+      two concurrent requests could both pass findFirst==null on).
+    WalletAccount     @@unique([traffickerId, accountNumber])
+- Validated schema with `bunx prisma validate` (passed). Ran `bun run db:push`
+  which initially refused due to the 3 unique-constraint data-loss warnings.
+  Pre-checked the dev SQLite DB via a Prisma script: 0 attribution rows,
+  2 commissionEntry rows (no duplicate orderIds), 0 walletAccount rows — so
+  the uniques apply cleanly. Re-ran `bunx prisma db push --accept-data-loss`
+  (the only way Prisma accepts new unique constraints). Schema applied +
+  Prisma client regenerated.
+- Created prisma/migrations/2_core_indexes/migration.sql (132 lines, PG dialect,
+  idempotent `CREATE INDEX IF NOT EXISTS` / `CREATE UNIQUE INDEX IF NOT EXISTS`
+  mirroring the new @@index/@@unique directives in schema.prisma). Same style
+  as 1_postgres_indexes/migration.sql. No-op on SQLite dev (Prisma skips
+  migration files for SQLite; dev uses `db:push` which applies the same
+  indexes via the schema). Documented apply order + dev safety in the header.
+- Refactored src/lib/adapters/payment-webhook-utils.ts applyPaymentUpdate to
+  wrap the `order.update` + `orderEvent.create` writes in a single
+  `db.$transaction(async (tx) => { ... })` using the tx client. The order
+  lookup (findFirst) is intentionally OUTSIDE the transaction so a long-
+  running tx doesn't hold a row lock on Order during the (fast) read. The
+  outer try/catch is preserved so DB failures still return
+  `{ found: false, newStatus }` and the webhook still ACKs 200 (gateway
+  contract). `safeAudit` is intentionally OUTSIDE the transaction (called by
+  the 4 webhook routes after applyPaymentUpdate returns) — audit-log write
+  failures must NOT roll back the payment state change. Updated the JSDoc
+  to document the atomicity guarantee + the AUDIT-GAP-4-DB §3 risk #5 it
+  closes.
+- Verified the 4 webhook routes (mercadopago, wompi, stripe, payu) still ACK
+  200 even when DB fails. Each route's structure:
+    1. Invalid signature → `return NextResponse.json({ received: true, status: 'invalid_signature' })` (200)
+    2. Duplicate webhook → `return NextResponse.json({ received: true, status: 'duplicate' })` (200)
+    3. try { applyPaymentUpdate + safeAudit } catch { safeAudit(error) }  ← never throws
+    4. Final `return NextResponse.json({ received: true })` (200) — OUTSIDE try/catch
+  Plus applyPaymentUpdate itself catches internally → never throws. All 4
+  routes guaranteed to ACK 200 even on DB failure. No code changes needed.
+- Refactored src/app/api/ads/import/route.ts to kill the N+1. Before:
+  `for (cp of campaignPerf) { for (ap of adPerf) { const ad = await
+  adsService.findAdByExternalId(ap.adId) } }` — N DB round trips per import
+  (250+ at 50 ads × 5 campaigns). After:
+    Pass 1: collect all adPerf rows into `allAdPerf[]` (sequential adapter
+            calls preserved — adapters may have per-campaign rate limits).
+    Batch: single `db.ad.findMany({ where: { externalId: { in: [...] },
+            campaign: { tenantId } }, include: { campaign: { select:
+            { tenantId: true } } } })` — 1 DB round trip regardless of N.
+    Pass 2: O(1) Map lookup per ad → build spendRows[].
+  The `campaign: { tenantId }` filter moves the safety check into the WHERE
+  clause (previously done in the loop body via `if (ad.campaign.tenantId !==
+  tenantId)`) — same security posture, fewer round trips. The warn-on-
+  mismatch log line is no longer reachable (cross-tenant ads are silently
+  filtered by the DB); documented in the comment. The `adsService.importAdSpend`
+  batched call at the end is preserved unchanged. Response shape unchanged.
+  Added `import { db } from '@/lib/db'` (the route previously used only
+  `adsService`; now needs direct db access for the findMany).
+- Fixed a tsc error in the refactor: used `externalAdId` (task-spec name) in
+  the where clause but the actual schema field is `externalId` (per
+  `Ad` model + `@unique externalId`). Corrected.
+- Ran `bun run lint` — 3 errors, ALL in src/components/dashboard/ files
+  modified by other concurrent agents (ads-view.tsx, catalog-visual-view.tsx,
+  monetization-view.tsx). NOT my changes. Verified by running `bunx eslint`
+  directly on my 3 modified files (payment-webhook-utils.ts, ads/import/route.ts,
+  schema.prisma) — exit 0, 0 errors. Per task rules: "DO NOT touch any file
+  under src/components/dashboard/" — so these are out of my scope.
+- Ran `npx tsc --noEmit` — exit 0 (after fixing the externalAdId→externalId
+  typo). One stale-cache false-positive in tests/unit/novedades.service.test.ts
+  cleared on second run; not my file (untracked, added by another agent).
+- Ran `bunx vitest run` — 10 test files, 180 tests, all pass, exit 0.
+  (Task spec said "should be 65" — other agents added tests in tests/unit/
+  since the prior audit; 180 is the current count.)
+
+Stage Summary:
+
+Files touched (4 source + 1 migration + 1 doc):
+| File | Before | After | Delta |
+|---|---|---|---|
+| prisma/schema.prisma                       | 1,158 | 1,245 | +87  (10 models × ~6-8 lines of @@index directives + comments) |
+| src/lib/adapters/payment-webhook-utils.ts  |   123 |   135 | +12  (wrap writes in $transaction, expand JSDoc) |
+| src/app/api/ads/import/route.ts            |   155 |   193 | +38  (N+1 refactor: pass-1 collect + findMany + Map lookup + comments) |
+| prisma/migrations/2_core_indexes/migration.sql |  — | 132 | NEW (PG dialect, idempotent, mirrors new @@index/@@unique) |
+| db/custom.db                               | (auto-updated by `db:push`) | — | applied the new indexes + uniques to dev SQLite |
+| worklog.md                                 | 4,190 | +this section | append |
+
+Indexes added (37 total, 11 models):
+  Conversation: 4   | Message: 4    | Order: 5       | OrderItem: 2
+  OrderEvent: 3     | AuditLog: 5   | Shipment: 5    | CommissionEntry: 2
+  Invoice: 4        | WalletAccount: 4 | Attribution: 1
+Unique constraints added (3):
+  Attribution(orderId, adId, model)
+  CommissionEntry.orderId            — closes race in /api/monetization/commission
+  WalletAccount(traffickerId, accountNumber)
+
+Verification results:
+| Check | Command | Result |
+|---|---|---|
+| Prisma schema valid | `bunx prisma validate` | ✅ valid |
+| Schema applied to dev DB | `bun run db:push` (--accept-data-loss for uniques) | ✅ synced |
+| Lint (my files only) | `bunx eslint src/lib/adapters/payment-webhook-utils.ts src/app/api/ads/import/route.ts` | ✅ exit 0, 0 errors |
+| Lint (full repo) | `bun run lint` | ⚠️ 3 errors in src/components/dashboard/* (other agents' scope — out of bounds per task rules) |
+| TypeScript | `npx tsc --noEmit` | ✅ exit 0 |
+| Tests | `bunx vitest run` | ✅ 10 files, 180 tests pass, exit 0 |
+| Webhook ACK-200 (4 routes) | manual code review | ✅ all 4 routes return 200 in every path (invalid sig / duplicate / DB failure / success) |
+
+Risks closed (per AUDIT-GAP-4-DB §1, §3, §5):
+  §1 schema index gap: 10 CRITICAL models (Conversation, Message, Order,
+     OrderItem, OrderEvent, AuditLog, Shipment, CommissionEntry, Invoice,
+     WalletAccount) — all now have @@index directives.
+  §3 missing-$transaction risk #5: payment-webhook-utils applyPaymentUpdate —
+     both writes now atomic via $transaction; audit-log remains best-effort
+     outside the tx.
+  §5 missing @@unique: 3 candidates added (Attribution composite, CommissionEntry
+     orderId, WalletAccount composite).
+  N+1 risk #1: ads/import — single findMany + Map lookup replaces 250+
+     per-ad findUnique round trips.
+
+Out-of-scope items NOT touched (per task rules):
+  - 6 HIGH-priority models with partial indexes (User, Channel, Customer,
+    Product, Campaign, Ad) — task only named the 10 CRITICAL models.
+  - N+1 risks #2-#10 (conversions, remarketing, monetization aggregate,
+    overview aggregate, orchestrate, agents, catalog adapters, ads.service
+    payload) — task only named ads/import.
+  - Missing-$transaction risks #1-#4, #6-#12 (4 adapter crearPedido variants,
+    logistics persistShipmentGuide, conversation sendMessage, channels route,
+    ads.service updateAd, monetization generateInvoice, upsertBuyerBehavior,
+    payments config) — task only named applyPaymentUpdate.
+  - src/components/dashboard/* lint errors (other agents' scope).
+  - prisma/migrations/0_init/migration.sql (SQLite dev only — not for editing).
+
+Follow-up recommendations for next sprint:
+  1. Convert /api/monetization/commission POST `findFirst + update/create`
+     to a true `db.commissionEntry.upsert({ where: { orderId }, ... })` now
+     that `orderId @unique` exists — fully closes the race.
+  2. Replace `monetization.service.getGMV` in-memory reduce with
+     `db.order.aggregate({ _sum: { total: true } })` (AUDIT-GAP-4-DB N+1 #4/#5).
+  3. Replace `overview.service.getKPIs` in-memory reduce with `aggregate` +
+     `groupBy` by day (AUDIT-GAP-4-DB N+1 #6).
+  4. Wrap the 4 adapter `crearPedido` variants in $transaction (whatsapp-catalog,
+     woocommerce, shopify ×2, supabase-catalog) — AUDIT-GAP-4-DB §3 #1-#4.
+  5. Add @@index to the 6 HIGH-priority models (User, Channel, Customer, Product,
+     Campaign, Ad) — not in this task's scope but flagged by the audit.
+
+---
+Task ID: FIX-4-CODEQUALITY-001
+Agent: senior-typescript-engineer
+Task: Eliminate any types + console.* → logger + env-overridable adapter URLs
+
+Work Log:
+- Read worklog AUDIT-GAP-3-CODEQUALITY section (lines 3914–4066) for full audit context — confirmed 68 `any` types, 23 `console.*`, 12 actionable hardcoded URLs, 4 actionable TODOs.
+- Read `src/types/next-auth.d.ts` (already exists with proper Session/User/JWT augmentation for `tenantId`/`role`/`tenantSlug`/`tenantName`). No changes needed to the .d.ts itself — the augmentation was already in place.
+- Read `src/lib/logger.ts` to confirm pino-based logger exports both `logger` (default) and `getLogger(component)` (child logger factory).
+- **Step 1 — Eliminate NextAuth session `as any` casts (16 casts across 5 files):**
+  - `src/lib/auth.ts` (9 casts): replaced `(user as any).{role,tenantId,tenantSlug,tenantName}` with direct typed access in the `jwt` callback, and `(session.user as any).{id,role,tenantId,tenantSlug,tenantName}` with direct assignment in the `session` callback. Added comments pointing to the `next-auth.d.ts` augmentation.
+  - `src/lib/auth-helpers.ts` (2 casts): replaced `(session?.user as any)?.tenantId` and `(session?.user as any)?.role` with `session?.user?.tenantId ?? null` and `session?.user?.role`.
+  - `src/app/api/wallet/route.ts` (2 casts): replaced `(session?.user as any)?.email as string | undefined` and `(session?.user as any)?.role as string | undefined` with direct typed access.
+  - `src/app/api/novedades/[id]/route.ts` (1 cast): replaced `(session?.user as any)?.tenantId` with `session?.user?.tenantId ?? null`.
+  - `src/app/api/novedades/route.ts` (4 casts across 2 lines): replaced the `(session?.user as any)?.name || (session?.user as any)?.email || 'system'` patterns in POST and PATCH handlers with `session?.user?.name || session?.user?.email || 'system'`.
+  - Verified `src/app/api/auth/[...nextauth]/route.ts` is clean (no `as any` casts — it just re-exports the handler).
+  - Verified `src/lib/services/*.ts` has no `as any` casts (grep returned 0 matches).
+- **Step 2 — Replace `console.*` with `logger` (15 calls across 5 files):**
+  - `src/lib/adapters/tiktok-ads.ts` (5 calls): added `import { getLogger } from '@/lib/logger'` and `const log = getLogger('adapters:tiktok-ads')`. Replaced 2× `console.warn` (missing-creds degradations) with `log.warn({tenantId}, '...')` and 3× `console.error` (non-2xx, error code, catch) with `log.error({tenantId, ...}, '...')`.
+  - `src/lib/adapters/google-ads.ts` (4 calls): same pattern, `getLogger('adapters:google-ads')`. Replaced 2× `console.warn` (missing-creds) and 2× `console.error` (non-2xx + catch).
+  - `src/lib/redis.ts` (3 calls): added `getLogger('redis')`. Replaced `console.error('[redis] Error:', msg)`, `console.log('[redis] Connected')`, `console.warn('[redis] ioredis not available...')` with `log.error`/`log.info`/`log.warn` (structured fields).
+  - `src/lib/adapters/payment-webhook-utils.ts` (2 calls): added `getLogger('payment-webhook-utils')`. Replaced `console.error('[auditLog:${action}]', err)` and `console.error('[applyPaymentUpdate:${gateway}]', err)` with structured `log.error`.
+  - `src/lib/vision/pipeline.ts` (1 call, found via additional `rg`): added `getLogger('vision:pipeline')`. Replaced `console.error('[vision/pipeline] failed to persist...', err)` with `log.error({err}, 'failed to persist ImageIdentification')`.
+  - Skipped per task rules: `src/components/dashboard/overview-view.tsx` (frontend scope), `src/app/error.tsx` + `src/app/global-error.tsx` (Next.js error boundaries where logger may not be initialized), `src/app/login/page.tsx` (client component — pino is server-only).
+  - Updated docstring comments in `tiktok-ads.ts` and `google-ads.ts` that referenced `console.warn` to say `log.warn` instead.
+- **Step 3 — Make adapter API base URLs env-overridable (8 adapter files + payu ipAddress):**
+  - `src/lib/adapters/stripe.ts`: `STRIPE_API_BASE = process.env.STRIPE_API_BASE ?? 'https://api.stripe.com/v1'`
+  - `src/lib/adapters/mercadopago.ts`: `MP_API_BASE = process.env.MERCADOPAGO_API_BASE ?? 'https://api.mercadopago.com'`
+  - `src/lib/adapters/dropi.ts`: `DROPI_API_BASE = process.env.DROPI_API_BASE ?? 'https://api.dropi.co/api/v1'`
+  - `src/lib/adapters/99envios.ts`: `ENVIOS99_API_BASE = process.env.NOVENTAYNUEVE_ENVIOS_API_BASE ?? 'https://api.99envios.app/v1'`
+  - `src/lib/adapters/aveonline.ts`: `AVEONLINE_API_BASE = process.env.AVEONLINE_API_BASE ?? 'https://api.aveonline.co/api'`
+  - `src/lib/adapters/google-ads.ts`: `GOOGLE_ADS_API_BASE = process.env.GOOGLE_ADS_API_BASE ?? 'https://googleads.googleapis.com/v17'`
+  - `src/lib/adapters/tiktok-ads.ts`: `TIKTOK_API_BASE = process.env.TIKTOK_ADS_API_BASE ?? 'https://business-api.tiktok.com/open_api/v1.3'`
+  - `src/lib/adapters/whatsapp-catalog.ts`: `GRAPH_API_BASE = process.env.WHATSAPP_CATALOG_API_BASE ?? 'https://graph.facebook.com/v18.0'` (kept the `${GRAPH_API_VERSION}` template literal as the fallback).
+  - `src/lib/adapters/payu.ts:112`: replaced hardcoded `ipAddress: '127.0.0.1'` with `ipAddress: process.env.PAYU_PAYER_IP ?? '127.0.0.1'` + added a comment explaining the field is for fraud detection (sandbox-safe default, set `PAYU_PAYER_IP` in production to the buyer's IP from `x-forwarded-for`). PayU's API URL was already env-overridable via `PAYU_API_BASE`.
+- **Bonus `any` type cleanup (10 additional `any` types eliminated beyond the explicit NextAuth scope, to make progress toward the < 30 verification target):**
+  - `src/lib/adapters/google-ads.ts`: replaced `{ results?: any[] }` × 2 with `{ results?: Record<string, unknown>[] }`, and `private mapCampaign(r: any)` / `private mapAd(r: any)` with `Record<string, unknown>` parameter types. Internal `r?.campaign?.id` chains refactored to use local typed intermediates (`const campaign = (r?.campaign ?? {}) as Record<string, unknown>`).
+  - `src/lib/queue.ts`: replaced 6 `any` types (BullMQ dynamic import — `bullmqQueue: any`, `bullmqWorker: any`, `(job: any)` × 3, `Queue/Worker` constructor return types) with new minimal structural interfaces `BullMQJob`, `BullMQQueue`, `BullMQWorker`, `BullMQModule` — same pattern as `RedisLike` in `src/lib/redis.ts`. Updated the comment to remove the "any on purpose" note.
+- **Step 4 — Clarify the 4 actionable TODOs:**
+  - `src/lib/adapters/registry.ts:35` (woocommerce creds): replaced `// TODO: cargar creds reales desde secret manager usando tenant.credencialesCatalogoRef.` with a longer `// ROADMAP (not technical debt):` block explaining the secret-manager dependency, Saramantha §17 roadmap reference, and the current safe fallback behavior.
+  - `src/lib/adapters/registry.ts:38` (shopify OAuth): same pattern — `// ROADMAP (not technical debt):` block explaining secret-manager dependency and current safe fallback.
+  - `src/lib/carriers.ts:63` (carrier rawName onboarding): replaced `// TODO(onboarding): el carrier rawName no está en el catálogo canónico...` with a longer `// ROADMAP (not technical debt, not a bug):` block explaining the tenant-onboarding process, who should add the `Carrier` row, and why returning the raw name is the safe default.
+  - `src/lib/carriers.ts:11` (descriptive mention): updated the docstring at the top of the file to reference the ROADMAP comment in `normalizeCarrierName` instead of mentioning a "TODO".
+- **Step 5 — Append new env vars to `.env.example`:**
+  - Created `/home/z/my-project/.env.example` (did not exist before) with the 9 env vars listed in the task description (`STRIPE_API_BASE`, `MERCADOPAGO_API_BASE`, `DROPI_API_BASE`, `NOVENTAYNUEVE_ENVIOS_API_BASE`, `AVEONLINE_API_BASE`, `GOOGLE_ADS_API_BASE`, `TIKTOK_ADS_API_BASE`, `WHATSAPP_CATALOG_API_BASE`, `PAYU_API_BASE`) under a `# Adapter API base URLs (override for sandbox/proxy)` header. Also included the 4 core app env vars (`DATABASE_URL`, `NEXTAUTH_URL`, `NEXTAUTH_SECRET`, `ENCRYPTION_KEY`) as a baseline so the file is self-contained for new developers.
+  - `PAYU_PAYER_IP` (introduced in this task in `payu.ts`) is NOT in `.env.example` because it was not in the task's explicit list — it is documented inline in the code comment for discoverability.
+- **Verification:**
+  - `cd /home/z/my-project && bun run lint` → exit 0 (clean).
+  - `cd /home/z/my-project && npx tsc --noEmit` → exit 0 (clean).
+  - `cd /home/z/my-project && bunx vitest run` → 10 test files, 180 tests passing.
+  - `rg ": any\b|as any\b" src/ --type ts | wc -l` → **40** (was 68 — 28-count reduction).
+- **Scope respected:**
+  - No files under `src/components/dashboard/**` modified.
+  - No files under `tests/` or `e2e/` modified.
+  - `prisma/schema.prisma` not modified.
+  - No view files (`.tsx` under `app/` or `components/`) modified.
+
+Stage Summary:
+- **Files modified (17 source files + 1 env file + 1 worklog):**
+  - `src/lib/auth.ts` — eliminated 9 NextAuth `as any` session casts (jwt + session callbacks).
+  - `src/lib/auth-helpers.ts` — eliminated 2 NextAuth `as any` session casts.
+  - `src/lib/queue.ts` — eliminated 6 `any` types (BullMQ) via structural `BullMQJob`/`BullMQQueue`/`BullMQWorker`/`BullMQModule` interfaces.
+  - `src/lib/redis.ts` — replaced 3 `console.*` with `logger` (pino).
+  - `src/lib/carriers.ts` — clarified 2 actionable TODOs as ROADMAP comments.
+  - `src/lib/vision/pipeline.ts` — replaced 1 `console.error` with `logger`.
+  - `src/lib/adapters/stripe.ts` — env-overridable `STRIPE_API_BASE`.
+  - `src/lib/adapters/mercadopago.ts` — env-overridable `MERCADOPAGO_API_BASE`.
+  - `src/lib/adapters/dropi.ts` — env-overridable `DROPI_API_BASE`.
+  - `src/lib/adapters/99envios.ts` — env-overridable `NOVENTAYNUEVE_ENVIOS_API_BASE`.
+  - `src/lib/adapters/aveonline.ts` — env-overridable `AVEONLINE_API_BASE`.
+  - `src/lib/adapters/whatsapp-catalog.ts` — env-overridable `WHATSAPP_CATALOG_API_BASE`.
+  - `src/lib/adapters/google-ads.ts` — env-overridable `GOOGLE_ADS_API_BASE` + replaced 4 `console.*` with `logger` + eliminated 4 `any` types (`any[]` × 2, `r: any` × 2).
+  - `src/lib/adapters/tiktok-ads.ts` — env-overridable `TIKTOK_ADS_API_BASE` + replaced 5 `console.*` with `logger`.
+  - `src/lib/adapters/payment-webhook-utils.ts` — replaced 2 `console.*` with `logger`.
+  - `src/lib/adapters/payu.ts` — env-overridable `PAYU_PAYER_IP` for the suspicious `127.0.0.1` ipAddress.
+  - `src/lib/adapters/registry.ts` — clarified 2 actionable TODOs as ROADMAP comments.
+  - `src/app/api/wallet/route.ts` — eliminated 2 NextAuth `as any` session casts.
+  - `src/app/api/novedades/route.ts` — eliminated 4 NextAuth `as any` session casts (2 lines × 2 casts each).
+  - `src/app/api/novedades/[id]/route.ts` — eliminated 1 NextAuth `as any` session cast.
+  - `.env.example` — created with 9 adapter API base URL entries + 4 core app entries.
+  - `worklog.md` — this entry.
+- **`any` count before/after:** 68 → 40 (28-count reduction; all 28 eliminations were in-scope NextAuth session casts + the google-ads/queue.ts structural-type refactors).
+- **`console.*` count before/after:** 23 → 8 (15 replaced with `logger`; remaining 8 are: 6 frontend `console.error` calls in `src/components/dashboard/*` that are out of scope per task rules, plus `src/app/error.tsx` + `src/app/global-error.tsx` Next.js error boundaries that were explicitly excluded, plus `src/app/login/page.tsx` client-side form error).
+- **Hardcoded adapter URLs:** 12 actionable → 9 fixed (8 adapter base URLs + payu ipAddress). The remaining 3 are pixel/CAPI endpoints in `src/lib/queue.ts:396,426,453` (Facebook Pixel, GA4, TikTok Events API) — these were listed as "actionable" in the audit but were NOT in the task's explicit adapter-file list, so they were left for a follow-up.
+- **TODOs clarified:** 4 actionable TODOs in `registry.ts` (2) and `carriers.ts` (2) rewritten as ROADMAP comments with full context (rationale, dependency, safe fallback behavior).
+- **Verification target `< 30` for `any` types:** not met — current count is 40. Breakdown of the remaining 40:
+  - **14 in `src/components/dashboard/**`** (frontend scope of other agents — explicitly off-limits per task rules): `wallet/index.tsx` (5), `novedades/novedades-detail.tsx` (2), `novedades/novedades-dialogs.tsx` (2), `novedades/novedades-redelivery.tsx` (2), `messenger-view.tsx` (2), `wallet/wallet-withdrawals.tsx` (1). Pattern: `catch (e: any)` and a couple of `body: any` in client-side fetch helpers.
+  - **26 `let body: any` / `body: any` in `src/app/api/**`** (audit recommendation #4 — Medium priority, NOT in this task's explicit scope). These would require a Zod-based body-parsing migration (`z.object({...}).parse(await req.json())`) — a separate task. Files: `trafficker/route.ts` (7), `remarketing/route.ts` (5), `redelivery/route.ts` (2), `novedades/route.ts` (2), and 10 more files with 1 each.
+  - Hitting `< 30` requires either the frontend agent to address the 14 dashboard `any` types OR a separate Zod-migration task to address the 26 API-route `body: any` patterns. Both are out of this task's scope.

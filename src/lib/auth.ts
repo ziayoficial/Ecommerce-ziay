@@ -75,21 +75,26 @@ export const authOptions: NextAuthOptions = {
   pages: { signIn: '/login' },
   callbacks: {
     jwt: async ({ token, user }) => {
+      // `user` is only populated on first sign-in; thereafter only `token` is
+      // available. The cast-free read works thanks to the `User` augmentation
+      // in `src/types/next-auth.d.ts` (adds role/tenantId/tenantSlug/tenantName).
       if (user) {
-        token.role = (user as any).role
-        token.tenantId = (user as any).tenantId
-        token.tenantSlug = (user as any).tenantSlug
-        token.tenantName = (user as any).tenantName
+        token.role = user.role
+        token.tenantId = user.tenantId
+        token.tenantSlug = user.tenantSlug
+        token.tenantName = user.tenantName
       }
       return token
     },
     session: async ({ session, token }) => {
+      // `session.user` is typed via the Session augmentation in
+      // `src/types/next-auth.d.ts` — direct assignment, no cast needed.
       if (session.user) {
-        ;(session.user as any).id = token.sub
-        ;(session.user as any).role = token.role
-        ;(session.user as any).tenantId = token.tenantId ?? null
-        ;(session.user as any).tenantSlug = token.tenantSlug ?? null
-        ;(session.user as any).tenantName = token.tenantName ?? null
+        session.user.id = token.sub ?? session.user.id
+        session.user.role = token.role ?? session.user.role
+        session.user.tenantId = token.tenantId ?? null
+        session.user.tenantSlug = token.tenantSlug ?? null
+        session.user.tenantName = token.tenantName ?? null
       }
       return session
     },

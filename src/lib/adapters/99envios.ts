@@ -32,7 +32,7 @@ import { logger } from '@/lib/logger'
 import type { LogisticsAdapter, FreightQuote, ShipmentResult, ShipmentStatus, GenerarGuiaInput } from './logistics-adapter'
 
 const HTTP_TIMEOUT_MS = 10_000
-const ENVIOS99_API_BASE = 'https://api.99envios.app/v1'
+const ENVIOS99_API_BASE = process.env.NOVENTAYNUEVE_ENVIOS_API_BASE ?? 'https://api.99envios.app/v1'
 
 // Tarifas base realistas (COP) — 99envios suele ser ~5% más barato que Dropi
 // en ciudades principales pero más caro en zonas periféricas (Pasto, Quibdó).

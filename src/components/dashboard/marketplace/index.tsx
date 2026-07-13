@@ -13,15 +13,18 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
 } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
+import { timeAgo } from '@/lib/format'
 import { useTenantId } from '@/hooks/use-tenant'
 import { toast } from 'sonner'
 import {
   Store, Users, Share2, Plus, Package, RefreshCw, CheckCircle2,
+  AlertCircle,
 } from 'lucide-react'
 import { type MarketplaceData } from './marketplace-shared'
 import { CatalogTab } from './marketplace-listings'
@@ -36,6 +39,8 @@ export function MarketplaceView() {
   const [data, setData] = useState<MarketplaceData | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [activeTab, setActiveTab] = useState('catalog')
   const [publishOpen, setPublishOpen] = useState(false)
 
@@ -47,6 +52,7 @@ export function MarketplaceView() {
   const load = useCallback(async () => {
     if (!tenantId) return
     setRefreshing(true)
+    setError(null)
     try {
       const res = await fetch(`/api/marketplace?tenantId=${tenantId}`)
       if (!res.ok) throw new Error('fetch failed')
@@ -54,7 +60,10 @@ export function MarketplaceView() {
       setData(json)
       setShareLeads(json.leadConfig?.shareLeads ?? false)
       setCommissionPct(String(json.leadConfig?.commissionPct ?? 5))
-    } catch {
+      setLastUpdated(new Date())
+    } catch (err) {
+      console.error('Marketplace fetch failed', err)
+      setError('No pudimos cargar el marketplace. Verifica tu conexión o intenta de nuevo.')
       toast.error('No se pudo cargar el marketplace')
     } finally {
       setLoading(false)
@@ -97,23 +106,40 @@ export function MarketplaceView() {
     }
   }
 
+  if (error && !data) {
+    return (
+      <section aria-label="Marketplace">
+        <Alert variant="destructive" className="animate-fade-in-up">
+          <AlertCircle className="size-4" />
+          <AlertTitle>Error al cargar el marketplace</AlertTitle>
+          <AlertDescription className="flex items-center justify-between gap-3 flex-wrap">
+            <span>{error}</span>
+            <Button size="sm" variant="outline" onClick={load} className="gap-1.5">
+              <RefreshCw className="size-3.5" /> Reintentar
+            </Button>
+          </AlertDescription>
+        </Alert>
+      </section>
+    )
+  }
+
   if (loading || !data) {
     return (
-      <div className="space-y-4">
+      <section aria-label="Marketplace" className="space-y-4" aria-busy="true" role="status">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {Array.from({ length: 3 }).map((_, i) => (
             <Skeleton key={i} className="h-24 rounded-xl" />
           ))}
         </div>
         <Skeleton className="h-96 rounded-xl" />
-      </div>
+      </section>
     )
   }
 
   const stats = data.stats
 
   return (
-    <div className="space-y-6 animate-fade-in-up">
+    <section aria-label="Marketplace" className="space-y-6 animate-fade-in-up">
       {/* Header */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
@@ -124,6 +150,11 @@ export function MarketplaceView() {
           <p className="text-sm text-muted-foreground">
             Comparte listings y refiere leads entre marcas de la plataforma
           </p>
+          {lastUpdated && (
+            <div className="text-[10px] text-muted-foreground mt-1">
+              Actualizado hace <strong className="text-foreground tabular-nums">{timeAgo(lastUpdated)}</strong>
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={load} disabled={refreshing}>
@@ -253,7 +284,7 @@ export function MarketplaceView() {
           />
         </TabsContent>
       </Tabs>
-    </div>
+    </section>
   )
 }
 

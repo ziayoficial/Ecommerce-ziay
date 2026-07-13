@@ -22,7 +22,7 @@ import crypto, { timingSafeEqual } from 'node:crypto'
 import type { PaymentAdapter, PaymentResult, CreatePaymentLinkOptions } from './payment-adapter'
 import { stubNoCredentials } from './payment-adapter'
 
-const MP_API_BASE = 'https://api.mercadopago.com'
+const MP_API_BASE = process.env.MERCADOPAGO_API_BASE ?? 'https://api.mercadopago.com'
 
 /**
  * Parses a `k=v,k=v` signature header (MercadoPago `x-signature` and Stripe

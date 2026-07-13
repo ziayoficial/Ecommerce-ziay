@@ -4,6 +4,7 @@ import { rateLimit } from '@/lib/middleware/rate-limit'
 import { getAdPlatformAdapter } from '@/lib/adapters/ads-registry'
 import { captureError } from '@/lib/capture-error'
 import { getLogger } from '@/lib/logger'
+import { db } from '@/lib/db'
 import { adsService } from '@/lib/services'
 
 const log = getLogger('api/ads/import')
@@ -26,11 +27,16 @@ const log = getLogger('api/ads/import')
 //   - Solo se hacen upserts para Ads que ya existan en el catálogo del tenant
 //     (Ad.externalId coincide con el adId de la plataforma).
 //
-// SPRINT8-SERVICES-REST-001 — migrated the per-ad `db.ad.findUnique` lookups
-// to `adsService.findAdByExternalId` and the per-ad `db.adSpend.upsert`
-// loop into a single batched `adsService.importAdSpend` call. The tenant
-// cross-check + warn-on-mismatch behavior is preserved in the route. Response
-// shape unchanged.
+// SPRINT8-SERVICES-REST-001 — migrated the per-ad `db.adSpend.upsert`
+// loop into a single batched `adsService.importAdSpend` call.
+//
+// FIX-1-DB-001 — killed the per-ad `adsService.findAdByExternalId` N+1 (was
+// 1 DB round trip per ad × M campaigns, up to 250+ at 50 ads × 5 campaigns).
+// Replaced with a single `db.ad.findMany({ where: { externalId: { in: [...] },
+// campaign: { tenantId } } })` once per import, with an O(1) Map lookup in the
+// loop. The tenantId filter moves the safety check into the WHERE clause
+// (previously done in the loop body) — same security posture, fewer round
+// trips. Response shape unchanged.
 export async function POST(req: NextRequest) {
   const limited = rateLimit(req, {
     max: 20,
@@ -79,15 +85,18 @@ export async function POST(req: NextRequest) {
 
     let adsProcessed = 0
     const dateOnly = new Date(`${dateStart}T00:00:00.000Z`)
-    const spendRows: Array<{
+
+    // Pass 1: fetch ad performance per campaign sequentially (preserves the
+    // existing call pattern — adapters may have per-campaign rate limits).
+    // Collect all adPerf rows so we can batch the DB lookup below.
+    type AdPerfRow = {
       adId: string
-      date: Date
       spend: number
       impressions: number
       clicks: number
-      convReported?: number
-    }> = []
-
+      conversions?: number
+    }
+    const allAdPerf: AdPerfRow[] = []
     for (const cp of campaignPerf) {
       // Skip campaigns with no external id
       if (!cp.campaignId) continue
@@ -99,29 +108,58 @@ export async function POST(req: NextRequest) {
       for (const ap of adPerf) {
         if (!ap.adId) continue
         adsProcessed += 1
-        // Find the Ad by externalId (unique across the platform)
-        const ad = await adsService.findAdByExternalId(ap.adId)
-        if (!ad) {
-          // Ad not in our DB — skip silently (could be a new ad we haven't synced)
-          continue
-        }
-        // Safety: only upsert if the ad's campaign belongs to this tenant
-        if (ad.campaign.tenantId !== tenantId) {
-          log.warn(
-            { adId: ap.adId, adTenantId: ad.campaign.tenantId, tenantId },
-            'ad belongs to a different tenant — skipping',
-          )
-          continue
-        }
-        spendRows.push({
-          adId: ad.id,
-          date: dateOnly,
+        allAdPerf.push({
+          adId: ap.adId,
           spend: ap.spend,
           impressions: ap.impressions,
           clicks: ap.clicks,
-          convReported: ap.conversions,
+          conversions: ap.conversions,
         })
       }
+    }
+
+    // FIX-1-DB-001 — single findMany replaces up to N round trips (one per
+    // ad × M campaigns). The `campaign: { tenantId }` filter enforces the
+    // same safety check that was previously done in the loop body, but at
+    // the DB layer (an ad belonging to a different tenant is simply not
+    // returned — silently skipped, same as the prior "not in our DB" path).
+    const externalAdIds = allAdPerf.map((ap) => ap.adId)
+    const ads =
+      externalAdIds.length > 0
+        ? await db.ad.findMany({
+            where: {
+              externalId: { in: externalAdIds },
+              campaign: { tenantId: String(tenantId) },
+            },
+            include: { campaign: { select: { tenantId: true } } },
+          })
+        : []
+
+    // O(1) Map lookup per ad — replaces the per-ad `await adsService.findAdByExternalId`.
+    const adByExternalId = new Map(ads.map((ad) => [ad.externalId, ad]))
+
+    const spendRows: Array<{
+      adId: string
+      date: Date
+      spend: number
+      impressions: number
+      clicks: number
+      convReported?: number
+    }> = []
+    for (const ap of allAdPerf) {
+      const ad = adByExternalId.get(ap.adId)
+      if (!ad) {
+        // Ad not in our DB (or belongs to a different tenant) — skip silently.
+        continue
+      }
+      spendRows.push({
+        adId: ad.id,
+        date: dateOnly,
+        spend: ap.spend,
+        impressions: ap.impressions,
+        clicks: ap.clicks,
+        convReported: ap.conversions,
+      })
     }
 
     // Batch-upsert the spend rows in a single $transaction.

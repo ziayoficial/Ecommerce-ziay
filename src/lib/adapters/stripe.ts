@@ -26,7 +26,7 @@ import crypto, { timingSafeEqual } from 'node:crypto'
 import type { PaymentAdapter, PaymentResult, CreatePaymentLinkOptions } from './payment-adapter'
 import { stubNoCredentials } from './payment-adapter'
 
-const STRIPE_API_BASE = 'https://api.stripe.com/v1'
+const STRIPE_API_BASE = process.env.STRIPE_API_BASE ?? 'https://api.stripe.com/v1'
 
 /**
  * Parses a `k=v,k=v` signature header (Stripe `stripe-signature` and

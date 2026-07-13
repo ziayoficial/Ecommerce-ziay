@@ -1,17 +1,19 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Separator } from '@/components/ui/separator'
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
-import { formatCurrency, formatPercent, shortDate } from '@/lib/format'
+import { formatCurrency, formatPercent, shortDate, timeAgo } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useTenantId } from '@/hooks/use-tenant'
 import {
-  DollarSign, TrendingUp, Wallet, Receipt, Clock, AlertTriangle, CheckCircle2,
+  DollarSign, TrendingUp, Wallet, Receipt, Clock, AlertTriangle, CheckCircle2, RefreshCw, AlertCircle,
 } from 'lucide-react'
 
 type MonetizationData = {
@@ -38,6 +40,35 @@ export function MonetizationView() {
   const [entries, setEntries] = useState<CommissionEntry[]>([])
   const [totals, setTotals] = useState<{ gmv: number; comisionTotal: number; reconocida: number; pendiente: number } | null>(null)
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
+
+  const load = useCallback((showRefreshing = false) => {
+    if (!tenantId) return
+    let cancelled = false
+    if (showRefreshing) setRefreshing(true)
+    setError(null)
+    Promise.all([
+      fetch(`/api/monetization/gmv?tenantId=${tenantId}`).then(r => r.json()),
+      fetch(`/api/monetization/commission?tenantId=${tenantId}`).then(r => r.json()),
+    ]).then(([d, c]) => {
+      if (cancelled) return
+      setData(d)
+      setEntries(c.entries || [])
+      setTotals(c.totals || null)
+      setLastUpdated(new Date())
+      setLoading(false)
+    }).catch(() => {
+      if (!cancelled) {
+        setError('No se pudo cargar la información de monetización. Verifica tu conexión o intenta de nuevo.')
+        setLoading(false)
+      }
+    }).finally(() => {
+      if (!cancelled) setRefreshing(false)
+    })
+    return () => { cancelled = true }
+  }, [tenantId])
 
   useEffect(() => {
     if (!tenantId) return
@@ -50,22 +81,60 @@ export function MonetizationView() {
       setData(d)
       setEntries(c.entries || [])
       setTotals(c.totals || null)
+      setLastUpdated(new Date())
       setLoading(false)
-    }).catch(() => { if (!cancelled) setLoading(false) })
+    }).catch(() => {
+      if (!cancelled) {
+        setError('No se pudo cargar la información de monetización. Verifica tu conexión o intenta de nuevo.')
+        setLoading(false)
+      }
+    })
     return () => { cancelled = true }
   }, [tenantId])
 
+  if (error) {
+    return (
+      <section aria-label="Monetización">
+        <Alert variant="destructive" className="animate-fade-in-up">
+          <AlertCircle className="size-4" />
+          <AlertTitle>Error al cargar la monetización</AlertTitle>
+          <AlertDescription className="flex items-center justify-between gap-3 flex-wrap">
+            <span>{error}</span>
+            <Button size="sm" variant="outline" onClick={() => load(true)} className="gap-1.5">
+              <RefreshCw className="size-3.5" /> Reintentar
+            </Button>
+          </AlertDescription>
+        </Alert>
+      </section>
+    )
+  }
+
   if (loading || !data) {
     return (
-      <div className="space-y-4">
+      <section aria-label="Monetización" className="space-y-4" aria-busy="true">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)}</div>
         <Skeleton className="h-72 rounded-xl" />
-      </div>
+      </section>
     )
   }
 
   return (
-    <div className="space-y-6 animate-fade-in-up">
+    <section aria-label="Monetización" className="space-y-6 animate-fade-in-up">
+      {/* Header: last-updated + refresh */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="text-[10px] sm:text-xs text-muted-foreground truncate">
+          {lastUpdated ? (
+            <span>Actualizado hace <strong className="text-foreground tabular-nums">{timeAgo(lastUpdated.toISOString())}</strong></span>
+          ) : (
+            <span>Datos de muestra</span>
+          )}
+        </div>
+        <Button variant="outline" size="sm" onClick={() => load(true)} disabled={refreshing} className="gap-1.5 h-9 px-3" aria-label="Refrescar">
+          <RefreshCw className={cn('size-3.5', refreshing && 'animate-spin')} />
+          {refreshing ? 'Actualizando…' : 'Refrescar'}
+        </Button>
+      </div>
+
       {/* Top KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card>
@@ -119,7 +188,7 @@ export function MonetizationView() {
               { label: '$10M – $40M', pct: 3, active: data.tramo === '10-40M' },
               { label: '$40M+', pct: 1.75, active: data.tramo === '40M+' },
             ].map((t) => (
-              <div key={t.label} className={cn('flex items-center justify-between p-3 rounded-lg border', t.active ? 'border-primary bg-primary/5' : '')}>
+              <div key={t.label} aria-current={t.active ? 'true' : undefined} className={cn('flex items-center justify-between p-3 rounded-lg border', t.active ? 'border-primary bg-primary/5' : '')}>
                 <span className="text-sm font-medium">{t.label} COP/mes</span>
                 <span className={cn('text-sm font-bold tabular-nums', t.active ? 'text-primary' : '')}>{t.pct}%</span>
                 {t.active && <Badge variant="default" className="text-[10px]">actual</Badge>}
@@ -182,7 +251,18 @@ export function MonetizationView() {
         </CardHeader>
         <CardContent className="p-0">
           {entries.length === 0 ? (
-            <div className="p-12 text-center text-sm text-muted-foreground">Sin comisiones reconocidas todavía</div>
+            <div className="flex flex-col items-center justify-center text-center py-12 px-4">
+              <div className="size-12 rounded-2xl bg-muted ring-1 ring-border flex items-center justify-center mb-3">
+                <Receipt className="size-6 text-muted-foreground" />
+              </div>
+              <p className="text-sm font-medium">Sin comisiones reconocidas todavía</p>
+              <p className="text-xs text-muted-foreground max-w-sm mt-1">
+                Cuando los pedidos por agente_whatsapp se despachen, las comisiones reconocidas aparecerán aquí automáticamente.
+              </p>
+              <Button variant="outline" size="sm" className="mt-4 gap-1.5" onClick={() => load(true)} disabled={refreshing}>
+                <RefreshCw className={cn('size-3.5', refreshing && 'animate-spin')} /> Refrescar
+              </Button>
+            </div>
           ) : (
             <div className="overflow-x-auto scroll-thin">
               <Table>
@@ -245,6 +325,6 @@ export function MonetizationView() {
           </CardContent>
         </Card>
       )}
-    </div>
+    </section>
   )
 }

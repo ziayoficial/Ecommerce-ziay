@@ -33,11 +33,39 @@ interface JobData {
 
 type JobHandler = (data: JobData['payload']) => Promise<void>
 
+// Minimal structural types for BullMQ — the package is an optional prod-only
+// dep (see header comment), so we type only the surface area we use. Same
+// pattern as `RedisLike` in `src/lib/redis.ts`.
+interface BullMQJob {
+  id?: string
+  data: JobData
+}
+
+interface BullMQQueue {
+  add(name: string, data: JobData): Promise<unknown>
+  close(): Promise<unknown>
+}
+
+interface BullMQWorker {
+  on(event: 'completed', listener: (job: BullMQJob) => void): this
+  on(event: 'failed', listener: (job: BullMQJob | undefined, err: Error) => void): this
+  on(event: string, listener: (...args: unknown[]) => void): this
+  close(): Promise<unknown>
+}
+
+interface BullMQModule {
+  Queue: new (name: string, opts: { connection: { url: string } }) => BullMQQueue
+  Worker: new (
+    name: string,
+    processor: (job: BullMQJob) => Promise<void>,
+    opts: { connection: { url: string }; concurrency: number },
+  ) => BullMQWorker
+}
+
 const handlers = new Map<string, JobHandler>()
-// `any` on purpose — BullMQ is an optional prod-only dep, importing its types
-// would force a hard dependency at type-check time. Same pattern as redis.ts.
-let bullmqQueue: any = null
-let bullmqWorker: any = null
+// `null` while BullMQ is not yet initialised or unavailable in this env.
+let bullmqQueue: BullMQQueue | null = null
+let bullmqWorker: BullMQWorker | null = null
 let inlineMode = true // flips to false only when BullMQ successfully starts
 
 // Promise singleton — `enqueue()` calls `initQueue()` on its first invocation
@@ -85,21 +113,14 @@ async function doInitQueue(): Promise<void> {
   try {
     // Non-literal specifier → tsc does NOT resolve types for bullmq.
     const moduleName = 'bullmq' as string
-    const { Queue, Worker } = (await import(moduleName)) as {
-      Queue: new (name: string, opts: { connection: { url: string } }) => any
-      Worker: new (
-        name: string,
-        processor: (job: any) => Promise<void>,
-        opts: { connection: { url: string }; concurrency: number },
-      ) => any
-    }
+    const { Queue, Worker } = (await import(moduleName)) as BullMQModule
     const connection = { url: redisUrl }
 
     bullmqQueue = new Queue('ziay-jobs', { connection })
 
     bullmqWorker = new Worker(
       'ziay-jobs',
-      async (job: any) => {
+      async (job: BullMQJob) => {
         const handler = handlers.get(job.data.type)
         if (handler) {
           log.info({ jobType: job.data.type, jobId: job.id }, 'Processing job')
@@ -111,10 +132,10 @@ async function doInitQueue(): Promise<void> {
       { connection, concurrency: 3 },
     )
 
-    bullmqWorker.on('completed', (job: any) => {
+    bullmqWorker.on('completed', (job: BullMQJob) => {
       log.info({ jobId: job.id, jobType: job.data.type }, 'Job completed')
     })
-    bullmqWorker.on('failed', (job: any, err: Error) => {
+    bullmqWorker.on('failed', (job: BullMQJob | undefined, err: Error) => {
       log.error({ jobId: job?.id, jobType: job?.data?.type, err: err.message }, 'Job failed')
     })
 

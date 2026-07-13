@@ -20,7 +20,7 @@
 //     1_000_000 para obtener `spend` en la unidad mayor.
 //   - Las fechas se pasan como YYYY-MM-DD (formato de segments.date en GAQL).
 //   - Si falta cualquier credencial (developerToken / accessToken / customerId),
-//     se registra un `console.warn` y se devuelve `[]` para que el flujo
+//     se registra un `log.warn` y se devuelve `[]` para que el flujo
 //     de import no reviente (modo degradado).
 //
 // Env vars:
@@ -34,8 +34,10 @@ import type {
   AdPerformance,
   CampaignPerformance,
 } from './ad-platform-adapter'
+import { getLogger } from '@/lib/logger'
 
-const GOOGLE_ADS_API_BASE = 'https://googleads.googleapis.com/v17'
+const log = getLogger('adapters:google-ads')
+const GOOGLE_ADS_API_BASE = process.env.GOOGLE_ADS_API_BASE ?? 'https://googleads.googleapis.com/v17'
 
 /**
  * Adaptador de Google Ads. Cada instancia está ligada a un tenant + customerId
@@ -74,13 +76,11 @@ export class GoogleAdsAdapter implements AdPlatformAdapter {
     dateEnd: string,
   ): Promise<CampaignPerformance[]> {
     if (!this.hasCredentials()) {
-      console.warn(
-        `[google-ads] tenant=${this.tenantId}: credenciales incompletas (customerId/developerToken/accessToken). Devolviendo [].`,
-      )
+      log.warn({ tenantId: this.tenantId }, 'credenciales incompletas (customerId/developerToken/accessToken). Devolviendo [].')
       return []
     }
     const gaql = `SELECT campaign.id, campaign.name, metrics.cost_micros, metrics.impressions, metrics.clicks, metrics.conversions FROM campaign WHERE segments.date BETWEEN '${dateStart}' AND '${dateEnd}'`
-    const rows = await this.runQuery<{ results?: any[] }>(gaql)
+    const rows = await this.runQuery<{ results?: Record<string, unknown>[] }>(gaql)
     const out: CampaignPerformance[] = []
     for (const row of rows) {
       const results = Array.isArray(row?.results) ? row.results : []
@@ -97,13 +97,11 @@ export class GoogleAdsAdapter implements AdPlatformAdapter {
     dateEnd: string,
   ): Promise<AdPerformance[]> {
     if (!this.hasCredentials()) {
-      console.warn(
-        `[google-ads] tenant=${this.tenantId}: credenciales incompletas. Devolviendo [].`,
-      )
+      log.warn({ tenantId: this.tenantId }, 'credenciales incompletas. Devolviendo [].')
       return []
     }
     const gaql = `SELECT ad_group_ad.ad.id, ad_group_ad.ad.name, metrics.cost_micros, metrics.impressions, metrics.clicks, metrics.conversions FROM ad_group_ad WHERE campaign.id = ${campaignId} AND segments.date BETWEEN '${dateStart}' AND '${dateEnd}'`
-    const rows = await this.runQuery<{ results?: any[] }>(gaql)
+    const rows = await this.runQuery<{ results?: Record<string, unknown>[] }>(gaql)
     const out: AdPerformance[] = []
     for (const row of rows) {
       const results = Array.isArray(row?.results) ? row.results : []
@@ -134,44 +132,43 @@ export class GoogleAdsAdapter implements AdPlatformAdapter {
       })
       if (!res.ok) {
         const text = await res.text().catch(() => '')
-        console.error(
-          `[google-ads] tenant=${this.tenantId} searchStream ${res.status}: ${text.slice(0, 500)}`,
-        )
+        log.error({ tenantId: this.tenantId, status: res.status, body: text.slice(0, 500) }, 'google-ads searchStream non-2xx')
         return []
       }
       const data = (await res.json()) as T | T[]
       return Array.isArray(data) ? data : [data]
     } catch (err) {
-      console.error(
-        `[google-ads] tenant=${this.tenantId} searchStream error:`,
-        err instanceof Error ? err.message : err,
-      )
+      log.error({ tenantId: this.tenantId, err: err instanceof Error ? err.message : String(err) }, 'google-ads searchStream error')
       return []
     }
   }
 
-  private mapCampaign(r: any): CampaignPerformance {
+  private mapCampaign(r: Record<string, unknown>): CampaignPerformance {
+    const campaign = (r?.campaign ?? {}) as Record<string, unknown>
+    const metrics = (r?.metrics ?? {}) as Record<string, unknown>
     return {
-      campaignId: String(r?.campaign?.id ?? r?.campaign?.resourceName ?? ''),
-      campaignName: String(r?.campaign?.name ?? ''),
-      spend: microsToUnit(r?.metrics?.costMicros ?? r?.metrics?.cost_micros ?? 0),
-      impressions: Number(r?.metrics?.impressions ?? 0),
-      clicks: Number(r?.metrics?.clicks ?? 0),
-      conversions: Number(r?.metrics?.conversions ?? 0),
+      campaignId: String(campaign.id ?? campaign.resourceName ?? ''),
+      campaignName: String(campaign.name ?? ''),
+      spend: microsToUnit((metrics.costMicros ?? metrics.cost_micros ?? 0) as number | string),
+      impressions: Number(metrics.impressions ?? 0),
+      clicks: Number(metrics.clicks ?? 0),
+      conversions: Number(metrics.conversions ?? 0),
     }
   }
 
-  private mapAd(r: any): AdPerformance {
-    const ad = r?.adGroupAd?.ad ?? r?.ad_group_ad?.ad ?? {}
+  private mapAd(r: Record<string, unknown>): AdPerformance {
+    const adGroupAd = (r?.adGroupAd ?? r?.ad_group_ad ?? {}) as Record<string, unknown>
+    const ad = (adGroupAd.ad ?? {}) as Record<string, unknown>
+    const metrics = (r?.metrics ?? {}) as Record<string, unknown>
     return {
       adId: String(ad.id ?? ad.resourceName ?? ''),
       adName: String(ad.name ?? ''),
       spend: microsToUnit(
-        r?.metrics?.costMicros ?? r?.metrics?.cost_micros ?? 0,
+        (metrics.costMicros ?? metrics.cost_micros ?? 0) as number | string,
       ),
-      impressions: Number(r?.metrics?.impressions ?? 0),
-      clicks: Number(r?.metrics?.clicks ?? 0),
-      conversions: Number(r?.metrics?.conversions ?? 0),
+      impressions: Number(metrics.impressions ?? 0),
+      clicks: Number(metrics.clicks ?? 0),
+      conversions: Number(metrics.conversions ?? 0),
     }
   }
 }

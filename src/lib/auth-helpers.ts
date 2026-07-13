@@ -42,7 +42,9 @@ export async function requireAuth() {
 export async function requireTenantAccess(tenantId: string) {
   const { session, error } = await requireAuth()
   if (error) return { session: null, error }
-  const userTenantId = (session?.user as any)?.tenantId
+  // `session.user.tenantId` is typed via the Session augmentation in
+  // `src/types/next-auth.d.ts` — direct access, no cast needed.
+  const userTenantId = session?.user?.tenantId ?? null
   // Admins with no tenantId (platform users) are allowed to read any tenant.
   if (userTenantId && userTenantId !== tenantId) {
     return {
@@ -56,7 +58,9 @@ export async function requireTenantAccess(tenantId: string) {
 export async function requireRole(roles: string[]) {
   const { session, error } = await requireAuth()
   if (error) return { session: null, error }
-  const role = (session?.user as any)?.role
+  // `session.user.role` is typed via the Session augmentation in
+  // `src/types/next-auth.d.ts` — direct access, no cast needed.
+  const role = session?.user?.role
   if (!role || !roles.includes(role)) {
     return {
       session: null,

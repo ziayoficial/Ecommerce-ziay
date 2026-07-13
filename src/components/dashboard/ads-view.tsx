@@ -1,10 +1,11 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
@@ -17,13 +18,13 @@ import {
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip as RTooltip, ResponsiveContainer, CartesianGrid,
 } from 'recharts'
-import { formatCurrency, formatNumber, formatPercent, formatMultiplier, shortDate } from '@/lib/format'
+import { formatCurrency, formatNumber, formatPercent, formatMultiplier, shortDate, timeAgo } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { useTenantId } from '@/hooks/use-tenant'
 import {
   Target, TrendingUp, TrendingDown, DollarSign, Percent, Flame, Skull, Pause,
-  Play, Rocket, Eye, AlertTriangle, Search, Gauge, Sparkles,
+  Play, Rocket, Eye, AlertTriangle, Search, Gauge, Sparkles, RefreshCw, AlertCircle, Megaphone, Upload,
 } from 'lucide-react'
 
 type AdRow = {
@@ -94,16 +95,54 @@ export function AdsView() {
   const tenantId = useTenantId()
   const [data, setData] = useState<AdsData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [platform, setPlatform] = useState('all')
   const [q, setQ] = useState('')
+
+  const load = useCallback((showRefreshing = false) => {
+    if (!tenantId) return
+    let cancelled = false
+    if (showRefreshing) setRefreshing(true)
+    setError(null)
+    fetch(`/api/ads?days=14&platform=${platform}&tenantId=${tenantId}`)
+      .then(r => r.json())
+      .then(d => {
+        if (cancelled) return
+        setData(d)
+        setLastUpdated(new Date())
+        setLoading(false)
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setError('No se pudo cargar el rendimiento de la pauta. Verifica tu conexión o intenta de nuevo.')
+          setLoading(false)
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setRefreshing(false)
+      })
+    return () => { cancelled = true }
+  }, [platform, tenantId])
 
   useEffect(() => {
     if (!tenantId) return
     let cancelled = false
     fetch(`/api/ads?days=14&platform=${platform}&tenantId=${tenantId}`)
       .then(r => r.json())
-      .then(d => { if (!cancelled) { setData(d); setLoading(false) } })
-      .catch(() => { if (!cancelled) setLoading(false) })
+      .then(d => {
+        if (cancelled) return
+        setData(d)
+        setLastUpdated(new Date())
+        setLoading(false)
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setError('No se pudo cargar el rendimiento de la pauta. Verifica tu conexión o intenta de nuevo.')
+          setLoading(false)
+        }
+      })
     return () => { cancelled = true }
   }, [platform, tenantId])
 
@@ -119,12 +158,29 @@ export function AdsView() {
     toast.success(`Anuncio ${action === 'kill' ? 'apagado' : action === 'pause' ? 'pausado' : action === 'scale' ? 'marcado para escalar' : 'reanudado'}`)
   }
 
+  if (error) {
+    return (
+      <section aria-label="Anuncios">
+        <Alert variant="destructive" className="animate-fade-in-up">
+          <AlertCircle className="size-4" />
+          <AlertTitle>Error al cargar la pauta</AlertTitle>
+          <AlertDescription className="flex items-center justify-between gap-3 flex-wrap">
+            <span>{error}</span>
+            <Button size="sm" variant="outline" onClick={() => load(true)} className="gap-1.5">
+              <RefreshCw className="size-3.5" /> Reintentar
+            </Button>
+          </AlertDescription>
+        </Alert>
+      </section>
+    )
+  }
+
   if (loading || !data) {
     return (
-      <div className="space-y-4">
+      <section aria-label="Anuncios" className="space-y-4" aria-busy="true">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-20 rounded-xl" />)}</div>
         <Skeleton className="h-96 rounded-xl" />
-      </div>
+      </section>
     )
   }
 
@@ -138,7 +194,40 @@ export function AdsView() {
   const wastedSpend = filteredRows.filter(r => r.metrics.orderCount === 0).reduce((s, r) => s + r.metrics.spend, 0)
 
   return (
-    <div className="space-y-6 animate-fade-in-up">
+    <section aria-label="Anuncios" className="space-y-6 animate-fade-in-up">
+      {/* Header: last-updated + refresh */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="text-[10px] sm:text-xs text-muted-foreground truncate">
+          {lastUpdated ? (
+            <span>Actualizado hace <strong className="text-foreground tabular-nums">{timeAgo(lastUpdated.toISOString())}</strong></span>
+          ) : (
+            <span>Datos de muestra</span>
+          )}
+        </div>
+        <Button variant="outline" size="sm" onClick={() => load(true)} disabled={refreshing} className="gap-1.5 h-9 px-3" aria-label="Refrescar">
+          <RefreshCw className={cn('size-3.5', refreshing && 'animate-spin')} />
+          {refreshing ? 'Actualizando…' : 'Refrescar'}
+        </Button>
+      </div>
+
+      {/* Empty state: tenant has no ads yet */}
+      {data.rows.length === 0 ? (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center text-center py-16 px-4">
+            <div className="size-20 rounded-2xl bg-primary/10 ring-1 ring-primary/20 flex items-center justify-center mb-5">
+              <Megaphone className="size-9 text-primary" />
+            </div>
+            <h2 className="text-lg font-semibold">Aún no hay anuncios importados</h2>
+            <p className="text-sm text-muted-foreground max-w-md mt-2">
+              Conecta tus plataformas de pauta (Meta, Google, TikTok) para ver aquí el rendimiento por anuncio, ROAS, CPA y detección de canibalización.
+            </p>
+            <Button variant="default" size="sm" className="mt-5 gap-1.5" onClick={() => toast.info('Importación de anuncios próximamente')}>
+              <Upload className="size-3.5" /> Importar anuncios
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <>
       {/* Totals KPI strip */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <TotalsKpi icon={DollarSign} label="Inversión pauta (14d)" value={formatCurrency(t.spend, 'COP', { compact: true })} sub={`${data.rows.length} anuncios activos`} accent="bg-rose-500/10 text-rose-600 ring-rose-500/20" />
@@ -181,6 +270,7 @@ export function AdsView() {
             <CardDescription>Últimos 14 días · COP</CardDescription>
           </CardHeader>
           <CardContent>
+            <figure role="img" aria-label="Inversión diaria en pauta durante los últimos 14 días en COP">
             <ResponsiveContainer width="100%" height={200}>
               <AreaChart data={data.series} margin={{ left: -10, right: 10, top: 5, bottom: 0 }}>
                 <defs>
@@ -196,6 +286,7 @@ export function AdsView() {
                 <Area type="monotone" dataKey="spend" stroke="#f43f5e" strokeWidth={2} fill="url(#spendG)" />
               </AreaChart>
             </ResponsiveContainer>
+            </figure>
           </CardContent>
         </Card>
       </div>
@@ -294,8 +385,8 @@ export function AdsView() {
                         <TooltipProvider>
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <span className={cn(
-                                'inline-flex items-center gap-1 text-xs font-semibold px-1.5 py-0.5 rounded',
+                              <span tabIndex={0} role="button" className={cn(
+                                'inline-flex items-center gap-1 text-xs font-semibold px-1.5 py-0.5 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                                 r.metrics.roas >= 2 ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
                                   : r.metrics.roas >= 1 ? 'bg-sky-500/10 text-sky-700 dark:text-sky-300'
                                   : r.metrics.roas > 0 ? 'bg-rose-500/10 text-rose-700 dark:text-rose-300'
@@ -323,7 +414,7 @@ export function AdsView() {
                         <TooltipProvider>
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <span className={cn('inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full ring-1 cursor-help', vm.cls)}>
+                              <span tabIndex={0} role="button" className={cn('inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full ring-1 cursor-help focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring', vm.cls)}>
                                 <VIcon className="size-3" /> {vm.label}
                               </span>
                             </TooltipTrigger>
@@ -432,6 +523,8 @@ export function AdsView() {
           </CardContent>
         </Card>
       </div>
-    </div>
+      </>
+      )}
+    </section>
   )
 }

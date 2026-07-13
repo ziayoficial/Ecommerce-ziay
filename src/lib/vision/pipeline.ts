@@ -15,6 +15,9 @@
 import ZAI from 'z-ai-web-dev-sdk'
 import type { VisionMessage } from 'z-ai-web-dev-sdk'
 import { db } from '@/lib/db'
+import { getLogger } from '@/lib/logger'
+
+const log = getLogger('vision:pipeline')
 
 // The ZAI SDK exports a class with a private constructor; we type the instance
 // as the resolved type of `ZAI.create()` to avoid referencing the private ctor.
@@ -148,7 +151,7 @@ Imagen del cliente: ${imageUrl}`
       })
     } catch (err) {
       // Audit persistence is best-effort; do not fail the call.
-      console.error('[vision/pipeline] failed to persist ImageIdentification:', err)
+      log.error({ err: err instanceof Error ? err.message : String(err) }, 'failed to persist ImageIdentification')
     }
   }
 

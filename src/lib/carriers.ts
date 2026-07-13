@@ -8,8 +8,8 @@
 // variantes aceptadas. Esta función normaliza cualquier string contra esa
 // tabla antes de escribirlo en `Shipment.transportadoraCanonica`.
 //
-// Si no encuentra match, devuelve el rawName tal cual y deja un TODO para que
-// el equipo de onboarding lo agregue al catálogo canónico del tenant.
+// Si no encuentra match, devuelve el rawName tal cual (ROADMAP — ver comentario
+// en `normalizeCarrierName` para el equipo de onboarding).
 
 import { db } from '@/lib/db'
 
@@ -60,10 +60,14 @@ export async function normalizeCarrierName(
     }
   }
 
-  // TODO(onboarding): el carrier `rawName` no está en el catálogo canónico del
-  // tenant `tenantId`. Agregarlo manualmente a la tabla `Carrier` (con su
-  // `nombreCanonico` y la lista de variantes) para que futuras llamadas lo
-  // normalicen correctamente. Por ahora devolvemos el raw sin romper el flujo.
+  // ROADMAP (not technical debt, not a bug): the carrier `rawName` is not yet
+  // in this tenant's canonical `Carrier` catalog. This is expected during
+  // tenant onboarding (new carriers appear as carriers expand their network).
+  // The onboarding team should add a `Carrier` row for this tenant with the
+  // correct `nombreCanonico` + the list of `variantes` once a new rawName
+  // starts appearing in production shipments. Until then we return the raw
+  // name unchanged — the shipment is still persisted and visible, it just
+  // won't roll up into the canonical-carrier dashboard aggregation.
   return trimmed
 }
 

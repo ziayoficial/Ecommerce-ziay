@@ -35,6 +35,9 @@ type RedisLike = {
   on: (event: string, listener: (...args: unknown[]) => void) => void
 }
 
+import { getLogger } from '@/lib/logger'
+const log = getLogger('redis')
+
 let redisClient: RedisLike | null = null
 let isConnecting = false
 
@@ -67,16 +70,16 @@ export async function getRedis(): Promise<RedisLike | null> {
 
       client.on('error', (err: unknown) => {
         const msg = err instanceof Error ? err.message : String(err)
-        console.error('[redis] Error:', msg)
+        log.error({ err: msg }, 'redis connection error')
       })
       client.on('connect', () => {
-        console.log('[redis] Connected')
+        log.info('redis connected')
       })
 
       redisClient = client
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
-      console.warn(`[redis] ioredis not available — using in-memory cache only (${msg})`)
+      log.warn({ err: msg }, 'ioredis not available — using in-memory cache only')
       redisClient = null
     }
     isConnecting = false

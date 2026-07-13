@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -7,16 +7,18 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Separator } from '@/components/ui/separator'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
-import { formatCurrency } from '@/lib/format'
+import { formatCurrency, timeAgo } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { ChannelsManager } from './channels-manager'
 import {
   CreditCard, Truck, Percent, Save, Shield, Zap, Globe, KeyRound, Bot,
+  AlertCircle, RefreshCw, Inbox,
 } from 'lucide-react'
 
 type ChannelCfg = {
@@ -50,17 +52,33 @@ export function SettingsView() {
   const [channels, setChannels] = useState<ChannelCfg[]>([])
   const [global, setGlobal] = useState<GlobalCfg>({})
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [saving, setSaving] = useState<string | null>(null)
   const [autoKill, setAutoKill] = useState(true)
   const [aiReplies, setAiReplies] = useState(true)
 
-  useEffect(() => {
-    fetch('/api/payments/config').then(r => r.json()).then(d => {
+  const loadData = useCallback(async (showRefreshing = false) => {
+    if (showRefreshing) setRefreshing(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/payments/config')
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const d = await res.json()
       setChannels(d.channels || [])
       setGlobal(d.global || {})
+      setLastUpdated(new Date())
+    } catch (err) {
+      console.error('Settings fetch failed', err)
+      setError('No pudimos cargar la configuración. Verifica tu conexión o intenta de nuevo.')
+    } finally {
       setLoading(false)
-    })
+      setRefreshing(false)
+    }
   }, [])
+
+  useEffect(() => { loadData() }, [loadData])
 
   const updateChannel = (id: string, field: keyof ChannelCfg, value: string | number) => {
     setChannels(prev => prev.map(c => c.id === id ? { ...c, [field]: value } : c))
@@ -94,10 +112,66 @@ export function SettingsView() {
     toast.success('Umbrales globales guardados')
   }
 
-  if (loading) return <div className="space-y-4">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-40" />)}</div>
+  if (loading) return (
+    <div className="space-y-4" role="status" aria-live="polite" aria-busy="true">
+      {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-40" />)}
+    </div>
+  )
+
+  if (error) {
+    return (
+      <Alert variant="destructive" className="animate-fade-in-up">
+        <AlertCircle className="size-4" />
+        <AlertTitle>Error al cargar la configuración</AlertTitle>
+        <AlertDescription className="flex items-center justify-between gap-3 flex-wrap">
+          <span>{error}</span>
+          <Button size="sm" variant="outline" onClick={() => loadData(true)} className="gap-1.5">
+            <RefreshCw className="size-3.5" /> Reintentar
+          </Button>
+        </AlertDescription>
+      </Alert>
+    )
+  }
+
+  // ── Empty state: no channels and no global config yet ──
+  const isEmpty = channels.length === 0 && Object.keys(global).length === 0
+  if (isEmpty) {
+    return (
+      <section aria-label="Configuración" className="flex flex-col items-center justify-center text-center py-16 px-4 animate-fade-in-up">
+        <div className="size-20 rounded-2xl bg-primary/10 ring-1 ring-primary/20 flex items-center justify-center mb-5">
+          <Inbox className="size-9 text-primary" />
+        </div>
+        <h2 className="text-lg font-semibold">Aún no hay configuración</h2>
+        <p className="text-sm text-muted-foreground max-w-md mt-2">
+          Cuando conectes canales en Mensajería y configures estrategias de pago y umbrales del trafficker,
+          verás aquí todas las opciones. Empieza agregando un canal.
+        </p>
+        <div className="flex flex-wrap gap-2 mt-5">
+          <Button variant="outline" size="sm" onClick={() => loadData(true)} disabled={refreshing} className="gap-1.5">
+            <RefreshCw className={cn('size-3.5', refreshing && 'animate-spin')} /> Refrescar
+          </Button>
+        </div>
+      </section>
+    )
+  }
 
   return (
-    <div className="space-y-6 animate-fade-in-up">
+    <section aria-label="Configuración" className="space-y-6 animate-fade-in-up">
+      {/* ── Header: last-updated + refresh ── */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="text-[10px] sm:text-xs text-muted-foreground truncate">
+          {lastUpdated ? (
+            <span>Actualizado hace <strong className="text-foreground tabular-nums">{timeAgo(lastUpdated)}</strong></span>
+          ) : (
+            <span>Datos de muestra</span>
+          )}
+        </div>
+        <Button variant="outline" size="sm" onClick={() => loadData(true)} disabled={refreshing} className="gap-1.5 h-9 px-3">
+          <RefreshCw className={cn('size-3.5', refreshing && 'animate-spin')} />
+          {refreshing ? 'Actualizando…' : 'Refrescar'}
+        </Button>
+      </div>
+
       {/* Channels manager — multi-line WhatsApp, Messenger, IG with credentials */}
       <ChannelsManager />
 
@@ -143,52 +217,60 @@ export function SettingsView() {
                   <span className="font-medium">{sm.label}</span>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">Mín. para prepago (híbrido)</Label>
-                    <Input
-                      type="number"
-                      className="tabular-nums"
-                      value={ch.requirePrepayMin ?? ''}
-                      onChange={(e) => updateChannel(ch.id, 'requirePrepayMin', Number(e.target.value))}
-                      placeholder="Ej. 250000"
-                      disabled={ch.paymentStrategy !== 'hybrid'}
-                    />
+                <form
+                  className="space-y-3"
+                  onSubmit={(e) => { e.preventDefault(); void saveChannel(ch.id) }}
+                >
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="space-y-1">
+                      <Label htmlFor={`ch-${ch.id}-prepaymin`} className="text-xs text-muted-foreground">Mín. para prepago (híbrido)</Label>
+                      <Input
+                        id={`ch-${ch.id}-prepaymin`}
+                        type="number"
+                        className="tabular-nums"
+                        value={ch.requirePrepayMin ?? ''}
+                        onChange={(e) => updateChannel(ch.id, 'requirePrepayMin', Number(e.target.value))}
+                        placeholder="Ej. 250000"
+                        disabled={ch.paymentStrategy !== 'hybrid'}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor={`ch-${ch.id}-disc`} className="text-xs text-muted-foreground">% descuento prepago</Label>
+                      <Input
+                        id={`ch-${ch.id}-disc`}
+                        type="number" step="0.5"
+                        className="tabular-nums"
+                        value={ch.prepayDiscountPct ?? ''}
+                        onChange={(e) => updateChannel(ch.id, 'prepayDiscountPct', Number(e.target.value))}
+                        placeholder="Ej. 5"
+                        disabled={ch.paymentStrategy === 'cod'}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor={`ch-${ch.id}-codfee`} className="text-xs text-muted-foreground">Recargo envío COD</Label>
+                      <Input
+                        id={`ch-${ch.id}-codfee`}
+                        type="number"
+                        className="tabular-nums"
+                        value={ch.codFee ?? ''}
+                        onChange={(e) => updateChannel(ch.id, 'codFee', Number(e.target.value))}
+                        placeholder="Ej. 8000"
+                        disabled={ch.paymentStrategy === 'advance'}
+                      />
+                    </div>
                   </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">% descuento prepago</Label>
-                    <Input
-                      type="number" step="0.5"
-                      className="tabular-nums"
-                      value={ch.prepayDiscountPct ?? ''}
-                      onChange={(e) => updateChannel(ch.id, 'prepayDiscountPct', Number(e.target.value))}
-                      placeholder="Ej. 5"
-                      disabled={ch.paymentStrategy === 'cod'}
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">Recargo envío COD</Label>
-                    <Input
-                      type="number"
-                      className="tabular-nums"
-                      value={ch.codFee ?? ''}
-                      onChange={(e) => updateChannel(ch.id, 'codFee', Number(e.target.value))}
-                      placeholder="Ej. 8000"
-                      disabled={ch.paymentStrategy === 'advance'}
-                    />
-                  </div>
-                </div>
 
-                <div className="flex items-center justify-between">
-                  <p className="text-xs text-muted-foreground">
-                    {ch.paymentStrategy === 'advance' && '🔒 Solo pago anticipado vía carrito. Mejor flujo de caja.'}
-                    {ch.paymentStrategy === 'cod' && '🚚 Solo contra entrega. Mayor aceptación, ~15% rechazo.'}
-                    {ch.paymentStrategy === 'hybrid' && `⚖️ Híbrido: > ${formatCurrency(ch.requirePrepayMin || 0)} sugiere prepago con ${ch.prepayDiscountPct || 0}% off.`}
-                  </p>
-                  <Button size="sm" variant="outline" onClick={() => saveChannel(ch.id)} disabled={saving === ch.id} className="gap-1.5">
-                    <Save className="size-3.5" /> {saving === ch.id ? 'Guardando...' : 'Guardar'}
-                  </Button>
-                </div>
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs text-muted-foreground">
+                      {ch.paymentStrategy === 'advance' && '🔒 Solo pago anticipado vía carrito. Mejor flujo de caja.'}
+                      {ch.paymentStrategy === 'cod' && '🚚 Solo contra entrega. Mayor aceptación, ~15% rechazo.'}
+                      {ch.paymentStrategy === 'hybrid' && `⚖️ Híbrido: > ${formatCurrency(ch.requirePrepayMin || 0)} sugiere prepago con ${ch.prepayDiscountPct || 0}% off.`}
+                    </p>
+                    <Button type="submit" size="sm" variant="outline" disabled={saving === ch.id} className="gap-1.5">
+                      <Save className="size-3.5" /> {saving === ch.id ? 'Guardando...' : 'Guardar'}
+                    </Button>
+                  </div>
+                </form>
               </div>
             )
           })}
@@ -203,46 +285,48 @@ export function SettingsView() {
             <CardDescription>Reglas de auto-pausa y escalado de anuncios</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">ROAS mínimo (auto-pausa)</Label>
-                <Input type="number" step="0.1" className="tabular-nums" value={global.roas_kill_threshold || ''} onChange={(e) => setGlobal({ ...global, roas_kill_threshold: e.target.value })} />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">CPA objetivo (COP)</Label>
-                <Input type="number" className="tabular-nums" value={global.cpa_target || ''} onChange={(e) => setGlobal({ ...global, cpa_target: e.target.value })} />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">Valor máx. para COD (COP)</Label>
-                <Input type="number" className="tabular-nums" value={global.cod_max_order_value || ''} onChange={(e) => setGlobal({ ...global, cod_max_order_value: e.target.value })} />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">Moneda por defecto</Label>
-                <Select value={global.default_currency || 'COP'} onValueChange={(v) => setGlobal({ ...global, default_currency: v })}>
-                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="COP">COP · Peso colombiano</SelectItem>
-                    <SelectItem value="MXN">MXN · Peso mexicano</SelectItem>
-                    <SelectItem value="USD">USD · Dólar</SelectItem>
-                    <SelectItem value="EUR">EUR · Euro</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Zap className="size-4 text-primary" />
-                <div>
-                  <div className="text-sm font-medium">Auto-pausar anuncios canibalizadores</div>
-                  <div className="text-xs text-muted-foreground">Apaga automáticamente anuncios con ROAS &lt; umbral y cero ventas</div>
+            <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); void saveGlobal() }}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label htmlFor="cfg-roas-kill" className="text-xs text-muted-foreground">ROAS mínimo (auto-pausa)</Label>
+                  <Input id="cfg-roas-kill" type="number" step="0.1" className="tabular-nums" value={global.roas_kill_threshold || ''} onChange={(e) => setGlobal({ ...global, roas_kill_threshold: e.target.value })} />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="cfg-cpa-target" className="text-xs text-muted-foreground">CPA objetivo (COP)</Label>
+                  <Input id="cfg-cpa-target" type="number" className="tabular-nums" value={global.cpa_target || ''} onChange={(e) => setGlobal({ ...global, cpa_target: e.target.value })} />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="cfg-cod-max" className="text-xs text-muted-foreground">Valor máx. para COD (COP)</Label>
+                  <Input id="cfg-cod-max" type="number" className="tabular-nums" value={global.cod_max_order_value || ''} onChange={(e) => setGlobal({ ...global, cod_max_order_value: e.target.value })} />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="cfg-currency" className="text-xs text-muted-foreground">Moneda por defecto</Label>
+                  <Select value={global.default_currency || 'COP'} onValueChange={(v) => setGlobal({ ...global, default_currency: v })}>
+                    <SelectTrigger id="cfg-currency" className="h-9"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="COP">COP · Peso colombiano</SelectItem>
+                      <SelectItem value="MXN">MXN · Peso mexicano</SelectItem>
+                      <SelectItem value="USD">USD · Dólar</SelectItem>
+                      <SelectItem value="EUR">EUR · Euro</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
-              <Switch checked={autoKill} onCheckedChange={setAutoKill} />
-            </div>
-            <Button onClick={saveGlobal} disabled={saving === 'global'} className="gap-1.5">
-              <Save className="size-3.5" /> {saving === 'global' ? 'Guardando...' : 'Guardar umbrales'}
-            </Button>
+              <Separator />
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Zap className="size-4 text-primary" />
+                  <div>
+                    <div className="text-sm font-medium">Auto-pausar anuncios canibalizadores</div>
+                    <div className="text-xs text-muted-foreground">Apaga automáticamente anuncios con ROAS &lt; umbral y cero ventas</div>
+                  </div>
+                </div>
+                <Switch checked={autoKill} onCheckedChange={setAutoKill} />
+              </div>
+              <Button type="submit" disabled={saving === 'global'} className="gap-1.5">
+                <Save className="size-3.5" /> {saving === 'global' ? 'Guardando...' : 'Guardar umbrales'}
+              </Button>
+            </form>
           </CardContent>
         </Card>
 
@@ -287,7 +371,7 @@ export function SettingsView() {
           ))}
         </CardContent>
       </Card>
-    </div>
+    </section>
   )
 }
 
@@ -307,7 +391,20 @@ function IntegrationsReal() {
     }).catch(() => setLoading(false))
   }, [])
 
-  if (loading) return <div className="text-sm text-muted-foreground">Cargando estado de integraciones...</div>
+  if (loading) return (
+    <div className="space-y-1.5" role="status" aria-live="polite" aria-busy="true">
+      {Array.from({ length: 4 }).map((_, i) => (
+        <div key={i} className="flex items-center gap-3 p-2.5 rounded-lg border">
+          <Skeleton className="size-6 rounded" />
+          <div className="flex-1 space-y-1.5">
+            <Skeleton className="h-3 w-1/3" />
+            <Skeleton className="h-2.5 w-2/3" />
+          </div>
+          <Skeleton className="h-4 w-16" />
+        </div>
+      ))}
+    </div>
+  )
 
   const statusMeta = (s: string) => {
     switch (s) {
@@ -344,7 +441,7 @@ function IntegrationsReal() {
         const meta = statusMeta(c.status)
         return (
           <div key={c.name} className="flex items-center gap-3 p-2.5 rounded-lg border">
-            <span className="text-lg">{iconFor(c.name)}</span>
+            <span className="text-lg" aria-hidden>{iconFor(c.name)}</span>
             <div className="flex-1 min-w-0">
               <div className="text-sm font-medium">{c.name}</div>
               <div className="text-xs text-muted-foreground truncate">{c.detail}</div>

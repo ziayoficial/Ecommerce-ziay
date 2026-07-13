@@ -222,13 +222,14 @@ export function CaseDetailPanel({
                     href={ev.url}
                     target="_blank"
                     rel="noreferrer"
-                    className="group relative aspect-square rounded-lg border overflow-hidden bg-muted hover:ring-2 ring-primary/40"
+                    aria-label={`Abrir evidencia del caso ${c.caseNumber}`}
+                    className="group relative aspect-square rounded-lg border overflow-hidden bg-muted hover:ring-2 ring-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     {ev.type === 'image' ? (
-                      <img src={ev.url} alt="" className="size-full object-cover" />
+                      <img src={ev.url} alt={`Evidencia del caso ${c.caseNumber}`} className="size-full object-cover" />
                     ) : (
                       <div className="size-full flex flex-col items-center justify-center gap-1 p-2">
-                        <Icon className="size-8 text-muted-foreground" />
+                        <Icon className="size-8 text-muted-foreground" aria-hidden />
                         <span className="text-[10px] text-muted-foreground truncate">{em.label}</span>
                       </div>
                     )}
@@ -275,8 +276,8 @@ export function CaseDetailPanel({
               placeholder="Escribe un mensaje…"
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void doMessage() } }}
             />
-            <Button size="sm" onClick={doMessage} disabled={busy || !newMessage.trim()}>
-              <Send className="size-4" />
+            <Button size="sm" onClick={doMessage} disabled={busy || !newMessage.trim()} aria-label="Enviar mensaje">
+              <Send className="size-4" aria-hidden />
             </Button>
           </div>
         </div>
@@ -336,8 +337,8 @@ export function CaseDetailPanel({
           </DialogHeader>
           <div className="space-y-3">
             <div className="space-y-2">
-              <Label>URL del archivo</Label>
-              <Input value={evidenceUrl} onChange={e => setEvidenceUrl(e.target.value)} placeholder="https://…" />
+              <Label htmlFor="nd-evidence-url">URL del archivo</Label>
+              <Input id="nd-evidence-url" value={evidenceUrl} onChange={e => setEvidenceUrl(e.target.value)} placeholder="https://…" />
             </div>
           </div>
           <DialogFooter>

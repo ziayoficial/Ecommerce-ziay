@@ -97,8 +97,11 @@ export function NovedadesList({
         <ScrollArea className="h-[60vh]">
           {cases.length === 0 ? (
             <div className="p-8 text-center text-sm text-muted-foreground">
-              <Package className="size-8 mx-auto mb-2 text-muted-foreground/50" />
-              Sin casos para estos filtros.
+              <Package className="size-8 mx-auto mb-2 text-muted-foreground/50" aria-hidden />
+              <p>Sin casos para estos filtros.</p>
+              <Button size="sm" onClick={onCreateOpen} className="mt-3 gap-1.5">
+                <Plus className="size-4" /> Crear caso
+              </Button>
             </div>
           ) : (
             <div className="divide-y">
@@ -110,15 +113,17 @@ export function NovedadesList({
                   <button
                     key={c.id}
                     onClick={() => setSelectedId(c.id)}
+                    aria-current={isSelected ? 'true' : undefined}
                     className={cn(
                       'w-full text-left p-3 hover:bg-muted/50 transition-colors flex gap-3',
+                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                       isSelected && 'bg-muted',
                     )}
                   >
                     {c.thumbnail ? (
-                      <img src={c.thumbnail} alt="" className="size-12 rounded-lg object-cover shrink-0" />
+                      <img src={c.thumbnail} alt={`Miniatura del caso ${c.caseNumber}`} className="size-12 rounded-lg object-cover shrink-0" />
                     ) : (
-                      <div className="size-12 rounded-lg bg-muted flex items-center justify-center shrink-0">
+                      <div className="size-12 rounded-lg bg-muted flex items-center justify-center shrink-0" aria-hidden>
                         <Package className="size-5 text-muted-foreground" />
                       </div>
                     )}

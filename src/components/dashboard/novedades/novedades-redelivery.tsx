@@ -193,13 +193,13 @@ function RedeliveryCard({ request, onAction, tenantId }: {
         {/* Action buttons */}
         {!isTerminal && (
           <div className="flex flex-wrap gap-2 pt-1">
-            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setShowAddrForm(v => !v)}>
+            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setShowAddrForm(v => !v)} aria-pressed={showAddrForm}>
               <MapPin className="size-3" /> Confirmar dirección
             </Button>
             <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => patch({ action: 'schedule' }, 'Reintento programado')}>
               <Calendar className="size-3" /> Programar
             </Button>
-            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setShowNoteForm(v => !v)}>
+            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setShowNoteForm(v => !v)} aria-pressed={showNoteForm}>
               <MessageSquare className="size-3" /> Asignar humano
             </Button>
             <Button size="sm" variant="outline" className="h-7 text-xs text-emerald-600" onClick={() => patch({ action: 'complete' }, 'Reintento completado')}>

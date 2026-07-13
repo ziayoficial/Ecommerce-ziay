@@ -5,6 +5,7 @@
 'use client'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -48,8 +49,10 @@ export function CustomerScoresTab({
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+              <Label htmlFor="li-search-phone" className="sr-only">Buscar por teléfono</Label>
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" aria-hidden />
               <Input
+                id="li-search-phone"
                 value={searchPhone}
                 onChange={(e) => onSearchPhoneChange(e.target.value)}
                 placeholder="Buscar teléfono…"
@@ -57,7 +60,7 @@ export function CustomerScoresTab({
               />
             </div>
             <Select value={categoryFilter} onValueChange={onCategoryFilterChange}>
-              <SelectTrigger className="h-9 w-40">
+              <SelectTrigger id="li-category-filter" className="h-9 w-40" aria-label="Filtrar por categoría">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -147,44 +150,51 @@ export function CarrierScoresTab({
               Sin transportadoras
             </div>
           ) : (
-            <ResponsiveContainer width="100%" height={Math.max(220, chartData.length * 44)}>
-              <BarChart data={chartData} layout="vertical" margin={{ left: 8, right: 16, top: 4, bottom: 4 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal={false} />
-                <XAxis
-                  type="number"
-                  domain={[0, 100]}
-                  tickFormatter={(v) => `${v}%`}
-                  tick={{ fontSize: 11 }}
-                  stroke="var(--muted-foreground)"
-                />
-                <YAxis
-                  type="category"
-                  dataKey="name"
-                  tick={{ fontSize: 11 }}
-                  stroke="var(--muted-foreground)"
-                  width={90}
-                />
-                <RTooltip
-                  contentStyle={{ background: 'var(--background)', border: '1px solid var(--border)', borderRadius: 12, fontSize: 12 }}
-                  formatter={(v: number) => [`${v}%`, 'Entrega']}
-                  labelFormatter={(_, p) => p?.[0]?.payload?.fullName ?? ''}
-                />
-                <Bar dataKey="deliveryRate" radius={[0, 6, 6, 0]}>
-                  {chartData.map((entry, idx) => (
-                    <Cell
-                      key={idx}
-                      fill={
-                        entry.deliveryRate >= 80
-                          ? 'oklch(0.72 0.19 152)'
-                          : entry.deliveryRate >= 50
-                            ? 'oklch(0.78 0.16 80)'
-                            : 'oklch(0.66 0.2 25)'
-                      }
-                    />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            <figure
+              role="img"
+              aria-label={`Tasa de entrega por transportadora: ${chartData
+                .map((c) => `${c.fullName} ${c.deliveryRate}%`)
+                .join(', ')}`}
+            >
+              <ResponsiveContainer width="100%" height={Math.max(220, chartData.length * 44)}>
+                <BarChart data={chartData} layout="vertical" margin={{ left: 8, right: 16, top: 4, bottom: 4 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal={false} />
+                  <XAxis
+                    type="number"
+                    domain={[0, 100]}
+                    tickFormatter={(v) => `${v}%`}
+                    tick={{ fontSize: 11 }}
+                    stroke="var(--muted-foreground)"
+                  />
+                  <YAxis
+                    type="category"
+                    dataKey="name"
+                    tick={{ fontSize: 11 }}
+                    stroke="var(--muted-foreground)"
+                    width={90}
+                  />
+                  <RTooltip
+                    contentStyle={{ background: 'var(--background)', border: '1px solid var(--border)', borderRadius: 12, fontSize: 12 }}
+                    formatter={(v: number) => [`${v}%`, 'Entrega']}
+                    labelFormatter={(_, p) => p?.[0]?.payload?.fullName ?? ''}
+                  />
+                  <Bar dataKey="deliveryRate" radius={[0, 6, 6, 0]}>
+                    {chartData.map((entry, idx) => (
+                      <Cell
+                        key={idx}
+                        fill={
+                          entry.deliveryRate >= 80
+                            ? 'oklch(0.72 0.19 152)'
+                            : entry.deliveryRate >= 50
+                              ? 'oklch(0.78 0.16 80)'
+                              : 'oklch(0.66 0.2 25)'
+                        }
+                      />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </figure>
           )}
         </CardContent>
       </Card>

@@ -1,18 +1,19 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Separator } from '@/components/ui/separator'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useTenantId } from '@/hooks/use-tenant'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
-import { formatCurrency } from '@/lib/format'
-import { Search, Sparkles, MessageSquare, X, Filter, Grid3x3, List, Send, Zap, Tag, Package, Eye, Bot } from 'lucide-react'
+import { formatCurrency, timeAgo } from '@/lib/format'
+import { Search, Sparkles, MessageSquare, X, Filter, Grid3x3, List, Send, Zap, Tag, Package, Eye, Bot, RefreshCw, AlertCircle } from 'lucide-react'
 
 type Product = {
   id: string; sku: string; name: string; description: string | null
@@ -32,6 +33,9 @@ export function CatalogVisualView() {
   const [products, setProducts] = useState<Product[]>([])
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [q, setQ] = useState('')
   const [filterDiseno, setFilterDiseno] = useState('all')
   const [filterCategoria, setFilterCategoria] = useState('all')
@@ -45,6 +49,31 @@ export function CatalogVisualView() {
   const [sendDialogOpen, setSendDialogOpen] = useState(false)
   const [selectedConversacion, setSelectedConversacion] = useState<string>('')
 
+  const load = useCallback((showRefreshing = false) => {
+    if (!tenantId) return
+    let cancelled = false
+    if (showRefreshing) setRefreshing(true)
+    setError(null)
+    Promise.all([
+      fetch(`/api/catalog/products?tenantId=${tenantId}&q=${encodeURIComponent(q)}`).then(r => r.json()),
+      fetch(`/api/conversations?tenantId=${tenantId}&status=open`).then(r => r.json()),
+    ]).then(([p, c]) => {
+      if (cancelled) return
+      setProducts(p.products || [])
+      setConversations(c.conversations || [])
+      setLastUpdated(new Date())
+      setLoading(false)
+    }).catch(() => {
+      if (!cancelled) {
+        setError('No se pudo cargar el catálogo. Verifica tu conexión o intenta de nuevo.')
+        setLoading(false)
+      }
+    }).finally(() => {
+      if (!cancelled) setRefreshing(false)
+    })
+    return () => { cancelled = true }
+  }, [tenantId, q])
+
   useEffect(() => {
     if (!tenantId) return
     let cancelled = false
@@ -55,8 +84,14 @@ export function CatalogVisualView() {
       if (cancelled) return
       setProducts(p.products || [])
       setConversations(c.conversations || [])
+      setLastUpdated(new Date())
       setLoading(false)
-    }).catch(() => { if (!cancelled) setLoading(false) })
+    }).catch(() => {
+      if (!cancelled) {
+        setError('No se pudo cargar el catálogo. Verifica tu conexión o intenta de nuevo.')
+        setLoading(false)
+      }
+    })
     return () => { cancelled = true }
   }, [tenantId, q])
 
@@ -107,10 +142,46 @@ export function CatalogVisualView() {
     } catch { toast.error('No se pudo enviar el producto') }
   }
 
-  if (loading) return <div className="space-y-4">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-48" />)}</div>
+  if (error) {
+    return (
+      <section aria-label="Catálogo visual">
+        <Alert variant="destructive" className="animate-fade-in-up">
+          <AlertCircle className="size-4" />
+          <AlertTitle>Error al cargar el catálogo</AlertTitle>
+          <AlertDescription className="flex items-center justify-between gap-3 flex-wrap">
+            <span>{error}</span>
+            <Button size="sm" variant="outline" onClick={() => load(true)} className="gap-1.5">
+              <RefreshCw className="size-3.5" /> Reintentar
+            </Button>
+          </AlertDescription>
+        </Alert>
+      </section>
+    )
+  }
+
+  if (loading) return (
+    <section aria-label="Catálogo visual" className="space-y-4" aria-busy="true">
+      {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-48" />)}
+    </section>
+  )
 
   return (
-    <div className="space-y-4 animate-fade-in-up">
+    <section aria-label="Catálogo visual" className="space-y-4 animate-fade-in-up">
+      {/* Header: last-updated + refresh */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="text-[10px] sm:text-xs text-muted-foreground truncate">
+          {lastUpdated ? (
+            <span>Actualizado hace <strong className="text-foreground tabular-nums">{timeAgo(lastUpdated.toISOString())}</strong></span>
+          ) : (
+            <span>Datos de muestra</span>
+          )}
+        </div>
+        <Button variant="outline" size="sm" onClick={() => load(true)} disabled={refreshing} className="gap-1.5 h-9 px-3" aria-label="Refrescar">
+          <RefreshCw className={cn('size-3.5', refreshing && 'animate-spin')} />
+          {refreshing ? 'Actualizando…' : 'Refrescar'}
+        </Button>
+      </div>
+
       <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between flex-wrap gap-3">
@@ -118,9 +189,9 @@ export function CatalogVisualView() {
               <CardTitle className="text-base flex items-center gap-2"><Grid3x3 className="size-4 text-primary" /> Catalogo Visual Interactivo</CardTitle>
               <CardDescription>{filtered.length} de {products.length} productos - clic para ver detalle + chatear con IA</CardDescription>
             </div>
-            <div className="flex rounded-lg border overflow-hidden">
-              <Button variant={viewMode === 'grid' ? 'default' : 'ghost'} size="sm" onClick={() => setViewMode('grid')} className="rounded-none px-2.5"><Grid3x3 className="size-3.5" /></Button>
-              <Button variant={viewMode === 'list' ? 'default' : 'ghost'} size="sm" onClick={() => setViewMode('list')} className="rounded-none px-2.5"><List className="size-3.5" /></Button>
+            <div className="flex rounded-lg border overflow-hidden" role="group" aria-label="Modo de vista">
+              <Button variant={viewMode === 'grid' ? 'default' : 'ghost'} size="sm" onClick={() => setViewMode('grid')} className="rounded-none px-2.5" aria-label="Vista de cuadrícula" aria-pressed={viewMode === 'grid'}><Grid3x3 className="size-3.5" /></Button>
+              <Button variant={viewMode === 'list' ? 'default' : 'ghost'} size="sm" onClick={() => setViewMode('list')} className="rounded-none px-2.5" aria-label="Vista de lista" aria-pressed={viewMode === 'list'}><List className="size-3.5" /></Button>
             </div>
           </div>
         </CardHeader>
@@ -149,9 +220,9 @@ export function CatalogVisualView() {
           </div>
           {(filterDiseno !== 'all' || filterCategoria !== 'all' || q) && (
             <div className="flex flex-wrap gap-1.5 mt-2">
-              {q && <Badge variant="secondary" className="gap-1 text-xs">Busqueda: "{q}" <X className="size-2.5 cursor-pointer" onClick={() => setQ('')} /></Badge>}
-              {filterDiseno !== 'all' && <Badge variant="secondary" className="gap-1 text-xs">Diseno: {filterDiseno} <X className="size-2.5 cursor-pointer" onClick={() => setFilterDiseno('all')} /></Badge>}
-              {filterCategoria !== 'all' && <Badge variant="secondary" className="gap-1 text-xs">Categoria: {filterCategoria} <X className="size-2.5 cursor-pointer" onClick={() => setFilterCategoria('all')} /></Badge>}
+              {q && <Badge variant="secondary" className="gap-1 text-xs">Busqueda: "{q}" <X className="size-2.5 cursor-pointer" aria-hidden onClick={() => setQ('')} /></Badge>}
+              {filterDiseno !== 'all' && <Badge variant="secondary" className="gap-1 text-xs">Diseno: {filterDiseno} <X className="size-2.5 cursor-pointer" aria-hidden onClick={() => setFilterDiseno('all')} /></Badge>}
+              {filterCategoria !== 'all' && <Badge variant="secondary" className="gap-1 text-xs">Categoria: {filterCategoria} <X className="size-2.5 cursor-pointer" aria-hidden onClick={() => setFilterCategoria('all')} /></Badge>}
             </div>
           )}
         </CardContent>
@@ -166,16 +237,24 @@ export function CatalogVisualView() {
       ) : viewMode === 'grid' ? (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
           {filtered.map((p) => (
-            <div key={p.id} className="rounded-xl border overflow-hidden cursor-pointer hover:shadow-lg hover:border-primary/30 transition-all group" onClick={() => openProduct(p)}>
+            <div
+              key={p.id}
+              role="button"
+              tabIndex={0}
+              aria-label={`Ver producto ${p.name}`}
+              className="rounded-xl border overflow-hidden cursor-pointer hover:shadow-lg hover:border-primary/30 transition-all group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              onClick={() => openProduct(p)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openProduct(p) } }}
+            >
               <div className="aspect-square bg-muted relative overflow-hidden">
                 {p.imageUrl ? <img src={p.imageUrl} alt={p.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" /> : <div className="w-full h-full flex items-center justify-center text-muted-foreground"><Package className="size-8" /></div>}
-                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100" aria-hidden>
                   <div className="flex gap-1.5">
-                    <Button size="sm" variant="secondary" className="h-8 w-8 p-0 rounded-full"><Eye className="size-3.5" /></Button>
-                    <Button size="sm" variant="secondary" className="h-8 w-8 p-0 rounded-full"><MessageSquare className="size-3.5" /></Button>
+                    <Button size="sm" variant="secondary" className="h-8 w-8 p-0 rounded-full pointer-events-none" aria-label="Ver producto" tabIndex={-1}><Eye className="size-3.5" /></Button>
+                    <Button size="sm" variant="secondary" className="h-8 w-8 p-0 rounded-full pointer-events-none" aria-label="Enviar a chat" tabIndex={-1}><MessageSquare className="size-3.5" /></Button>
                   </div>
                 </div>
-                {p.imagenMetadataVisible && <Badge variant="secondary" className="absolute top-1.5 right-1.5 text-[9px] h-4 gap-0.5 bg-white/90"><Sparkles className="size-2.5" /> Metadata</Badge>}
+                {p.imagenMetadataVisible && <Badge variant="secondary" className="absolute top-1.5 right-1.5 text-[9px] h-4 gap-0.5 bg-white/90"><Sparkles className="size-2.5" aria-hidden /> Metadata</Badge>}
                 {p.stock <= 0 && <Badge variant="destructive" className="absolute bottom-1.5 right-1.5 text-[9px]">Agotado</Badge>}
               </div>
               <div className="p-2.5 space-y-1">
@@ -192,14 +271,22 @@ export function CatalogVisualView() {
       ) : (
         <Card><CardContent className="p-0"><div className="divide-y">
           {filtered.map((p) => (
-            <div key={p.id} className="flex items-center gap-3 p-3 cursor-pointer hover:bg-muted/40 transition-colors" onClick={() => openProduct(p)}>
+            <div
+              key={p.id}
+              role="button"
+              tabIndex={0}
+              aria-label={`Ver producto ${p.name}`}
+              className="flex items-center gap-3 p-3 cursor-pointer hover:bg-muted/40 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              onClick={() => openProduct(p)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openProduct(p) } }}
+            >
               <div className="size-14 rounded-lg overflow-hidden bg-muted shrink-0">
                 {p.imageUrl ? <img src={p.imageUrl} alt={p.name} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><Package className="size-5 text-muted-foreground" /></div>}
               </div>
               <div className="flex-1 min-w-0"><div className="font-medium text-sm truncate">{p.name}</div><div className="text-xs text-muted-foreground font-mono">{p.sku}</div></div>
               <Badge variant="outline" className="text-[10px]">{p.diseno || 'liso'}</Badge>
               <span className="text-sm font-bold tabular-nums w-24 text-right">{formatCurrency(p.price)}</span>
-              <Button variant="ghost" size="sm" className="h-8 w-8 p-0"><MessageSquare className="size-3.5" /></Button>
+              <Button variant="ghost" size="sm" className="h-8 w-8 p-0 pointer-events-none" aria-label="Enviar a chat" tabIndex={-1}><MessageSquare className="size-3.5" /></Button>
             </div>
           ))}
         </div></CardContent></Card>
@@ -282,7 +369,7 @@ export function CatalogVisualView() {
                 <div className="p-3 border-t bg-background">
                   <div className="flex gap-2">
                     <Input value={chatMessage} onChange={(e) => setChatMessage(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() } }} placeholder="Pregunta sobre este producto..." className="h-9 text-sm" />
-                    <Button size="sm" onClick={sendMessage} disabled={!chatMessage.trim() || aiLoading} className="gap-1.5"><Send className="size-3.5" /></Button>
+                    <Button size="sm" onClick={sendMessage} disabled={!chatMessage.trim() || aiLoading} className="gap-1.5" aria-label="Enviar mensaje"><Send className="size-3.5" /></Button>
                   </div>
                 </div>
               </div>
@@ -307,6 +394,6 @@ export function CatalogVisualView() {
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+    </section>
   )
 }

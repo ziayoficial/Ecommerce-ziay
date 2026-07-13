@@ -41,8 +41,10 @@ async function resolveTrafficker(req: NextRequest) {
 
   const sp = req.nextUrl.searchParams
   const explicitId = sp.get('traffickerId')
-  const email = (session?.user as any)?.email as string | undefined
-  const role = (session?.user as any)?.role as string | undefined
+  // `session.user.{email,role}` are typed via the Session augmentation in
+  // `src/types/next-auth.d.ts` — direct access, no cast needed.
+  const email = session?.user?.email
+  const role = session?.user?.role
 
   // 1) Explicit ID — admin/finance can read anyone; trafficker can only read self.
   if (explicitId) {

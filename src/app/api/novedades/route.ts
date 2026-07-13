@@ -165,7 +165,9 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const authorName = (session?.user as any)?.name || (session?.user as any)?.email || 'system'
+  // `session.user.{name,email}` are typed via the Session augmentation in
+  // `src/types/next-auth.d.ts` — direct access, no cast needed.
+  const authorName = session?.user?.name || session?.user?.email || 'system'
 
   // The service generates the caseNumber + stamps the initial system
   // message atomically in a single $transaction.
@@ -220,7 +222,9 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'Case not found in this tenant' }, { status: 404 })
   }
 
-  const authorName = (session?.user as any)?.name || (session?.user as any)?.email || 'system'
+  // `session.user.{name,email}` are typed via the Session augmentation in
+  // `src/types/next-auth.d.ts` — direct access, no cast needed.
+  const authorName = session?.user?.name || session?.user?.email || 'system'
 
   switch (action) {
     case 'assign': {

@@ -211,6 +211,14 @@ model Conversation {
   assignee    User?    @relation("AgentConvos", fields: [assigneeId], references: [id])
   messages    Message[]
   orders      Order[]
+
+  // FIX-1-DB-001 — previously zero @@index (most-read table in the app).
+  // Hot paths: messenger inbox (tenantId + status + lastMessageAt DESC),
+  // agent assignment dashboard (assigneeId), per-tenant scoping (tenantId).
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@index([tenantId, lastMessageAt])
+  @@index([assigneeId])
 }
 
 model Message {
@@ -229,6 +237,14 @@ model Message {
   createdAt      DateTime @default(now())
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  // FIX-1-DB-001 — previously zero @@index (timeline + tenant isolation).
+  // Hot paths: message timeline per conversation (conversationId + createdAt),
+  // tenant-scoped scans (tenantId), sender-role analytics (direction).
+  @@index([conversationId])
+  @@index([conversationId, createdAt])
+  @@index([tenantId])
+  @@index([direction])
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -308,6 +324,15 @@ model Order {
   events        OrderEvent[]
   shipments     Shipment[]
   commissionEntries CommissionEntry[]
+
+  // FIX-1-DB-001 — previously zero @@index (KPIs, kanban, attribution, webhooks).
+  // Hot paths: kanban (tenantId + status), KPI time series (tenantId + createdAt),
+  // customer history (customerId), payment webhook lookup (paymentStatus).
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@index([tenantId, createdAt])
+  @@index([customerId])
+  @@index([paymentStatus])
 }
 
 model OrderItem {
@@ -322,6 +347,10 @@ model OrderItem {
 
   order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product Product @relation(fields: [productId], references: [id])
+
+  // FIX-1-DB-001 — previously zero @@index (every order detail + COGS calc).
+  @@index([orderId])
+  @@index([productId])
 }
 
 model OrderEvent {
@@ -332,6 +361,12 @@ model OrderEvent {
   createdAt DateTime @default(now())
 
   order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  // FIX-1-DB-001 — previously zero @@index (order audit timeline).
+  // Hot paths: order event timeline (orderId + createdAt), event funnel (type).
+  @@index([orderId])
+  @@index([orderId, createdAt])
+  @@index([type])
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -501,6 +536,11 @@ model Attribution {
   createdAt DateTime @default(now())
 
   ad Ad @relation(fields: [adId], references: [id])
+
+  // FIX-1-DB-001 — closes race that allowed duplicate attribution rows per
+  // (order, ad, model). Adds the missing composite unique + adId FK index.
+  @@unique([orderId, adId, model])
+  @@index([adId])
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -537,6 +577,16 @@ model Shipment {
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
   order  Order  @relation(fields: [orderId], references: [id])
+
+  // FIX-1-DB-001 — previously zero @@index (guide tracking queries).
+  // Hot paths: tenant shipment list (tenantId), order shipment lookup (orderId),
+  // estado funnel (estado), carrier scoring (transportadoraCanonica),
+  // guide-number search (numeroGuia).
+  @@index([tenantId])
+  @@index([orderId])
+  @@index([estado])
+  @@index([transportadoraCanonica])
+  @@index([numeroGuia])
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -557,6 +607,14 @@ model CommissionEntry {
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
   order  Order  @relation(fields: [orderId], references: [id])
+
+  // FIX-1-DB-001 — previously zero @@index (GMV aggregation joins).
+  // `orderId @unique` closes the findFirst+update/create race in
+  // /api/monetization/commission POST (two concurrent requests could both
+  // pass findFirst==null and both create, leaving duplicate entries per order).
+  @@unique([orderId])
+  @@index([tenantId])
+  @@index([etapaReconocimiento])
 }
 
 model Invoice {
@@ -574,6 +632,14 @@ model Invoice {
   createdAt       DateTime @default(now())
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  // FIX-1-DB-001 — previously zero @@index (billing/invoicing queries).
+  // Hot paths: tenant invoice list (tenantId), monthly period lookup
+  // (tenantId + periodo), status funnel (estado), time series (createdAt).
+  @@index([tenantId])
+  @@index([tenantId, periodo])
+  @@index([estado])
+  @@index([createdAt])
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -608,6 +674,15 @@ model AuditLog {
 
   tenant Tenant? @relation(fields: [tenantId], references: [id])
   user   User?   @relation(fields: [userId], references: [id])
+
+  // FIX-1-DB-001 — previously zero @@index (append-only, grows fastest).
+  // Hot paths: tenant audit trail (tenantId + createdAt DESC), user activity
+  // (userId), action funnel (action), time-window pruning (createdAt).
+  @@index([tenantId])
+  @@index([userId])
+  @@index([createdAt])
+  @@index([action])
+  @@index([tenantId, createdAt])
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -945,6 +1020,18 @@ model WalletAccount {
   verified      Boolean @default(false)
   createdAt     DateTime @default(now())
   withdrawals   WithdrawalRequest[]
+
+  // FIX-1-DB-001 — previously zero @@index (wallet account lookups).
+  // `@@unique([traffickerId, accountNumber])` prevents duplicate accounts per
+  // trafficker (NULL traffickerId treated as distinct by PG/SQLite — tenant-
+  // level wallets remain unconstrained).
+  // Hot paths: trafficker wallet list (traffickerId), tenant scope (tenantId),
+  // user-owned wallets (userId), verified-account filtering (verified).
+  @@unique([traffickerId, accountNumber])
+  @@index([tenantId])
+  @@index([traffickerId])
+  @@index([userId])
+  @@index([verified])
 }
 
 model WalletTransaction {

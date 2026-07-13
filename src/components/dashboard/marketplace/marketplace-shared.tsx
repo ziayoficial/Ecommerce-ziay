@@ -5,6 +5,7 @@
 
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { formatCurrency } from '@/lib/format'
 import { ImageOff, CheckCircle2, Clock, XCircle } from 'lucide-react'
@@ -128,11 +129,13 @@ export function ListingCard({
 }
 
 export function EmptyState({
-  icon, title, description,
+  icon, title, description, actionLabel, onAction,
 }: {
   icon: React.ReactNode
   title: string
   description: string
+  actionLabel?: string
+  onAction?: () => void
 }) {
   return (
     <Card>
@@ -142,6 +145,11 @@ export function EmptyState({
         </div>
         <p className="font-medium text-sm">{title}</p>
         <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">{description}</p>
+        {actionLabel && onAction && (
+          <Button size="sm" variant="outline" onClick={onAction} className="mt-4">
+            {actionLabel}
+          </Button>
+        )}
       </CardContent>
     </Card>
   )

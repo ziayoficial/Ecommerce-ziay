@@ -26,7 +26,7 @@
 //   - `spend` viene como string en la unidad mayor (no centavos). Se parsea a
 //     number.
 //   - Si falta advertiserId o accessToken, se devuelve `[]` y se registra
-//     `console.warn` (modo degradado).
+//     `log.warn` (modo degradado).
 //
 // Env vars:
 //   - TIKTOK_ACCESS_TOKEN
@@ -38,8 +38,10 @@ import type {
   AdPerformance,
   CampaignPerformance,
 } from './ad-platform-adapter'
+import { getLogger } from '@/lib/logger'
 
-const TIKTOK_API_BASE = 'https://business-api.tiktok.com/open_api/v1.3'
+const log = getLogger('adapters:tiktok-ads')
+const TIKTOK_API_BASE = process.env.TIKTOK_ADS_API_BASE ?? 'https://business-api.tiktok.com/open_api/v1.3'
 
 interface TikTokReportRow {
   dimensions?: Record<string, string>
@@ -85,9 +87,7 @@ export class TikTokAdsAdapter implements AdPlatformAdapter {
     dateEnd: string,
   ): Promise<CampaignPerformance[]> {
     if (!this.hasCredentials()) {
-      console.warn(
-        `[tiktok-ads] tenant=${this.tenantId}: credenciales incompletas (advertiserId/accessToken). Devolviendo [].`,
-      )
+      log.warn({ tenantId: this.tenantId }, 'credenciales incompletas (advertiserId/accessToken). Devolviendo [].')
       return []
     }
     const rows = await this.runReport(dateStart, dateEnd, {
@@ -111,9 +111,7 @@ export class TikTokAdsAdapter implements AdPlatformAdapter {
     dateEnd: string,
   ): Promise<AdPerformance[]> {
     if (!this.hasCredentials()) {
-      console.warn(
-        `[tiktok-ads] tenant=${this.tenantId}: credenciales incompletas. Devolviendo [].`,
-      )
+      log.warn({ tenantId: this.tenantId }, 'credenciales incompletas. Devolviendo [].')
       return []
     }
     const rows = await this.runReport(dateStart, dateEnd, {
@@ -178,16 +176,12 @@ export class TikTokAdsAdapter implements AdPlatformAdapter {
         })
         if (!res.ok) {
           const text = await res.text().catch(() => '')
-          console.error(
-            `[tiktok-ads] tenant=${this.tenantId} report ${res.status}: ${text.slice(0, 500)}`,
-          )
+          log.error({ tenantId: this.tenantId, status: res.status, body: text.slice(0, 500) }, 'tiktok-ads report non-2xx')
           return allRows
         }
         const data = (await res.json()) as TikTokReportResponse
         if (data.code && data.code !== 0) {
-          console.error(
-            `[tiktok-ads] tenant=${this.tenantId} report code=${data.code} msg=${data.message ?? ''}`,
-          )
+          log.error({ tenantId: this.tenantId, code: data.code, message: data.message ?? '' }, 'tiktok-ads report error code')
           return allRows
         }
         const list = data.data?.list ?? []
@@ -200,10 +194,7 @@ export class TikTokAdsAdapter implements AdPlatformAdapter {
       }
       return allRows
     } catch (err) {
-      console.error(
-        `[tiktok-ads] tenant=${this.tenantId} report error:`,
-        err instanceof Error ? err.message : err,
-      )
+      log.error({ tenantId: this.tenantId, err: err instanceof Error ? err.message : String(err) }, 'tiktok-ads report error')
       return allRows
     }
   }

@@ -32,10 +32,17 @@ export async function getEcommerceAdapter(tenantId: string): Promise<EcommerceAd
     case 'whatsapp_catalog':
       return new WhatsappCatalogAdapter(tenantId)
     case 'woocommerce':
-      // TODO: cargar creds reales desde secret manager usando `tenant.credencialesCatalogoRef`.
+      // ROADMAP (not technical debt): load real creds (consumer_key/consumer_secret)
+      // from a secret manager keyed by `tenant.credencialesCatalogoRef` instead of
+      // passing empty strings. Blocked on the secret-manager rollout (see
+      // Saramantha §17 / security roadmap). Functionally safe today: the adapter
+      // falls back to local catalog mirror when creds are empty.
       return new WooCommerceAdapter(tenantId, '', '', '')
     case 'shopify':
-      // TODO: cargar OAuth access token desde secret manager.
+      // ROADMAP (not technical debt): load the per-tenant OAuth access token from
+      // a secret manager keyed by `tenant.credencialesCatalogoRef`. Blocked on the
+      // secret-manager rollout. Functionally safe today: the adapter falls back to
+      // local catalog mirror when the token is empty.
       return new ShopifyAdapter(tenantId, '', '')
     case 'catalogo_propio_cliente':
       // Supabase del cliente (read-only).

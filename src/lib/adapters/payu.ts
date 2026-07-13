@@ -109,7 +109,10 @@ export class PayUAdapter implements PaymentAdapter {
           paymentMethod: process.env.PAYU_DEFAULT_METHOD ?? 'CODI',
           paymentCountry: opts.currency === 'COP' ? 'CO' : 'MX',
           deviceSessionId: crypto.randomUUID(),
-          ipAddress: '127.0.0.1',
+          // PayU expects the buyer's IP for fraud detection. Default to
+          // 127.0.0.1 (sandbox-safe); in production set PAYU_PAYER_IP to the
+          // actual buyer IP derived from the request `x-forwarded-for` header.
+          ipAddress: process.env.PAYU_PAYER_IP ?? '127.0.0.1',
           cookie: 'N/A',
           userAgent: 'ZIAY/1.0',
         },

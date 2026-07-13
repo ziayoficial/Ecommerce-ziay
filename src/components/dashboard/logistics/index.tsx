@@ -9,13 +9,15 @@ import { useEffect, useMemo, useState, useCallback } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
+import { timeAgo } from '@/lib/format'
 import { useTenantId } from '@/hooks/use-tenant'
 import { toast } from 'sonner'
 import {
   ShieldCheck, ShieldAlert, RotateCcw, Truck, Sparkles, Send,
-  AlertTriangle, RefreshCw,
+  AlertTriangle, RefreshCw, AlertCircle, Inbox,
 } from 'lucide-react'
 import { type LogisticsData } from './logistics-shared'
 import { CustomerScoresTab, CarrierScoresTab } from './logistics-scores'
@@ -30,6 +32,8 @@ export function LogisticsIntelligenceView() {
   const [data, setData] = useState<LogisticsData | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [searchPhone, setSearchPhone] = useState('')
   const [categoryFilter, setCategoryFilter] = useState<string>('all')
   const [activeTab, setActiveTab] = useState('customers')
@@ -37,12 +41,16 @@ export function LogisticsIntelligenceView() {
   const load = useCallback(async () => {
     if (!tenantId) return
     setRefreshing(true)
+    setError(null)
     try {
       const res = await fetch(`/api/logistics-intelligence?tenantId=${tenantId}`)
       if (!res.ok) throw new Error('fetch failed')
       const json = await res.json()
       setData(json)
-    } catch {
+      setLastUpdated(new Date())
+    } catch (err) {
+      console.error('Logistics fetch failed', err)
+      setError('No pudimos cargar inteligencia logística. Verifica tu conexión o intenta de nuevo.')
       toast.error('No se pudo cargar inteligencia logística')
     } finally {
       setLoading(false)
@@ -75,23 +83,66 @@ export function LogisticsIntelligenceView() {
     }))
   }, [data])
 
+  if (error && !data) {
+    return (
+      <section aria-label="Inteligencia logística">
+        <Alert variant="destructive" className="animate-fade-in-up">
+          <AlertCircle className="size-4" />
+          <AlertTitle>Error al cargar inteligencia logística</AlertTitle>
+          <AlertDescription className="flex items-center justify-between gap-3 flex-wrap">
+            <span>{error}</span>
+            <Button size="sm" variant="outline" onClick={load} className="gap-1.5">
+              <RefreshCw className="size-3.5" /> Reintentar
+            </Button>
+          </AlertDescription>
+        </Alert>
+      </section>
+    )
+  }
+
   if (loading || !data) {
     return (
-      <div className="space-y-4">
+      <section aria-label="Inteligencia logística" className="space-y-4" aria-busy="true" role="status">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {Array.from({ length: 4 }).map((_, i) => (
             <Skeleton key={i} className="h-24 rounded-xl" />
           ))}
         </div>
         <Skeleton className="h-96 rounded-xl" />
-      </div>
+      </section>
+    )
+  }
+
+  // ── Empty state: no customers, no carriers, no stuck guides, no alerts ──
+  const isEmpty =
+    data.stats.totalCustomers === 0 &&
+    data.stats.totalCarriers === 0 &&
+    data.stats.stuckCount === 0 &&
+    data.stats.totalAlerts === 0
+  if (isEmpty) {
+    return (
+      <section aria-label="Inteligencia logística" className="flex flex-col items-center justify-center text-center py-16 px-4 animate-fade-in-up">
+        <div className="size-20 rounded-2xl bg-primary/10 ring-1 ring-primary/20 flex items-center justify-center mb-5">
+          <Inbox className="size-9 text-primary" />
+        </div>
+        <h2 className="text-lg font-semibold">Aún no hay datos logísticos</h2>
+        <p className="text-sm text-muted-foreground max-w-md mt-2">
+          Cuando registres pedidos con guías de transportadoras, verás aquí los scores de clientes,
+          rankings de carriers, guías estancadas y alertas de comportamiento.
+        </p>
+        <div className="flex flex-wrap gap-2 mt-5">
+          <Button variant="outline" size="sm" onClick={load} disabled={refreshing} className="gap-1.5">
+            <RefreshCw className={cn('size-3.5', refreshing && 'animate-spin')} /> Refrescar
+          </Button>
+        </div>
+      </section>
     )
   }
 
   const stats = data.stats
 
   return (
-    <div className="space-y-6 animate-fade-in-up">
+    <section aria-label="Inteligencia logística" className="space-y-6 animate-fade-in-up">
       {/* Header */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
@@ -102,6 +153,11 @@ export function LogisticsIntelligenceView() {
           <p className="text-sm text-muted-foreground">
             Scores de clientes y transportadoras, guías estancadas y alertas de comportamiento
           </p>
+          {lastUpdated && (
+            <div className="text-[10px] text-muted-foreground mt-1">
+              Actualizado hace <strong className="text-foreground tabular-nums">{timeAgo(lastUpdated)}</strong>
+            </div>
+          )}
         </div>
         <Button variant="outline" size="sm" onClick={load} disabled={refreshing}>
           <RefreshCw className={cn('size-4', refreshing && 'animate-spin')} />
@@ -226,7 +282,7 @@ export function LogisticsIntelligenceView() {
           </div>
         </CardContent>
       </Card>
-    </div>
+    </section>
   )
 }
 

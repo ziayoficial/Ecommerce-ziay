@@ -29,7 +29,9 @@ async function getCaseOrFail(id: string) {
     }
   }
   // Tenant guard — platform admins (no tenantId on session) bypass.
-  const userTenantId = (session?.user as any)?.tenantId
+  // `session.user.tenantId` is typed via the Session augmentation in
+  // `src/types/next-auth.d.ts` — direct access, no cast needed.
+  const userTenantId = session?.user?.tenantId ?? null
   if (userTenantId && userTenantId !== caseRow.tenantId) {
     return {
       session,

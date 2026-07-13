@@ -75,23 +75,23 @@ export function CreateCaseDialog({ open, onOpenChange, tenantId, onCreated }: {
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
-              <Label>Nombre del cliente *</Label>
-              <Input value={customerName} onChange={e => setCustomerName(e.target.value)} />
+              <Label htmlFor="cc-customer-name">Nombre del cliente *</Label>
+              <Input id="cc-customer-name" value={customerName} onChange={e => setCustomerName(e.target.value)} />
             </div>
             <div className="space-y-1">
-              <Label>Teléfono *</Label>
-              <Input value={phone} onChange={e => setPhone(e.target.value)} />
+              <Label htmlFor="cc-phone">Teléfono *</Label>
+              <Input id="cc-phone" value={phone} onChange={e => setPhone(e.target.value)} />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
-              <Label>Número de guía</Label>
-              <Input value={guideNumber} onChange={e => setGuideNumber(e.target.value)} />
+              <Label htmlFor="cc-guide-number">Número de guía</Label>
+              <Input id="cc-guide-number" value={guideNumber} onChange={e => setGuideNumber(e.target.value)} />
             </div>
             <div className="space-y-1">
-              <Label>Transportista</Label>
+              <Label htmlFor="cc-carrier">Transportista</Label>
               <Select value={carrierName} onValueChange={setCarrierName}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger id="cc-carrier"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Servientrega">Servientrega</SelectItem>
                   <SelectItem value="Coordinadora">Coordinadora</SelectItem>
@@ -104,9 +104,9 @@ export function CreateCaseDialog({ open, onOpenChange, tenantId, onCreated }: {
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
-              <Label>Tipo</Label>
+              <Label htmlFor="cc-type">Tipo</Label>
               <Select value={type} onValueChange={setType}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger id="cc-type"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="paquete_perdido">Paquete perdido</SelectItem>
                   <SelectItem value="producto_danado">Producto dañado</SelectItem>
@@ -117,9 +117,9 @@ export function CreateCaseDialog({ open, onOpenChange, tenantId, onCreated }: {
               </Select>
             </div>
             <div className="space-y-1">
-              <Label>Prioridad</Label>
+              <Label htmlFor="cc-priority">Prioridad</Label>
               <Select value={priority} onValueChange={setPriority}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger id="cc-priority"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="normal">Normal</SelectItem>
                   <SelectItem value="high">Alta</SelectItem>
@@ -128,8 +128,8 @@ export function CreateCaseDialog({ open, onOpenChange, tenantId, onCreated }: {
             </div>
           </div>
           <div className="space-y-1">
-            <Label>Descripción *</Label>
-            <Textarea value={description} onChange={e => setDescription(e.target.value)} rows={3} />
+            <Label htmlFor="cc-description">Descripción *</Label>
+            <Textarea id="cc-description" value={description} onChange={e => setDescription(e.target.value)} rows={3} />
           </div>
         </div>
         <DialogFooter>
@@ -203,30 +203,30 @@ export function CreateRedeliveryDialog({ open, onOpenChange, tenantId, onCreated
         </DialogHeader>
         <div className="space-y-3">
           <div className="space-y-1">
-            <Label>Número de guía *</Label>
-            <Input value={guideNumber} onChange={e => setGuideNumber(e.target.value)} />
+            <Label htmlFor="cr-guide-number">Número de guía *</Label>
+            <Input id="cr-guide-number" value={guideNumber} onChange={e => setGuideNumber(e.target.value)} />
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
-              <Label>Cliente *</Label>
-              <Input value={customerName} onChange={e => setCustomerName(e.target.value)} />
+              <Label htmlFor="cr-customer-name">Cliente *</Label>
+              <Input id="cr-customer-name" value={customerName} onChange={e => setCustomerName(e.target.value)} />
             </div>
             <div className="space-y-1">
-              <Label>Teléfono *</Label>
-              <Input value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} />
+              <Label htmlFor="cr-customer-phone">Teléfono *</Label>
+              <Input id="cr-customer-phone" value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} />
             </div>
           </div>
           <div className="space-y-1">
-            <Label>Dirección original *</Label>
-            <Textarea value={originalAddress} onChange={e => setOriginalAddress(e.target.value)} rows={2} />
+            <Label htmlFor="cr-original-address">Dirección original *</Label>
+            <Textarea id="cr-original-address" value={originalAddress} onChange={e => setOriginalAddress(e.target.value)} rows={2} />
           </div>
           <div className="space-y-1">
-            <Label>Nueva dirección (opcional)</Label>
-            <Textarea value={newAddress} onChange={e => setNewAddress(e.target.value)} rows={2} />
+            <Label htmlFor="cr-new-address">Nueva dirección (opcional)</Label>
+            <Textarea id="cr-new-address" value={newAddress} onChange={e => setNewAddress(e.target.value)} rows={2} />
           </div>
           <div className="space-y-1">
-            <Label>Motivo *</Label>
-            <Textarea value={reason} onChange={e => setReason(e.target.value)} rows={2} />
+            <Label htmlFor="cr-reason">Motivo *</Label>
+            <Textarea id="cr-reason" value={reason} onChange={e => setReason(e.target.value)} rows={2} />
           </div>
         </div>
         <DialogFooter>

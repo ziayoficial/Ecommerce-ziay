@@ -31,7 +31,8 @@ import type { EcommerceAdapter, ProductSearchResult, CrearPedidoInput, CrearPedi
 
 const HTTP_TIMEOUT_MS = 10_000
 const GRAPH_API_VERSION = 'v18.0'
-const GRAPH_API_BASE = `https://graph.facebook.com/${GRAPH_API_VERSION}`
+const GRAPH_API_BASE =
+  process.env.WHATSAPP_CATALOG_API_BASE ?? `https://graph.facebook.com/${GRAPH_API_VERSION}`
 
 /** Item de catálogo Meta WhatsApp. */
 interface WhatsAppCatalogItem {

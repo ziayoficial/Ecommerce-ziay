@@ -30,7 +30,7 @@ import { logger } from '@/lib/logger'
 import type { LogisticsAdapter, FreightQuote, ShipmentResult, ShipmentStatus, GenerarGuiaInput } from './logistics-adapter'
 
 const HTTP_TIMEOUT_MS = 10_000
-const AVEONLINE_API_BASE = 'https://api.aveonline.co/api'
+const AVEONLINE_API_BASE = process.env.AVEONLINE_API_BASE ?? 'https://api.aveonline.co/api'
 
 // Tarifas base realistas (COP) — Aveonline suele ser más fuerte en Antioquia
 // (MDE HQ) y relativamente más caro en Caribe por cubrimiento de transportadora.

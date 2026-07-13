@@ -4,6 +4,9 @@
 // de OrderEvent. Mantiene los 4 route handlers DRY.
 
 import { db } from '@/lib/db'
+import { getLogger } from '@/lib/logger'
+
+const log = getLogger('payment-webhook-utils')
 
 /**
  * Best-effort audit log write. Webhooks must ALWAYS ACK with 200 to stop
@@ -18,7 +21,7 @@ export async function safeAudit(
   try {
     await db.auditLog.create({ data: { action, entity, meta } })
   } catch (err) {
-    console.error(`[auditLog:${action}]`, err instanceof Error ? err.message : err)
+    log.error({ action, err: err instanceof Error ? err.message : String(err) }, 'auditLog persistence failed')
   }
 }
 
@@ -58,9 +61,15 @@ export interface OrderUpdateResult {
  * gateway envía de vuelta) y actualiza `paymentStatus`, `paidAt` y `paymentRef`.
  * Crea siempre un `OrderEvent` con el estado crudo del gateway para auditoría.
  *
+ * The `order.update` + `orderEvent.create` writes are wrapped in a single
+ * `db.$transaction` so a failure of either rolls both back — preventing the
+ * "order marked paid but no audit event recorded" broken state that broke
+ * finance reconciliation (AUDIT-GAP-4-DB §3 risk #5).
+ *
  * Best-effort: si la DB no está disponible (read-only sandbox), la función
  * registra el error y retorna `{ found: false }` para que el webhook siga
- * ACKeando con 200.
+ * ACKeando con 200. `safeAudit` is intentionally OUTSIDE the transaction —
+ * audit-log write failures must not roll back the payment state change.
  */
 export async function applyPaymentUpdate(opts: {
   gateway: string
@@ -74,6 +83,8 @@ export async function applyPaymentUpdate(opts: {
 
   try {
     // Lookup por paymentRef o por number (la referencia interna del comercio).
+    // The lookup is OUTSIDE the $transaction so a long-running transaction
+    // doesn't hold a row lock on Order during the (fast) read.
     const order = await db.order.findFirst({
       where: {
         OR: [
@@ -90,33 +101,34 @@ export async function applyPaymentUpdate(opts: {
     const shouldMarkPaid = success || newStatus === 'paid'
     const wasAlreadyPaid = order.paymentStatus === 'paid'
 
-    await db.order.update({
-      where: { id: order.id },
-      data: {
-        paymentStatus: shouldMarkPaid ? 'paid' : newStatus,
-        paidAt: shouldMarkPaid && !wasAlreadyPaid ? new Date() : order.paidAt,
-        paymentRef: paymentId,
-        paymentGateway: gateway,
-      },
-    })
-
     const eventType =
       newStatus === 'paid' ? 'paid' : newStatus === 'refunded' ? 'refunded' : 'payment_update'
 
-    await db.orderEvent.create({
-      data: {
-        orderId: order.id,
-        type: eventType,
-        note: `${gateway} webhook: status=${status} paymentId=${paymentId}`,
-      },
+    // Atomic: both writes succeed or both roll back. A failure here surfaces
+    // to the outer catch and the webhook still ACKs 200 (per gateway contract).
+    await db.$transaction(async (tx) => {
+      await tx.order.update({
+        where: { id: order.id },
+        data: {
+          paymentStatus: shouldMarkPaid ? 'paid' : newStatus,
+          paidAt: shouldMarkPaid && !wasAlreadyPaid ? new Date() : order.paidAt,
+          paymentRef: paymentId,
+          paymentGateway: gateway,
+        },
+      })
+
+      await tx.orderEvent.create({
+        data: {
+          orderId: order.id,
+          type: eventType,
+          note: `${gateway} webhook: status=${status} paymentId=${paymentId}`,
+        },
+      })
     })
 
     return { found: true, orderId: order.id, newStatus }
   } catch (err) {
-    console.error(
-      `[applyPaymentUpdate:${gateway}]`,
-      err instanceof Error ? err.message : err,
-    )
+    log.error({ gateway, err: err instanceof Error ? err.message : String(err) }, 'applyPaymentUpdate failed')
     return { found: false, newStatus }
   }
 }

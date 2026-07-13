@@ -18,13 +18,19 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
+import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import {
   Tabs, TabsContent, TabsList, TabsTrigger,
 } from '@/components/ui/tabs'
-import { AlertCircle, AlertTriangle, CheckCircle2, Clock } from 'lucide-react'
+import {
+  AlertCircle, AlertTriangle, CheckCircle2, Clock, RefreshCw,
+} from 'lucide-react'
 
 import { useTenantId } from '@/hooks/use-tenant'
+import { cn } from '@/lib/utils'
+import { timeAgo } from '@/lib/format'
 
 import {
   type CaseRow, type CaseDetail, type RedeliveryRequest, StatCard,
@@ -43,6 +49,9 @@ export function NovedadesView() {
   const [cases, setCases] = useState<CaseRow[]>([])
   const [stats, setStats] = useState({ total: 0, open: 0, assigned: 0, resolved: 0, escalated: 0, closed: 0 })
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [q, setQ] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [typeFilter, setTypeFilter] = useState('all')
@@ -54,9 +63,11 @@ export function NovedadesView() {
 
   const [createOpen, setCreateOpen] = useState(false)
 
-  const loadCases = useCallback(async () => {
+  const loadCases = useCallback(async (showRefreshing = false) => {
     if (!tenantId) return
     setLoading(true)
+    if (showRefreshing) setRefreshing(true)
+    setError(null)
     try {
       const params = new URLSearchParams({
         tenantId,
@@ -70,10 +81,14 @@ export function NovedadesView() {
       const j = await res.json()
       setCases(j.cases || [])
       setStats(j.stats || stats)
-    } catch {
+      setLastUpdated(new Date())
+    } catch (err) {
+      console.error('Novedades loadCases failed', err)
+      setError('No pudimos cargar las novedades. Verifica tu conexión o intenta de nuevo.')
       toast.error('Error al cargar novedades')
     } finally {
       setLoading(false)
+      setRefreshing(false)
     }
   }, [tenantId, statusFilter, typeFilter, carrierFilter, q])
 
@@ -143,7 +158,7 @@ export function NovedadesView() {
   // ── Loading skeleton ─────────────────────────────────────────────────
   if (loading && tab === 'cases' && cases.length === 0) {
     return (
-      <div className="space-y-4">
+      <section aria-label="Novedades" className="space-y-4" aria-busy="true" role="status">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)}
         </div>
@@ -151,12 +166,45 @@ export function NovedadesView() {
           <Skeleton className="h-96 rounded-xl" />
           <Skeleton className="h-96 rounded-xl lg:col-span-2" />
         </div>
-      </div>
+      </section>
+    )
+  }
+
+  // ── Error state (only when initial load failed and there is no data) ──
+  if (error && cases.length === 0 && tab === 'cases') {
+    return (
+      <section aria-label="Novedades">
+        <Alert variant="destructive" className="animate-fade-in-up">
+          <AlertCircle className="size-4" />
+          <AlertTitle>Error al cargar las novedades</AlertTitle>
+          <AlertDescription className="flex items-center justify-between gap-3 flex-wrap">
+            <span>{error}</span>
+            <Button size="sm" variant="outline" onClick={() => void loadCases(true)} className="gap-1.5">
+              <RefreshCw className="size-3.5" /> Reintentar
+            </Button>
+          </AlertDescription>
+        </Alert>
+      </section>
     )
   }
 
   return (
-    <div className="space-y-6 animate-fade-in-up">
+    <section aria-label="Novedades" className="space-y-6 animate-fade-in-up">
+      {/* ── Header: last-updated + refresh ── */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="text-[10px] sm:text-xs text-muted-foreground truncate">
+          {lastUpdated ? (
+            <span>Actualizado hace <strong className="text-foreground tabular-nums">{timeAgo(lastUpdated)}</strong></span>
+          ) : (
+            <span>Datos de muestra</span>
+          )}
+        </div>
+        <Button variant="outline" size="sm" onClick={() => void loadCases(true)} disabled={refreshing} className="gap-1.5 h-9 px-3">
+          <RefreshCw className={cn('size-3.5', refreshing && 'animate-spin')} />
+          {refreshing ? 'Actualizando…' : 'Refrescar'}
+        </Button>
+      </div>
+
       {/* ── Stat strip ─────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <StatCard icon={AlertCircle} label="Total" value={String(stats.total)} accent="bg-slate-500/10 text-slate-700 dark:text-slate-300 ring-slate-500/20" />
@@ -247,6 +295,6 @@ export function NovedadesView() {
         tenantId={tenantId}
         onCreated={() => { void loadRedelivery() }}
       />
-    </div>
+    </section>
   )
 }

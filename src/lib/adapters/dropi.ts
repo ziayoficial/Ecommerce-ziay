@@ -30,7 +30,7 @@ import { logger } from '@/lib/logger'
 import type { LogisticsAdapter, FreightQuote, ShipmentResult, ShipmentStatus, GenerarGuiaInput } from './logistics-adapter'
 
 const HTTP_TIMEOUT_MS = 10_000
-const DROPI_API_BASE = 'https://api.dropi.co/api/v1'
+const DROPI_API_BASE = process.env.DROPI_API_BASE ?? 'https://api.dropi.co/api/v1'
 
 // Tarifas base realistas (COP) por ciudad destino nacional — Dropi CO.
 // Las cifras están calibradas a tarifas reales 2024-2025 de dropshipping

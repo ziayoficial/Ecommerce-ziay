@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAuth } from '@/lib/auth-helpers'
 import { withCache } from '@/lib/cache'
+import { captureError } from '@/lib/capture-error'
 
 // GET /api/catalog/products?tenantId=...&q=...
 // Cached for 5 minutes per (tenantId, q) — products don't change often and
@@ -11,16 +12,24 @@ export async function GET(req: NextRequest) {
   const { error } = await requireAuth()
   if (error) return error
 
-  const tenantId = req.nextUrl.searchParams.get('tenantId')
-  const q = req.nextUrl.searchParams.get('q') || ''
-  if (!tenantId) return NextResponse.json({ error: 'tenantId required' }, { status: 400 })
+  try {
+    const tenantId = req.nextUrl.searchParams.get('tenantId')
+    const q = req.nextUrl.searchParams.get('q') || ''
+    if (!tenantId) return NextResponse.json({ error: 'tenantId required' }, { status: 400 })
 
-  const payload = await withCache(
-    `catalog:${tenantId}:${q}`,
-    5 * 60_000,
-    () => fetchProducts(tenantId, q),
-  )
-  return NextResponse.json(payload)
+    const payload = await withCache(
+      `catalog:${tenantId}:${q}`,
+      5 * 60_000,
+      () => fetchProducts(tenantId, q),
+    )
+    return NextResponse.json(payload)
+  } catch (err) {
+    captureError(err as Error, { path: '/api/catalog/products', method: 'GET' })
+    return NextResponse.json(
+      { error: 'Internal server error', message: err instanceof Error ? err.message : 'Unknown error' },
+      { status: 500 },
+    )
+  }
 }
 
 async function fetchProducts(tenantId: string, q: string) {

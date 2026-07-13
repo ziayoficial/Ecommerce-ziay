@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAuth } from '@/lib/auth-helpers'
 import { withCache } from '@/lib/cache'
+import { captureError } from '@/lib/capture-error'
 
 // Overview KPIs: revenue, orders, conversations, ad spend, ROAS, CPA, channel split.
 // Cached for 60s per (tenantId, days) — heavy multi-table aggregation that
@@ -11,15 +12,23 @@ export async function GET(req: NextRequest) {
   const { error } = await requireAuth()
   if (error) return error
 
-  const days = Number(req.nextUrl.searchParams.get('days') || '14')
-  const tenantId = req.nextUrl.searchParams.get('tenantId') || undefined
+  try {
+    const days = Number(req.nextUrl.searchParams.get('days') || '14')
+    const tenantId = req.nextUrl.searchParams.get('tenantId') || undefined
 
-  const payload = await withCache(
-    `overview:${tenantId ?? 'all'}:${days}`,
-    60_000,
-    () => computeOverview(days, tenantId),
-  )
-  return NextResponse.json(payload)
+    const payload = await withCache(
+      `overview:${tenantId ?? 'all'}:${days}`,
+      60_000,
+      () => computeOverview(days, tenantId),
+    )
+    return NextResponse.json(payload)
+  } catch (err) {
+    captureError(err as Error, { path: '/api/overview', method: 'GET' })
+    return NextResponse.json(
+      { error: 'Internal server error', message: err instanceof Error ? err.message : 'Unknown error' },
+      { status: 500 },
+    )
+  }
 }
 
 async function computeOverview(days: number, tenantId: string | undefined) {

@@ -3,18 +3,24 @@ import { db } from '@/lib/db'
 import { requireTenantAccess } from '@/lib/auth-helpers'
 import { captureError } from '@/lib/capture-error'
 import { getLogger } from '@/lib/logger'
+import { enqueue, isInlineMode } from '@/lib/queue'
 
 const log = getLogger('api:conversions')
 
 // Conversions — server-side pixel firing (Meta CAPI, Google MP, Tiktok Events API).
 //
 // GET /api/conversions?tenantId=X
-//   ConversionEvent[] + stats { total, sent, failed }
+//   ConversionEvent[] + stats { total, sent, failed, pending }
 //
 // POST /api/conversions { tenantId, eventType, value, currency }
-//   Fires the event to every active PixelConfig of the tenant. Each platform
-//   runs in its own try/catch so a single failure doesn't poison the rest.
-//   The ConversionEvent.status is updated to 'sent' or 'failed' accordingly.
+//   Creates one `ConversionEvent` row per active pixel in 'pending' state,
+//   then enqueues a `capi-fire` job to actually hit each platform. In dev
+//   (no REDIS_URL) the job runs inline so the response contains the final
+//   'sent'/'failed' results. In prod (BullMQ), the response contains the
+//   job IDs and the rows stay 'pending' until the worker picks them up.
+//
+// The actual platform firing logic lives in `src/lib/queue.ts` so the
+// worker process can run it out-of-band without holding the request thread.
 export async function GET(req: NextRequest) {
   const tenantId = req.nextUrl.searchParams.get('tenantId')
   if (!tenantId) {
@@ -102,187 +108,71 @@ export async function POST(req: NextRequest) {
     })
   }
 
-  // Fire to each platform independently. A failure on one platform only marks
-  // that ConversionEvent row — we still create one row per pixel so partial
-  // success is visible.
-  const results: Array<{
-    platform: string
-    pixelConfigId: string
-    status: 'sent' | 'failed'
-    response: string
-  }> = []
-
-  for (const pixel of pixels) {
-    const result = await firePlatform(pixel, { eventType, value, currency })
-    try {
-      await db.conversionEvent.create({
+  // Pre-create one ConversionEvent row per pixel in 'pending' state. The
+  // queue handler updates each row with the platform's response. Doing the
+  // row creation up-front (rather than inside the worker) means:
+  //   - The route can return the event IDs immediately.
+  //   - A crash mid-fire leaves rows in 'pending' — visible + retryable.
+  const created = await Promise.all(
+    pixels.map((pixel) =>
+      db.conversionEvent.create({
         data: {
           tenantId,
           pixelConfigId: pixel.id,
           eventType,
           value,
           currency,
-          status: result.status,
-          response: result.response,
+          status: 'pending',
+          response: 'queued',
         },
-      })
-    } catch (err) {
-      // Even the DB write failed — surface it to Sentry + local log.
-      captureError(err, {
-        action: 'conversions:persist',
-        tenantId,
-        pixelConfigId: pixel.id,
-        eventType,
-      })
-    }
-    results.push({
-      platform: pixel.platform,
-      pixelConfigId: pixel.id,
-      status: result.status,
-      response: result.response,
-    })
-    if (result.status === 'sent') {
-      log.info(
-        { tenantId, platform: pixel.platform, pixelConfigId: pixel.id, eventType },
-        'platform fire success',
-      )
-    } else {
-      log.warn(
-        { tenantId, platform: pixel.platform, pixelConfigId: pixel.id, eventType, response: result.response },
-        'platform fire failed',
-      )
-    }
-  }
+      }),
+    ),
+  )
+
+  // Enqueue the actual firing. In inline mode this runs synchronously and
+  // every row is updated by the time `enqueue` returns. In BullMQ mode the
+  // job lands on Redis and the rows stay 'pending' until the worker picks
+  // them up.
+  await enqueue('capi-fire', {
+    tenantId,
+    eventType,
+    value,
+    currency,
+    pixels: pixels.map((p) => ({
+      id: p.id,
+      platform: p.platform,
+      pixelId: p.pixelId,
+      apiToken: p.apiToken,
+      testMode: p.testMode,
+    })),
+    eventIds: created.map((e) => e.id),
+  })
+
+  // Read back the (possibly updated) rows so the response reflects the
+  // final status in inline mode, or shows 'pending' in BullMQ mode.
+  const updated = await db.conversionEvent.findMany({
+    where: { id: { in: created.map((e) => e.id) } },
+  })
+
+  const results = updated.map((e) => ({
+    platform: pixels.find((p) => p.id === e.pixelConfigId)?.platform || 'unknown',
+    pixelConfigId: e.pixelConfigId as string,
+    status: e.status as 'sent' | 'failed' | 'pending',
+    response: e.response || '',
+  }))
 
   const anySent = results.some((r) => r.status === 'sent')
+  const anyPending = results.some((r) => r.status === 'pending')
+
+  // In inline mode the work is already done — return the final aggregate
+  // status. In BullMQ mode the work hasn't happened yet — return 'pending'
+  // so callers know to poll or wait for the webhook.
+  const aggregateStatus = anySent ? 'sent' : anyPending ? 'pending' : 'failed'
+
   return NextResponse.json({
     ok: true,
     results,
-    status: anySent ? 'sent' : 'failed',
+    status: aggregateStatus,
+    queued: !isInlineMode(),
   })
-}
-
-// ───────────────────────────────────────────────────────────────────────────
-// Platform firing — stubbed HTTP calls. Each platform's API has its own
-// payload format and auth header. We use fetch() to the real endpoints when
-// not in test mode. Any failure is captured per-platform.
-// ───────────────────────────────────────────────────────────────────────────
-
-async function firePlatform(
-  pixel: { platform: string; pixelId: string; apiToken: string; testMode: boolean },
-  event: { eventType: string; value: number | null; currency: string },
-): Promise<{ status: 'sent' | 'failed'; response: string }> {
-  try {
-    if (pixel.platform === 'meta') {
-      return await fireMeta(pixel, event)
-    }
-    if (pixel.platform === 'google') {
-      return await fireGoogle(pixel, event)
-    }
-    if (pixel.platform === 'tiktok') {
-      return await fireTikTok(pixel, event)
-    }
-    return {
-      status: 'failed',
-      response: `Unknown platform: ${pixel.platform}`,
-    }
-  } catch (e) {
-    captureError(e, {
-      action: 'conversions:firePlatform',
-      platform: pixel.platform,
-      pixelConfigId: pixel.pixelId,
-    })
-    return { status: 'failed', response: (e as Error).message }
-  }
-}
-
-async function fireMeta(
-  pixel: { pixelId: string; apiToken: string; testMode: boolean },
-  event: { eventType: string; value: number | null; currency: string },
-) {
-  const url = `https://graph.facebook.com/v19.0/${pixel.pixelId}/events?access_token=${pixel.apiToken}`
-  const payload = {
-    data: [
-      {
-        event_name: event.eventType,
-        event_time: Math.floor(Date.now() / 1000),
-        action_source: 'system',
-        value: event.value ?? 0,
-        currency: event.currency,
-        test_event_code: pixel.testMode ? 'TEST12345' : undefined,
-      },
-    ],
-  }
-  // In test mode we skip the network call so dev environments without a real
-  // token still produce a deterministic 'sent' result.
-  if (pixel.testMode) {
-    return { status: 'sent' as const, response: 'Meta CAPI test mode (no network call)' }
-  }
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  })
-  const text = await res.text()
-  if (!res.ok) return { status: 'failed' as const, response: `Meta ${res.status}: ${text}` }
-  return { status: 'sent' as const, response: `Meta ${res.status}: ${text.slice(0, 200)}` }
-}
-
-async function fireGoogle(
-  pixel: { pixelId: string; apiToken: string; testMode: boolean },
-  event: { eventType: string; value: number | null; currency: string },
-) {
-  const url = `https://www.google-analytics.com/mp/collect?measurement_id=${pixel.pixelId}&api_secret=${pixel.apiToken}`
-  const payload = {
-    client_id: 'commerceflow_os',
-    events: [
-      {
-        name: event.eventType.toLowerCase(),
-        params: {
-          value: event.value ?? 0,
-          currency: event.currency,
-        },
-      },
-    ],
-  }
-  if (pixel.testMode) {
-    return { status: 'sent' as const, response: 'Google MP test mode (no network call)' }
-  }
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  })
-  const text = await res.text()
-  if (!res.ok) return { status: 'failed' as const, response: `Google ${res.status}: ${text || 'no body'}` }
-  return { status: 'sent' as const, response: `Google ${res.status}: ok` }
-}
-
-async function fireTikTok(
-  pixel: { pixelId: string; apiToken: string; testMode: boolean },
-  event: { eventType: string; value: number | null; currency: string },
-) {
-  const url = 'https://business-api.tiktok.com/open_api/v1.3/event/track/'
-  const payload = {
-    pixel_code: pixel.pixelId,
-    event: event.eventType,
-    event_time: Math.floor(Date.now() / 1000),
-    value: event.value ?? 0,
-    currency: event.currency,
-    test_event_code: pixel.testMode ? 'TEST12345' : undefined,
-  }
-  if (pixel.testMode) {
-    return { status: 'sent' as const, response: 'TikTok Events API test mode (no network call)' }
-  }
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Access-Token': pixel.apiToken,
-    },
-    body: JSON.stringify(payload),
-  })
-  const text = await res.text()
-  if (!res.ok) return { status: 'failed' as const, response: `TikTok ${res.status}: ${text}` }
-  return { status: 'sent' as const, response: `TikTok ${res.status}: ${text.slice(0, 200)}` }
 }

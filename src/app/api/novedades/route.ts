@@ -1,7 +1,12 @@
 // Novedades API — CRM for logistics incidents.
 //
-// GET  ?tenantId=X&status=Y&type=Z&carrier=W&q=...
-//      → { stats, cases[] }
+// GET  ?tenantId=X&status=Y&type=Z&carrier=W&q=...&cursor=ID&limit=N
+//      → { stats, cases[], nextCursor, hasMore }
+//
+//      Cursor-based pagination (SPRINT6-SCALE-001). `cursor` is the `id` of
+//      the last case on the previous page. Default page size 20, max 100.
+//      The `stats` block is NOT paginated — it's a global group-by over
+//      every matching case for the tenant.
 //
 // POST (no action) — create a new case
 //      → auto-generates caseNumber NV-YYYY-XXXXX
@@ -50,6 +55,12 @@ export async function GET(req: NextRequest) {
   const type = sp.get('type') || undefined
   const carrier = sp.get('carrier') || undefined
   const q = sp.get('q') || undefined
+  const cursor = sp.get('cursor') || undefined
+  // Default page size 20, hard ceiling 100 to prevent unbounded queries.
+  const parsedLimit = parseInt(sp.get('limit') || '20', 10)
+  const limit = Number.isFinite(parsedLimit) && parsedLimit > 0
+    ? Math.min(parsedLimit, 100)
+    : 20
 
   const where: any = { tenantId }
   if (status && status !== 'all') where.status = status
@@ -64,22 +75,32 @@ export async function GET(req: NextRequest) {
     ]
   }
 
-  const [cases, stats] = await Promise.all([
+  const [rows, stats] = await Promise.all([
     db.novedadCase.findMany({
       where,
       orderBy: { createdAt: 'desc' },
-      take: 200,
+      take: limit + 1, // take 1 extra to detect a next page
+      // `skip: 1` with cursor: Prisma includes the cursor row by default,
+      // we want the row *after* it.
+      ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
       include: {
         evidence: { take: 1, orderBy: { createdAt: 'desc' } },
         _count: { select: { evidence: true, messages: true } },
       },
     }),
+    // Stats are NOT paginated — they're a global group-by over every
+    // matching case for the tenant, so the badges in the UI stay accurate
+    // regardless of which page is loaded.
     db.novedadCase.groupBy({
       by: ['status'],
       where: { tenantId },
       _count: true,
     }),
   ])
+
+  const hasNext = rows.length > limit
+  const cases = hasNext ? rows.slice(0, limit) : rows
+  const nextCursor = hasNext ? cases[cases.length - 1].id : null
 
   const statsMap: Record<string, number> = { open: 0, assigned: 0, resolved: 0, escalated: 0, closed: 0 }
   for (const g of stats) statsMap[g.status] = g._count
@@ -113,6 +134,8 @@ export async function GET(req: NextRequest) {
       messageCount: c._count.messages,
       thumbnail: c.evidence[0]?.url || null,
     })),
+    nextCursor,
+    hasMore: hasNext,
   })
 }
 

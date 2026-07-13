@@ -1,5 +1,21 @@
-// CommerceFlow OS — Live messenger socket.io service
+// ZIAY — Live messenger socket.io service
 // Port: 3003 (Caddy forwards via ?XTransformPort=3003, path=/)
+//
+// SPRINT4-INFRA-001 — graceful shutdown helper.
+// SPRINT6-SCALE-001 — optional Redis adapter for multi-instance fan-out.
+//
+// The Redis adapter is enabled automatically when `REDIS_URL` is set AND
+// the `@socket.io/redis-adapter` + `ioredis` packages are installed. Both
+// packages are dynamically imported via NON-literal module specifiers so
+// this file runs fine without them (single-instance mode) — install them
+// only on production hosts that run multiple chat-service replicas behind
+// the Caddy gateway.
+//
+//   bun add @socket.io/redis-adapter ioredis
+//
+// In single-instance mode (no Redis or packages missing) the service is
+// unchanged — every `io.emit` reaches all connected clients on this host.
+
 import { createServer } from 'http'
 import { Server } from 'socket.io'
 import { setupGracefulShutdown } from './graceful-shutdown'
@@ -11,6 +27,54 @@ const io = new Server(httpServer, {
   pingTimeout: 60000,
   pingInterval: 25000,
 })
+
+// ───────────────────────────────────────────────────────────────────────────
+// Optional Redis adapter (multi-instance fan-out)
+//
+// Wire it up before the first client connects. The setup is async but it
+// resolves quickly — `io.adapter()` is synchronous once the adapter is
+// constructed, and the ioredis clients connect lazily in the background.
+// ───────────────────────────────────────────────────────────────────────────
+async function enableRedisAdapter(): Promise<void> {
+  const redisUrl = process.env.REDIS_URL
+  if (!redisUrl) return
+
+  try {
+    // Non-literal specifiers → tsc/TS won't try to resolve type decls, so the
+    // chat-service type-checks whether or not these packages are installed.
+    const adapterModule = '@socket.io/redis-adapter' as string
+    const ioredisModule = 'ioredis' as string
+    const { createAdapter } = (await import(adapterModule)) as {
+      createAdapter: (pubClient: any, subClient: any) => any
+    }
+    const IoRedis = (await import(ioredisModule)).default as {
+      new (url: string, opts?: Record<string, unknown>): any
+    }
+
+    const pubClient = new IoRedis(redisUrl, {
+      maxRetriesPerRequest: 3,
+      enableReadyCheck: true,
+    })
+    const subClient = pubClient.duplicate()
+
+    pubClient.on('error', (err: unknown) => {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.warn('[chat-service] Redis pub client error:', msg)
+    })
+    subClient.on('error', (err: unknown) => {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.warn('[chat-service] Redis sub client error:', msg)
+    })
+
+    io.adapter(createAdapter(pubClient, subClient))
+    console.log('[chat-service] Redis adapter enabled — multi-instance ready')
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    console.warn(
+      `[chat-service] Redis adapter not available (single-instance mode): ${msg}`,
+    )
+  }
+}
 
 // Simulated customer auto-replies (demo only — in production these come from WA/Messenger webhooks)
 const CUSTOMER_REPLIES = [
@@ -35,7 +99,7 @@ interface LiveMessage {
 io.on('connection', (socket) => {
   console.log(`[chat-service] agent connected: ${socket.id}`)
 
-  socket.emit('hello', { service: 'commerceflow-chat', ts: Date.now() })
+  socket.emit('hello', { service: 'ziay-chat', ts: Date.now() })
 
   // Agent sent a message -> broadcast to all dashboards + simulate customer reply
   socket.on('message:sent', (data: { conversationId: string; body: string; agentName?: string }) => {
@@ -81,9 +145,21 @@ io.on('connection', (socket) => {
 })
 
 const PORT = 3003
-httpServer.listen(PORT, () => {
-  console.log(`✅ CommerceFlow chat-service running on port ${PORT}`)
-})
+
+// Boot sequence: enable the Redis adapter first (no-op without REDIS_URL),
+// then start listening. The adapter setup is fast and won't block the port
+// bind meaningfully — it returns as soon as the ioredis clients are
+// constructed, before they finish connecting.
+enableRedisAdapter()
+  .catch((err) => {
+    const msg = err instanceof Error ? err.message : String(err)
+    console.warn('[chat-service] enableRedisAdapter threw — continuing in single-instance mode:', msg)
+  })
+  .finally(() => {
+    httpServer.listen(PORT, () => {
+      console.log(`✅ ZIAY chat-service running on port ${PORT}`)
+    })
+  })
 
 // Graceful shutdown (SPRINT4-INFRA-001) — closes socket.io + HTTP server
 // cleanly on SIGTERM / SIGINT so connected clients can reconnect to another

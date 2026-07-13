@@ -31,7 +31,7 @@
 
 ## 1. Bienvenida y contexto del producto
 
-**ZIAY** es un **Centro de Mando de Comercio Conversacional + Atribución Inteligente**. Es una sola pantalla (una sola ruta `/` conmutada en cliente) que unifica tres mundos que normalmente viven separados en tools desconectadas:
+**ZIAY** es un **Centro de Mando de Revenue Operations para Comercio Agéntico**. Es una sola pantalla (una sola ruta `/` conmutada en cliente) que unifica tres mundos que normalmente viven separados en tools desconectadas:
 
 1. **Mensajería conversacional** — WhatsApp Business API (principal en Colombia), Facebook Messenger (internacional) e Instagram DM. Bandeja unificada con atribución de campaña por conversación.
 2. **Pedidos y pagos** — con soporte nativo para **pago anticipado** (carrito ecommerce), **contra entrega (COD)** e **híbrido** configurable por canal y país.
@@ -1809,7 +1809,7 @@ Vía API: `GET /api/ads?days=30` devuelve JSON con todos los rows, metrics, verd
 
 | Término | Definición |
 |---|---|
-| **ZIAY** | Plataforma de Comercio Conversacional + Atribución Inteligente. Producto. |
+| **ZIAY** | Plataforma de Revenue Operations para Comercio Agéntico. Producto. |
 | **Canal** (Channel) | Vía de mensajería con cliente: WhatsApp, Messenger, Instagram, Telegram. Cada canal tiene su propia estrategia de pago. |
 | **Conversación** (Conversation) | Thread de mensajes entre un cliente y uno o más agentes. Tiene estado (open/pending/resolved/closed) y prioridad. |
 | **Pedido** (Order) | Una orden de compra con items, modo de pago, estado y atribución. |

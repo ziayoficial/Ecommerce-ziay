@@ -1,0 +1,661 @@
+    50→    50→.progress{position:fixed;top:0;left:0;height:4px;background:linear-gradient(90deg,var(--primary),var(--accent));z-index:1000;transition:width .4s}
+    51→    51→.center{display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;height:100%}
+    52→    52→.muted{color:var(--text2)}
+    53→    53→.text-primary{color:var(--primary2)}
+    54→    54→.text-accent{color:var(--accent)}
+    55→    55→.text-danger{color:var(--danger)}
+    56→    56→.big{font-size:1.3em}
+    57→    57→.emoji{font-size:1.6em}
+    58→    58→.step-num{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;background:var(--primary);color:var(--bg);font-weight:700;font-size:.9em;margin-right:10px;flex-shrink:0}
+    59→    59→.flow{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:14px 0}
+    60→    60→.flow-step{background:var(--surface2);border:1px solid var(--primary);padding:8px 16px;border-radius:10px;font-size:.9em;font-weight:600;color:var(--text)}
+    61→    61→.flow-arrow{color:var(--primary2);font-size:1.3em}
+    62→    62→@media(max-width:768px){.slide{padding:28px 22px}.grid-2,.grid-3,.grid-4{grid-template-columns:1fr}h1{font-size:1.7em}p{font-size:.98em}}
+    63→    63→</style>
+    64→    64→</head>
+    65→    65→<body>
+    66→    66→<div class="progress" id="progress" style="width:0%"></div>
+    67→    67→<div class="deck" id="deck">
+    68→    68→
+    69→    69→<!-- Slide 1: Portada -->
+    70→    70→<section class="slide active center">
+    71→    71→<div class="emoji" style="font-size:4.5em;margin-bottom:24px">🚀</div>
+    72→    72→<h1>ZIAY</h1>
+    73→    73→<p class="big text-primary" style="font-weight:600;margin-bottom:8px">Vende más por WhatsApp, sin el caos</p>
+    74→    74→<p class="muted" style="max-width:600px;line-height:1.6">Una guía sencilla para entender cómo esta plataforma te ayuda a vender más, gastar menos en publicidad, y no perder dinero con clientes problemáticos.</p>
+    75→    75→<div style="margin-top:36px;display:flex;gap:10px;flex-wrap:wrap;justify-content:center">
+    76→    76→<span class="badge badge-primary">Para emprendedores</span>
+    77→    77→<span class="badge badge-primary">Sin tecnicismos</span>
+    78→    78→<span class="badge badge-accent">Cómo ganar dinero</span>
+    79→    79→</div>
+    80→    80→<p class="muted" style="margin-top:40px;font-size:.85em">Indisutex SAS · Saramantha · Sublimados Majestic · Lovely Pijamas · Sueño de Reina</p>
+    81→    81→</section>
+    82→    82→
+    83→    83→<!-- Slide 2: El problema que vives -->
+    84→    84→<section class="slide">
+    85→    85→<h1>¿Te suena esto?</h1>
+    86→    86→<h2>El día a día de vender por WhatsApp</h2>
+    87→    87→<div class="grid grid-2">
+    88→    88→<div class="card card-danger">
+    89→    89→<h3>😰 El caos del WhatsApp</h3>
+    90→    90→<ul>
+    91→    91→<li>Tienes <strong>200+ chats sin responder</strong> y no sabes cuáles son urgentes</li>
+    92→    92→<li>Copias y pegas direcciones, calculas fletes a mano, cotizas uno por uno</li>
+    93→    93→<li>No sabes <strong>qué anuncio te trajo cada venta</strong> — gastas en pauta a ciegas</li>
+    94→    94→<li>Un cliente devuelve 5 veces y sigues aceptándole pedidos</li>
+    95→    95→<li>Las transportadoras pierden paquetes y no tienes dónde gestionarlo</li>
+    96→    96→<li>Tienes 3 marcas (Saramantha, Majestic, Lovely) y saltas entre 3 WhatsApps</li>
+    97→    97→</ul>
+    98→    98→</div>
+    99→    99→<div class="card card-warm">
+   100→   100→<h3>💰 El dinero que pierdes</h3>
+   101→   101→<div class="stat">1 de 5</div>
+   102→   102→<div class="stat-label">pedidos se devuelve (clientes problemáticos)</div>
+   103→   103→<div style="height:14px"></div>
+   104→   104→<div class="stat">73%</div>
+   105→   105→<div class="stat-label">de pedidos necesitan llamada de confirmación</div>
+   106→   106→<div style="height:14px"></div>
+   107→   107→<div class="stat">$$$</div>
+   108→   108→<div class="stat-label">en pauta que no sabes si funciona</div>
+   109→   109→</div>
+   110→   110→</div>
+   111→   111→<div class="quote">
+   112→   112→"No sé si el anuncio de Stitch está funcionando o perdiendo plata. Solo sé que gasto $500K al mes en Meta Ads."
+   113→   113→</div>
+   114→   114→<p class="muted">— Valentina, asesora de Saramantha (caso real)</p>
+   115→   115→</section>
+   116→   116→
+   117→   117→<!-- Slide 3: La solución en palabras simples -->
+   118→   118→<section class="slide">
+   119→   119→<h1>ZIAY lo resuelve</h1>
+   120→   120→<h2>Imagínate un asistente que nunca duerme</h2>
+   121→   121→<div class="grid grid-3">
+   122→   122→<div class="card card-accent">
+   123→   123→<div class="emoji">🤖</div>
+   124→   124→<h3>Responde por ti</h3>
+   125→   125→<p>Cuando un cliente escribe por WhatsApp, un asistente inteligente responde en 3 segundos. No importa si son las 3am. Pregunta qué busca, muestra productos con fotos, y arma el pedido.</p>
+   126→   126→</div>
+   127→   127→<div class="card card-accent">
+   128→   128→<div class="emoji">🛡️</div>
+   129→   129→<h3>Filtra clientes malos</h3>
+   130→   130→<p>Antes de vender, revisa si el cliente es de los que <strong>siempre devuelven</strong>. Si lo es, le pedimos pago anticipado. Adiós a perder dinero en envíos que vuelven.</p>
+   131→   131→</div>
+   132→   132→<div class="card card-accent">
+   133→   133→<div class="emoji">🎯</div>
+   134→   134→<h3>Sabe qué pauta funciona</h3>
+   135→   135→<p>Conecta cada venta con el anuncio que la generó. Te dice: "El ad de Stitch tiene ROAS 3.2 → escala; el ad de Pijama Cowboy tiene ROAS 0.6 → mátalo".</p>
+   136→   136→</div>
+   137→   137→<div class="card card-accent">
+   138→   138→<div class="emoji">📦</div>
+   139→   139→<h3>Sigue cada envío</h3>
+   140→   140→<p>Sabe dónde está cada paquete. Si una guía lleva 3 días sin moverse, te avisa. Si hay un problema, abre un "caso" y lo sigue hasta resolverse.</p>
+   141→   141→</div>
+   142→   142→<div class="card card-accent">
+   143→   143→<div class="emoji">💰</div>
+   144→   144→<h3>Cobra comisiones</h3>
+   145→   145→<p>Si eres plataforma, cobras comisión a las marcas por cada venta. Escalonado: a más volumen, menor %. Todo automático, con factura al final del mes.</p>
+   146→   146→</div>
+   147→   147→<div class="card card-accent">
+   148→   148→<div class="emoji">🌐</div>
+   149→   149→<h3>Aparece en Google</h3>
+   150→   150→<p>Cada marca tiene su página web gratis. Cuando alguien busca "pijamas Stitch Colombia", te encuentra. Más tráfico orgánico = más ventas gratis.</p>
+   151→   151→</div>
+   152→   152→</div>
+   153→   153→</section>
+   154→   154→
+   155→   155→<!-- Slide 4: Pensamiento ágil -->
+   156→   156→<section class="slide">
+   157→   157→<h1>Pensemos ágil por un momento</h1>
+   158→   158→<h2>¿Cómo funciona una venta real, paso a paso?</h2>
+   159→   159→<div class="thinking">
+   160→   160→<div class="thinking-title">🧠 Ejercicio de pensamiento ágil</div>
+   161→   161→<p>Imagina que eres Valentina, asesora de Saramantha. Un cliente nuevo escribe por WhatsApp a las 9pm:</p>
+   162→   162→<p><strong>"Hola, vi un pijama de Stitch en su Instagram, ¿cuánto cuesta?"</strong></p>
+   163→   163→</div>
+   164→   164→<div class="grid grid-2">
+   165→   165→<div class="card card-danger">
+   166→   166→<h3>😱 Sin ZIAY (hoy)</h3>
+   167→   167→<ol>
+   168→   168→<li>Ves el mensaje 2 horas después (estabas cenando)</li>
+   169→   169→<li>Buscas el producto en tu catálogo (5 min)</li>
+   170→   170→<li>Le mandas foto + precio</li>
+   171→   171→<li>Él pregunta por tallas → buscas otra vez</li>
+   172→   172→<li>Pregunta por envío a Pasto → calculas a mano</li>
+   173→   173→<li>Te pide descuento → negocias 10 min</li>
+   174→   174→<li>Te da la dirección → la copias en otro lado</li>
+   175→   175→<li>Le confirmas para mañana llamarlo</li>
+   176→   176→<li><strong>Total: 40 min de tu tiempo + él esperó 2h</strong></li>
+   177→   177→<li>Posibilidad de que abandone: <strong>60%</strong></li>
+   178→   178→</ol>
+   179→   179→</div>
+   180→   180→<div class="card card-accent">
+   181→   181→<h3>✨ Con ZIAY</h3>
+   182→   182→<ol>
+   183→   183→<li>El asistente responde en <strong>3 segundos</strong></li>
+   184→   184→<li>Muestra foto + precio + tallas automáticamente</li>
+   185→   185→<li>Cotiza envío a Pasto en tiempo real ($14K Dropi)</li>
+   186→   186→<li>Detecta que es cliente nuevo (no devolvedor) → ok</li>
+   187→   187→<li>Le perfila: "detal" → muestra precio sin descuento mayorista</li>
+   188→   188→<li>Pide confirmar dirección → él la escribe → se valida</li>
+   189→   189→<li>Genera link de pago (Wompi) → él paga ahí mismo</li>
+   190→   190→<li>Pedido pasa a "confirmado" automáticamente</li>
+   191→   191→<li><strong>Total: 0 min de tu tiempo + él compró en 5 min</strong></li>
+   192→   192→<li>Posibilidad de que abandone: <strong>15%</strong></li>
+   193→   193→</ol>
+   194→   194→</div>
+   195→   195→</div>
+   196→   196→<div class="money">
+   197→   197→<div class="money-title">💰 La diferencia = más dinero</div>
+   198→   198→<p>Si recibes 50 mensajes al día y cada venta vale $50K COP:</p>
+   199→   199→<ul>
+   200→   200→<li><strong>Sin ZIAY:</strong> 40 min × 50 = 33h/día (imposible) → atiendes 10 → vendes $500K/día</li>
+   201→   201→<li><strong>Con ZIAY:</strong> IA atiende 50 conversaciones y cierra 35 sola → vendes $1.75M/día (tú solo supervisas)</li>
+   202→   202→</ul>
+   203→   203→<p class="text-primary" style="font-weight:700;margin-top:10px">→ Duplicaste tus ventas sin contratar nadie.</p>
+   204→   204→</div>
+   205→   205→</section>
+   206→   206→
+   207→   207→<!-- Slide 5: ¿Qué hace la IA exactamente? -->
+   208→   208→<section class="slide">
+   209→   209→<h1>¿Qué hace la IA por ti?</h1>
+   210→   210→<h2>26 asistentes especializados, cada uno en su trabajo</h2>
+   211→   211→<p>Imagínate que tienes 26 empleados virtuales. Cada uno es experto en una cosa. Trabajarán en equipo para atender a tu cliente:</p>
+   212→   212→<div class="grid grid-2">
+   213→   213→<div class="card card-accent">
+   214→   214→<h3>🛒 Antes de vender (10 asistentes)</h3>
+   215→   215→<div class="example">
+   216→   216→<div class="example-title">Asistente #1: El guardia</div>
+   217→   217→<div class="example-body">Revisa si el cliente es de los que siempre devuelven. Si es así, avisa: "Este cliente requiere pago anticipado".</div>
+   218→   218→</div>
+   219→   219→<div class="example">
+   220→   220→<div class="example-title">Asistente #2: El psicólogo</div>
+   221→   221→<div class="example-body">Adivina qué tipo de comprador es: ¿mayorista (compra mucho), detal (compra 1-2), o regalo (compra 1 para obsequiar)? Según eso, cambia el precio.</div>
+   222→   222→</div>
+   223→   223→<div class="example">
+   224→   224→<div class="example-title">Asistente #3: El vendedor</div>
+   225→   225→<div class="example-body">Genera el discurso de ventas perfecto para ese perfil. No es lo mismo venderle a una tienda que a una mamá.</div>
+   226→   226→</div>
+   227→   227→<div class="example">
+   228→   228→<div class="example-title">Asistentes #4-10</div>
+   229→   229→<div class="example-body">Muestran catálogo, arman carrito, cotizan, manejan objeciones, confirman dirección, calculan envío, y cierran la venta.</div>
+   230→   230→</div>
+   231→   231→</div>
+   232→   232→<div class="card card-warm">
+   233→   233→<h3>📦 Después de vender (4 asistentes)</h3>
+   234→   234→<div class="example">
+   235→   235→<div class="example-title">Asistente #11: El rastreador</div>
+   236→   236→<div class="example-body">Sigue cada paquete. Si lleva 3 días parado, te avisa para que reclames a la transportadora.</div>
+   237→   237→</div>
+   238→   238→<div class="example">
+   239→   239→<div class="example-title">Asistente #12: El gestor de problemas</div>
+   240→   240→<div class="example-body">Si hay devolución, abre un "caso", pide fotos de evidencia, y lo sigue hasta resolverse.</div>
+   241→   241→</div>
+   242→   242→<div class="example">
+   243→   243→<div class="example-title">Asistente #13: El reintentador</div>
+   244→   244→<div class="example-body">Si el paquete vuelve, agenda un nuevo intento con dirección corregida.</div>
+   245→   245→</div>
+   246→   246→<div class="example">
+   247→   247→<div class="example-title">Asistente #14: El recuperador</div>
+   248→   248→<div class="example-body">Si el cliente dejó de responder, le manda un mensaje inteligente para recuperarlo.</div>
+   249→   249→</div>
+   250→   250→</div>
+   251→   251→</div>
+   252→   252→<div class="card card-accent">
+   253→   253→<h3>🧠 Además: 5 asistentes de inteligencia</h3>
+   254→   254→<p>Estos no hablan con el cliente. Trabajan en silencio: puntúan a tus clientes (confiables, riesgosos, devolvedores), puntúan a las transportadoras, enriquecen tus productos con SEO, conectan marcas entre sí (marketplace), y miden a tus affiliates.</p>
+   255→   255→</div>
+   256→   256→</section>
+   257→   257→
+   258→   258→<!-- Slide 6: El embudo de ventas -->
+   259→   259→<section class="slide">
+   260→   260→<h1>El viaje de un pedido</h1>
+   261→   261→<h2>Desde "Hola" hasta "Entregado" — con datos reales</h2>
+   262→   262→<div class="thinking">
+   263→   263→<div class="thinking-title">🧠 Pensamiento ágil: el embudo</div>
+   264→   264→<p>No todos los que escriben compran. De 100 mensajes, ¿cuántos llegan a entregado? Esto es lo que pasa en la vida real (datos de Saramantha):</p>
+   265→   265→</div>
+   266→   266→<div class="flow">
+   267→   267→<span class="flow-step">100 mensajes</span><span class="flow-arrow">→</span>
+   268→   268→<span class="flow-step">73 necesitan llamada</span><span class="flow-arrow">→</span>
+   269→   269→<span class="flow-step">21 datos completados</span><span class="flow-arrow">→</span>
+   270→   270→<span class="flow-step">15 quieren cancelar</span><span class="flow-arrow">→</span>
+   271→   271→<span class="flow-step">3 despachados</span>
+   272→   272→</div>
+   273→   273→<div class="grid grid-4" style="margin-top:20px">
+   274→   274→<div class="card"><div class="stat">73%</div><div class="stat-label">Necesitan llamada de confirmación</div></div>
+   275→   275→<div class="card"><div class="stat">8.9%</div><div class="stat-label">Datos completados (listos para despachar)</div></div>
+   276→   276→<div class="card"><div class="stat text-danger">6.3%</div><div class="stat-label">Intentan cancelar</div></div>
+   277→   277→<div class="card"><div class="stat text-primary">1.1%</div><div class="stat-label">Llegan a despachado (sin sistema)</div></div>
+   278→   278→</div>
+   279→   279→<div class="card card-danger" style="margin-top:20px">
+   280→   280→<h3>😰 El problema: solo 1 de cada 100 llega a despachado</h3>
+   281→   281→<p>El resto se pierde en el camino: no responden, cancelan, la dirección estaba mal, la transportadora perdió el paquete...</p>
+   282→   282→</div>
+   283→   283→<div class="card card-accent">
+   284→   284→<h3>✨ Con ZIAY: pasamos del 1% al 15%</h3>
+   285→   285→<p>El asistente #11 (rastreador) sigue cada paquete. El #12 (gestor) resuelve problemas rápido. El #13 (reintentador) recupera devoluciones. El resultado: 15x más pedidos entregados.</p>
+   286→   286→</div>
+   287→   287→</section>
+   288→   288→
+   289→   289→<!-- Slide 7: Cómo ganas dinero (1) -->
+   290→   290→<section class="slide">
+   291→   291→<h1>Cómo ganas dinero con esto</h1>
+   292→   292→<h2>3 formas de generar ingresos</h2>
+   293→   293→<div class="money">
+   294→   294→<div class="money-title">💰 Forma 1: Vendes más (si eres marca)</div>
+   295→   295→<div class="grid grid-2">
+   296→   296→<div>
+   297→   297→<p><strong>Antes:</strong> Atiendes 10 conversaciones/día manualmente → 2-3 ventas → $100K COP/día</p>
+   298→   298→<p><strong>Ahora:</strong> IA atiende 50 conversaciones/día y cierra 35 sola → $1.75M COP/día (tú solo supervisas casos edge)</p>
+   299→   299→</div>
+   300→   300→<div>
+   301→   301→<div class="stat text-primary">5x</div>
+   302→   302→<div class="stat-label">más ventas con el mismo equipo</div>
+   303→   303→</div>
+   304→   304→</div>
+   305→   305→</div>
+   306→   306→<div class="money">
+   307→   307→<div class="money-title">💰 Forma 2: Gastas menos en pauta</div>
+   308→   308→<div class="grid grid-2">
+   309→   309→<div>
+   310→   310→<p><strong>Antes:</strong> Gastas $500K/mes en Meta Ads sin saber qué funciona → ROAS 1.2 (pierdes)</p>
+   311→   311→<p><strong>Ahora:</strong> El sistema mata los ads con ROAS <0.8 y escala los >3.0 → ROAS 2.5 (ganas)</p>
+   312→   312→</div>
+   313→   313→<div>
+   314→   314→<div class="stat text-accent">$1.2M</div>
+   315→   315→<div class="stat-label">ahorro/mes en pauta mal gastada</div>
+   316→   316→</div>
+   317→   317→</div>
+   318→   318→</div>
+   319→   319→<div class="money">
+   320→   320→<div class="money-title">💰 Forma 3: Cobras comisión (si eres plataforma)</div>
+   321→   321→<div class="grid grid-2">
+   322→   322→<div>
+   323→   323→<p>Si eres Indisutex (matriz con 4 marcas), cobras comisión sobre el GMV de cada marca:</p>
+   324→   324→<ul>
+   325→   325→<li>GMV &lt; $10M/mes → <strong>4.5%</strong></li>
+   326→   326→<li>GMV $10M-$40M/mes → <strong>3.0%</strong></li>
+   327→   327→<li>GMV &gt; $40M/mes → <strong>1.75%</strong></li>
+   328→   328→</ul>
+   329→   329→</div>
+   330→   330→<div>
+   331→   331→<div class="stat text-primary">$1.35M</div>
+   332→   332→<div class="stat-label">comisión/mes si 4 marcas facturan $30M c/u (3% × $30M × 4 = $3.6M) — ejemplo</div>
+   333→   333→</div>
+   334→   334→</div>
+   335→   335→</div>
+   336→   336→</section>
+   337→   337→
+   338→   338→<!-- Slide 8: Cómo ganas dinero (2) -->
+   339→   339→<section class="slide">
+   340→   340→<h1>Y hay más formas de ganar</h1>
+   341→   341→<h2>Modelos de negocio adicionales</h2>
+   342→   342→<div class="grid grid-2">
+   343→   343→<div class="card card-warm">
+   344→   344→<h3>💼 Trafficker affiliate</h3>
+   345→   345→<p>¿Conoces a alguien bueno para pauta? Ellos invierten en ads, tú pones los productos. Por cada venta que generan, cobran comisión. <strong>Tú no arriesgas plata en pauta.</strong></p>
+   346→   346→<div class="example">
+   347→   347→<div class="example-title">Ejemplo</div>
+   348→   348→<div class="example-body">Sebastián invierte $200K en ads de Stitch. Genera 8 ventas ($400K). Cobra 10% = $40K. Sebastián gana $40K, tú ganas $360K sin arriesgar tu plata.</div>
+   349→   349→</div>
+   350→   350→</div>
+   351→   351→<div class="card card-warm">
+   352→   352→<h3>🏪 Marketplace cross-brand</h3>
+   353→   353→<p>Si un cliente busca algo que Saramantha no tiene, pero Lovely Pijamas sí → el sistema recomienda el producto de la otra marca. <strong>Lead compartido, comisión de referral.</strong></p>
+   354→   354→<div class="example">
+   355→   355→<div class="example-title">Ejemplo</div>
+   356→   356→<div class="example-body">Cliente pide "pijama de Stitch talla L". La IA busca en tu catálogo. Si no lo tienes, automáticamente recomienda el producto de Lovely Pijamas (que sí tiene). Si compra, Saramantha cobra 5% de referral. Todo automático, sin intervención humana.</div>
+   357→   357→</div>
+   358→   358→</div>
+   359→   359→<div class="card card-warm">
+   360→   360→<h3>🌐 SEO orgánico gratis</h3>
+   361→   361→<p>Cada marca tiene su página web gratis en ZIAY. Cuando alguien busca en Google "pijamas en Colombia", aparece tu tienda. <strong>Tráfico gratis para siempre.</strong></p>
+   362→   362→<div class="example">
+   363→   363→<div class="example-title">Ejemplo</div>
+   364→   364→<div class="example-body">Un cliente busca "batola Stitch comprar" en Google → encuentra /t/saramantha/p/PIJ-BATOLA-STITCH-003 → hace clic → escribe por WhatsApp → compra. Cero costo de adquisición.</div>
+   365→   365→</div>
+   366→   366→</div>
+   367→   367→<div class="card card-warm">
+   368→   368→<h3>🎯 CAPI = más tracking = mejor optimización</h3>
+   369→   369→<p>El sistema envía conversiones a Meta/Google/TikTok directamente desde el servidor. Esto recupera el 30% de tracking que se pierde por bloqueo de cookies. <strong>Mejor data = mejor pauta = más ventas.</strong></p>
+   370→   370→</div>
+   371→   371→</div>
+   372→   372→</section>
+   373→   373→
+   374→   374→<!-- Slide 9: Pensamiento ágil - ROI -->
+   375→   375→<section class="slide">
+   376→   376→<h1>¿Cuánto dinero puedes ganar?</h1>
+   377→   377→<h2>Un ejemplo real con números</h2>
+   378→   378→<div class="thinking">
+   379→   379→<div class="thinking-title">🧮 Calculemos juntos</div>
+   380→   380→<p>Supongamos que eres Saramantha. Hoy facturas $10M COP/mes vendiendo por WhatsApp manualmente.</p>
+   381→   381→</div>
+   382→   382→<table>
+   383→   383→<tr><th>Concepto</th><th>Hoy (sin sistema)</th><th>Con ZIAY</th><th>Diferencia</th></tr>
+   384→   384→<tr><td>Ventas/mes</td><td>$10M</td><td>$25M (2.5x por IA 24/7)</td><td class="text-primary">+$15M</td></tr>
+   385→   385→<tr><td>Gasto en pauta</td><td>$3M (ROAS 1.2)</td><td>$3M (ROAS 2.5)</td><td class="text-primary">—</td></tr>
+   386→   386→<tr><td>Devoluciones</td><td>$2M (20.5%)</td><td>$0.5M (detecta devolvedores)</td><td class="text-primary">+$1.5M</td></tr>
+   387→   387→<tr><td>Costo operativo</td><td>$2M (2 asesores)</td><td>$1M (1 asesor + IA)</td><td class="text-primary">+$1M</td></tr>
+   388→   388→<tr><td>Comisión plataforma</td><td>$0</td><td>-$0.45M (4.5% de $10M adicional)</td><td class="text-danger">-$0.45M</td></tr>
+   389→   389→<tr style="font-weight:700;background:var(--surface2)"><td>Ganancia neta</td><td>$3M</td><td>$20.05M</td><td class="text-primary">+$17.05M/mes</td></tr>
+   390→   390→</table>
+   391→   391→<div class="money">
+   392→   392→<div class="money-title">💰 El retorno de inversión</div>
+   393→   393→<p>Si ZIAY cuesta $1.5M COP/mes (comisión 4.5% sobre $10M base), y te genera $17M adicionales:</p>
+   394→   394→<div class="stat text-primary">11x ROI</div>
+   395→   395→<div class="stat-label">Por cada $1 que inviertes en ZIAY, ganas $11</div>
+   396→   396→</div>
+   397→   397→<p class="muted">Nota: estos son ejemplos ilustrativos basados en datos reales de Saramantha. Los resultados reales dependen del volumen de conversaciones, margen de producto, y ejecución.</p>
+   398→   398→</section>
+   399→   399→
+   400→   400→<!-- Slide 10: Los 14 módulos explicados -->
+   401→   401→<section class="slide">
+   402→   402→<h1>Tu panel de control</h1>
+   403→   403→<h2>14 secciones, cada una para una necesidad</h2>
+   404→   404→<div class="grid grid-2">
+   405→   405→<div class="card card-accent"><h3>📊 Resumen</h3><p>Tus números clave en una pantalla: cuánto vendiste, cuánto gastaste en pauta, cuántos pedidos. Como el tablero de tu carro.</p></div>
+   406→   406→<div class="card card-accent"><h3>💬 Mensajería</h3><p>Todos tus WhatsApp, Messenger e Instagram en un solo lugar. Con botones para que la IA te sugiera respuestas.</p></div>
+   407→   407→<div class="card card-accent"><h3>🖼️ Catálogo Visual</h3><p>Tus productos con fotos. Click en uno → lo mandas al chat del cliente. Como un catálogo físico pero digital.</p></div>
+   408→   408→<div class="card card-accent"><h3>📦 Pedidos & Pagos</h3><p>Lista de todos los pedidos. Sabes cuál está pagado, cuál pendiente, cuál despachado. Con links de pago automáticos.</p></div>
+   409→   409→<div class="card card-accent"><h3>📋 Kanban</h3><p>Tus pedidos en columnas como un Trello. Arrastras de "nuevo" a "despachado". Ves dónde se atascan.</p></div>
+   410→   410→<div class="card card-accent"><h3>🎭 Orquestador</h3><p>El "director de orquesta". Lanzas los 10 asistentes en secuencia con un clic. Ves qué respondió cada uno.</p></div>
+   411→   411→<div class="card card-warm"><h3>🎯 Atribución de Pauta</h3><p>La sección que te dice qué anuncios funcionan. ROAS, CPA, y veredicto: matar, pausar, escalar. <strong>La que más dinero te ahorra.</strong></p></div>
+   412→   412→<div class="card card-warm"><h3>💵 Monetización</h3><p>Si eres plataforma: cuánta comisión cobras a cada marca este mes. Con factura automática.</p></div>
+   413→   413→<div class="card card-warm"><h3>👛 Wallet</h3><p>Si eres trafficker: tu saldo, tus ganancias, tus retiros. Con doble seguridad (2FA) para que nadie te robe.</p></div>
+   414→   414→<div class="card card-accent"><h3>🚚 Inteligencia Logística</h3><p>Quién es buen cliente, quién es malo, qué transportadora sirve, qué paquetes están stuck.</p></div>
+   415→   415→<div class="card card-accent"><h3>🏪 Marketplace</h3><p>Productos de otras marcas que puedes recomendar. Si los vendes, ganas comisión de referral.</p></div>
+   416→   416→<div class="card card-accent"><h3>⚠️ Novedades</h3><p>Los problemas logísticos: paquetes perdidos, devoluciones, daños. Con seguimiento hasta resolución.</p></div>
+   417→   417→<div class="card card-accent"><h3>🔌 Integraciones</h3><p>Conecta con Shopify, WooCommerce, Dropi, MercadoPago, etc. Todo en un solo lugar.</p></div>
+   418→   418→<div class="card card-accent"><h3>⚙️ Configuración</h3><p>Ajusta tu estrategia de pago (anticipado vs contra entrega), umbrales de ROAS, URLs de webhook.</p></div>
+   419→   419→</div>
+   420→   420→</section>
+   421→   421→
+   422→   422→<!-- Slide 11: Un día usando ZIAY -->
+   423→   423→<section class="slide">
+   424→   424→<h1>Un día en la vida con ZIAY</h1>
+   425→   425→<h2>Así se sentiría tu día de trabajo</h2>
+   426→   426→<div class="card card-accent">
+   427→   427→<h3>🌅 7:00 AM — Llegas al trabajo</h3>
+   428→   428→<p>Abres el panel. Ves que durante la noche, la IA atendió 12 conversaciones. 3 ya son ventas confirmadas (pagaron por Wompi). 4 están esperando tu llamada. 5 son clientes problemáticos que la IA ya identificó.</p>
+   429→   429→<p class="text-primary">→ Ya tienes $150K COP vendidos antes de tomar café.</p>
+   430→   430→</div>
+   431→   431→<div class="card card-accent" style="margin-top:16px">
+   432→   432→<h3>🕙 10:00 AM — Revisas pauta</h3>
+   433→   433→<p>En el módulo de Atribución, ves: el ad de "Batola Stitch" tiene ROAS 3.2 → el sistema ya lo escaló (más presupuesto). El ad de "Pijama Cowboy" tiene ROAS 0.6 → el sistema ya lo pausó. No tuviste que hacer nada.</p>
+   434→   434→<p class="text-primary">→ Ahorraste $200K COP en pauta mal gastada, automáticamente.</p>
+   435→   435→</div>
+   436→   436→<div class="card card-accent" style="margin-top:16px">
+   437→   437→<h3>🕐 1:00 PM — Almuerzo tranquilo</h3>
+   438→   438→<p>La IA sigue atendiendo. Un cliente nuevo escribió, la IA lo perfiló (detal), le mostró catálogo, cotizó envío, y está esperando confirmación de dirección. Tú solo cierras cuando el cliente ya está listo.</p>
+   439→   439→<p class="text-primary">→ Mientras almuerzas, se generaron 2 ventas más.</p>
+   440→   440→</div>
+   441→   441→<div class="card card-accent" style="margin-top:16px">
+   442→   442→<h3>🕓 4:00 PM — Gestionas novedades</h3>
+   443→   443→<p>El módulo de Novedades te muestra 1 caso: un paquete de Interrapidísimo lleva 4 días parado. Le das click → ves el historial → llamas a la transportadora → resuelves. El sistema registra todo.</p>
+   444→   444→<p class="text-primary">→ Resolviste en 15 min lo que antes tomaba 2h de investigación.</p>
+   445→   445→</div>
+   446→   446→<div class="card card-accent" style="margin-top:16px">
+   447→   447→<h3>🌙 6:00 PM — Te vas a casa</h3>
+   448→   448→<p>Cerraste 8 ventas hoy ($400K COP). La IA atenderá esta noche. Mañana llegarás a más ventas ya hechas.</p>
+   449→   449→<p class="text-primary">→ Total del día: $550K COP en ventas, 4h de trabajo real, 0 estrés.</p>
+   450→   450→</div>
+   451→   451→</section>
+   452→   452→
+   453→   453→<!-- Slide 12: Para cada rol -->
+   454→   454→<section class="slide">
+   455→   455→<h1>Para cada persona del equipo</h1>
+   456→   456→<h2>ZIAY ayuda a todos</h2>
+   457→   457→<div class="grid grid-2">
+   458→   458→<div class="card card-accent">
+   459→   459→<h3>👑 Si eres el dueño (Admin)</h3>
+   460→   460→<ul>
+   461→   461→<li>Ves toda la operación en un solo panel</li>
+   462→   462→<li>Sabes cuánto vende cada marca, cada canal, cada asesor</li>
+   463→   463→<li>Decides la estrategia de pago (anticipado vs contra entrega)</li>
+   464→   464→<li>Configuras comisiones de traffickers</li>
+   465→   465→<li>Recibes facturas automáticas</li>
+   466→   466→</ul>
+   467→   467→</div>
+   468→   468→<div class="card card-accent">
+   469→   469→<h3>💬 Si eres asesor de ventas</h3>
+   470→   470→<ul>
+   471→   471→<li>Un solo inbox para WhatsApp + Messenger + IG</li>
+   472→   472→<li>La IA responde, muestra productos, cotiza y cierra ventas automáticamente</li>
+   473→   473→<li>Catálogo visual para mandar productos en 1 clic</li>
+   474→   474→<li>La IA filtra a los clientes problemáticos por ti</li>
+   475→   475→<li>Cierras más ventas en menos tiempo</li>
+   476→   476→</ul>
+   477→   477→</div>
+   478→   478→<div class="card card-accent">
+   479→   479→<h3>📦 Si eres operador logístico</h3>
+   480→   480→<ul>
+   481→   481→<li>Ves todos los pedidos en Kanban (arrastra de estado en estado)</li>
+   482→   482→<li>Alertas de paquetes stuck automáticamente</li>
+   483→   483→<li>CRM de novedades con evidencia y mensajes</li>
+   484→   484→<li>Reintentos de entrega automatizados</li>
+   485→   485→<li>Scores de transportadoras para elegir la mejor</li>
+   486→   486→</ul>
+   487→   487→</div>
+   488→   488→<div class="card card-warm">
+   489→   489→<h3>🎯 Si eres trafficker (affiliate)</h3>
+   490→   490→<ul>
+   491→   491→<li>Creas campañas de pauta desde el panel</li>
+   492→   492→<li>Ves qué venden tus anuncios en tiempo real</li>
+   493→   493→<li>Tu wallet acumula comisiones automáticamente</li>
+   494→   494→<li>Retiras con 2FA (seguro, nadie te roba)</li>
+   495→   495→<li>Si el vendedor falla, recibes compensación automática</li>
+   496→   496→</ul>
+   497→   497→</div>
+   498→   498→<div class="card card-warm">
+   499→   499→<h3>📢 Si eres marketing</h3>
+   500→   500→<ul>
+   501→   501→<li>Ves ROAS, CPA, ROI de cada anuncio</li>
+   502→   502→<li>Verdict engine: matar/pausar/escalar con 1 clic</li>
+   503→   503→<li>CAPI server-side: +30% tracking de conversiones</li>
+   504→   504→<li>Detección de canibalización entre ads</li>
+   505→   505→<li>Remarketing automatizado para carritos abandonados</li>
+   506→   506→</ul>
+   507→   507→</div>
+   508→   508→<div class="card card-accent">
+   509→   509→<h3>🛒 Si eres el comprador final</h3>
+   510→   510→<ul>
+   511→   511→<li>Te responden en 3 segundos (no 3 horas)</li>
+   512→   512→<li>Te muestran fotos y precios claramente</li>
+   513→   513→<li>Te cotizan envío al instante</li>
+   514→   514→<li>Te mandan link de pago seguro</li>
+   515→   515→<li>Si hay problema con tu paquete, lo gestionan</li>
+   516→   516→</ul>
+   517→   517→</div>
+   518→   518→</div>
+   519→   519→</section>
+   520→   520→
+   521→   521→<!-- Slide 13: Seguridad explicada simple -->
+   522→   522→<section class="slide">
+   523→   523→<h1>¿Es seguro?</h1>
+   524→   524→<h2>Tu dinero y tus datos están protegidos</h2>
+   525→   525→<div class="grid grid-2">
+   526→   526→<div class="card card-accent">
+   527→   527→<h3>🔐 Tu wallet tiene doble candado</h3>
+   528→   528→<p>Para retirar dinero, necesitas tu teléfono + un código que cambia cada 30 segundos (Google Authenticator). Aunque alguien sepa tu contraseña, no puede retirar sin tu teléfono.</p>
+   529→   529→<p class="text-primary">Esto se llama "2FA" y es lo que usan los bancos.</p>
+   530→   530→</div>
+   531→   531→<div class="card card-accent">
+   532→   532→<h3>🛡️ Cada marca ve solo lo suyo</h3>
+   533→   533→<p>Saramantha no puede ver los pedidos de Lovely Pijamas. Cada marca tiene su espacio separado, como apartamentos diferentes en un edificio. Ni siquiera nosotros podemos mezclar los datos.</p>
+   534→   534→<p class="text-primary">Esto se llama "multi-tenant" y es estándar bancario.</p>
+   535→   535→</div>
+   536→   536→<div class="card card-accent">
+   537→   537→<h3>✅ Nadie puede falsificar mensajes</h3>
+   538→   538→<p>Si alguien intenta mandar un mensaje falso por WhatsApp haciéndose pasar por un cliente, el sistema lo detecta. Cada mensaje viene con una "firma" criptográfica que no se puede falsificar.</p>
+   539→   539→<p class="text-primary">Esto se llama "HMAC" y lo usan todas las apps serias.</p>
+   540→   540→</div>
+   541→   541→<div class="card card-accent">
+   542→   542→<h3>📋 Todo queda registrado</h3>
+   543→   543→<p>Cada venta, cada cambio de estado, cada retiro, cada llamada — todo queda en un registro permanente. Si hay un problema, puedes ver exactamente qué pasó, cuándo, y quién lo hizo.</p>
+   544→   544→<p class="text-primary">Esto se llama "audit trail" y es obligatorio en fintech.</p>
+   545→   545→</div>
+   546→   546→</div>
+   547→   547→<div class="card card-warm">
+   548→   548→<h3>🚫 Lo que NO puede pasar</h3>
+   549→   549→<ul>
+   550→   550→<li>❌ Un trafficker no puede retirar tu dinero sin 2FA</li>
+   551→   551→<li>❌ Una marca no puede ver los datos de otra</li>
+   552→   552→<li>❌ Un mensaje falso no puede entrar sin firma verificada</li>
+   553→   553→<li>❌ Un asesor no puede borrar el historial de ventas</li>
+   554→   554→<li>❌ Un devolvedor no puede comprar sin pago anticipado (si lo configuras)</li>
+   555→   555→</ul>
+   556→   556→</div>
+   557→   557→</div>
+   558→   558→</section>
+   559→   559→
+   560→   560→<!-- Slide 14: Lo que NO hace -->
+   561→   561→<section class="slide">
+   562→   562→<h1>Somos honestos</h1>
+   563→   563→<h2>Lo que ZIAY NO hace (todavía)</h2>
+   564→   564→<div class="thinking">
+   565→   565→<div class="thinking-title">🧠 Pensamiento ágil: expectativas claras</div>
+   566→   566→<p>Ningún producto es perfecto. Esto es lo que ZIAY NO hace hoy, para que tomes una decisión informada:</p>
+   567→   567→</div>
+   568→   568→<div class="grid grid-2">
+   569→   569→<div class="card card-warm">
+   570→   570→<h3>❌ No reemplaza al humano en casos edge</h3>
+   571→   571→<p>La IA hace el 95% del trabajo automáticamente: responde, muestra productos, cotiza, cierra ventas, sigue envíos. El 5% restante (quejas complejas, negociaciones especiales, casos únicos) puede escalar a humano. Pero por defecto, la IA hace todo.</p>
+   572→   572→<p class="text-primary">La IA es tu vendedora automática. Tú solo supervisas.</p>
+   573→   573→</div>
+   574→   574→<div class="card card-warm">
+   575→   575→<h3>❌ No inventa productos</h3>
+   576→   576→<p>La IA solo puede mostrar lo que tú ya cargaste en el catálogo. Si no tienes fotos de calidad ni descripciones, la IA no puede mejorarlas (todavía).</p>
+   577→   577→<p class="text-primary">El enriquecimiento VLM ayuda, pero necesitas fotos básicas.</p>
+   578→   578→</div>
+   579→   579→<div class="card card-warm">
+   580→   580→<h3>❌ No gestiona inventario real (todavía)</h3>
+   581→   581→<p>Los adapters de Shopify/WooCommerce son stubs hoy. Sync de inventario en tiempo real llega en Cycle 3.</p>
+   582→   582→<p class="text-primary">Hoy gestionas inventario manualmente o via NocoDB.</p>
+   583→   583→</div>
+   584→   584→<div class="card card-warm">
+   585→   585→<h3>❌ No hace llamadas por voz (todavía)</h3>
+   586→   586→<p>La IA es texto. Si un cliente prefiere llamada, tienes que hacerla tú. Integración de voz (ASR+TTS) está en el roadmap 2027.</p>
+   587→   587→<p class="text-primary">Pero la IA prepara todos los datos para que la llamada dure 2 min, no 20.</p>
+   588→   588→</div>
+   589→   589→<div class="card card-warm">
+   590→   590→<h3>❌ No garantiza que el cliente pague</h3>
+   591→   591→<p>La IA puede pedir pago anticipado, pero si configuras "contra entrega", el riesgo de no-pago sigue. Lo que sí hace: <strong>detectar a los devolvedores</strong> para que no les aceptes contra entrega.</p>
+   592→   592→</div>
+   593→   593→<div class="card card-warm">
+   594→   594→<h3>❌ No es gratis</h3>
+   595→   595→<p>Cobramos comisión sobre GMV (4.5%/3%/1.75%). Pero como viste en el cálculo, el ROI es 11x — por cada $1 que nos pagas, ganas $11.</p>
+   596→   596→</div>
+   597→   597→</div>
+   598→   598→</section>
+   599→   599→
+   600→   600→<!-- Slide 15: Pensamiento ágil - Decisión -->
+   601→   601→<section class="slide">
+   602→   602→<h1>El momento de decidir</h1>
+   603→   603→<h2>¿Vale la pena?</h2>
+   604→   604→<div class="thinking">
+   605→   605→<div class="thinking-title">🧠 Pensamiento ágil: la decisión</div>
+   606→   606→<p>Hagamos el ejercicio mental. Imagínate en 3 meses:</p>
+   607→   607→</div>
+   608→   608→<div class="grid grid-2">
+   609→   609→<div class="card card-danger">
+   610→   610→<h3>😮‍💨 Sin ZIAY (en 3 meses)</h3>
+   611→   611→<ul>
+   612→   612→<li>Sigues respondiendo WhatsApp a las 11pm</li>
+   613→   613→<li>Perdiste $600K en pauta que no sabes si funcionó</li>
+   614→   614→<li>20% de tus pedidos se devolvieron ($1.2M perdido)</li>
+   615→   615→<li>No sabes cuál marca vende más</li>
+   616→   616→<li>3 asesores quemados, 1 se fue</li>
+   617→   617→<li>Competencia te está ganando clientes</li>
+   618→   618→</ul>
+   619→   619→</div>
+   620→   620→<div class="card card-accent">
+   621→   621→<h3>🚀 Con ZIAY (en 3 meses)</h3>
+   622→   622→<ul>
+   623→   623→<li>IA atiende 24/7, tú cierras lo importante</li>
+   624→   624→<li>ROAS medible, ads malos pausados automáticamente</li>
+   625→   625→<li>Devoluciones reducidas a 5% (detectas devolvedores)</li>
+   626→   626→<li>Dashboard te dice qué marca vende más</li>
+   627→   627→<li>1 asesor + IA = trabajo de 3</li>
+   628→   628→<li>SEO orgánico creciendo cada semana</li>
+   629→   629→<li>+ $15M COP/mes adicionales</li>
+   630→   630→</ul>
+   631→   631→</div>
+   632→   632→</div>
+   633→   633→<div class="money">
+   634→   634→<div class="money-title">💰 La pregunta real</div>
+   635→   635→<p>¿Puedes permitirte <strong>NO</strong> tener ZIAY mientras tu competencia sí lo tiene?</p>
+   636→   636→<p>En commerce conversacional LATAM, el que responde primero gana. Si tu competencia responde en 3 segundos (con IA) y tú en 3 horas (manual), pierdes.</p>
+   637→   637→<p class="text-primary" style="font-weight:700;margin-top:14px">No es "¿puedo pagar ZIAY?" Es "¿puedo permitirme perder clientes por no tenerlo?"</p>
+   638→   638→</div>
+   639→   639→</section>
+   640→   640→
+   641→   641→<!-- Slide 16: Cómo empezar -->
+   642→   642→<section class="slide">
+   643→   643→<h1>Cómo empezar</h1>
+   644→   644→<h2>3 pasos, 24 horas</h2>
+   645→   645→<div class="card card-accent">
+   646→   646→<h3><span class="step-num">1</span> Agenda una demo (30 min)</h3>
+   647→   647→<p>Te mostramos el panel con datos reales de tu industria. Vemos juntos cómo se aplicaría a tu marca. Sin compromiso.</p>
+   648→   648→</div>
+   649→   649→<div class="card card-accent" style="margin-top:16px">
+   650→   650→<h3><span class="step-num">2</span> Activa tu marca (2h)</h3>
+   651→   651→<ul>
+   652→   652→<li>Importamos tu catálogo (CSV o desde Shopify/WooCommerce)</li>
+   653→   653→<li>Conectamos tu WhatsApp Business + Messenger + Instagram</li>
+   654→   654→<li>Configuramos tu estrategia de pago (anticipado/COD/híbrido)</li>
+   655→   655→<li>Creamos tu página web SEO (/t/tumarca)</li>
+   656→   656→<li>Configuramos los 26 agentes con tu tono de voz</li>
+   657→   657→</ul>
+   658→   658→</div>
+   659→   659→<div class="card card-accent" style="margin-top:16px">
+   660→   660→<h3><span class="step-num">3</span> Vende (24h después)</h3>
+   661→   661→<p>La IA empieza a atender. Tú ves los resultados en el dashboard. Semana 1: +30% conversaciones atendidas. Semana 2: +15% ventas. Semana 4: ROAS mejorado 2x.</p>
+   662→   662→</div>
+   663→   663→<div class="grid grid-3" style="margin-top:20px">
+   664→   664→<div class="card"><div class="stat text-primary">30 min</div><div class="stat-label">Para la demo</div></div>
+   665→   665→<div class="card"><div class="stat text-primary">2 horas</div><div class="stat-label">Para activar</div></div>
+   666→   666→<div class="card"><div class="stat text-primary">24 horas</div><div class="stat-label">Para vender más</div></div>
+   667→   667→</div>
+   668→   668→</section>
+   669→   669→
+   670→   670→<!-- Slide 17: Cierre -->
+   671→   671→<section class="slide center">
+   672→   672→<div class="emoji" style="font-size:4em;margin-bottom:24px">💬</div>
+   673→   673→<h1>Hablemos</h1>
+   674→   674→<p class="big text-primary" style="font-weight:600;margin-bottom:16px">Tu competencia ya está respondiendo en 3 segundos</p>
+   675→   675→<p class="muted" style="max-width:580px;line-height:1.6">No te prometemos magia. Te prometemos un sistema que trabaja 24/7, detecta clientes problemáticos, sabe qué pauta funciona, y te ayuda a vender más sin contratar más gente.</p>
+   676→   676→<div class="grid grid-3" style="margin-top:36px;max-width:700px">
+   677→   677→<div class="card"><h3>📅 Demo gratis</h3><p>30 min. Vemos tu caso real.</p></div>
+   678→   678→<div class="card"><h3>🚀 Activación</h3><p>2h. Tu marca funcionando.</p></div>
+   679→   679→<div class="card"><h3>📈 Resultados</h3><p>Semana 1: más ventas.</p></div>
+   680→   680→</div>
+   681→   681→<div style="margin-top:36px;padding:20px 30px;background:var(--surface2);border-radius:14px;border:1px solid var(--border)">
+   682→   682→<p style="font-size:1.1em;margin:0">📧 <strong>ventas@commerceflow.app</strong></p>
+   683→   683→<p style="margin:8px 0 0">📍 Bogotá, Colombia · LATAM</p>
+   684→   684→<p class="muted" style="margin:4px 0 0;font-size:.9em">Indisutex SAS · Saramantha · Majestic · Lovely · Reina</p>
+   685→   685→</div>
+   686→   686→<p class="muted" style="margin-top:30px;font-size:.82em">ZIAY · Comercio Conversacional + Atribución de Pauta<br>No es magia. Es tecnología que trabaja para ti.</p>
+   687→   687→</section>
+   688→   688→
+   689→   689→</div>
+   690→   690→
+   691→   691→<div class="counter" id="counter">1 / 17</div>
+   692→   692→<div class="nav">
+   693→   693→<button onclick="prev()">←</button>
+   694→   694→<button onclick="next()">→</button>
+   695→   695→</div>
+   696→   696→
+   697→   697→<script>
+   698→   698→let current=0;const slides=document.querySelectorAll('.slide');const total=slides.length;
+   699→   699→function show(n){slides[current].classList.remove('active');current=(n+total)%total;slides[current].classList.add('active');updateProgress();}
+   700→   700→function next(){show(current+1)}function prev(){show(current-1)}
+   701→   701→function updateProgress(){document.getElementById('counter').textContent=(current+1)+' / '+total;document.getElementById('progress').style.width=((current+1)/total*100)+'%';}
+   702→   702→document.addEventListener('keydown',e=>{if(e.key==='ArrowRight'||e.key===' ')next();if(e.key==='ArrowLeft')prev();if(e.key==='f')document.documentElement.requestFullscreen?.();});
+   703→   703→// Touch swipe
+   704→   704→let touchStartX=0;document.addEventListener('touchstart',e=>touchStartX=e.touches[0].clientX);
+   705→   705→document.addEventListener('touchend',e=>{const diff=e.changedTouches[0].clientX-touchStartX;if(Math.abs(diff)>50){if(diff<0)next();else prev();}});
+   706→   706→updateProgress();
+   707→   707→</script>
+   708→   708→</body>
+   709→   709→</html>
+   710→   710→

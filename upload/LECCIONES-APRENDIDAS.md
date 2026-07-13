@@ -13,6 +13,7 @@
 | 2026-07-11 | 1.1 | Auto-fixes A/B/C/D + cross-agent integration | Coordinación paralela requiere límites de archivos claros |
 | 2026-07-11 | 2.0 | QA E2E + documentación masiva | Dev server inestable en sandbox de 4GB RAM |
 | 2026-07-11 | 2.1 | Presentación no-técnicos + lecciones | Lenguaje natural > jerga técnica para clientes |
+| 2026-07-11 | 3.0 | Reposicionamiento enterprise (REBRAND-ENTERPRISE-001) | El mensaje interno (26 agentes, 95%) no es el mensaje de venta; enterprise positioning > feature listing |
 
 ---
 
@@ -224,6 +225,27 @@
 
 ---
 
+### L23. El reposicionamiento enterprise reemplaza el feature-listing como mensaje de venta
+**Contexto:** Tras rebrand CommerceFlow OS → ZIAY, todas las presentaciones y docs usaban mensajes internos como headlines: "26 agentes IA", "95% automatizado", "marketplace cross-brand", "wallet para traffickers". Estos features son verdad pero **no son lo que el cliente enterprise compra**.
+
+**Lección:** El mensaje interno (cuántos agentes, qué porcentaje automatiza) NO es el mensaje de venta. El cliente enterprise compra **ingresos trazables, gobernanza, eficiencia operativa, integración con su stack**. Los features concretos (26 agentes, 95%) se mantienen como "cómo lo hacemos", no como "qué vendemos".
+
+**Nuevo marco:** 4 ejes enterprise (Crecimiento medible, Eficiencia operativa, Gobernanza, Integración) y 3 capas de arquitectura (Revenue · Operations · Governance) — cada feature se mapea a uno o más ejes.
+
+**Acción (REBRAND-ENTERPRISE-001):**
+- Tagline nueva: **Revenue Operations para Comercio Agéntico** (reemplaza "Comercio Conversacional + Atribución Inteligente").
+- Reemplazos en todas las presentaciones y docs:
+  - "26 agentes IA" (headline) → **Ingresos trazables de extremo a extremo** (los 26 agentes se mantienen como "cómo lo hacemos")
+  - "95% automatizado" → **Menos costo por venta, más conversión**
+  - "Marketplace cross-brand" (headline) → movido al eje **Integración** como "Monetización adicional"
+  - "Wallet para traffickers" (headline) → movida al eje **Gobernanza** como "Gobernanza financiera"
+  - "Convierte conversaciones en ventas" → **Convierte conversaciones, agentes y canales en ingresos trazables**
+- Las 6 presentaciones HTML + README.md + GUIA-ONBOARDING-CLIENTES.md + LECCIONES-APRENDIDAS.md fueron actualizadas. La tagline nueva aparece en TODOS los archivos.
+
+**Verificación:** `grep -ri 'Revenue Operations para Comercio Agéntico' .` debe retornar al menos 9 archivos (6 HTML + 3 MD).
+
+---
+
 ## ⚠️ Errores Comunes a Evitar
 
 ### E1. Hardcoded fallbacks en seguridad
@@ -317,4 +339,4 @@ const orders = await db.order.findMany({ where: { tenantId } });
 
 ---
 
-*Documento mantenido por el equipo de ZIAY. Última actualización: 2026-07-11.*
+*Documento mantenido por el equipo de ZIAY. Última actualización: 2026-07-11 (reposicionamiento enterprise aplicado). Tagline: **Revenue Operations para Comercio Agéntico**.*

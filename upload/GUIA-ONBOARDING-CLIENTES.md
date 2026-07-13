@@ -1,7 +1,9 @@
 # Guía Maestra de Onboarding para Clientes
-## ZIAY — Tu nuevo asistente de ventas
+## ZIAY — Revenue Operations para Comercio Agéntico
 
-> **Bienvenido a tu nueva forma de vender.** Esta guía te explica, en palabras simples y sin tecnicismos, cómo usar ZIAY para vender más, gastar menos en publicidad, y no perder dinero con clientes problemáticos.
+> **Bienvenido a tu nueva forma de vender.** Esta guía te explica, en palabras simples y sin tecnicismos, cómo usar ZIAY para convertir conversaciones en **ingresos trazables** — con automatización operativa, gobernanza y conexión nativa a tu stack comercial.
+>
+> **Tagline:** _Revenue Operations para Comercio Agéntico_ — la capa enterprise que convierte conversaciones, agentes y canales digitales en ingresos trazables.
 >
 > **No necesitas saber de tecnología.** Solo necesitas saber vender por WhatsApp.
 >
@@ -79,7 +81,7 @@ Es un **panel de control** donde gestionas todas tus ventas por WhatsApp, Messen
 - ❌ No es un bot de WhatsApp que responde "Gracias por escribir, te responderemos pronto"
 - ❌ No es un CRM aburrido donde tienes que llenar campos manualmente
 - ❌ No es una tienda online como Shopify (aunque se conecta con Shopify)
-- ❌ No reemplaza al humano en casos edge — la IA hace el 95% automáticamente, el humano solo supervisa o interviene en casos especiales
+- ❌ No reemplaza al humano en casos edge — la IA hace el grueso del trabajo automáticamente (**menos costo por venta, más conversión**), el humano solo supervisa o interviene en casos especiales
 
 ### ¿Para quién es?
 
@@ -112,7 +114,7 @@ Existen muchas herramientas de WhatsApp, CRMs, y plataformas de pauta. Pero **ni
 
 ---
 
-#### 🏆 2. 26 agentes IA especializados trabajando en equipo
+#### 🏆 2. Automatización operativa end-to-end (26 agentes en equipo)
 
 **El problema:** Los bots de WhatsApp normales responden "Gracias por escribir, te contactaremos pronto". No venden, no cotizan, no cierran.
 
@@ -120,7 +122,7 @@ Existen muchas herramientas de WhatsApp, CRMs, y plataformas de pauta. Pero **ni
 
 **Lo que hacemos nosotros:** 26 agentes IA especializados, cada uno experto en una tarea (perfilamiento, catálogo, carrito, cotización, objeciones, dirección, logística, checkout, seguimiento, novedades, remarketing). Trabajan en secuencia automáticamente — del "Hola" al "Pedido entregado" sin intervención humana.
 
-**Tu beneficio:** 95% del trabajo automatizado. Tu equipo solo supervisa.
+**Tu beneficio:** menos costo por venta, más conversión. Tu equipo solo supervisa, con trazabilidad de ingresos y gobernanza sobre cada transición.
 
 ---
 
@@ -225,7 +227,7 @@ Existen muchas herramientas de WhatsApp, CRMs, y plataformas de pauta. Pero **ni
 | # | Diferenciador | Quién más lo hace | Tu beneficio |
 |---|---|---|---|
 | 1 | Detección de devolvedores | Nadie | $600K/mes ahorrado |
-| 2 | 26 agentes IA en equipo | Chatbots simples | 95% automatizado |
+| 2 | Automatización operativa end-to-end | Chatbots simples | Menos costo por venta, más conversión |
 | 3 | Atribución real de pauta | Solo pixel | $900K/mes ahorrado |
 | 4 | Verdict engine automático | Manual | 24/7 optimización |
 | 5 | CAPI server-side | Solo pixel | +30% tracking |
@@ -539,11 +541,11 @@ Aquí ajustas cómo funciona ZIAY para ti. Es como el control remoto de tu TV: c
 
 ---
 
-## 5. Tus 26 asistentes
+## 5. Cómo lo hacemos: tus 26 asistentes
 
 ### Conoce a tu equipo virtual
 
-Tienes 26 asistentes virtuales, cada uno experto en una cosa. No los vas a usar todos todos los días, pero es bueno saber qué hace cada uno. Los dividimos en 3 equipos:
+Tienes 26 asistentes virtuales, cada uno experto en una cosa. No los vas a usar todos todos los días, pero es bueno saber qué hace cada uno. Los dividimos en 3 equipos — esta es nuestra forma de implementar **automatización operativa end-to-end** (uno de los 4 ejes enterprise):
 
 ### 🛒 Equipo A: Antes de vender (10 asistentes)
 
@@ -1154,7 +1156,7 @@ El módulo de Novedades te muestra 1 caso:
 No. Si sabes usar WhatsApp, sabes usar ZIAY. Todo es visual e intuitivo.
 
 **¿La IA reemplaza a mi equipo de ventas?**
-Sí, en el 95% de los casos. La IA responde, muestra productos, cotiza, cierra ventas y sigue envíos automáticamente. El humano solo interviene en casos edge (quejas complejas, negociaciones especiales). Por defecto, la IA hace todo.
+Sí, en la mayoría de los casos. La IA responde, muestra productos, cotiza, cierra ventas y sigue envíos automáticamente. El humano solo interviene en casos edge (quejas complejas, negociaciones especiales). Por defecto, la IA hace todo — **menos costo por venta, más conversión**.
 
 **¿Qué pasa si la IA se equivoca?**
 La IA aprende y mejora continuamente. Si comete un error, puedes corregirlo y el sistema lo registra. Por defecto la IA actúa sola, pero siempre puedes intervenir, pausar la IA para un cliente específico, o configurar revisión humana para ciertos tipos de mensajes.
@@ -1308,7 +1310,7 @@ La IA empieza a atender. Tú ves los resultados en el dashboard:
 
 | | |
 |---|---|
-| 📧 | ventas@commerceflow.app |
+| 📧 | ventas@ziay.co |
 | 📍 | Bogotá, Colombia · LATAM |
 | ⏱️ | 30 min para la demo |
 | 🚀 | 2h para activar |
@@ -1335,6 +1337,6 @@ También atiende a clientes externos con catálogos propios. Si quieres que tu m
 
 ---
 
-> **ZIAY** · Comercio Conversacional + Atribución de Pauta
+> **ZIAY** · Revenue Operations para Comercio Agéntico — la capa enterprise que convierte conversaciones, agentes y canales en ingresos trazables
 > 
 > *No es magia. Es tecnología que trabaja para ti.*

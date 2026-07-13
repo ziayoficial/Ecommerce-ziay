@@ -10,7 +10,7 @@
 | Atributo | Valor |
 |---|---|
 | **Nombre del producto** | ZIAY |
-| **Tagline** | Comercio Conversacional + Atribución Inteligente |
+| **Tagline** | Revenue Operations para Comercio Agéntico |
 | **Empresa** | Indisutex SAS |
 | **Mercado** | LATAM (Colombia, México, Perú, Chile, Argentina) |
 | **Marcas demo** | Saramantha, Sublimados Majestic, Lovely Pijamas, Sueño de Reina |

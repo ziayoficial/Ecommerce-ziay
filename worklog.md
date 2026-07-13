@@ -2808,3 +2808,177 @@ identical to before; the only new behaviour is on the error path.
   imports Prisma — these files MUST NOT be imported from client
   components. The barrel `index.ts` makes this obvious (one import site
   to audit).
+
+---
+
+## REBRAND-ENTERPRISE-001 — Senior Brand Strategist + Presentation Designer
+
+### Task
+Aplicar el **reposicionamiento enterprise** de ZIAY a las 6 presentaciones
+HTML y 3 MDs clave, reemplazando el viejo messaging interno
+("26 agentes IA", "95% automatizado", "Comercio Conversacional +
+Atribución Inteligente") por el nuevo framing enterprise:
+
+- **Tagline:** "Revenue Operations para Comercio Agéntico"
+- **4 ejes:** Crecimiento medible, Eficiencia operativa, Gobernanza,
+  Integración
+- **3 capas:** Revenue Layer · Operations Layer · Governance Layer
+- **Lead feature:** "Ingresos trazables de extremo a extremo" (los 26
+  agentes quedan como "cómo lo hacemos", no como headline)
+- **"95% automatizado" →** "Menos costo por venta, más conversión"
+- **"marketplace cross-brand" / "wallet para traffickers" como headline →**
+  movidos a Integración / Gobernanza respectivamente
+
+### Archivos editados (todos verificados con grep del nuevo tagline)
+
+1. `upload/PRESENTACION-CLIENTES-COMPLETA.html` (3× tagline)
+   - Slide 1 (Title): tagline + subtitle "La capa enterprise que
+     convierte conversaciones en ingresos trazables"
+   - Slide 2.5 (NUEVO): "4 Ejes Enterprise" con grid-4 cards
+   - Slide 2.6 (NUEVO): "3 Capas de Arquitectura" con grid-3 cards
+   - Slide 3 (Nuestra Solución): card "26 Agentes IA" → "Ingresos
+     trazables de extremo a extremo"
+   - Slide 7: "26 Agentes Conversacionales" → "Automatización operativa
+     end-to-end · cómo lo hacemos"
+   - Slide 25 (ROI): "Reducción de Tiempo Operativo / Aumento de
+     Conversión / Atribución Precisa / Rentabilidad" → reescrito en
+     lenguaje enterprise mapeado a los 4 ejes
+   - Slide 26 (Cierre): footer con nueva tagline
+   - Counter actualizado: 26 → 28 slides
+
+2. `upload/PRESENTACION-NO-TECNICOS.html` (3× tagline)
+   - Slide 1 (Portada): tagline + subtitle "Convertimos conversaciones
+     en ventas medibles y operables"
+   - Slide 5: "¿Qué hace la IA por ti?" → "Más conversación, menos
+     costo, mejor control · cómo lo hacemos: 26 asistentes…"
+   - Slide 14: "95% del trabajo" → "menos costo por venta, más
+     conversión" + mención explícita de trazabilidad y gobernanza
+   - Slide 17 (Cierre): badges de los 4 ejes + mención de las 3 capas
+   - "commerce conversacional" → "comercio agéntico" (slide 15)
+
+3. `upload/PRESENTACION-DIFERENCIADORES.html` (3× tagline)
+   - Title: "Por Qué Somos Únicos" → "Ventaja Competitiva Enterprise"
+   - 11 diferenciadores reframeados (① Control de riesgo financiero,
+     ② Automatización operativa end-to-end, ③ Trazabilidad de ingresos
+     por canal, ④ Optimización automática de inversión, ⑤ Atribución
+     confiable lista para auditoría, ⑥ Gestión operativa con SLA,
+     ⑦ Gobernanza financiera, ⑧ Crecimiento orgánico medible,
+     ⑨ Aislamiento de datos enterprise, ⑩ Monetización adicional,
+     ⑪ Experiencia unificada sin fricción)
+   - Slide 13 (Resumen): tabla con columna "Eje" (Gobernanza / Eficiencia
+     operativa / Crecimiento medible / Integración) mapeando cada
+     diferenciador
+   - Slide 14 (ROI): "16x" → "ROI demostrable con evidencia before/after"
+   - Slide 15 (Cierre): agrega mención de las 3 capas
+
+4. `upload/PRESENTACION-STACK-COMPLETO.html` (1× tagline)
+   - Slide 1: "Stack Tecnológico Completo" → "Stack Tecnológico Completo
+     para Revenue Operations" + tagline en subtítulo
+   - Slide 2 (Overview): reformateada como tabla "Capa Arquitectura ×
+     Eje Enterprise × Tecnologías × Propósito"
+   - Slide 2.5 (NUEVO): "3 Capas de Arquitectura" con detalle de cada
+     capa y su eje correspondiente
+   - Counter actualizado: 25 → 26 slides
+
+5. `upload/PRESENTACION-E2E-TESTS.html` (1× tagline)
+   - Slide 1 (Cover): eyebrow "QA · E2E Test Report" → "Evidencia de
+     Confiabilidad Enterprise"; título H1 reformateado con "Enterprise"
+   - Slide 25 (Conclusión): "Production-ready" → "Confiabilidad
+     enterprise" + badges adicionales ("4 ejes enterprise verificados",
+     "3 capas con trazabilidad"); footer brand actualizado a
+     "Revenue Operations · QA Evidence"
+
+6. `upload/PRESENTACION-CUSTOMER-JOURNEYS.html` (1× tagline)
+   - Slide 1 (Cover): eyebrow "Customer Journeys" → "Trazabilidad de
+     Extremo a Extremo"; H1 + lede con tagline enterprise
+   - Journey index (J1–J8): cada card actualizada para indicar qué eje
+     demuestra (J1 Eficiencia operativa, J2 Gobernanza + Crecimiento
+     medible, J4 Gobernanza, J5 Integración, J7 Gobernanza + Crecimiento
+     medible, J8 Eficiencia operativa · SLA, etc.)
+   - 26 footers (`<b>ZIAY</b> OS · Customer Journeys`) reemplazados por
+     `<b>ZIAY</b> OS · Revenue Operations · Trazabilidad E2E` vía sed
+   - Slide 26 (Conclusión): "Customer-centric by design" → "Trazabilidad
+     de extremo a extremo"; KPI tiles (8/26/62/9) reformateadas como
+     "8 journeys con ingresos trazables / 4 ejes enterprise cubiertos /
+     3 capas / 62 modelos DB trazables"
+
+7. `README.md` (NUEVO, 4× tagline) — no existía; creado con:
+   - Posicionamiento enterprise + mensaje core + tagline
+   - Sección "4 Ejes Enterprise" con tabla feature → eje
+   - Sección "3 Capas de Arquitectura" (Revenue · Operations ·
+     Governance)
+   - Sección "Mensajes que NO lideran" (26 agentes / 95% /
+     marketplace / wallet) explicando el reposicionamiento
+   - Tabla de key replacements
+   - Stack técnico resumen + índice de documentación
+
+8. `upload/GUIA-ONBOARDING-CLIENTES.md` (3× tagline)
+   - H1: "Tu nuevo asistente de ventas" → "Revenue Operations para
+     Comercio Agéntico" + tagline destacada
+   - Diferenciador #2: "26 agentes IA especializados" → "Automatización
+     operativa end-to-end (26 agentes en equipo)"
+   - "95% del trabajo automatizado" → "menos costo por venta, más
+     conversión" (3 sitios)
+   - Tabla resumen diferenciadores: fila 2 actualizada
+   - Sección 5: "Tus 26 asistentes" → "Cómo lo hacemos: tus 26
+     asistentes"
+   - Footer: tagline nueva
+
+9. `upload/LECCIONES-APRENDIDAS.md` (3× tagline)
+   - Version history: agregada entrada v3.0
+     (REBRAND-ENTERPRISE-001)
+   - **Lección L23 nueva:** "El reposicionamiento enterprise reemplaza
+     el feature-listing como mensaje de venta" — documenta el
+     contexto, la lección, el nuevo marco (4 ejes + 3 capas), los
+     reemplazos aplicados, y el comando de verificación
+   - Footer: "última actualización 2026-07-11 (reposicionamiento
+     enterprise aplicado). Tagline: Revenue Operations para Comercio
+     Agéntico"
+
+### Copia a public/presentaciones/
+Las 6 presentaciones HTML + GUIA-ONBOARDING-CLIENTES.md fueron
+copiadas a `public/presentaciones/` para servirse públicamente.
+
+### Verificación de completion criteria
+
+- ✅ Tagline "Revenue Operations para Comercio Agéntico" aparece en los
+  9 archivos (upload/ + README.md) y en los 7 archivos en
+  public/presentaciones/
+- ✅ 4 ejes mencionados en las 3 main presentations (clientes: 12,
+  no-tecnicos: 5, diferenciadores: 12)
+- ✅ 3 capas mencionadas en las 3 main presentations (clientes: 7,
+  no-tecnicos: 1, diferenciadores: 1)
+- ✅ "26 agentes IA" ya NO es headline (reframed a "cómo lo hacemos"
+  en clientes, no-tecnicos, diferenciadores, guia-onboarding)
+- ✅ "95% automatizado" reemplazado por "Menos costo por venta, más
+  conversión" (no-tecnicos, guia-onboarding)
+- ✅ "marketplace cross-brand" y "wallet para traffickers" dejaron de
+  ser headlines — movidos a Integración y Gobernanza respectivamente
+- ✅ Visual design intacto: CSS, layout, scripts, estructura HTML
+  preservados; solo se cambió texto
+- ✅ `bun run lint` → exit 0 (clean; los HTML/MD no afectan el lint
+  pero se corrió por protocolo)
+
+### Notas para futuros agentes
+
+- **OUT OF SCOPE — no se tocaron pero contienen el viejo tagline:**
+  `upload/RESUMEN-TECNICO-COMPLETO.md` y
+  `upload/onboarding-end-to-end.md` (no estaban en el file scope). Si
+  se quiere consistencia total, el próximo agente debería actualizar la
+  fila `Tagline` en RESUMEN-TECNICO-COMPLETO.md y el framing en
+  onboarding-end-to-end.md.
+- **El counter de slides en PRESENTACION-CLIENTES-COMPLETA.html y
+  PRESENTACION-STACK-COMPLETO.html fue actualizado manualmente** (26→28
+  y 25→26 respectivamente) porque agregamos slides nuevos. El JS calcula
+  dinámicamente `total`, pero el HTML estático del counter debe coincidir
+  o el primer render muestra un número incorrecto.
+- **Los 26 footers de PRESENTACION-CUSTOMER-JOURNEYS.html fueron
+  actualizados con `sed -i`** (un solo commando, reemplazo global). Es
+  el único archivo donde se usó sed en vez de MultiEdit porque el patrón
+  era idéntico en 25 sitios.
+- **README.md fue CREADO desde cero** porque no existía en
+  `/home/z/my-project/`. La raíz del repo no tenía README antes de este
+  task.
+- **Patrón de reposicionamiento replicable:** la estructura "4 ejes × 3
+  capas × mapping tabla" puede aplicarse a futuros docs/presentaciones
+  para mantener consistencia de brand.

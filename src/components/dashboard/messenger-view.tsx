@@ -200,9 +200,9 @@ export function MessengerView() {
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr_300px] gap-4 lg:h-[calc(100vh-13rem)] lg:max-h-[calc(100vh-13rem)] animate-fade-in-up lg:overflow-hidden">
+    <div className="flex flex-col lg:grid lg:grid-cols-[320px_1fr_300px] gap-4 animate-fade-in-up" style={{ minHeight: '500px' }}>
       {/* Conversation list */}
-      <Card className="flex flex-col overflow-hidden lg:max-h-full">
+      <Card className="flex flex-col overflow-hidden h-[400px] lg:h-auto lg:max-h-[calc(100vh-13rem)]">
         <div className="p-3 border-b space-y-2">
           <div className="flex items-center justify-between">
             <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Conversaciones</h3>
@@ -316,7 +316,7 @@ export function MessengerView() {
       </Card>
 
       {/* Thread */}
-      <Card className="flex flex-col overflow-hidden lg:max-h-full lg:min-h-0">
+      <Card className="flex flex-col overflow-hidden min-h-[500px] lg:min-h-0 lg:max-h-[calc(100vh-13rem)]">
         {!active ? (
           <div className="flex-1 flex flex-col items-center justify-center gap-3 p-8 text-center bg-muted/20">
             <div className="size-16 rounded-2xl bg-primary/10 ring-1 ring-primary/20 flex items-center justify-center">
@@ -359,7 +359,7 @@ export function MessengerView() {
             </div>
 
             {/* Messages */}
-            <div ref={threadRef} className="flex-1 min-h-0 max-h-[60vh] lg:max-h-none overflow-y-auto p-4 space-y-2 bg-muted/20 scroll-thin" aria-live="polite">
+            <div ref={threadRef} className="flex-1 min-h-0 overflow-y-auto p-4 space-y-2 bg-muted/20 scroll-thin" aria-live="polite">
               {/* Date separator */}
               <div className="flex items-center justify-center my-2">
                 <div className="text-[10px] uppercase tracking-wider text-muted-foreground bg-muted/60 px-3 py-1 rounded-full">Hoy</div>
@@ -551,7 +551,7 @@ export function MessengerView() {
       </Card>
 
       {/* Customer panel */}
-      <Card className="hidden lg:flex flex-col overflow-hidden">
+      <Card className="hidden lg:flex flex-col overflow-hidden lg:max-h-[calc(100vh-13rem)]">
         {!active ? (
           <div className="flex-1 flex flex-col items-center justify-center p-6 text-center gap-2">
             <div className="size-12 rounded-xl bg-muted/60 ring-1 ring-border flex items-center justify-center">

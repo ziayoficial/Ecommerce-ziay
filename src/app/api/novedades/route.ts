@@ -20,6 +20,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireTenantAccess } from '@/lib/auth-helpers'
+import { getLogger } from '@/lib/logger'
+
+const log = getLogger('api:novedades')
 
 const VALID_TYPES = [
   'paquete_perdido',
@@ -194,6 +197,10 @@ export async function POST(req: NextRequest) {
     return created
   })
 
+  log.info(
+    { tenantId, caseId: newCase.id, caseNumber: newCase.caseNumber, type, priority, orderId: orderId || null },
+    'case created',
+  )
   return NextResponse.json({ case: newCase }, { status: 201 })
 }
 
@@ -282,6 +289,7 @@ export async function PATCH(req: NextRequest) {
         })
         return c
       })
+      log.info({ tenantId, caseId, caseNumber: existing.caseNumber }, 'case resolved')
       return NextResponse.json({ case: updated })
     }
 
@@ -334,6 +342,7 @@ export async function PATCH(req: NextRequest) {
         })
         return c
       })
+      log.warn({ tenantId, caseId, caseNumber: existing.caseNumber }, 'case escalated')
       return NextResponse.json({ case: updated })
     }
 

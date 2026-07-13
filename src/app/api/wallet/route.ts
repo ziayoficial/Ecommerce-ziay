@@ -22,6 +22,9 @@ import { requireAuth } from '@/lib/auth-helpers'
 import { generateTOTPSecret, verifyTOTP, hashBackupCodes } from '@/lib/totp'
 import { rateLimit } from '@/lib/middleware/rate-limit'
 import { captureError } from '@/lib/capture-error'
+import { getLogger } from '@/lib/logger'
+
+const log = getLogger('api:wallet')
 
 // ───────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -231,6 +234,7 @@ export async function POST(req: NextRequest) {
           enabled: false,
         },
       })
+      log.info({ traffickerId: trafficker.id }, '2fa setup initiated')
       return NextResponse.json({ secret: plainSecret, uri, backupCodes: plainBackupCodes })
     }
 
@@ -256,6 +260,7 @@ export async function POST(req: NextRequest) {
         where: { id: cfg.id },
         data: { enabled: true, enabledAt: new Date() },
       })
+      log.info({ traffickerId: trafficker.id, enabledAt: updated.enabledAt }, '2fa verified — enabled')
       return NextResponse.json({ enabled: updated.enabled, enabledAt: updated.enabledAt })
     }
 
@@ -355,6 +360,10 @@ export async function POST(req: NextRequest) {
           status: totpVerified ? 'pending_processing' : 'pending_2fa',
         },
       })
+      log.info(
+        { traffickerId: trafficker.id, withdrawalId: withdrawal.id, amount: amt, fee, net, totpRequired, totpVerified },
+        'withdrawal request created',
+      )
       return NextResponse.json({ withdrawal })
     }
 
@@ -445,6 +454,10 @@ export async function POST(req: NextRequest) {
         })
         return updated
       })
+      log.info(
+        { traffickerId: trafficker.id, withdrawalId: w.id, amount: w.amount, balanceBefore, balanceAfter, externalReference: externalReference || null },
+        'withdrawal processed — balance debited',
+      )
       return NextResponse.json({ withdrawal: result, balance: balanceAfter })
     }
 

@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireTenantAccess } from '@/lib/auth-helpers'
 import { captureError } from '@/lib/capture-error'
+import { getLogger } from '@/lib/logger'
+
+const log = getLogger('api:conversions')
 
 // Conversions — server-side pixel firing (Meta CAPI, Google MP, Tiktok Events API).
 //
@@ -74,6 +77,11 @@ export async function POST(req: NextRequest) {
     where: { tenantId, active: true },
   })
 
+  log.info(
+    { tenantId, eventType, value, currency, pixels: pixels.length },
+    'conversion event fire',
+  )
+
   if (pixels.length === 0) {
     const event = await db.conversionEvent.create({
       data: {
@@ -133,6 +141,17 @@ export async function POST(req: NextRequest) {
       status: result.status,
       response: result.response,
     })
+    if (result.status === 'sent') {
+      log.info(
+        { tenantId, platform: pixel.platform, pixelConfigId: pixel.id, eventType },
+        'platform fire success',
+      )
+    } else {
+      log.warn(
+        { tenantId, platform: pixel.platform, pixelConfigId: pixel.id, eventType, response: result.response },
+        'platform fire failed',
+      )
+    }
   }
 
   const anySent = results.some((r) => r.status === 'sent')

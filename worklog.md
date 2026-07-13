@@ -2344,3 +2344,139 @@ Only where 2+ writes need atomicity. Single-write routes left untouched.
    to the catalog/sync POST handler.
 
 ### STATUS: ✅ COMPLETE — 5 APIs cached, 4 APIs transactional, 1 global rate limiter, 2 lib helpers added
+
+---
+
+## SPRINT3-REFACTOR-001 — Senior Software Architect
+
+**Scope:** Refactor 3 oversized files (`prompts.ts` 935L, `novedades-view.tsx` 1296L,
+6 critical API routes) into smaller, focused modules. Add structured logging.
+**Zero behavior changes** — only file layout changes + log lines.
+
+### PART 1 — `src/lib/agents/prompts.ts` (935L → 11L barrel + 28 files)
+
+Created `src/lib/agents/prompts/` directory:
+- `types.ts` — `AgentName` union + `AgentContext` interface (extracted)
+- `index.ts` — barrel: re-exports 26 builders, types, `AGENT_NAMES`,
+  `AGENT_LABELS`, `buildAgentPrompt` router, and **`FALLBACKS` map**
+  (moved here from `src/app/api/orchestrate/route.ts`)
+- 26 files, one per agent: `profile.ts`, `speech.ts`, `quote.ts`, `catalog.ts`,
+  `theme.ts`, `objection.ts`, `address.ts`, `logistics.ts`, `vision.ts`,
+  `checkout.ts`, `buyer_behavior.ts`, `cart_builder.ts`, `guide_tracking.ts`,
+  `novedades.ts`, `redelivery.ts`, `remarketing.ts`, `guide_alert.ts`,
+  `sales_retainer.ts`, `logistics_notifier.ts`, `customer_score.ts`,
+  `carrier_score.ts`, `product_enrichment.ts`, `marketplace.ts`,
+  `affiliator.ts`, `traffic_orchestrator.ts`, `address_analysis.ts`
+
+`src/lib/agents/prompts.ts` is now an 11-line re-export (`export * from './prompts/index'`).
+Existing imports in `api/orchestrate`, `api/agents`, `api/agents/[agentName]`
+keep working unchanged.
+
+**CRITICAL — byte-for-byte identical prompts.** Each builder file contains the
+exact `system` and `user` template strings from the original. Only the file
+layout changed. The `FALLBACKS` map is byte-for-byte identical to what used to
+be inline in the orchestrate route.
+
+### PART 2 — Structured logging added to 6 API routes
+
+All use `import { getLogger } from '@/lib/logger'` and
+`const log = getLogger('api:<route>')`:
+
+| Route | Events logged |
+|-------|---------------|
+| `api/orchestrate` | `agent start` (per step), `agent complete` (replyLen), `agent error — fallback used` (log.error), `pipeline complete` (steps + error count) |
+| `api/wallet` | `2fa setup initiated`, `2fa verified — enabled`, `withdrawal request created`, `withdrawal processed — balance debited` |
+| `api/novedades` | `case created`, `case resolved` (info), `case escalated` (warn) |
+| `api/redelivery` | `redelivery request created`, `redelivery attempt scheduled`, `redelivery completed` |
+| `api/conversions` | `conversion event fire`, `platform fire success` (info per-pixel), `platform fire failed` (warn per-pixel) |
+| `api/trafficker` | Already had `getLogger` + `log.info` for all 4 required events (sale register, sale confirm, sale fail, withdraw) — no changes needed |
+
+All log lines use pino's structured-object API:
+`log.info({ tenantId, caseId, ... }, 'message')`. Sensitive fields
+(`password`, `token`, `apiKey`, `secret`) are auto-redacted by the global
+pino config in `src/lib/logger.ts`.
+
+### PART 3 — `novedades-view.tsx` (1296L → 8L barrel + 7 files)
+
+Created `src/components/dashboard/novedades/` directory:
+- `shared.tsx` — types (`CaseRow`, `Evidence`, `Message`, `CaseDetail`,
+  `RedeliveryAttempt`, `RedeliveryRequest`) + helpers (`CASE_TYPE_META`,
+  `caseStatusMeta`, `redeliveryStatusMeta`, `attemptStatusMeta`,
+  `evidenceTypeMeta`, `messageRoleMeta`) + `StatCard`
+- `novedades-list.tsx` — `NovedadesList` (left filter + cases list)
+- `novedades-detail.tsx` — `CaseDetailPanel` (right panel: evidence, messages,
+  resolution form, actions, inline evidence Dialog)
+- `novedades-redelivery.tsx` — `RedeliveryTab` (filter strip + cards grid +
+  empty/loading) + `RedeliveryCard`
+- `novedades-history.tsx` — `HistoryTab` (read-only resolved/closed table)
+- `novedades-dialogs.tsx` — `CreateCaseDialog` + `CreateRedeliveryDialog`
+- `index.tsx` — `NovedadesView` (state machine + composition)
+
+`src/components/dashboard/novedades-view.tsx` is now an 8-line re-export
+(`export { NovedadesView } from './novedades/index'`). The single consumer
+(`src/app/page.tsx`) keeps working unchanged.
+
+**CRITICAL — UI is byte-for-byte identical.** All JSX, all classnames, all
+event handlers, all toast messages — copied verbatim. `NovedadesView` (in
+`index.tsx`) owns ALL the state and passes data down to the presentational
+sub-components via props. Sub-components contain NO new data fetching
+(only the inline PATCH/POST calls that were already in the original).
+
+### Verification
+
+| Check | Result |
+|-------|--------|
+| `bun run lint` (ESLint) | ✅ clean |
+| `npx tsc --noEmit` (TypeScript) | ✅ clean |
+| `bunx vitest run` (vitest) | ✅ 6 files / 65 tests all pass |
+| Dev server (`dev.log`) | ✅ Ready in 92ms, no compile errors |
+
+### Notes for future agents
+1. **Agent file naming convention** — `prompts/{agent_name}.ts` uses the
+   snake_case `AgentName` union value; exported function is `build<PascalCase>Prompt`.
+   To add agent #27: new file + 1 `export { … }` line + 1 eager import +
+   1 `case '…'` in `prompts/index.ts` + entries in `AGENT_NAMES`,
+   `AGENT_LABELS`, `FALLBACKS`.
+2. **`FALLBACKS` lives in `@/lib/agents/prompts` now** — don't redeclare it
+   in any route. Edit `prompts/index.ts` to change a fallback; every consumer
+   sees the update.
+3. **Logger conventions** — every state-changing API route should:
+   `log.info({ ...ids }, '<event>')` on success,
+   `log.warn({ ...ids, response })` on soft failure,
+   `log.error({ ...ids, err }, '<event>')` on hard failure. Never log raw
+   PII (phone, email, address) in the payload.
+4. **Novedades sub-component boundaries** — sub-components are pure /
+   presentational. ALL state lives in `NovedadesView` (`novedades/index.tsx`)
+   and is passed down as props. To add a new tab: create
+   `novedades/<tab>.tsx` exporting a `<X>Tab` component, then add the
+   `<TabsTrigger>` + `<TabsContent>` in `index.tsx`.
+5. **`shared.tsx` is the contract** — all novedades sub-components import
+   types and helpers from `./shared`. Update a type there and every consumer
+   sees the change automatically.
+
+### Files updated — prompts refactor
+- `src/lib/agents/prompts.ts` — 935L → 11L re-export barrel
+- `src/lib/agents/prompts/types.ts` — NEW (AgentName + AgentContext)
+- `src/lib/agents/prompts/index.ts` — NEW (barrel + router + FALLBACKS)
+- `src/lib/agents/prompts/{26 agent files}.ts` — NEW (one builder per file)
+
+### Files updated — novedades split
+- `src/components/dashboard/novedades-view.tsx` — 1296L → 8L re-export barrel
+- `src/components/dashboard/novedades/{7 files}.tsx` — NEW
+
+### Files updated — logging
+- `src/app/api/orchestrate/route.ts` — added `getLogger('api:orchestrate')`,
+  removed inline `FALLBACKS` (now imported from `@/lib/agents/prompts`),
+  added `agent start/complete/error` + `pipeline complete` log lines
+- `src/app/api/wallet/route.ts` — added `getLogger('api:wallet')`,
+  log lines on 2FA setup/verify + withdrawal request/process
+- `src/app/api/novedades/route.ts` — added `getLogger('api:novedades')`,
+  log lines on case create/resolve/escalate
+- `src/app/api/redelivery/route.ts` — added `getLogger('api:redelivery')`,
+  log lines on request create/attempt schedule/complete
+- `src/app/api/conversions/route.ts` — added `getLogger('api:conversions')`,
+  log lines on event fire + per-platform success/fail
+- `src/app/api/trafficker/route.ts` — already had `getLogger` + all 4 required
+  log lines; no changes
+
+### STATUS: ✅ COMPLETE — 3 files refactored into 35+ focused modules, 6 API routes logged, all tests green.

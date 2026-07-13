@@ -19,6 +19,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireTenantAccess } from '@/lib/auth-helpers'
+import { getLogger } from '@/lib/logger'
+
+const log = getLogger('api:redelivery')
 
 // ───────────────────────────────────────────────────────────────────────────
 // GET
@@ -123,6 +126,10 @@ export async function POST(req: NextRequest) {
     return { request: created, attempt: firstAttempt }
   })
 
+  log.info(
+    { tenantId, redeliveryId: request.id, guideNumber: request.guideNumber, attemptNumber: 1 },
+    'redelivery request created',
+  )
   return NextResponse.json({ request, attempt }, { status: 201 })
 }
 
@@ -197,6 +204,10 @@ export async function PATCH(req: NextRequest) {
         }
         return r
       })
+      log.info(
+        { tenantId, redeliveryId, attemptId: latestAttempt?.id, scheduledAt: when.toISOString() },
+        'redelivery attempt scheduled',
+      )
       return NextResponse.json({ request: updated })
     }
 
@@ -231,6 +242,10 @@ export async function PATCH(req: NextRequest) {
         }
         return r
       })
+      log.info(
+        { tenantId, redeliveryId, attemptId: latestAttempt?.id, attemptNumber: latestAttempt?.attemptNumber },
+        'redelivery completed',
+      )
       return NextResponse.json({ request: updated })
     }
 

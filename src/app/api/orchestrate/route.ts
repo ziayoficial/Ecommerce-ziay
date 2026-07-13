@@ -18,12 +18,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-helpers'
 import { db } from '@/lib/db'
-import { AGENT_LABELS, AgentName, buildAgentPrompt } from '@/lib/agents/prompts'
+import { AGENT_LABELS, AgentName, buildAgentPrompt, FALLBACKS } from '@/lib/agents/prompts'
 import {
   ORCHESTRATOR_STEPS, ORCHESTRATOR_SCENARIOS, OrchestratorStepId, OrchestratorScenario,
 } from '@/lib/orchestrator/constants'
 import { captureError } from '@/lib/capture-error'
+import { getLogger } from '@/lib/logger'
 import ZAI from 'z-ai-web-dev-sdk'
+
+const log = getLogger('api:orchestrate')
 
 async function callAgent(agentName: AgentName, ctx: {
   tenantId: string
@@ -46,36 +49,6 @@ async function callAgent(agentName: AgentName, ctx: {
     thinking: { type: 'disabled' },
   })
   return completion.choices[0]?.message?.content?.trim() || ''
-}
-
-const FALLBACKS: Record<AgentName, string> = {
-  profile: ' mayorista',
-  speech: '¡Hola! ¿Qué producto te interesa?',
-  quote: '¿Qué productos y cantidades quieres cotizar?',
-  catalog: '¿Qué tema o producto buscas?',
-  theme: '¿Qué personaje o tema te gusta?',
-  objection: 'Entiendo. ¿Te confirmo el pedido?',
-  address: '¿Cuál es tu ciudad y dirección completa?',
-  logistics: '¿A qué ciudad enviamos y cuántas unidades?',
-  vision: 'Por favor envíame una foto clara del producto para identificarlo.',
-  checkout: '¿Confirmas el pedido?',
-  // BUILD-AGENTS-LIB-001 — 16 new agent fallbacks (generic)
-  buyer_behavior: 'Déjame revisar tu historial para recomendarte la mejor opción.',
-  cart_builder: '¿Qué productos y cantidades quieres agregar al carrito?',
-  guide_tracking: '¿Me compartes el número de guía o pedido para rastrearlo?',
-  novedades: 'Tengo una novedad con tu envío, ¿me confirmas tu dirección actual?',
-  redelivery: 'Para re-agendar la entrega, ¿qué horario te queda mejor?',
-  remarketing: '¡Hola! Tengo una novedad que te puede interesar, ¿te acuerdo?',
-  guide_alert: 'Alerta operativa generada — el equipo revisará el caso.',
-  sales_retainer: 'Entiendo. ¿Te ofrezco pago contra entrega para que no pierdas el producto?',
-  logistics_notifier: 'Tu pedido va en camino — te aviso en cada hito.',
-  customer_score: 'Calculando score de cliente…',
-  carrier_score: 'Calculando score de transportadoras…',
-  product_enrichment: 'Enriqueciendo producto…',
-  marketplace: 'Evaluando viabilidad de publicación en marketplace…',
-  affiliator: 'Procesando atribución de afiliado…',
-  traffic_orchestrator: 'Analizando redistribución de presupuesto…',
-  address_analysis: 'Analizando calidad de la dirección…',
 }
 
 export async function POST(req: NextRequest) {
@@ -130,13 +103,16 @@ export async function POST(req: NextRequest) {
         ? ORCHESTRATOR_STEPS[idx].id // index-th element (0-based) is the next step
         : null
 
+      log.info({ tenantId, action, stepId: step.id, agent: step.agent }, 'agent start')
       let reply = ''
       let errorMsg: string | undefined
       try {
         reply = await callAgent(step.agent as AgentName, buildCtx(step.id))
+        log.info({ tenantId, stepId: step.id, agent: step.agent, replyLen: reply.length }, 'agent complete')
       } catch (err) {
         errorMsg = err instanceof Error ? err.message : 'unknown error'
         reply = FALLBACKS[step.agent as AgentName]
+        log.error({ tenantId, stepId: step.id, agent: step.agent, err: errorMsg }, 'agent error — fallback used')
       }
 
       // Persist profile detection (mirror of /api/agents/[agentName]/route.ts)
@@ -166,13 +142,16 @@ export async function POST(req: NextRequest) {
       agent: string; agentLabel: string; reply: string; error?: string
     }> = []
     for (const step of ORCHESTRATOR_STEPS) {
+      log.info({ tenantId, action: 'full', stepId: step.id, agent: step.agent, index: step.index }, 'agent start')
       let reply = ''
       let errorMsg: string | undefined
       try {
         reply = await callAgent(step.agent as AgentName, buildCtx(step.id))
+        log.info({ tenantId, stepId: step.id, agent: step.agent, replyLen: reply.length }, 'agent complete')
       } catch (err) {
         errorMsg = err instanceof Error ? err.message : 'unknown error'
         reply = FALLBACKS[step.agent as AgentName]
+        log.error({ tenantId, stepId: step.id, agent: step.agent, err: errorMsg }, 'agent error — fallback used')
       }
 
       // Persist profile detection
@@ -197,6 +176,10 @@ export async function POST(req: NextRequest) {
       })
     }
 
+    log.info(
+      { tenantId, scenarioId: scenario?.id, steps: timeline.length, errors: timeline.filter(t => t.error).length },
+      'pipeline complete',
+    )
     return NextResponse.json({
       ok: true,
       action: 'full',

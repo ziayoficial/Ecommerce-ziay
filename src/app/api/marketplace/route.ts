@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
 import { requireTenantAccess } from '@/lib/auth-helpers'
+import { captureError } from '@/lib/capture-error'
+import { marketplaceService } from '@/lib/services'
 
 // Marketplace — MarketplaceListing, LeadShareConfig, LeadReferral.
 //
@@ -10,6 +11,11 @@ import { requireTenantAccess } from '@/lib/auth-helpers'
 //
 // POST /api/marketplace { action, ...payload }
 //   publish_listing | update_config | create_referral
+//
+// SPRINT8-SERVICES-REST-001 — migrated the 6-way Promise.all (listings,
+// myListings, leadConfig, sentReferrals, receivedReferrals, tenant) +
+// the per-listing brand hydration + the three POST actions to
+// `marketplaceService`. Response shapes unchanged.
 export async function GET(req: NextRequest) {
   const tenantId = req.nextUrl.searchParams.get('tenantId')
   if (!tenantId) {
@@ -18,76 +24,56 @@ export async function GET(req: NextRequest) {
   const { error } = await requireTenantAccess(tenantId)
   if (error) return error
 
-  const [listings, myListings, leadConfig, sentReferrals, receivedReferrals, tenant] = await Promise.all([
-    db.marketplaceListing.findMany({
-      where: {
-        tenantId: { not: tenantId },
-        active: true,
+  try {
+    const [listings, myListings, leadConfig, referrals, currentTenant] = await Promise.all([
+      marketplaceService.getListings(tenantId),
+      marketplaceService.getMyListings(tenantId),
+      marketplaceService.getLeadConfig(tenantId),
+      marketplaceService.getReferrals(tenantId),
+      marketplaceService.getCurrentTenantProfile(tenantId),
+    ])
+
+    // Attach tenant brand info to listings from other tenants.
+    const otherTenantIds = Array.from(new Set(listings.map((l) => l.tenantId)))
+    const tenantMap = await marketplaceService.getTenantBrands(otherTenantIds)
+    const listingsWithBrand = listings.map((l) => ({
+      ...l,
+      tenantName: tenantMap.get(l.tenantId)?.marca ?? '—',
+    }))
+
+    // Connected tenants = distinct tenants that have at least one active
+    // listing OR share a referral with this tenant (either direction).
+    const referralTenantIds = new Set<string>([
+      ...referrals.sent.map((r) => r.toTenantId),
+      ...referrals.received.map((r) => r.fromTenantId),
+    ])
+    const connectedTenants = new Set<string>([
+      ...otherTenantIds,
+      ...referralTenantIds,
+    ]).size
+
+    return NextResponse.json({
+      listings: listingsWithBrand,
+      myListings,
+      leadConfig,
+      referrals: { sent: referrals.sent, received: referrals.received },
+      currentTenant,
+      stats: {
+        totalListings: listingsWithBrand.length,
+        myListingsCount: myListings.length,
+        connectedTenants,
+        totalReferrals: referrals.sent.length + referrals.received.length,
+        sentReferrals: referrals.sent.length,
+        receivedReferrals: referrals.received.length,
       },
-      orderBy: { createdAt: 'desc' },
-      take: 60,
-    }),
-    db.marketplaceListing.findMany({
-      where: { tenantId },
-      orderBy: { createdAt: 'desc' },
-    }),
-    db.leadShareConfig.findUnique({ where: { tenantId } }),
-    db.leadReferral.findMany({
-      where: { fromTenantId: tenantId },
-      orderBy: { createdAt: 'desc' },
-      take: 50,
-    }),
-    db.leadReferral.findMany({
-      where: { toTenantId: tenantId },
-      orderBy: { createdAt: 'desc' },
-      take: 50,
-    }),
-    db.tenant.findUnique({
-      where: { id: tenantId },
-      select: { id: true, slug: true, marca: true, nombreNegocio: true },
-    }),
-  ])
-
-  // Attach tenant brand info to listings from other tenants
-  const otherTenantIds = Array.from(new Set(listings.map((l) => l.tenantId)))
-  const tenants = otherTenantIds.length
-    ? await db.tenant.findMany({
-        where: { id: { in: otherTenantIds } },
-        select: { id: true, marca: true, nombreNegocio: true },
-      })
-    : []
-  const tenantMap = new Map(tenants.map((t) => [t.id, t]))
-  const listingsWithBrand = listings.map((l) => ({
-    ...l,
-    tenantName: tenantMap.get(l.tenantId)?.marca ?? '—',
-  }))
-
-  // Connected tenants = distinct tenants that have at least one active listing
-  // OR share a referral with this tenant (either direction).
-  const referralTenantIds = new Set<string>([
-    ...sentReferrals.map((r) => r.toTenantId),
-    ...receivedReferrals.map((r) => r.fromTenantId),
-  ])
-  const connectedTenants = new Set<string>([
-    ...otherTenantIds,
-    ...referralTenantIds,
-  ]).size
-
-  return NextResponse.json({
-    listings: listingsWithBrand,
-    myListings,
-    leadConfig,
-    referrals: { sent: sentReferrals, received: receivedReferrals },
-    currentTenant: tenant,
-    stats: {
-      totalListings: listingsWithBrand.length,
-      myListingsCount: myListings.length,
-      connectedTenants,
-      totalReferrals: sentReferrals.length + receivedReferrals.length,
-      sentReferrals: sentReferrals.length,
-      receivedReferrals: receivedReferrals.length,
-    },
-  })
+    })
+  } catch (err) {
+    captureError(err as Error, { path: '/api/marketplace', method: 'GET', tenantId })
+    return NextResponse.json(
+      { error: 'Internal server error', message: err instanceof Error ? err.message : 'Unknown error' },
+      { status: 500 },
+    )
+  }
 }
 
 type PublishListingPayload = {
@@ -144,16 +130,13 @@ export async function POST(req: NextRequest) {
           { status: 400 },
         )
       }
-      const listing = await db.marketplaceListing.create({
-        data: {
-          tenantId: p.tenantId,
-          productId: p.productId ?? null,
-          sku: p.sku,
-          name: p.name,
-          price: p.price,
-          imageUrl: p.imageUrl ?? null,
-          active: true,
-        },
+      const listing = await marketplaceService.publishListing({
+        tenantId: p.tenantId,
+        sku: p.sku,
+        name: p.name,
+        price: p.price,
+        imageUrl: p.imageUrl ?? null,
+        productId: p.productId ?? null,
       })
       return NextResponse.json({ ok: true, listing })
     }
@@ -166,17 +149,9 @@ export async function POST(req: NextRequest) {
           { status: 400 },
         )
       }
-      const config = await db.leadShareConfig.upsert({
-        where: { tenantId: p.tenantId },
-        update: {
-          shareLeads: p.shareLeads,
-          commissionPct: p.commissionPct,
-        },
-        create: {
-          tenantId: p.tenantId,
-          shareLeads: p.shareLeads,
-          commissionPct: p.commissionPct,
-        },
+      const config = await marketplaceService.upsertLeadConfig(p.tenantId, {
+        shareLeads: p.shareLeads,
+        commissionPct: p.commissionPct,
       })
       return NextResponse.json({ ok: true, config })
     }
@@ -195,25 +170,13 @@ export async function POST(req: NextRequest) {
         { status: 400 },
       )
     }
-    // Look up the receiving tenant's commission config to default the
-    // commission if not provided.
-    let commission = typeof p.commission === 'number' ? p.commission : 0
-    if (commission === 0) {
-      const cfg = await db.leadShareConfig.findUnique({
-        where: { tenantId: p.fromTenantId },
-      })
-      if (cfg) commission = cfg.commissionPct
-    }
-    const referral = await db.leadReferral.create({
-      data: {
-        fromTenantId: p.fromTenantId,
-        toTenantId: p.toTenantId,
-        customerPhone: p.customerPhone,
-        customerName: p.customerName ?? null,
-        reason: p.reason,
-        commission,
-        status: 'pending',
-      },
+    const referral = await marketplaceService.createReferral({
+      fromTenantId: p.fromTenantId,
+      toTenantId: p.toTenantId,
+      customerPhone: p.customerPhone,
+      customerName: p.customerName ?? null,
+      reason: p.reason,
+      commission: typeof p.commission === 'number' ? p.commission : undefined,
     })
     return NextResponse.json({ ok: true, referral })
   } catch (e) {

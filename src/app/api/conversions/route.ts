@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
 import { requireTenantAccess } from '@/lib/auth-helpers'
 import { captureError } from '@/lib/capture-error'
 import { getLogger } from '@/lib/logger'
 import { enqueue, isInlineMode } from '@/lib/queue'
+import { conversionsService } from '@/lib/services'
 
 const log = getLogger('api:conversions')
 
@@ -21,6 +21,10 @@ const log = getLogger('api:conversions')
 //
 // The actual platform firing logic lives in `src/lib/queue.ts` so the
 // worker process can run it out-of-band without holding the request thread.
+//
+// SPRINT8-SERVICES-REST-001 — migrated the `db.conversionEvent` /
+// `db.pixelConfig` reads + writes to `conversionsService`. Response shapes
+// unchanged.
 export async function GET(req: NextRequest) {
   const tenantId = req.nextUrl.searchParams.get('tenantId')
   if (!tenantId) {
@@ -29,25 +33,16 @@ export async function GET(req: NextRequest) {
   const { error } = await requireTenantAccess(tenantId)
   if (error) return error
 
-  const events = await db.conversionEvent.findMany({
-    where: { tenantId },
-    orderBy: { createdAt: 'desc' },
-    take: 100,
-  })
-
-  const sent = events.filter((e) => e.status === 'sent').length
-  const failed = events.filter((e) => e.status === 'failed').length
-  const pending = events.filter((e) => e.status === 'pending').length
-
-  return NextResponse.json({
-    events,
-    stats: {
-      total: events.length,
-      sent,
-      failed,
-      pending,
-    },
-  })
+  try {
+    const { events, stats } = await conversionsService.getEvents(tenantId)
+    return NextResponse.json({ events, stats })
+  } catch (err) {
+    captureError(err as Error, { path: '/api/conversions', method: 'GET', tenantId })
+    return NextResponse.json(
+      { error: 'Internal server error', message: err instanceof Error ? err.message : 'Unknown error' },
+      { status: 500 },
+    )
+  }
 }
 
 type FirePayload = {
@@ -79,9 +74,7 @@ export async function POST(req: NextRequest) {
   const value = typeof body.value === 'number' ? body.value : null
   const currency = typeof body.currency === 'string' ? body.currency : 'COP'
 
-  const pixels = await db.pixelConfig.findMany({
-    where: { tenantId, active: true },
-  })
+  const pixels = await conversionsService.getActivePixels(tenantId)
 
   log.info(
     { tenantId, eventType, value, currency, pixels: pixels.length },
@@ -89,16 +82,14 @@ export async function POST(req: NextRequest) {
   )
 
   if (pixels.length === 0) {
-    const event = await db.conversionEvent.create({
-      data: {
-        tenantId,
-        pixelConfigId: null,
-        eventType,
-        value,
-        currency,
-        status: 'failed',
-        response: 'No active pixel configs for this tenant',
-      },
+    const event = await conversionsService.createEvent({
+      tenantId,
+      pixelConfigId: null,
+      eventType,
+      value,
+      currency,
+      status: 'failed',
+      response: 'No active pixel configs for this tenant',
     })
     return NextResponse.json({
       ok: true,
@@ -115,16 +106,14 @@ export async function POST(req: NextRequest) {
   //   - A crash mid-fire leaves rows in 'pending' — visible + retryable.
   const created = await Promise.all(
     pixels.map((pixel) =>
-      db.conversionEvent.create({
-        data: {
-          tenantId,
-          pixelConfigId: pixel.id,
-          eventType,
-          value,
-          currency,
-          status: 'pending',
-          response: 'queued',
-        },
+      conversionsService.createEvent({
+        tenantId,
+        pixelConfigId: pixel.id,
+        eventType,
+        value,
+        currency,
+        status: 'pending',
+        response: 'queued',
       }),
     ),
   )
@@ -150,9 +139,7 @@ export async function POST(req: NextRequest) {
 
   // Read back the (possibly updated) rows so the response reflects the
   // final status in inline mode, or shows 'pending' in BullMQ mode.
-  const updated = await db.conversionEvent.findMany({
-    where: { id: { in: created.map((e) => e.id) } },
-  })
+  const updated = await conversionsService.getEventsByIds(created.map((e) => e.id))
 
   const results = updated.map((e) => ({
     platform: pixels.find((p) => p.id === e.pixelConfigId)?.platform || 'unknown',

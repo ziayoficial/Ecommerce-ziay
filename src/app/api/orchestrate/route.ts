@@ -5,6 +5,14 @@
 // - action='full'   → runs ALL 9 agents sequentially, returns the timeline of replies.
 // - action='step'   → runs a SINGLE agent (currentStep), returns one reply + next step.
 //
+// SPRINT8-SERVICES-REST-001 — left inline. The db calls here are:
+//   1. `db.tenant.findUnique` — single tenant existence check.
+//   2. `db.conversation.update` — profile-detection side-effect, runs at
+//      most once per pipeline invocation.
+// Per rule #2 (1-2 simple db calls OK to leave), the orchestration flow
+// is dominated by LLM calls (9 per pipeline), not db calls.
+// TODO: migrate to service layer if more db writes get added per step.
+//
 // Returns: {
 //   ok: true,
 //   action,

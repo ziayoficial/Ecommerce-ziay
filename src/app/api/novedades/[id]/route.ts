@@ -5,22 +5,22 @@
 //
 // Auth: the case's tenantId must match the caller's tenantId (or caller must
 // be a platform admin/finance with no tenantId).
+//
+// SPRINT8-SERVICES-REST-001 — migrated GET to `novedadesService.getCaseById`
+// and PATCH to `novedadesService.updateCaseFields`. The tenant guard still
+// runs in the route (requireAuth + manual tenantId check) so the service
+// stays tenant-agnostic. Response shapes unchanged.
 
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
 import { requireAuth } from '@/lib/auth-helpers'
+import { captureError } from '@/lib/capture-error'
+import { novedadesService } from '@/lib/services'
 
 async function getCaseOrFail(id: string) {
   const { session, error } = await requireAuth()
   if (error) return { session: null, error, caseRow: null }
 
-  const caseRow = await db.novedadCase.findUnique({
-    where: { id },
-    include: {
-      evidence: { orderBy: { createdAt: 'desc' } },
-      messages: { orderBy: { createdAt: 'asc' } },
-    },
-  })
+  const caseRow = await novedadesService.getCaseById(id)
   if (!caseRow) {
     return {
       session,
@@ -112,9 +112,14 @@ export async function PATCH(
     return NextResponse.json({ error: 'No updatable fields supplied' }, { status: 400 })
   }
 
-  const updated = await db.novedadCase.update({
-    where: { id: caseRow.id },
-    data,
-  })
-  return NextResponse.json({ case: updated })
+  try {
+    const updated = await novedadesService.updateCaseFields(caseRow.id, data)
+    return NextResponse.json({ case: updated })
+  } catch (err) {
+    captureError(err as Error, { path: '/api/novedades/[id]', method: 'PATCH', id })
+    return NextResponse.json(
+      { error: 'Internal server error', message: err instanceof Error ? err.message : 'Unknown error' },
+      { status: 500 },
+    )
+  }
 }

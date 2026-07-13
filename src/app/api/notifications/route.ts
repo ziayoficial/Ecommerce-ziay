@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
 import { requireTenantAccess } from '@/lib/auth-helpers'
+import { captureError } from '@/lib/capture-error'
+import { notificationService } from '@/lib/services'
 
 // Customer Notifications — manual + auto-generated customer-facing messages.
 //
@@ -9,6 +10,10 @@ import { requireTenantAccess } from '@/lib/auth-helpers'
 //
 // POST /api/notifications { action, ...payload }
 //   create | auto_generate | mark_sent | mark_delivered | cancel_pending
+//
+// SPRINT8-SERVICES-REST-001 — migrated every CustomerNotification + the
+// GuideTracking lookup (used by `auto_generate`) to `notificationService`.
+// Response shapes unchanged.
 export async function GET(req: NextRequest) {
   const tenantId = req.nextUrl.searchParams.get('tenantId')
   if (!tenantId) {
@@ -18,27 +23,17 @@ export async function GET(req: NextRequest) {
   if (error) return error
 
   const status = req.nextUrl.searchParams.get('status') || undefined
-  const where: { tenantId: string; status?: string } = { tenantId }
-  if (status) where.status = status
 
-  const [notifications, all] = await Promise.all([
-    db.customerNotification.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      take: 200,
-    }),
-    db.customerNotification.findMany({ where: { tenantId } }),
-  ])
-
-  const stats = {
-    total: all.length,
-    pending: all.filter((n) => n.status === 'pending').length,
-    sent: all.filter((n) => n.status === 'sent').length,
-    delivered: all.filter((n) => n.status === 'delivered').length,
-    failed: all.filter((n) => n.status === 'failed').length,
+  try {
+    const { notifications, stats } = await notificationService.getNotifications(tenantId, status)
+    return NextResponse.json({ notifications, stats })
+  } catch (err) {
+    captureError(err as Error, { path: '/api/notifications', method: 'GET', tenantId })
+    return NextResponse.json(
+      { error: 'Internal server error', message: err instanceof Error ? err.message : 'Unknown error' },
+      { status: 500 },
+    )
   }
-
-  return NextResponse.json({ notifications, stats })
 }
 
 export async function POST(req: NextRequest) {
@@ -71,75 +66,34 @@ export async function POST(req: NextRequest) {
           { status: 400 },
         )
       }
-      const notification = await db.customerNotification.create({
-        data: {
-          tenantId,
-          customerPhone,
-          customerName: customerName ?? null,
-          type,
-          channel: channel || 'whatsapp',
-          body: msgBody,
-          status: 'pending',
-          scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
-        },
+      const notification = await notificationService.createNotification({
+        tenantId,
+        customerPhone,
+        customerName: customerName ?? null,
+        type,
+        channel: channel || 'whatsapp',
+        body: msgBody,
+        scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
       })
       return NextResponse.json({ ok: true, notification })
     }
 
     if (action === 'auto_generate') {
-      // Auto-generate shipping-update notifications for orders that were just
-      // marked as despachado but don't yet have a notification. We look at
-      // GuideTracking rows that are in_transit and create one notification
-      // per guide that lacks one.
-      const guides = await db.guideTracking.findMany({
-        where: { tenantId, status: 'in_transit' },
-        take: 50,
-      })
-      const created: any[] = []
-      for (const g of guides) {
-        const exists = await db.customerNotification.findFirst({
-          where: {
-            tenantId,
-            type: 'shipping_update',
-            metadata: { contains: g.guideNumber },
-          },
-          select: { id: true },
-        })
-        if (exists) continue
-        const n = await db.customerNotification.create({
-          data: {
-            tenantId,
-            customerPhone: g.carrierName || 'unknown',
-            customerName: null,
-            type: 'shipping_update',
-            channel: 'whatsapp',
-            body: `Tu pedido con guía ${g.guideNumber} está en camino.`,
-            status: 'pending',
-            metadata: JSON.stringify({ guideNumber: g.guideNumber }),
-          },
-        })
-        created.push(n)
-      }
+      const created = await notificationService.autoGenerateShippingUpdates(tenantId)
       return NextResponse.json({ ok: true, generated: created.length, notifications: created })
     }
 
     if (action === 'mark_sent') {
       const { id } = body
       if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
-      const updated = await db.customerNotification.update({
-        where: { id },
-        data: { status: 'sent', sentAt: new Date() },
-      })
+      const updated = await notificationService.updateStatus(id, 'sent')
       return NextResponse.json({ ok: true, notification: updated })
     }
 
     if (action === 'mark_delivered') {
       const { id } = body
       if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
-      const updated = await db.customerNotification.update({
-        where: { id },
-        data: { status: 'delivered' },
-      })
+      const updated = await notificationService.updateStatus(id, 'delivered')
       return NextResponse.json({ ok: true, notification: updated })
     }
 
@@ -147,15 +101,8 @@ export async function POST(req: NextRequest) {
     // minutes (default 60). Useful when a queued batch becomes stale.
     const olderThanMinutes = Number(body?.olderThanMinutes ?? 60)
     const cutoff = new Date(Date.now() - olderThanMinutes * 60 * 1000)
-    const result = await db.customerNotification.updateMany({
-      where: {
-        tenantId,
-        status: 'pending',
-        createdAt: { lt: cutoff },
-      },
-      data: { status: 'failed' },
-    })
-    return NextResponse.json({ ok: true, cancelled: result.count })
+    const cancelled = await notificationService.cancelPendingBefore(tenantId, cutoff)
+    return NextResponse.json({ ok: true, cancelled })
   } catch (e) {
     return NextResponse.json(
       { error: 'Operation failed', detail: (e as Error).message },

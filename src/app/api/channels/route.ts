@@ -3,7 +3,15 @@ import { requireAuth } from '@/lib/auth-helpers'
 import { db } from '@/lib/db'
 import { captureError } from '@/lib/capture-error'
 
-// GET /api/channels?tenantId=... — list channels for a tenant
+// Channel CRUD — list / create / update / deactivate.
+//
+// SPRINT8-SERVICES-REST-001 — left inline. Each method does at most 2 db
+// calls (one Channel write + one AuditLog insert). Per rule #2 (1-2
+// simple db calls OK to leave), a `channel.service.ts` would just be a
+// thin pass-through — the value of a service layer shows up when callers
+// share read paths or transactions, and the only other caller touching
+// `Channel` is `/api/payments/config` (which writes a single field).
+// TODO: migrate to service layer when channel verification flows land.
 export async function GET(req: NextRequest) {
   const { error } = await requireAuth()
   if (error) return error

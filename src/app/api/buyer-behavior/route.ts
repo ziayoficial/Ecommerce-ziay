@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
 import { requireTenantAccess } from '@/lib/auth-helpers'
+import { captureError } from '@/lib/capture-error'
 import { rateLimit } from '@/lib/middleware/rate-limit'
+import { logisticsService } from '@/lib/services'
 
 // GET /api/buyer-behavior?tenantId=X
 // Devuelve los BuyerBehavior del tenant + conteos por nivel de riesgo.
+//
+// SPRINT8-SERVICES-REST-001 — migrated `db.buyerBehavior.findMany` +
+// `groupBy` to `logisticsService.getBuyerBehaviors`. Response shape
+// unchanged (`{ behaviors, stats }`).
 export async function GET(req: NextRequest) {
   const tenantId = req.nextUrl.searchParams.get('tenantId')
   if (!tenantId) {
@@ -16,33 +21,27 @@ export async function GET(req: NextRequest) {
   const { error } = await requireTenantAccess(tenantId)
   if (error) return error
 
-  const [rows, stats] = await Promise.all([
-    db.buyerBehavior.findMany({
-      where: { tenantId },
-      orderBy: { updatedAt: 'desc' },
-    }),
-    db.buyerBehavior.groupBy({
-      by: ['riskLevel'],
-      where: { tenantId },
-      _count: { _all: true },
-    }),
-  ])
-
-  const counts: Record<string, number> = {
-    normal: 0,
-    caution: 0,
-    high_risk: 0,
-    blacklist: 0,
+  try {
+    const { behaviors, stats } = await logisticsService.getBuyerBehaviors(tenantId)
+    return NextResponse.json({ behaviors, stats })
+  } catch (err) {
+    captureError(err as Error, { path: '/api/buyer-behavior', method: 'GET', tenantId })
+    return NextResponse.json(
+      { error: 'Internal server error', message: err instanceof Error ? err.message : 'Unknown error' },
+      { status: 500 },
+    )
   }
-  for (const s of stats) counts[s.riskLevel] = s._count._all
-
-  return NextResponse.json({ behaviors: rows, stats: counts })
 }
 
 // POST /api/buyer-behavior
 // Body: { tenantId, phone, riskLevel, patternDetails }
 // Upserta el BuyerBehavior para (tenantId, phone). Si riskLevel='high_risk' o
 // 'blacklist', crea además un BehaviorAlert para que el equipo revise.
+//
+// SPRINT8-SERVICES-REST-001 — migrated the upsert + conditional alert
+// create (2 db calls + 1 conditional) to
+// `logisticsService.upsertBuyerBehavior`. Response shape unchanged
+// (`{ behavior, alert }`).
 export async function POST(req: NextRequest) {
   const limited = rateLimit(req, {
     max: 60,
@@ -77,35 +76,19 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  const behavior = await db.buyerBehavior.upsert({
-    where: { tenantId_phone: { tenantId, phone: String(phone) } },
-    create: {
+  try {
+    const { behavior, alert } = await logisticsService.upsertBuyerBehavior({
       tenantId,
       phone: String(phone),
       riskLevel,
       patternDetails: patternDetails ?? null,
-    },
-    update: {
-      riskLevel,
-      patternDetails: patternDetails ?? null,
-    },
-  })
-
-  // Si el cliente fue marcado como high_risk o blacklist, dispara una alerta.
-  let alert: { id: string } | null = null
-  if (riskLevel === 'high_risk' || riskLevel === 'blacklist') {
-    alert = await db.behaviorAlert.create({
-      data: {
-        tenantId,
-        buyerBehaviorId: behavior.id,
-        alertType: riskLevel,
-        message: patternDetails
-          ? `Cliente ${phone} marcado como ${riskLevel}: ${patternDetails}`
-          : `Cliente ${phone} marcado como ${riskLevel}`,
-      },
-      select: { id: true },
     })
+    return NextResponse.json({ behavior, alert })
+  } catch (err) {
+    captureError(err as Error, { path: '/api/buyer-behavior', method: 'POST', tenantId })
+    return NextResponse.json(
+      { error: 'Internal server error', message: err instanceof Error ? err.message : 'Unknown error' },
+      { status: 500 },
+    )
   }
-
-  return NextResponse.json({ behavior, alert })
 }

@@ -111,6 +111,30 @@ export const adsService = {
   },
 
   /**
+   * Lookup an Ad by its external platform id (e.g. the Meta/Google/TikTok
+   * ad id returned by the adapter). Includes the parent Campaign so the
+   * caller can verify the ad belongs to the right tenant.
+   *
+   * Used by `/api/ads/import` to map adapter-reported ad ids to internal
+   * Ad rows before upserting AdSpend.
+   */
+  async findAdByExternalId(externalId: string) {
+    try {
+      return await db.ad.findUnique({
+        where: { externalId },
+        include: { campaign: { select: { tenantId: true } } },
+      })
+    } catch (err) {
+      captureError(err as Error, {
+        service: 'ads',
+        method: 'findAdByExternalId',
+        externalId,
+      })
+      throw new Error('Failed to fetch ad by external id')
+    }
+  },
+
+  /**
    * Bulk import ad spend rows from an adapter (Meta / Google / TikTok).
    * Each row is keyed by (adId, date) — duplicates are upserted.
    */

@@ -3166,3 +3166,172 @@ talks to Prisma.
   - `src/lib/rls.ts` — already had `RLS_SQL_POLICIES`, only read it.
   - `prisma/migrations/migration_lock.toml` — left as `provider = "sqlite"`
     (dev). It will need to be flipped to `"postgresql"` at deploy time.
+
+---
+Task ID: SPRINT8-VIEWS-SPLIT-001
+Agent: frontend-styling-expert
+Task: Split the two largest dashboard view files (wallet-view.tsx 1100 lines
++ integrations-view.tsx 956 lines) into focused sub-component directories,
+mirroring the pattern already established for novedades-view in SPRINT3-REFACTOR-001.
+
+Work Log:
+
+### PART 1 — wallet-view.tsx → wallet/ (8 files)
+
+Read the full 1100-line file in chunks, then split as follows:
+
+| File | Lines | Responsibility |
+| --- | --- | --- |
+| `wallet/index.tsx` | 391 | Main `WalletView`. Owns ALL state (data, loading, pulse, tab, 2FA setup, withdrawal + account dialogs) and callbacks (`load`, `openTwoFactor`, `verifyTwoFactor`, `submitWithdrawal`, `submitAccount`). Composes the sub-modules. Loading skeleton + error Alert stay inline. |
+| `wallet-shared.tsx` | 135 | Types (`Txn`, `Account`, `Withdrawal`, `WalletData`), helpers (`maskAccount`, `accountTypeMeta`, `withdrawalStatusMeta`, `txnTypeMeta`), and `StatCard`. |
+| `wallet-balance.tsx` | 160 | `WalletBalance` (gradient emerald balance card + 6 stat cards grid) and `WalletQuickActions` (action buttons row: solicitar retiro, registrar cuenta, activar 2FA, ver transacciones). |
+| `wallet-transactions.tsx` | 107 | `WalletTransactions` — transactions table with the period summary row. |
+| `wallet-withdrawals.tsx` | 215 | `WalletWithdrawals` — pending + history tables, plus the inline `ProcessWithdrawalButton` (kept private). |
+| `wallet-accounts.tsx` | 98 | `WalletAccounts` — accounts grid card. |
+| `wallet-2fa.tsx` | 124 | `Wallet2FAWarning` (inline alert) + `Wallet2FADialog` (TOTP setup + verify with QRCodeSVG + InputOTP). |
+| `wallet-dialogs.tsx` | 218 | `WithdrawalDialog` + `RegisterAccountDialog`. Pure presentational; all form state lives in index.tsx. |
+| `wallet-view.tsx` (barrel) | 8 | `export { WalletView } from './wallet/index'` — keeps the existing import path `@/components/dashboard/wallet-view` working. |
+
+### PART 2 — integrations-view.tsx → integrations/ (5 files)
+
+Read the full 956-line file in chunks, then split as follows:
+
+| File | Lines | Responsibility |
+| --- | --- | --- |
+| `integrations/index.tsx` | 384 | Main `IntegrationsView`. Owns ALL state (tenantId, checks, activeCatalog, activeLogistics, checksLoading, products, prodLoading, prodQ, freight tester, vision identifier) and callbacks (`runFreightQuote`, `runVision`). Header summary cards (3 KPI tiles), EcommerceAdapter routes Card, LogisticsAdapter routes Card, and catalog grid Card stay inline because they read directly from the shared state. |
+| `integrations-shared.tsx` | 90 | Types (`HealthCheck`, `Product`, `FreightQuoteResult`, `VisionResult`, `CredentialState`, `CredentialsResponse`), constants (`ECOM_ROUTES`, `LOGISTICS_ROUTES`), and helper (`statusMeta`). Re-exports `INTEGRATION_REGISTRY`, `CATEGORY_META`, `CATEGORY_ORDER`, `getIntegrationsByCategory`, `IntegrationConfig`, `IntegrationCategory` from `@/lib/adapters/credential-fields`. |
+| `integrations-health.tsx` | 56 | `IntegrationsHealthTable` — the full /api/health endpoint table card. |
+| `integrations-tools.tsx` | 144 | `IntegrationsTools` — two-column grid with freight quote tester (Calculator card) + VLM identifier (Eye card). Pure presentational. |
+| `integrations-credentials.tsx` | 447 | `CredentialPanel` (self-contained, manages its own creds/drafts/visible/busy state, takes no props) + private `CredentialCard`. |
+| `integrations-view.tsx` (barrel) | 8 | `export { IntegrationsView } from './integrations/index'` — keeps the existing import path working. |
+
+### Design decisions
+
+1. **Same split pattern as novedades.** Header comment on every file
+   references SPRINT8-VIEWS-SPLIT-001 and lists the sibling modules, exactly
+   like SPRINT3-REFACTOR-001 did for novedades.
+
+2. **All state in index.tsx, sub-components receive props.** The only
+   exception is `CredentialPanel`, which was already self-contained in the
+   original file (called as `<CredentialPanel />` with no props). It keeps
+   its internal state — consistent with how novedades' `CreateCaseDialog`
+   / `CreateRedeliveryDialog` keep their own form state but receive
+   `open` / `onOpenChange` / `tenantId` / `onCreated` from the parent.
+
+3. **Tabs wrappers stay in index.tsx.** `<Tabs>`, `<TabsList>`, and
+   `<TabsContent>` are part of the tab composition owned by the main
+   component, mirroring novedades' pattern. Each tab's inner Card lives in
+   its own sub-module (`WalletTransactions`, `WalletWithdrawals`,
+   `WalletAccounts`).
+
+4. **Relative imports inside each sub-directory.** Every sub-module
+   imports its sibling via `./wallet-shared` or `./integrations-shared`.
+   Cross-directory imports still use the `@/...` alias.
+
+5. **`useTenantId` returns `string | undefined`**, not `string | null`.
+   The `IntegrationsTools` prop type had to be `string | undefined` to
+   match — `npx tsc --noEmit` caught this on first run and it was fixed
+   before running the test suite.
+
+6. **Byte-for-byte UI preserved.** No CSS classes, text strings, icon
+   sizes, badge colors, or DOM hierarchy were changed. The only thing that
+   moved is which file owns each JSX block. Total line count grew from
+   2056 → 2585 because of per-file boilerplate (imports, header comments,
+   prop-interface declarations) — expected for this kind of split.
+
+### Verification
+
+- `npx tsc --noEmit` → ✅ exit 0 (no type errors)
+- `bun run lint` (`eslint .`) → ✅ exit 0 (no warnings, no errors)
+- `bunx eslint src/components/dashboard/wallet src/components/dashboard/integrations src/components/dashboard/wallet-view.tsx src/components/dashboard/integrations-view.tsx` → ✅ exit 0
+- `bunx vitest run` → ✅ 6 test files, 65 tests, all passing
+
+### Files touched
+
+| Path | Action |
+| --- | --- |
+| `src/components/dashboard/wallet/index.tsx` | NEW |
+| `src/components/dashboard/wallet/wallet-shared.tsx` | NEW |
+| `src/components/dashboard/wallet/wallet-balance.tsx` | NEW |
+| `src/components/dashboard/wallet/wallet-transactions.tsx` | NEW |
+| `src/components/dashboard/wallet/wallet-withdrawals.tsx` | NEW |
+| `src/components/dashboard/wallet/wallet-accounts.tsx` | NEW |
+| `src/components/dashboard/wallet/wallet-2fa.tsx` | NEW |
+| `src/components/dashboard/wallet/wallet-dialogs.tsx` | NEW |
+| `src/components/dashboard/wallet-view.tsx` | MODIFIED → 8-line re-export barrel |
+| `src/components/dashboard/integrations/index.tsx` | NEW |
+| `src/components/dashboard/integrations/integrations-shared.tsx` | NEW |
+| `src/components/dashboard/integrations/integrations-health.tsx` | NEW |
+| `src/components/dashboard/integrations/integrations-tools.tsx` | NEW |
+| `src/components/dashboard/integrations/integrations-credentials.tsx` | NEW |
+| `src/components/dashboard/integrations-view.tsx` | MODIFIED → 8-line re-export barrel |
+
+### Backward compatibility
+
+`src/app/page.tsx` still imports `WalletView` from `@/components/dashboard/wallet-view`
+and `IntegrationsView` from `@/components/dashboard/integrations-view`.
+The barrel re-exports make those imports continue to resolve unchanged —
+no edits needed outside the 15 files above.
+
+Stage Summary:
+- Both view files split cleanly. UI byte-for-byte identical (only file
+  layout changed).
+- Lint, tsc, and vitest all green.
+- Same pattern as SPRINT3-REFACTOR-001 (novedades split) — future agents
+  can apply this same pattern to the remaining large views
+  (messenger-view, ads-view, monetization-view) if needed.
+
+---
+
+## SPRINT8-SERVICES-REST-001 — senior-backend-architect (service-layer migration completion)
+
+**Goal:** migrate the remaining 42 API routes that still called Prisma
+directly to use the service layer.
+
+**Result:**
+- **17 additional API routes migrated** (on top of the 10 from SPRINT7).
+  Total now: **27 of 38** routes use the service layer.
+- **3 new service files** created (cap hit): `conversions.service.ts`,
+  `notification.service.ts`, `wallet.service.ts`.
+- **22 new service methods** added across existing services: ads (1),
+  catalog (3), logistics (6), novedades (10), marketplace (2).
+- **10 routes left inline** with `// TODO: migrate to service layer`
+  comments + documented rationale (per rule #2 — 1-2 simple db calls OK
+  to leave).
+- `bun run lint` → exit 0 ✅
+- `npx tsc --noEmit` → exit 0 ✅
+- `bunx vitest run` → 65 tests pass ✅ (no regressions)
+
+**Migrated (17):** overview, monetization/generate-invoice,
+catalog/send-to-chat, ads/[id], novedades/[id], conversions,
+guide-movements, redelivery, wallet, product-enrichment, notifications,
+shipping/guide, trafficker, marketplace, buyer-behavior, ads/import,
+payments/create-link.
+
+**Left inline (10) — rationale in each file's header:**
+agents/[agentName], orchestrate, payments/config, shipping/quote,
+tenants, integrations/credentials, ai-reply, channels, catalog/sync,
+remarketing. Plus `/api/agents` and `/api/route` (no db calls — n/a).
+
+**Key design decisions:**
+- `wallet.service.ts` is shared by `/api/wallet` AND `/api/trafficker`
+  (both routes migrated together to avoid a half-migration).
+- `logistics.service.ts` absorbed `GuideMovement` + `BuyerBehavior` +
+  `persistShipmentGuide` (Shipment + Order + OrderEvent + AuditLog)
+  because they're already in the logistics domain.
+- `novedades.service.ts` absorbed all 9 redelivery methods because
+  `RedeliveryRequest` is the natural extension of the Novedades CRM.
+- `catalog.service.ts` absorbed `ProductEnrichment` methods because
+  it's a 1:1 extension of `Product` (same domain).
+- `adsService.findAdByExternalId` includes `campaign.tenantId` so
+  `/api/ads/import` can do the cross-tenant guard without a 2nd lookup.
+- `adsService.importAdSpend` (existing) is now called once at the end
+  of `/api/ads/import` with a batched list — replaces the per-ad
+  `db.adSpend.upsert` loop with N lookups + 1 `$transaction`.
+- All 3 atomic transactions preserved: `walletService.processWithdrawal`,
+  `walletService.confirmSale` / `failSale`, `novedadesService.*`
+  redelivery transactional methods.
+- Response shapes preserved across all 17 migrations — no frontend
+  changes required.
+
+**Full worklog:** `agent-ctx/SPRINT8-SERVICES-REST-001-senior-backend-architect.md`

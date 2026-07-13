@@ -6,6 +6,20 @@ import { getLogger } from '@/lib/logger'
 
 const log = getLogger('api/remarketing')
 
+// Remarketing — abandoned-cart / no-response / post-purchase flows.
+//
+// SPRINT8-SERVICES-REST-001 — left inline. Most handlers do 1-2 db calls
+// (create_campaign, schedule, toggle_active, mark_message — each touches
+// one or two rows). The `auto_generate` handler is more complex (per-trigger
+// loops that look up carts / conversations / orders and create many
+// RemarketingMessage rows), but it lives entirely within this route —
+// no other caller shares its read paths. Per rule #2 (1-2 simple db calls
+// OK to leave) and the 3-new-service-file cap, a `remarketing.service.ts`
+// wasn't created in this sprint.
+// TODO: migrate to service layer when the remarketing worker (queue
+// handler) is added — that will be the second caller and will justify
+// the service.
+
 // GET /api/remarketing?tenantId=X
 // Devuelve las RemarketingCampaign del tenant + mensajes pendientes + stats.
 export async function GET(req: NextRequest) {

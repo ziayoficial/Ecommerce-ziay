@@ -9,6 +9,13 @@ import { captureError } from '@/lib/capture-error'
 // the topbar hits this on every page load. Not tenant-scoped because the
 // endpoint itself returns the full tenant list (auth-gated to logged-in
 // users only).
+//
+// SPRINT8-SERVICES-REST-001 — left inline. A single `db.tenant.findMany`
+// cached for 5 minutes. Per rule #2 (1-2 simple db calls OK to leave),
+// there's no benefit in wrapping a cached findMany in a service method
+// — the cache key already encodes the only meaningful input. A future
+// `tenant.service.ts` would only make sense if tenant CRUD lands.
+// TODO: migrate to service layer when tenant CRUD is added.
 export async function GET() {
   const { error } = await requireAuth()
   if (error) return error

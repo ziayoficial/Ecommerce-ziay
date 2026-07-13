@@ -1,0 +1,502 @@
+     1→   501→      </Card>
+     2→   502→
+     3→   503→      {/* ── 2FA warning (if not enabled) ───────────────────────────────── */}
+     4→   504→      {!twoFactorEnabled && (
+     5→   505→        <Alert className="border-amber-500/30 bg-amber-500/5">
+     6→   506→          <ShieldAlert className="size-4 text-amber-600" />
+     7→   507→          <AlertTitle className="text-amber-700 dark:text-amber-300">2FA no activado</AlertTitle>
+     8→   508→          <AlertDescription className="text-muted-foreground">
+     9→   509→            Activa la autenticación en dos pasos para proteger tus retiros. Sin 2FA, cualquier solicitud de retiro queda pendiente de verificación manual.
+    10→   510→            <div className="mt-2">
+    11→   511→              <Button size="sm" onClick={openTwoFactor}>
+    12→   512→                <Lock className="size-4" /> Activar 2FA ahora
+    13→   513→              </Button>
+    14→   514→            </div>
+    15→   515→          </AlertDescription>
+    16→   516→        </Alert>
+    17→   517→      )}
+    18→   518→
+    19→   519→      {/* ── Tabs: Transacciones / Retiros / Cuentas ────────────────────── */}
+    20→   520→      <Tabs value={tab} onValueChange={setTab}>
+    21→   521→        <TabsList className="w-full sm:w-auto">
+    22→   522→          <TabsTrigger value="transactions">Transacciones</TabsTrigger>
+    23→   523→          <TabsTrigger value="withdrawals">
+    24→   524→            Retiros
+    25→   525→            {data.pendingWithdrawals.length > 0 && (
+    26→   526→              <Badge variant="secondary" className="ml-2 bg-amber-500/20 text-amber-700 dark:text-amber-300">
+    27→   527→                {data.pendingWithdrawals.length}
+    28→   528→              </Badge>
+    29→   529→            )}
+    30→   530→          </TabsTrigger>
+    31→   531→          <TabsTrigger value="accounts">Cuentas</TabsTrigger>
+    32→   532→        </TabsList>
+    33→   533→
+    34→   534→        {/* ── Transactions tab ────────────────────────────────────────── */}
+    35→   535→        <TabsContent value="transactions" className="mt-4">
+    36→   536→          <Card>
+    37→   537→            <CardHeader className="pb-3">
+    38→   538→              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+    39→   539→                <div className="min-w-0">
+    40→   540→                  <CardTitle className="text-base">Movimientos</CardTitle>
+    41→   541→                  <CardDescription className="truncate">
+    42→   542→                    Últimas {data.transactions.length} transacciones · flujo neto {formatCurrency(stats.net, 'COP', { compact: true })}
+    43→   543→                  </CardDescription>
+    44→   544→                </div>
+    45→   545→              </div>
+    46→   546→            </CardHeader>
+    47→   547→            <CardContent className="p-0">
+    48→   548→              {data.transactions.length === 0 ? (
+    49→   549→                <div className="p-12 text-center text-sm text-muted-foreground">
+    50→   550→                  No hay transacciones todavía.
+    51→   551→                </div>
+    52→   552→              ) : (
+    53→   553→                <div className="overflow-x-auto scroll-thin">
+    54→   554→                  <Table>
+    55→   555→                    <TableHeader>
+    56→   556→                      <TableRow>
+    57→   557→                        <TableHead className="min-w-[140px]">Fecha</TableHead>
+    58→   558→                        <TableHead className="min-w-[120px]">Tipo</TableHead>
+    59→   559→                        <TableHead className="min-w-[120px]">Categoría</TableHead>
+    60→   560→                        <TableHead className="min-w-[180px]">Descripción</TableHead>
+    61→   561→                        <TableHead className="text-right min-w-[120px]">Monto</TableHead>
+    62→   562→                        <TableHead className="text-right min-w-[120px]">Balance</TableHead>
+    63→   563→                      </TableRow>
+    64→   564→                    </TableHeader>
+    65→   565→                    <TableBody>
+    66→   566→                      {/* Summary row */}
+    67→   567→                      <TableRow className="bg-muted/40 hover:bg-muted/40">
+    68→   568→                        <TableCell colSpan={4} className="font-semibold text-xs uppercase tracking-wide text-muted-foreground">
+    69→   569→                          Resumen del período
+    70→   570→                        </TableCell>
+    71→   571→                        <TableCell className="text-right font-semibold tabular-nums">
+    72→   572→                          <span className={stats.net >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}>
+    73→   573→                            {stats.net >= 0 ? '+' : ''}{formatCurrency(stats.net, 'COP', { compact: true })}
+    74→   574→                          </span>
+    75→   575→                        </TableCell>
+    76→   576→                        <TableCell className="text-right text-xs text-muted-foreground">{data.transactions.length} mov.</TableCell>
+    77→   577→                      </TableRow>
+    78→   578→                      {data.transactions.map((t) => {
+    79→   579→                        const typeMeta = txnTypeMeta(t.type)
+    80→   580→                        const isInbound = t.direction === 'inbound'
+    81→   581→                        return (
+    82→   582→                          <TableRow key={t.id}>
+    83→   583→                            <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
+    84→   584→                              <div className="font-medium text-foreground">{shortDate(t.createdAt)}</div>
+    85→   585→                              <div>{shortTime(t.createdAt)}</div>
+    86→   586→                            </TableCell>
+    87→   587→                            <TableCell>
+    88→   588→                              <div className="flex items-center gap-2 min-w-0">
+    89→   589→                                {isInbound ? (
+    90→   590→                                  <ArrowDownCircle className="size-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+    91→   591→                                ) : (
+    92→   592→                                  <ArrowUpCircle className="size-4 text-rose-600 dark:text-rose-400 shrink-0" />
+    93→   593→                                )}
+    94→   594→                                <span className={cn('text-xs font-medium truncate', typeMeta.cls)}>{typeMeta.label}</span>
+    95→   595→                              </div>
+    96→   596→                            </TableCell>
+    97→   597→                            <TableCell className="text-xs text-muted-foreground truncate">{t.category}</TableCell>
+    98→   598→                            <TableCell className="max-w-[280px]">
+    99→   599→                              <div className="text-sm truncate" title={t.description || ''}>{t.description || '—'}</div>
+   100→   600→                              {t.reference && <div className="text-[10px] text-muted-foreground font-mono truncate">{t.reference}</div>}
+   101→   601→                            </TableCell>
+   102→   602→                            <TableCell className="text-right tabular-nums whitespace-nowrap">
+   103→   603→                              <span className={isInbound ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-rose-600 dark:text-rose-400 font-semibold'}>
+   104→   604→                                {isInbound ? '+' : '−'}{formatCurrency(t.amount, 'COP', { compact: true })}
+   105→   605→                              </span>
+   106→   606→                            </TableCell>
+   107→   607→                            <TableCell className="text-right tabular-nums text-xs text-muted-foreground whitespace-nowrap">
+   108→   608→                              {formatCurrency(t.balanceAfter, 'COP', { compact: true })}
+   109→   609→                            </TableCell>
+   110→   610→                          </TableRow>
+   111→   611→                        )
+   112→   612→                      })}
+   113→   613→                    </TableBody>
+   114→   614→                  </Table>
+   115→   615→                </div>
+   116→   616→              )}
+   117→   617→            </CardContent>
+   118→   618→          </Card>
+   119→   619→        </TabsContent>
+   120→   620→
+   121→   621→        {/* ── Withdrawals tab ─────────────────────────────────────────── */}
+   122→   622→        <TabsContent value="withdrawals" className="mt-4 space-y-4">
+   123→   623→          {data.pendingWithdrawals.length > 0 && (
+   124→   624→            <Alert className="border-amber-500/30 bg-amber-500/5">
+   125→   625→              <AlertTriangle className="size-4 text-amber-600" />
+   126→   626→              <AlertTitle className="text-amber-700 dark:text-amber-300">
+   127→   627→                {data.pendingWithdrawals.length} retiro{data.pendingWithdrawals.length === 1 ? '' : 's'} pendiente{data.pendingWithdrawals.length === 1 ? '' : 's'}
+   128→   628→              </AlertTitle>
+   129→   629→              <AlertDescription className="text-muted-foreground">
+   130→   630→                Verifica el estado de cada solicitud. Las que requieren 2FA se completan al ingresar el TOTP.
+   131→   631→              </AlertDescription>
+   132→   632→            </Alert>
+   133→   633→          )}
+   134→   634→
+   135→   635→          <Card>
+   136→   636→            <CardHeader className="pb-3">
+   137→   637→              <CardTitle className="text-base">Retiros pendientes</CardTitle>
+   138→   638→              <CardDescription>{data.pendingWithdrawals.length} en curso</CardDescription>
+   139→   639→            </CardHeader>
+   140→   640→            <CardContent className="p-0">
+   141→   641→              {data.pendingWithdrawals.length === 0 ? (
+   142→   642→                <div className="p-8 text-center text-sm text-muted-foreground">Sin retiros pendientes.</div>
+   143→   643→              ) : (
+   144→   644→                <div className="overflow-x-auto scroll-thin">
+   145→   645→                  <Table>
+   146→   646→                    <TableHeader>
+   147→   647→                      <TableRow>
+   148→   648→                        <TableHead className="min-w-[140px]">Fecha</TableHead>
+   149→   649→                        <TableHead className="min-w-[160px]">Cuenta</TableHead>
+   150→   650→                        <TableHead className="text-right min-w-[120px]">Monto</TableHead>
+   151→   651→                        <TableHead className="text-right min-w-[100px]">Fee</TableHead>
+   152→   652→                        <TableHead className="text-right min-w-[120px]">Neto</TableHead>
+   153→   653→                        <TableHead className="min-w-[140px]">Estado</TableHead>
+   154→   654→                        <TableHead className="min-w-[100px] text-right">Acción</TableHead>
+   155→   655→                      </TableRow>
+   156→   656→                    </TableHeader>
+   157→   657→                    <TableBody>
+   158→   658→                      {data.pendingWithdrawals.map((w) => {
+   159→   659→                        const meta = withdrawalStatusMeta(w.status)
+   160→   660→                        return (
+   161→   661→                          <TableRow key={w.id}>
+   162→   662→                            <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
+   163→   663→                              <div className="font-medium text-foreground">{shortDate(w.createdAt)}</div>
+   164→   664→                              <div>{shortTime(w.createdAt)}</div>
+   165→   665→                            </TableCell>
+   166→   666→                            <TableCell className="min-w-0">
+   167→   667→                              <div className="text-sm truncate">{w.walletAccount.accountHolder}</div>
+   168→   668→                              <div className="text-[10px] text-muted-foreground font-mono truncate">
+   169→   669→                                {maskAccount(w.walletAccount.accountNumber)}
+   170→   670→                              </div>
+   171→   671→                            </TableCell>
+   172→   672→                            <TableCell className="text-right tabular-nums whitespace-nowrap font-medium">
+   173→   673→                              {formatCurrency(w.amount, 'COP', { compact: true })}
+   174→   674→                            </TableCell>
+   175→   675→                            <TableCell className="text-right tabular-nums text-xs text-muted-foreground whitespace-nowrap">
+   176→   676→                              {formatCurrency(w.fee, 'COP', { compact: true })}
+   177→   677→                            </TableCell>
+   178→   678→                            <TableCell className="text-right tabular-nums whitespace-nowrap font-semibold">
+   179→   679→                              {formatCurrency(w.netAmount, 'COP', { compact: true })}
+   180→   680→                            </TableCell>
+   181→   681→                            <TableCell>
+   182→   682→                              <Badge variant="outline" className={cn('text-[10px]', meta.cls)}>{meta.label}</Badge>
+   183→   683→                            </TableCell>
+   184→   684→                            <TableCell className="text-right">
+   185→   685→                              {w.status === 'pending_processing' && (
+   186→   686→                                <ProcessWithdrawalButton id={w.id} onDone={load} />
+   187→   687→                              )}
+   188→   688→                              {w.status === 'pending_2fa' && (
+   189→   689→                                <Badge variant="outline" className="text-[10px] bg-amber-500/10 text-amber-700 dark:text-amber-300">
+   190→   690→                                  <Lock className="size-3 mr-1" /> Requiere 2FA
+   191→   691→                                </Badge>
+   192→   692→                              )}
+   193→   693→                            </TableCell>
+   194→   694→                          </TableRow>
+   195→   695→                        )
+   196→   696→                      })}
+   197→   697→                    </TableBody>
+   198→   698→                  </Table>
+   199→   699→                </div>
+   200→   700→              )}
+   201→   701→            </CardContent>
+   202→   702→          </Card>
+   203→   703→
+   204→   704→          <Card>
+   205→   705→            <CardHeader className="pb-3">
+   206→   706→              <CardTitle className="text-base">Historial de retiros</CardTitle>
+   207→   707→              <CardDescription>{data.withdrawalHistory.length} completados / rechazados</CardDescription>
+   208→   708→            </CardHeader>
+   209→   709→            <CardContent className="p-0">
+   210→   710→              {data.withdrawalHistory.length === 0 ? (
+   211→   711→                <div className="p-8 text-center text-sm text-muted-foreground">Sin historial.</div>
+   212→   712→              ) : (
+   213→   713→                <div className="overflow-x-auto scroll-thin">
+   214→   714→                  <Table>
+   215→   715→                    <TableHeader>
+   216→   716→                      <TableRow>
+   217→   717→                        <TableHead className="min-w-[140px]">Fecha</TableHead>
+   218→   718→                        <TableHead className="min-w-[160px]">Cuenta</TableHead>
+   219→   719→                        <TableHead className="text-right min-w-[120px]">Monto</TableHead>
+   220→   720→                        <TableHead className="text-right min-w-[100px]">Fee</TableHead>
+   221→   721→                        <TableHead className="text-right min-w-[120px]">Neto</TableHead>
+   222→   722→                        <TableHead className="min-w-[140px]">Estado</TableHead>
+   223→   723→                        <TableHead className="min-w-[140px]">Completado</TableHead>
+   224→   724→                      </TableRow>
+   225→   725→                    </TableHeader>
+   226→   726→                    <TableBody>
+   227→   727→                      {data.withdrawalHistory.map((w) => {
+   228→   728→                        const meta = withdrawalStatusMeta(w.status)
+   229→   729→                        return (
+   230→   730→                          <TableRow key={w.id}>
+   231→   731→                            <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
+   232→   732→                              <div className="font-medium text-foreground">{shortDate(w.createdAt)}</div>
+   233→   733→                              <div>{shortTime(w.createdAt)}</div>
+   234→   734→                            </TableCell>
+   235→   735→                            <TableCell className="min-w-0">
+   236→   736→                              <div className="text-sm truncate">{w.walletAccount.accountHolder}</div>
+   237→   737→                              <div className="text-[10px] text-muted-foreground font-mono truncate">
+   238→   738→                                {maskAccount(w.walletAccount.accountNumber)}
+   239→   739→                              </div>
+   240→   740→                            </TableCell>
+   241→   741→                            <TableCell className="text-right tabular-nums whitespace-nowrap font-medium">
+   242→   742→                              {formatCurrency(w.amount, 'COP', { compact: true })}
+   243→   743→                            </TableCell>
+   244→   744→                            <TableCell className="text-right tabular-nums text-xs text-muted-foreground whitespace-nowrap">
+   245→   745→                              {formatCurrency(w.fee, 'COP', { compact: true })}
+   246→   746→                            </TableCell>
+   247→   747→                            <TableCell className="text-right tabular-nums whitespace-nowrap font-semibold">
+   248→   748→                              {formatCurrency(w.netAmount, 'COP', { compact: true })}
+   249→   749→                            </TableCell>
+   250→   750→                            <TableCell>
+   251→   751→                              <Badge variant="outline" className={cn('text-[10px]', meta.cls)}>{meta.label}</Badge>
+   252→   752→                            </TableCell>
+   253→   753→                            <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
+   254→   754→                              {w.completedAt ? `${shortDate(w.completedAt)} ${shortTime(w.completedAt)}` : '—'}
+   255→   755→                            </TableCell>
+   256→   756→                          </TableRow>
+   257→   757→                        )
+   258→   758→                      })}
+   259→   759→                    </TableBody>
+   260→   760→                  </Table>
+   261→   761→                </div>
+   262→   762→              )}
+   263→   763→            </CardContent>
+   264→   764→          </Card>
+   265→   765→        </TabsContent>
+   266→   766→
+   267→   767→        {/* ── Accounts tab ────────────────────────────────────────────── */}
+   268→   768→        <TabsContent value="accounts" className="mt-4">
+   269→   769→          <Card>
+   270→   770→            <CardHeader className="pb-3 flex-row items-center justify-between space-y-0">
+   271→   771→              <div className="min-w-0">
+   272→   772→                <CardTitle className="text-base">Cuentas de cobro</CardTitle>
+   273→   773→                <CardDescription>{data.accounts.length} cuenta{data.accounts.length === 1 ? '' : 's'} registrada{data.accounts.length === 1 ? '' : 's'}</CardDescription>
+   274→   774→              </div>
+   275→   775→              <Button size="sm" onClick={() => setAccountOpen(true)}>
+   276→   776→                <Plus className="size-4" /> Nueva cuenta
+   277→   777→              </Button>
+   278→   778→            </CardHeader>
+   279→   779→            <CardContent>
+   280→   780→              {data.accounts.length === 0 ? (
+   281→   781→                <div className="p-12 text-center text-sm text-muted-foreground space-y-3">
+   282→   782→                  <Building2 className="size-10 mx-auto text-muted-foreground/50" />
+   283→   783→                  <div>No hay cuentas registradas todavía.</div>
+   284→   784→                  <Button size="sm" onClick={() => setAccountOpen(true)}>
+   285→   785→                    <Plus className="size-4" /> Registrar primera cuenta
+   286→   786→                  </Button>
+   287→   787→                </div>
+   288→   788→              ) : (
+   289→   789→                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+   290→   790→                  {data.accounts.map((a) => {
+   291→   791→                    const meta = accountTypeMeta(a.accountType)
+   292→   792→                    const Icon = meta.icon
+   293→   793→                    return (
+   294→   794→                      <div
+   295→   795→                        key={a.id}
+   296→   796→                        className={cn(
+   297→   797→                          'relative rounded-xl border p-4 transition-all hover:shadow-md',
+   298→   798→                          a.isDefault ? 'border-emerald-500/40 bg-emerald-500/5' : 'bg-card',
+   299→   799→                        )}
+   300→   800→                      >
+   301→   801→                        <div className="flex items-start justify-between gap-2 min-w-0">
+   302→   802→                          <div className={cn('size-10 rounded-lg flex items-center justify-center ring-1 shrink-0', meta.cls)}>
+   303→   803→                            <Icon className="size-5" />
+   304→   804→                          </div>
+   305→   805→                          <div className="flex flex-col items-end gap-1">
+   306→   806→                            <Badge variant="outline" className="text-[10px]">{meta.label}</Badge>
+   307→   807→                            {a.isDefault && (
+   308→   808→                              <Badge className="text-[10px] bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-0">
+   309→   809→                                <Star className="size-3 mr-1" /> Predeterminada
+   310→   810→                              </Badge>
+   311→   811→                            )}
+   312→   812→                          </div>
+   313→   813→                        </div>
+   314→   814→                        <div className="mt-3 space-y-1 min-w-0">
+   315→   815→                          <div className="font-semibold text-sm truncate" title={a.accountHolder}>{a.accountHolder}</div>
+   316→   816→                          <div className="text-sm font-mono text-muted-foreground tabular-nums">{maskAccount(a.accountNumber)}</div>
+   317→   817→                          {a.bankName && <div className="text-xs text-muted-foreground truncate">{a.bankName}</div>}
+   318→   818→                        </div>
+   319→   819→                        <div className="mt-3 flex items-center gap-2">
+   320→   820→                          {a.verified ? (
+   321→   821→                            <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
+   322→   822→                              <CheckCircle2 className="size-3 mr-1" /> Verificada
+   323→   823→                            </Badge>
+   324→   824→                          ) : (
+   325→   825→                            <Badge variant="outline" className="text-[10px] bg-amber-500/10 text-amber-700 dark:text-amber-300">
+   326→   826→                              <Clock className="size-3 mr-1" /> Sin verificar
+   327→   827→                            </Badge>
+   328→   828→                          )}
+   329→   829→                        </div>
+   330→   830→                      </div>
+   331→   831→                    )
+   332→   832→                  })}
+   333→   833→                </div>
+   334→   834→              )}
+   335→   835→            </CardContent>
+   336→   836→          </Card>
+   337→   837→        </TabsContent>
+   338→   838→      </Tabs>
+   339→   839→
+   340→   840→      {/* ── 2FA Dialog ─────────────────────────────────────────────────── */}
+   341→   841→      <Dialog open={twoFactorOpen} onOpenChange={setTwoFactorOpen}>
+   342→   842→        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
+   343→   843→          <DialogHeader>
+   344→   844→            <DialogTitle className="flex items-center gap-2">
+   345→   845→              <ShieldCheck className="size-5 text-emerald-600" />
+   346→   846→              {twoFactorStage === 'setup' ? 'Configurar 2FA' : 'Verifica tu autenticador'}
+   347→   847→            </DialogTitle>
+   348→   848→            <DialogDescription>
+   349→   849→              {twoFactorStage === 'setup'
+   350→   850→                ? 'Generando tu secreto TOTP…'
+   351→   851→                : 'Escanea este QR con Google Authenticator, Authy o 1Password e ingresa el código de 6 dígitos.'}
+   352→   852→            </DialogDescription>
+   353→   853→          </DialogHeader>
+   354→   854→
+   355→   855→          {twoFactorBusy ? (
+   356→   856→            <div className="py-8 flex items-center justify-center">
+   357→   857→              <Loader2 className="size-6 animate-spin text-muted-foreground" />
+   358→   858→            </div>
+   359→   859→          ) : twoFactorStage === 'verify' ? (
+   360→   860→            <div className="space-y-4">
+   361→   861→              <div className="flex justify-center p-4 bg-white rounded-lg border">
+   362→   862→                <QRCodeSVG value={twoFactorUri} size={180} />
+   363→   863→              </div>
+   364→   864→              <div className="space-y-1">
+   365→   865→                <Label className="text-xs text-muted-foreground">Secreto (cópialo si no puedes escanear)</Label>
+   366→   866→                <div className="font-mono text-[11px] p-2 rounded bg-muted break-all">{twoFactorSecret}</div>
+   367→   867→              </div>
+   368→   868→              {twoFactorBackup.length > 0 && (
+   369→   869→                <div className="space-y-1">
+   370→   870→                  <Label className="text-xs text-muted-foreground">Códigos de respaldo (guárdalos en un lugar seguro)</Label>
+   371→   871→                  <div className="grid grid-cols-2 gap-1 p-2 rounded bg-muted">
+   372→   872→                    {twoFactorBackup.map((c, i) => (
+   373→   873→                      <div key={i} className="font-mono text-[11px] tabular-nums">{c}</div>
+   374→   874→                    ))}
+   375→   875→                  </div>
+   376→   876→                </div>
+   377→   877→              )}
+   378→   878→              <Separator />
+   379→   879→              <div className="space-y-2">
+   380→   880→                <Label>Código de verificación</Label>
+   381→   881→                <InputOTP maxLength={6} value={totpToken} onChange={setTotpToken}>
+   382→   882→                  <InputOTPGroup>
+   383→   883→                    <InputOTPSlot index={0} />
+   384→   884→                    <InputOTPSlot index={1} />
+   385→   885→                    <InputOTPSlot index={2} />
+   386→   886→                  </InputOTPGroup>
+   387→   887→                  <InputOTPSeparator />
+   388→   888→                  <InputOTPGroup>
+   389→   889→                    <InputOTPSlot index={3} />
+   390→   890→                    <InputOTPSlot index={4} />
+   391→   891→                    <InputOTPSlot index={5} />
+   392→   892→                  </InputOTPGroup>
+   393→   893→                </InputOTP>
+   394→   894→              </div>
+   395→   895→              <DialogFooter>
+   396→   896→                <Button variant="outline" onClick={() => setTwoFactorOpen(false)}>Cancelar</Button>
+   397→   897→                <Button onClick={verifyTwoFactor} disabled={totpToken.length !== 6}>
+   398→   898→                  <QrCode className="size-4" /> Verificar y activar
+   399→   899→                </Button>
+   400→   900→              </DialogFooter>
+   401→   901→            </div>
+   402→   902→          ) : null}
+   403→   903→        </DialogContent>
+   404→   904→      </Dialog>
+   405→   905→
+   406→   906→      {/* ── Withdrawal Dialog ──────────────────────────────────────────── */}
+   407→   907→      <Dialog open={withdrawalOpen} onOpenChange={setWithdrawalOpen}>
+   408→   908→        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
+   409→   909→          <DialogHeader>
+   410→   910→            <DialogTitle className="flex items-center gap-2"><Banknote className="size-5 text-emerald-600" /> Solicitar retiro</DialogTitle>
+   411→   911→            <DialogDescription>Saldo disponible: {formatCurrency(data.balance)}</DialogDescription>
+   412→   912→          </DialogHeader>
+   413→   913→          <div className="space-y-4">
+   414→   914→            <div className="space-y-2">
+   415→   915→              <Label>Cuenta de cobro</Label>
+   416→   916→              <Select value={wdAccount} onValueChange={setWdAccount}>
+   417→   917→                <SelectTrigger><SelectValue placeholder="Selecciona una cuenta" /></SelectTrigger>
+   418→   918→                <SelectContent>
+   419→   919→                  {data.accounts.map(a => (
+   420→   920→                    <SelectItem key={a.id} value={a.id}>
+   421→   921→                      <span className="truncate">{a.accountHolder} · {maskAccount(a.accountNumber)}</span>
+   422→   922→                    </SelectItem>
+   423→   923→                  ))}
+   424→   924→                </SelectContent>
+   425→   925→              </Select>
+   426→   926→            </div>
+   427→   927→            <div className="space-y-2">
+   428→   928→              <Label>Monto (COP)</Label>
+   429→   929→              <Input
+   430→   930→                type="number"
+   431→   931→                min={0}
+   432→   932→                max={data.balance}
+   433→   933→                value={wdAmount}
+   434→   934→                onChange={e => setWdAmount(e.target.value)}
+   435→   935→                placeholder="0"
+   436→   936→              />
+   437→   937→              {wdAmount && Number(wdAmount) > 0 && (
+   438→   938→                <p className="text-xs text-muted-foreground">
+   439→   939→                  Fee estimado: {formatCurrency(Math.max(Number(wdAmount) * 0.01, 1000), 'COP', { compact: true })} · Neto: {formatCurrency(Number(wdAmount) - Math.max(Number(wdAmount) * 0.01, 1000), 'COP', { compact: true })}
+   440→   940→                </p>
+   441→   941→              )}
+   442→   942→            </div>
+   443→   943→            {twoFactorEnabled && (
+   444→   944→              <div className="space-y-2">
+   445→   945→                <Label className="flex items-center gap-1"><Lock className="size-3" /> Código TOTP (6 dígitos)</Label>
+   446→   946→                <InputOTP maxLength={6} value={wdTotp} onChange={setWdTotp}>
+   447→   947→                  <InputOTPGroup>
+   448→   948→                    <InputOTPSlot index={0} />
+   449→   949→                    <InputOTPSlot index={1} />
+   450→   950→                    <InputOTPSlot index={2} />
+   451→   951→                  </InputOTPGroup>
+   452→   952→                  <InputOTPSeparator />
+   453→   953→                  <InputOTPGroup>
+   454→   954→                    <InputOTPSlot index={3} />
+   455→   955→                    <InputOTPSlot index={4} />
+   456→   956→                    <InputOTPSlot index={5} />
+   457→   957→                  </InputOTPGroup>
+   458→   958→                </InputOTP>
+   459→   959→              </div>
+   460→   960→            )}
+   461→   961→          </div>
+   462→   962→          <DialogFooter>
+   463→   963→            <Button variant="outline" onClick={() => setWithdrawalOpen(false)}>Cancelar</Button>
+   464→   964→            <Button onClick={submitWithdrawal} disabled={wdBusy}>
+   465→   965→              {wdBusy && <Loader2 className="size-4 animate-spin mr-1" />}
+   466→   966→              Confirmar retiro
+   467→   967→            </Button>
+   468→   968→          </DialogFooter>
+   469→   969→        </DialogContent>
+   470→   970→      </Dialog>
+   471→   971→
+   472→   972→      {/* ── Register Account Dialog ────────────────────────────────────── */}
+   473→   973→      <Dialog open={accountOpen} onOpenChange={setAccountOpen}>
+   474→   974→        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
+   475→   975→          <DialogHeader>
+   476→   976→            <DialogTitle className="flex items-center gap-2"><Plus className="size-5 text-emerald-600" /> Registrar cuenta</DialogTitle>
+   477→   977→            <DialogDescription>Agrega una cuenta bancaria o billetera para recibir retiros.</DialogDescription>
+   478→   978→          </DialogHeader>
+   479→   979→          <div className="space-y-4">
+   480→   980→            <div className="space-y-2">
+   481→   981→              <Label>Tipo de cuenta</Label>
+   482→   982→              <Select value={acType} onValueChange={setAcType}>
+   483→   983→                <SelectTrigger><SelectValue /></SelectTrigger>
+   484→   984→                <SelectContent>
+   485→   985→                  <SelectItem value="bank">Banco</SelectItem>
+   486→   986→                  <SelectItem value="nequi">Nequi</SelectItem>
+   487→   987→                  <SelectItem value="daviplata">Daviplata</SelectItem>
+   488→   988→                  <SelectItem value="paypal">PayPal</SelectItem>
+   489→   989→                  <SelectItem value="wise">Wise</SelectItem>
+   490→   990→                </SelectContent>
+   491→   991→              </Select>
+   492→   992→            </div>
+   493→   993→            <div className="space-y-2">
+   494→   994→              <Label>Titular de la cuenta</Label>
+   495→   995→              <Input value={acHolder} onChange={e => setAcHolder(e.target.value)} placeholder="Nombre completo" />
+   496→   996→            </div>
+   497→   997→            <div className="space-y-2">
+   498→   998→              <Label>Número de cuenta</Label>
+   499→   999→              <Input value={acNumber} onChange={e => setAcNumber(e.target.value)} placeholder="0000000000" />
+   500→  1000→            </div>
+   501→
+   502→[showing lines 501-1000 of 1101; use offset=1001 with limit to continue reading]

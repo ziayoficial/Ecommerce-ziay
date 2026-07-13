@@ -119,6 +119,103 @@ export const catalogService = {
   },
 
   /**
+   * Lightweight product list (id, sku, name, imageUrl) for the enrichment
+   * dashboard's "pending" panel. Only returns active products.
+   *
+   * Used by `/api/product-enrichment` GET to compute which products still
+   * lack a ProductEnrichment row.
+   */
+  async getActiveProductsForEnrichment(tenantId: string) {
+    try {
+      return await db.product.findMany({
+        where: { tenantId, active: true },
+        select: { sku: true, name: true, imageUrl: true },
+        orderBy: { name: 'asc' },
+      })
+    } catch (err) {
+      captureError(err as Error, {
+        service: 'catalog',
+        method: 'getActiveProductsForEnrichment',
+        tenantId,
+      })
+      throw new Error('Failed to fetch products for enrichment')
+    }
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // ProductEnrichment — VLM-generated tags / description / score per SKU.
+  // Kept here (rather than a new enrichment.service.ts) because
+  // ProductEnrichment is a 1:1 extension of Product — same domain.
+  // SPRINT8-SERVICES-REST-001.
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /**
+   * List all enrichment rows for a tenant + the set of enriched SKUs.
+   * Used by `/api/product-enrichment` GET to power the dashboard.
+   */
+  async getEnrichments(tenantId: string) {
+    try {
+      const [enrichments, enrichedSkus] = await Promise.all([
+        db.productEnrichment.findMany({
+          where: { tenantId },
+          orderBy: { updatedAt: 'desc' },
+        }),
+        db.productEnrichment.findMany({
+          where: { tenantId },
+          select: { sku: true },
+        }),
+      ])
+      return { enrichments, enrichedSkus }
+    } catch (err) {
+      captureError(err as Error, {
+        service: 'catalog',
+        method: 'getEnrichments',
+        tenantId,
+      })
+      throw new Error('Failed to fetch enrichments')
+    }
+  },
+
+  /**
+   * Upsert a ProductEnrichment row keyed by (tenantId, sku). Mirrors the
+   * prior inline route logic — JSON-stringified tags, optional description,
+   * enrichment score in [0, 1].
+   */
+  async upsertEnrichment(input: {
+    tenantId: string
+    sku: string
+    tags: string
+    description?: string | null
+    enrichmentScore: number
+  }) {
+    try {
+      return await db.productEnrichment.upsert({
+        where: { tenantId_sku: { tenantId: input.tenantId, sku: input.sku } },
+        create: {
+          tenantId: input.tenantId,
+          sku: input.sku,
+          tags: input.tags,
+          description: input.description || null,
+          enrichmentScore: input.enrichmentScore,
+        },
+        update: {
+          tags: input.tags,
+          description: input.description || null,
+          enrichmentScore: input.enrichmentScore,
+        },
+      })
+    } catch (err) {
+      captureError(err as Error, {
+        service: 'catalog',
+        method: 'upsertEnrichment',
+        tenantId: input.tenantId,
+        sku: input.sku,
+      })
+      throw new Error('Failed to upsert enrichment')
+    }
+  },
+
+  /**
    * Send a product card (with image) into a conversation as an outbound
    * `order_card` message. Bridges the catalog visual view with the chat.
    * Used by `/api/catalog/send-to-chat`.

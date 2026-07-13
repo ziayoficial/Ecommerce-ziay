@@ -15,13 +15,15 @@
 //   add_attempt     → increment attemptNumber + append a new attempt row
 //
 // Auth: requireTenantAccess(tenantId) on every entry.
+//
+// SPRINT8-SERVICES-REST-001 — migrated every RedeliveryRequest + RedeliveryAttempt
+// read/write to `novedadesService` (redelivery methods). Response shapes
+// unchanged; transactions now live in the service layer.
 
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
 import { requireTenantAccess } from '@/lib/auth-helpers'
-import { getLogger } from '@/lib/logger'
-
-const log = getLogger('api:redelivery')
+import { captureError } from '@/lib/capture-error'
+import { novedadesService } from '@/lib/services'
 
 // ───────────────────────────────────────────────────────────────────────────
 // GET
@@ -37,35 +39,26 @@ export async function GET(req: NextRequest) {
   if (error) return error
 
   const status = sp.get('status') || undefined
-  const where: any = { tenantId }
-  if (status && status !== 'all') where.status = status
 
-  const [requests, stats] = await Promise.all([
-    db.redeliveryRequest.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      take: 200,
-      include: { attempts: { orderBy: { attemptedAt: 'desc' } } },
-    }),
-    db.redeliveryRequest.groupBy({
-      by: ['status'],
-      where: { tenantId },
-      _count: true,
-    }),
-  ])
-
-  const statsMap: Record<string, number> = { pending: 0, scheduled: 0, completed: 0, cancelled: 0 }
-  for (const g of stats) statsMap[g.status] = g._count
-  return NextResponse.json({
-    stats: {
-      total: Object.values(statsMap).reduce((a, b) => a + b, 0),
-      pending: statsMap.pending || 0,
-      scheduled: statsMap.scheduled || 0,
-      completed: statsMap.completed || 0,
-      cancelled: statsMap.cancelled || 0,
-    },
-    requests,
-  })
+  try {
+    const { requests, statsMap } = await novedadesService.getRedeliveryRequests(tenantId, status)
+    return NextResponse.json({
+      stats: {
+        total: Object.values(statsMap).reduce((a, b) => a + b, 0),
+        pending: statsMap.pending || 0,
+        scheduled: statsMap.scheduled || 0,
+        completed: statsMap.completed || 0,
+        cancelled: statsMap.cancelled || 0,
+      },
+      requests,
+    })
+  } catch (err) {
+    captureError(err as Error, { path: '/api/redelivery', method: 'GET', tenantId })
+    return NextResponse.json(
+      { error: 'Internal server error', message: err instanceof Error ? err.message : 'Unknown error' },
+      { status: 500 },
+    )
+  }
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -96,41 +89,24 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  // Atomic: create the request + schedule the first attempt together so we
-  // never end up with a request that has zero attempts (or an orphan attempt).
-  const { request, attempt } = await db.$transaction(async (tx) => {
-    const created = await tx.redeliveryRequest.create({
-      data: {
-        tenantId,
-        guideNumber: String(guideNumber),
-        customerPhone: String(customerPhone),
-        customerName: String(customerName),
-        originalAddress: String(originalAddress),
-        newAddress: newAddress ? String(newAddress) : null,
-        reason: String(reason),
-        status: 'pending',
-        attemptNumber: 1,
-      },
+  try {
+    const { request, attempt } = await novedadesService.createRedeliveryRequest({
+      tenantId,
+      guideNumber: String(guideNumber),
+      customerPhone: String(customerPhone),
+      customerName: String(customerName),
+      originalAddress: String(originalAddress),
+      newAddress: newAddress ? String(newAddress) : null,
+      reason: String(reason),
     })
-
-    // Schedule the first attempt as pending.
-    const firstAttempt = await tx.redeliveryAttempt.create({
-      data: {
-        redeliveryId: created.id,
-        attemptNumber: 1,
-        status: 'pending',
-        attemptedAt: new Date(),
-      },
-    })
-
-    return { request: created, attempt: firstAttempt }
-  })
-
-  log.info(
-    { tenantId, redeliveryId: request.id, guideNumber: request.guideNumber, attemptNumber: 1 },
-    'redelivery request created',
-  )
-  return NextResponse.json({ request, attempt }, { status: 201 })
+    return NextResponse.json({ request, attempt }, { status: 201 })
+  } catch (err) {
+    captureError(err as Error, { path: '/api/redelivery', method: 'POST', tenantId })
+    return NextResponse.json(
+      { error: 'Internal server error', message: err instanceof Error ? err.message : 'Unknown error' },
+      { status: 500 },
+    )
+  }
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -158,11 +134,8 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'action and redeliveryId are required' }, { status: 400 })
   }
 
-  const existing = await db.redeliveryRequest.findUnique({
-    where: { id: redeliveryId },
-    include: { attempts: { orderBy: { attemptedAt: 'desc' }, take: 1 } },
-  })
-  if (!existing || existing.tenantId !== tenantId) {
+  const existing = await novedadesService.getRedeliveryRequestForUpdate(redeliveryId, tenantId)
+  if (!existing) {
     return NextResponse.json(
       { error: 'Redelivery request not found in this tenant' },
       { status: 404 },
@@ -171,125 +144,75 @@ export async function PATCH(req: NextRequest) {
 
   const latestAttempt = existing.attempts[0] || null
 
-  switch (action) {
-    case 'confirm_address': {
-      const { newAddress } = body
-      if (!newAddress) {
-        return NextResponse.json({ error: 'newAddress required' }, { status: 400 })
-      }
-      const updated = await db.redeliveryRequest.update({
-        where: { id: redeliveryId },
-        data: { newAddress: String(newAddress) },
-      })
-      return NextResponse.json({ request: updated })
-    }
-
-    case 'schedule': {
-      const { scheduledAt, agentNote } = body
-      const when = scheduledAt ? new Date(scheduledAt) : new Date(Date.now() + 24 * 60 * 60 * 1000)
-      // Atomic: update the request + record the scheduling note on the latest attempt.
-      const updated = await db.$transaction(async (tx) => {
-        const r = await tx.redeliveryRequest.update({
-          where: { id: redeliveryId },
-          data: { status: 'scheduled', scheduledAt: when },
-        })
-        // Mark the latest attempt as scheduled via agentNote (no `scheduled` status
-        // in the enum — we use a note to record scheduling; the attempt itself
-        // stays pending until it's actually attempted).
-        if (latestAttempt) {
-          await tx.redeliveryAttempt.update({
-            where: { id: latestAttempt.id },
-            data: { agentNote: agentNote ? String(agentNote) : `Programado para ${when.toISOString()}` },
-          })
+  try {
+    switch (action) {
+      case 'confirm_address': {
+        const { newAddress } = body
+        if (!newAddress) {
+          return NextResponse.json({ error: 'newAddress required' }, { status: 400 })
         }
-        return r
-      })
-      log.info(
-        { tenantId, redeliveryId, attemptId: latestAttempt?.id, scheduledAt: when.toISOString() },
-        'redelivery attempt scheduled',
-      )
-      return NextResponse.json({ request: updated })
-    }
+        const updated = await novedadesService.confirmRedeliveryAddress(redeliveryId, String(newAddress))
+        return NextResponse.json({ request: updated })
+      }
 
-    case 'assign_human': {
-      const { agentNote } = body
-      if (!agentNote || !latestAttempt) {
-        return NextResponse.json(
-          { error: 'agentNote required and a latest attempt must exist' },
-          { status: 400 },
+      case 'schedule': {
+        const { scheduledAt, agentNote } = body
+        const when = scheduledAt ? new Date(scheduledAt) : new Date(Date.now() + 24 * 60 * 60 * 1000)
+        const updated = await novedadesService.scheduleRedeliveryAttempt(
+          redeliveryId,
+          when,
+          latestAttempt?.id ?? null,
+          agentNote ? String(agentNote) : undefined,
         )
+        return NextResponse.json({ request: updated })
       }
-      const updated = await db.redeliveryAttempt.update({
-        where: { id: latestAttempt.id },
-        data: { agentNote: String(agentNote) },
-      })
-      return NextResponse.json({ attempt: updated })
-    }
 
-    case 'complete': {
-      const { carrierResponse } = body
-      // Atomic: mark request as completed + mark latest attempt as success.
-      const updated = await db.$transaction(async (tx) => {
-        const r = await tx.redeliveryRequest.update({
-          where: { id: redeliveryId },
-          data: { status: 'completed', completedAt: new Date() },
-        })
-        if (latestAttempt) {
-          await tx.redeliveryAttempt.update({
-            where: { id: latestAttempt.id },
-            data: { status: 'success', carrierResponse: carrierResponse ? String(carrierResponse) : null },
-          })
+      case 'assign_human': {
+        const { agentNote } = body
+        if (!agentNote || !latestAttempt) {
+          return NextResponse.json(
+            { error: 'agentNote required and a latest attempt must exist' },
+            { status: 400 },
+          )
         }
-        return r
-      })
-      log.info(
-        { tenantId, redeliveryId, attemptId: latestAttempt?.id, attemptNumber: latestAttempt?.attemptNumber },
-        'redelivery completed',
-      )
-      return NextResponse.json({ request: updated })
-    }
+        const updated = await novedadesService.assignRedeliveryHuman(latestAttempt.id, String(agentNote))
+        return NextResponse.json({ attempt: updated })
+      }
 
-    case 'cancel': {
-      const { reason: cancelReason } = body
-      // Atomic: mark request as cancelled + mark latest attempt as failed.
-      const updated = await db.$transaction(async (tx) => {
-        const r = await tx.redeliveryRequest.update({
-          where: { id: redeliveryId },
-          data: { status: 'cancelled' },
-        })
-        if (latestAttempt) {
-          await tx.redeliveryAttempt.update({
-            where: { id: latestAttempt.id },
-            data: { status: 'failed', agentNote: cancelReason ? String(cancelReason) : 'Cancelled by agent' },
-          })
-        }
-        return r
-      })
-      return NextResponse.json({ request: updated })
-    }
+      case 'complete': {
+        const { carrierResponse } = body
+        const updated = await novedadesService.completeRedelivery(
+          redeliveryId,
+          latestAttempt?.id ?? null,
+          carrierResponse ?? null,
+        )
+        return NextResponse.json({ request: updated })
+      }
 
-    case 'add_attempt': {
-      const next = (existing.attemptNumber || 1) + 1
-      // Atomic: create the new attempt + bump the request's attemptNumber.
-      const { request, attempt } = await db.$transaction(async (tx) => {
-        const a = await tx.redeliveryAttempt.create({
-          data: {
-            redeliveryId: redeliveryId,
-            attemptNumber: next,
-            status: 'pending',
-            attemptedAt: new Date(),
-          },
-        })
-        const r = await tx.redeliveryRequest.update({
-          where: { id: redeliveryId },
-          data: { attemptNumber: next, status: 'pending' },
-        })
-        return { request: r, attempt: a }
-      })
-      return NextResponse.json({ request, attempt })
-    }
+      case 'cancel': {
+        const { reason: cancelReason } = body
+        const updated = await novedadesService.cancelRedelivery(
+          redeliveryId,
+          latestAttempt?.id ?? null,
+          cancelReason ? String(cancelReason) : undefined,
+        )
+        return NextResponse.json({ request: updated })
+      }
 
-    default:
-      return NextResponse.json({ error: `Unknown action: ${action}` }, { status: 400 })
+      case 'add_attempt': {
+        const next = (existing.attemptNumber || 1) + 1
+        const { request, attempt } = await novedadesService.addRedeliveryAttempt(redeliveryId, next)
+        return NextResponse.json({ request, attempt })
+      }
+
+      default:
+        return NextResponse.json({ error: `Unknown action: ${action}` }, { status: 400 })
+    }
+  } catch (err) {
+    captureError(err as Error, { path: '/api/redelivery', method: 'PATCH', tenantId, action })
+    return NextResponse.json(
+      { error: 'Internal server error', message: err instanceof Error ? err.message : 'Unknown error' },
+      { status: 500 },
+    )
   }
 }

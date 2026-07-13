@@ -6,6 +6,12 @@
 // transportadora. No persiste por defecto (la cotización puede cambiar y el
 // valor real se fija al generar la guía); pero dejamos un log en AuditLog
 // para trazabilidad.
+//
+// SPRINT8-SERVICES-REST-001 — left inline. The only db call here is a
+// single `db.auditLog.create` after the adapter returns. Per rule #2
+// (1-2 simple db calls OK to leave), a one-row audit-log insert doesn't
+// warrant a service method.
+// TODO: migrate to service layer if quote caching/persistence is added.
 
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-helpers'

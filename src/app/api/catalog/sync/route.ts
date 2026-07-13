@@ -16,6 +16,14 @@
 //
 // Esta ruta es idempotente: ejecutarla múltiples veces produce el mismo estado
 // final en la tabla `Product` (upsert por [tenantId, sku]).
+//
+// SPRINT8-SERVICES-REST-001 — left inline. The route does two simple db
+// reads (tenant existence check + audit log read-back) sandwiching an
+// `enqueue('catalog-sync', …)` call. The actual product upsert lives in
+// the queue worker, which already uses `catalogService.syncCatalog`.
+// Per rule #2 (1-2 simple db calls OK to leave), the two reads don't
+// warrant a service method on their own.
+// TODO: migrate to service layer when the queue handler is inlined.
 
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-helpers'

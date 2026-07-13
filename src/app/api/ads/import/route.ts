@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
 import { requireAuth } from '@/lib/auth-helpers'
 import { rateLimit } from '@/lib/middleware/rate-limit'
 import { getAdPlatformAdapter } from '@/lib/adapters/ads-registry'
+import { captureError } from '@/lib/capture-error'
 import { getLogger } from '@/lib/logger'
+import { adsService } from '@/lib/services'
 
 const log = getLogger('api/ads/import')
 
@@ -24,6 +25,12 @@ const log = getLogger('api/ads/import')
 //     — el adapter devuelve datos agregados, no per-day).
 //   - Solo se hacen upserts para Ads que ya existan en el catálogo del tenant
 //     (Ad.externalId coincide con el adId de la plataforma).
+//
+// SPRINT8-SERVICES-REST-001 — migrated the per-ad `db.ad.findUnique` lookups
+// to `adsService.findAdByExternalId` and the per-ad `db.adSpend.upsert`
+// loop into a single batched `adsService.importAdSpend` call. The tenant
+// cross-check + warn-on-mismatch behavior is preserved in the route. Response
+// shape unchanged.
 export async function POST(req: NextRequest) {
   const limited = rateLimit(req, {
     max: 20,
@@ -71,8 +78,15 @@ export async function POST(req: NextRequest) {
     )
 
     let adsProcessed = 0
-    let spendUpserted = 0
     const dateOnly = new Date(`${dateStart}T00:00:00.000Z`)
+    const spendRows: Array<{
+      adId: string
+      date: Date
+      spend: number
+      impressions: number
+      clicks: number
+      convReported?: number
+    }> = []
 
     for (const cp of campaignPerf) {
       // Skip campaigns with no external id
@@ -86,10 +100,7 @@ export async function POST(req: NextRequest) {
         if (!ap.adId) continue
         adsProcessed += 1
         // Find the Ad by externalId (unique across the platform)
-        const ad = await db.ad.findUnique({
-          where: { externalId: ap.adId },
-          include: { campaign: { select: { tenantId: true } } },
-        })
+        const ad = await adsService.findAdByExternalId(ap.adId)
         if (!ad) {
           // Ad not in our DB — skip silently (could be a new ad we haven't synced)
           continue
@@ -102,25 +113,20 @@ export async function POST(req: NextRequest) {
           )
           continue
         }
-        await db.adSpend.upsert({
-          where: { adId_date: { adId: ad.id, date: dateOnly } },
-          create: {
-            adId: ad.id,
-            date: dateOnly,
-            spend: ap.spend,
-            impressions: ap.impressions,
-            clicks: ap.clicks,
-            convReported: ap.conversions,
-          },
-          update: {
-            spend: ap.spend,
-            impressions: ap.impressions,
-            clicks: ap.clicks,
-            convReported: ap.conversions,
-          },
+        spendRows.push({
+          adId: ad.id,
+          date: dateOnly,
+          spend: ap.spend,
+          impressions: ap.impressions,
+          clicks: ap.clicks,
+          convReported: ap.conversions,
         })
-        spendUpserted += 1
       }
+    }
+
+    // Batch-upsert the spend rows in a single $transaction.
+    if (spendRows.length > 0) {
+      await adsService.importAdSpend(spendRows)
     }
 
     return NextResponse.json({
@@ -130,13 +136,14 @@ export async function POST(req: NextRequest) {
       range: { dateStart, dateEnd },
       campaignsFetched: campaignPerf.length,
       adsProcessed,
-      spendUpserted,
+      spendUpserted: spendRows.length,
     })
   } catch (err) {
     log.error(
       { err, tenantId, platform, dateStart, dateEnd },
       'ads import failed',
     )
+    captureError(err as Error, { path: '/api/ads/import', method: 'POST' })
     return NextResponse.json(
       {
         error: 'Import failed',

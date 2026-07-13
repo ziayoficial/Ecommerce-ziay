@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
 import { requireTenantAccess } from '@/lib/auth-helpers'
 import { getPaymentAdapter } from '@/lib/adapters/payment-registry'
 import { rateLimit } from '@/lib/middleware/rate-limit'
+import { captureError } from '@/lib/capture-error'
 import { getLogger } from '@/lib/logger'
+import { orderService } from '@/lib/services'
 
 const log = getLogger('api/payments/create-link')
 
@@ -15,6 +16,13 @@ const log = getLogger('api/payments/create-link')
 //   { tenantId, orderId, gateway, amount, currency, description }
 //
 // Auth: requireTenantAccess(tenantId)
+//
+// SPRINT8-SERVICES-REST-001 — migrated the order.findUnique lookup to
+// `orderService.getOrderById` (tenant-scoped) + the order.update +
+// orderEvent.create (2 db calls) to a single `orderService.updateOrder`
+// call. The order lookup uses `getOrderById` because the existing service
+// method already scopes by tenant + includes the same relations. Response
+// shape unchanged.
 export async function POST(req: NextRequest) {
   const limited = rateLimit(req, {
     max: 30,
@@ -44,15 +52,9 @@ export async function POST(req: NextRequest) {
   const { error } = await requireTenantAccess(tenantId)
   if (error) return error
 
-  const order = await db.order.findUnique({ where: { id: orderId } })
+  const order = await orderService.getOrderById(orderId, tenantId)
   if (!order) {
     return NextResponse.json({ error: 'Order not found' }, { status: 404 })
-  }
-  if (order.tenantId !== tenantId) {
-    return NextResponse.json(
-      { error: 'Order does not belong to this tenant' },
-      { status: 403 },
-    )
   }
 
   const adapter = getPaymentAdapter(String(gateway))
@@ -72,21 +74,20 @@ export async function POST(req: NextRequest) {
     })
 
     if (result.success && (result.paymentId || result.url)) {
-      // Persist the gateway + ref on the order
-      const updated = await db.order.update({
-        where: { id: order.id },
-        data: {
+      // Persist the gateway + ref on the order + write an audit event
+      // atomically — `updateOrder` does both in a single $transaction.
+      const updated = await orderService.updateOrder(
+        order.id,
+        {
           paymentGateway: adapter.name,
           paymentRef: result.paymentId ?? null,
         },
-      })
-      await db.orderEvent.create({
-        data: {
-          orderId: order.id,
+        {
           type: 'payment_link_created',
           note: `gateway=${adapter.name} ref=${result.paymentId ?? ''}`,
         },
-      })
+        tenantId,
+      )
       log.info(
         { tenantId, orderId, gateway: adapter.name, ref: result.paymentId },
         'payment link created',
@@ -121,6 +122,7 @@ export async function POST(req: NextRequest) {
       { err, tenantId, orderId, gateway },
       'payment link creation failed',
     )
+    captureError(err as Error, { path: '/api/payments/create-link', method: 'POST' })
     return NextResponse.json(
       {
         error: 'Payment link creation failed',

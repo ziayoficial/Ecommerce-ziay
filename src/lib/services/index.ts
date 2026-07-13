@@ -49,3 +49,19 @@ export type {
 
 export { overviewService } from './overview.service'
 export type { OverviewService } from './overview.service'
+
+// SPRINT8-SERVICES-REST-001 — three new service files for the remaining
+// domains that the 42 unmigrated API routes touch. Each owns a single
+// bounded context: server-side pixel events, customer notifications, and
+// the trafficker-wallet fintech layer.
+export { conversionsService } from './conversions.service'
+export type { ConversionsService } from './conversions.service'
+
+export { notificationService } from './notification.service'
+export type {
+  NotificationService,
+  CreateNotificationInput,
+} from './notification.service'
+
+export { walletService } from './wallet.service'
+export type { WalletService } from './wallet.service'

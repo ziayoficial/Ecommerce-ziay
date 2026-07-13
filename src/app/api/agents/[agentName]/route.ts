@@ -7,6 +7,13 @@ import { buildAgentPrompt, AGENT_NAMES, AGENT_LABELS, AgentName } from '@/lib/ag
 // POST /api/agents/[agentName]
 // Body: AgentContext (tenantId required; conversationId/customerId/perfil/items/query/etc optional)
 // Returns: { reply, agent, confidence, error? }
+//
+// SPRINT8-SERVICES-REST-001 — left inline. The two db writes here are
+// side-effects after the LLM call (profile detection → conversation
+// update; vision JSON → ImageIdentification create). Per rule #2 (1-2
+// simple db calls OK to leave), the migration cost outweighs the benefit
+// — neither write benefits from a transaction or shared error surface.
+// TODO: migrate to service layer if more agent side-effects accumulate.
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ agentName: string }> }

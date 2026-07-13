@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
 import { requireTenantAccess } from '@/lib/auth-helpers'
+import { captureError } from '@/lib/capture-error'
 import { rateLimit } from '@/lib/middleware/rate-limit'
+import { catalogService } from '@/lib/services'
 import { enrichProductImage } from '@/lib/vision/pipeline'
 import { getLogger } from '@/lib/logger'
 
@@ -10,6 +11,11 @@ const log = getLogger('api/product-enrichment')
 // GET /api/product-enrichment?tenantId=X
 // Devuelve los ProductEnrichment del tenant + los productos que aún no tienen
 // enriquecimiento (pending).
+//
+// SPRINT8-SERVICES-REST-001 — migrated the 3 parallel findMany calls
+// (enrichments, products, enrichedSkus) to `catalogService.getEnrichments`
+// + `catalogService.getActiveProductsForEnrichment`. Response shape
+// unchanged.
 export async function GET(req: NextRequest) {
   const tenantId = req.nextUrl.searchParams.get('tenantId')
   if (!tenantId) {
@@ -21,39 +27,40 @@ export async function GET(req: NextRequest) {
   const { error } = await requireTenantAccess(tenantId)
   if (error) return error
 
-  const [enrichments, products, enrichedSkus] = await Promise.all([
-    db.productEnrichment.findMany({
-      where: { tenantId },
-      orderBy: { updatedAt: 'desc' },
-    }),
-    db.product.findMany({
-      where: { tenantId, active: true },
-      select: { sku: true, name: true, imageUrl: true },
-      orderBy: { name: 'asc' },
-    }),
-    db.productEnrichment.findMany({
-      where: { tenantId },
-      select: { sku: true },
-    }),
-  ])
+  try {
+    const [{ enrichments, enrichedSkus }, products] = await Promise.all([
+      catalogService.getEnrichments(tenantId),
+      catalogService.getActiveProductsForEnrichment(tenantId),
+    ])
 
-  const enrichedSet = new Set(enrichedSkus.map((e) => e.sku))
-  const pending = products
-    .filter((p) => !enrichedSet.has(p.sku))
-    .map((p) => ({
-      sku: p.sku,
-      name: p.name,
-      imageUrl: p.imageUrl,
-      hasImage: !!p.imageUrl,
-    }))
+    const enrichedSet = new Set(enrichedSkus.map((e) => e.sku))
+    const pending = products
+      .filter((p) => !enrichedSet.has(p.sku))
+      .map((p) => ({
+        sku: p.sku,
+        name: p.name,
+        imageUrl: p.imageUrl,
+        hasImage: !!p.imageUrl,
+      }))
 
-  return NextResponse.json({ enrichments, pending })
+    return NextResponse.json({ enrichments, pending })
+  } catch (err) {
+    captureError(err as Error, { path: '/api/product-enrichment', method: 'GET', tenantId })
+    return NextResponse.json(
+      { error: 'Internal server error', message: err instanceof Error ? err.message : 'Unknown error' },
+      { status: 500 },
+    )
+  }
 }
 
 // POST /api/product-enrichment
 // Body: { tenantId, sku }
 // Llama al VLM (z-ai-web-dev-sdk glm-4.6v) para analizar la imagen del producto
 // y hace upsert del ProductEnrichment correspondiente.
+//
+// SPRINT8-SERVICES-REST-001 — migrated the `db.product.findUnique` lookup
+// to `catalogService.getProductBySku` + the `db.productEnrichment.upsert`
+// to `catalogService.upsertEnrichment`. Response shape unchanged.
 export async function POST(req: NextRequest) {
   const limited = rateLimit(req, {
     max: 30,
@@ -80,9 +87,7 @@ export async function POST(req: NextRequest) {
   const { error } = await requireTenantAccess(tenantId)
   if (error) return error
 
-  const product = await db.product.findUnique({
-    where: { tenantId_sku: { tenantId, sku: String(sku) } },
-  })
+  const product = await catalogService.getProductBySku(tenantId, String(sku))
   if (!product) {
     return NextResponse.json({ error: 'Product not found' }, { status: 404 })
   }
@@ -110,20 +115,12 @@ export async function POST(req: NextRequest) {
         (vlm.description_seo ? 0.3 : 0),
     )
 
-    const enrichment = await db.productEnrichment.upsert({
-      where: { tenantId_sku: { tenantId, sku: product.sku } },
-      create: {
-        tenantId,
-        sku: product.sku,
-        tags: JSON.stringify(tagsArray),
-        description: description || null,
-        enrichmentScore: score,
-      },
-      update: {
-        tags: JSON.stringify(tagsArray),
-        description: description || null,
-        enrichmentScore: score,
-      },
+    const enrichment = await catalogService.upsertEnrichment({
+      tenantId,
+      sku: product.sku,
+      tags: JSON.stringify(tagsArray),
+      description: description || null,
+      enrichmentScore: score,
     })
 
     log.info(

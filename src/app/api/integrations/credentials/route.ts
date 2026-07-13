@@ -23,6 +23,15 @@ import {
 // Storage convention:
 //   Setting.key   = `cred::{integrationId}`
 //   Setting.value = JSON.stringify({ [fieldKey]: rawValue, ... })
+//
+// SPRINT8-SERVICES-REST-001 — left inline. Every method touches only the
+// `Setting` table (key/value JSON blob under a `cred::*` prefix). Per
+// rule #2 (1-2 simple db calls OK to leave) and per the SPRINT7 architect's
+// note ("Settings is a tiny key/value table, not worth a service on its
+// own"), the masking/merge logic + the Setting upsert are best kept
+// together in the route. A `setting.service.ts` would only be worth it
+// if more key prefixes (`feature::*`, `policy::*`) accumulate.
+// TODO: migrate to service layer when more Setting consumers land.
 // ───────────────────────────────────────────────────────────────────────────
 
 const CRED_PREFIX = 'cred::'

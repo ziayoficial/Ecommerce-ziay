@@ -6,6 +6,18 @@ import ZAI from 'z-ai-web-dev-sdk'
 // POST /api/ai-reply
 // Generates context-aware sales replies using the LLM skill.
 // Uses conversation history + channel payment strategy + catalog context.
+//
+// SPRINT8-SERVICES-REST-001 — left inline. The two db calls here
+// (conversation.findUnique with messages/customer/channel relations +
+// product.findMany for catalog context) load LLM context, not data for
+// the response. Per rule #2 (1-2 simple db calls OK to leave), the
+// existing `conversationService.getConversationById` would also clear
+// the unread badge (side-effect we don't want here) and `catalogService.
+// getProducts` filters by `active=true` but doesn't take a `take` limit
+// (the route uses `take: 8`). The shapes don't match cleanly — migrate
+// only when those services gain LLM-context-shaped methods.
+// TODO: migrate to service layer when conversationService gains a
+// "context-only" read method (no side-effects).
 export async function POST(req: NextRequest) {
   const { error } = await requireAuth()
   if (error) return error

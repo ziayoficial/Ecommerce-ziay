@@ -49,6 +49,51 @@ export const marketplaceService = {
   },
 
   /**
+   * Hydrate tenant brand info (`marca` / `nombreNegocio`) for a set of
+   * listing tenant ids. Returns a Map keyed by tenantId so the caller can
+   * attach `tenantName` to each listing row in a single pass.
+   *
+   * Used by `/api/marketplace` GET to decorate the listings browse view.
+   */
+  async getTenantBrands(tenantIds: string[]) {
+    try {
+      if (tenantIds.length === 0) return new Map<string, { marca: string; nombreNegocio: string }>()
+      const tenants = await db.tenant.findMany({
+        where: { id: { in: tenantIds } },
+        select: { id: true, marca: true, nombreNegocio: true },
+      })
+      return new Map(tenants.map((t) => [t.id, { marca: t.marca, nombreNegocio: t.nombreNegocio }]))
+    } catch (err) {
+      captureError(err as Error, {
+        service: 'marketplace',
+        method: 'getTenantBrands',
+        count: tenantIds.length,
+      })
+      throw new Error('Failed to fetch tenant brands')
+    }
+  },
+
+  /**
+   * The current tenant's own marketplace profile row (slug + marca +
+   * nombreNegocio). Used to render the "your brand" card on the browse view.
+   */
+  async getCurrentTenantProfile(tenantId: string) {
+    try {
+      return await db.tenant.findUnique({
+        where: { id: tenantId },
+        select: { id: true, slug: true, marca: true, nombreNegocio: true },
+      })
+    } catch (err) {
+      captureError(err as Error, {
+        service: 'marketplace',
+        method: 'getCurrentTenantProfile',
+        tenantId,
+      })
+      throw new Error('Failed to fetch current tenant profile')
+    }
+  },
+
+  /**
    * Listings published by THIS tenant (active + inactive).
    */
   async getMyListings(tenantId: string) {

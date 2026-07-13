@@ -15,14 +15,19 @@
 // Auth: requireAuth() on every entry. For trafficker-scoped routes, the caller
 // must either be the trafficker themselves (matched by email) or an admin/finance
 // operator with no tenantId (platform-level).
+//
+// SPRINT8-SERVICES-REST-001 — migrated every Trafficker / WalletTransaction /
+// WalletAccount / WithdrawalRequest / TwoFactorConfig read+write to
+// `walletService`. The 2FA secret + TOTP verification helpers stay in the
+// route (they're cryptographic, not DB-bound). Response shapes unchanged.
 
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
 import { requireAuth } from '@/lib/auth-helpers'
 import { generateTOTPSecret, verifyTOTP, hashBackupCodes } from '@/lib/totp'
 import { rateLimit } from '@/lib/middleware/rate-limit'
 import { captureError } from '@/lib/capture-error'
 import { getLogger } from '@/lib/logger'
+import { walletService } from '@/lib/services'
 
 const log = getLogger('api:wallet')
 
@@ -41,7 +46,7 @@ async function resolveTrafficker(req: NextRequest) {
 
   // 1) Explicit ID — admin/finance can read anyone; trafficker can only read self.
   if (explicitId) {
-    const t = await db.trafficker.findUnique({ where: { id: explicitId } })
+    const t = await walletService.getTraffickerById(explicitId)
     if (!t) {
       return {
         session,
@@ -70,7 +75,7 @@ async function resolveTrafficker(req: NextRequest) {
       trafficker: null,
     }
   }
-  const t = await db.trafficker.findUnique({ where: { email: email.toLowerCase() } })
+  const t = await walletService.getTraffickerByEmail(email)
   if (t) {
     return { session, error: null, trafficker: t }
   }
@@ -78,7 +83,7 @@ async function resolveTrafficker(req: NextRequest) {
   // 3) Logged-in user is NOT a trafficker (e.g. admin/agent/finance).
   //    For admins/finance, show the first trafficker as a demo view.
   if (role === 'admin' || role === 'finance') {
-    const demoTrafficker = await db.trafficker.findFirst({ orderBy: { createdAt: 'asc' } })
+    const demoTrafficker = await walletService.getFirstTrafficker()
     if (demoTrafficker) {
       return { session, error: null, trafficker: demoTrafficker }
     }
@@ -113,70 +118,62 @@ export async function GET(req: NextRequest) {
 
   const tenantId = req.nextUrl.searchParams.get('tenantId') || undefined
 
-  const [transactions, accounts, withdrawals, twoFactor] = await Promise.all([
-    db.walletTransaction.findMany({
-      where: { traffickerId: trafficker.id },
-      orderBy: { createdAt: 'desc' },
-      take: 50,
-    }),
-    db.walletAccount.findMany({
-      where: { traffickerId: trafficker.id },
-      orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }],
-    }),
-    db.withdrawalRequest.findMany({
-      where: { traffickerId: trafficker.id },
-      include: { walletAccount: true },
-      orderBy: { createdAt: 'desc' },
-      take: 100,
-    }),
-    db.twoFactorConfig.findUnique({ where: { traffickerId: trafficker.id } }),
-  ])
+  try {
+    const { transactions, accounts, withdrawals, twoFactor } =
+      await walletService.getWalletDashboard(trafficker.id)
 
-  const inbound = transactions
-    .filter(t => t.direction === 'inbound')
-    .reduce((s, t) => s + t.amount, 0)
-  const outbound = transactions
-    .filter(t => t.direction === 'outbound')
-    .reduce((s, t) => s + t.amount, 0)
-  const net = inbound - outbound
-  const commissions = transactions
-    .filter(t => t.type === 'commission')
-    .reduce((s, t) => s + t.amount, 0)
+    const inbound = transactions
+      .filter(t => t.direction === 'inbound')
+      .reduce((s, t) => s + t.amount, 0)
+    const outbound = transactions
+      .filter(t => t.direction === 'outbound')
+      .reduce((s, t) => s + t.amount, 0)
+    const net = inbound - outbound
+    const commissions = transactions
+      .filter(t => t.type === 'commission')
+      .reduce((s, t) => s + t.amount, 0)
 
-  const pendingWithdrawals = withdrawals.filter(w =>
-    ['pending_2fa', 'pending_processing', 'processing'].includes(w.status)
-  )
-  const withdrawalHistory = withdrawals.filter(w =>
-    ['completed', 'rejected'].includes(w.status)
-  )
+    const pendingWithdrawals = withdrawals.filter(w =>
+      ['pending_2fa', 'pending_processing', 'processing'].includes(w.status)
+    )
+    const withdrawalHistory = withdrawals.filter(w =>
+      ['completed', 'rejected'].includes(w.status)
+    )
 
-  return NextResponse.json({
-    trafficker: {
-      id: trafficker.id,
-      name: trafficker.name,
-      email: trafficker.email,
-      phone: trafficker.phone,
-      status: trafficker.status,
-    },
-    balance: trafficker.walletBalance,
-    stats: {
-      inbound,
-      outbound,
-      net,
-      transactions: transactions.length,
-      pending: pendingWithdrawals.length,
-      commissions,
-    },
-    transactions,
-    accounts,
-    pendingWithdrawals,
-    withdrawalHistory,
-    twoFactorEnabled: twoFactor?.enabled ?? false,
-    twoFactor: twoFactor
-      ? { enabled: twoFactor.enabled, enabledAt: twoFactor.enabledAt }
-      : null,
-    tenantId: tenantId || null,
-  })
+    return NextResponse.json({
+      trafficker: {
+        id: trafficker.id,
+        name: trafficker.name,
+        email: trafficker.email,
+        phone: trafficker.phone,
+        status: trafficker.status,
+      },
+      balance: trafficker.walletBalance,
+      stats: {
+        inbound,
+        outbound,
+        net,
+        transactions: transactions.length,
+        pending: pendingWithdrawals.length,
+        commissions,
+      },
+      transactions,
+      accounts,
+      pendingWithdrawals,
+      withdrawalHistory,
+      twoFactorEnabled: twoFactor?.enabled ?? false,
+      twoFactor: twoFactor
+        ? { enabled: twoFactor.enabled, enabledAt: twoFactor.enabledAt }
+        : null,
+      tenantId: tenantId || null,
+    })
+  } catch (err) {
+    captureError(err as Error, { path: '/api/wallet', method: 'GET' })
+    return NextResponse.json(
+      { error: 'Internal server error', message: err instanceof Error ? err.message : 'Unknown error' },
+      { status: 500 },
+    )
+  }
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -204,91 +201,71 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Missing action' }, { status: 400 })
   }
 
-  switch (action) {
-    // ── 2FA setup: generate secret + otpauth URI for QR display ──────────
-    case 'setup_2fa': {
-      // If already enabled, refuse to regenerate to avoid breaking an active
-      // authenticator. The user must first disable 2FA (not in scope).
-      const existing = await db.twoFactorConfig.findUnique({
-        where: { traffickerId: trafficker.id },
-      })
-      if (existing?.enabled) {
-        return NextResponse.json(
-          { error: '2FA already enabled — disable first to regenerate' },
-          { status: 409 },
-        )
-      }
-      // CRITICAL: secret is AES-256-GCM encrypted before storing.
-      // plainSecret is returned ONCE for QR code display.
-      // backupCodes are hashed (scrypt + salt) before storing — plain returned once.
-      const { secret: encryptedSecret, plainSecret, uri } = generateTOTPSecret(trafficker.email)
-      const plainBackupCodes = generateBackupCodesPlain()
-      const hashedBackupCodes = hashBackupCodes(plainBackupCodes)
-      await db.twoFactorConfig.upsert({
-        where: { traffickerId: trafficker.id },
-        update: { secret: encryptedSecret, backupCodes: hashedBackupCodes, enabled: false, enabledAt: null },
-        create: {
-          traffickerId: trafficker.id,
+  try {
+    switch (action) {
+      // ── 2FA setup: generate secret + otpauth URI for QR display ──────────
+      case 'setup_2fa': {
+        // If already enabled, refuse to regenerate to avoid breaking an active
+        // authenticator. The user must first disable 2FA (not in scope).
+        const existing = await walletService.getTwoFactorConfig(trafficker.id)
+        if (existing?.enabled) {
+          return NextResponse.json(
+            { error: '2FA already enabled — disable first to regenerate' },
+            { status: 409 },
+          )
+        }
+        // CRITICAL: secret is AES-256-GCM encrypted before storing.
+        // plainSecret is returned ONCE for QR code display.
+        // backupCodes are hashed (scrypt + salt) before storing — plain returned once.
+        const { secret: encryptedSecret, plainSecret, uri } = generateTOTPSecret(trafficker.email)
+        const plainBackupCodes = generateBackupCodesPlain()
+        const hashedBackupCodes = hashBackupCodes(plainBackupCodes)
+        await walletService.upsertTwoFactorSetup(trafficker.id, {
           secret: encryptedSecret,
           backupCodes: hashedBackupCodes,
-          enabled: false,
-        },
-      })
-      log.info({ traffickerId: trafficker.id }, '2fa setup initiated')
-      return NextResponse.json({ secret: plainSecret, uri, backupCodes: plainBackupCodes })
-    }
-
-    // ── 2FA verify: confirm TOTP, flip enabled=true ──────────────────────
-    case 'verify_2fa': {
-      const token = String(body.token || '').trim()
-      if (!/^\d{6}$/.test(token)) {
-        return NextResponse.json({ error: 'Invalid token format' }, { status: 400 })
-      }
-      const cfg = await db.twoFactorConfig.findUnique({
-        where: { traffickerId: trafficker.id },
-      })
-      if (!cfg) {
-        return NextResponse.json(
-          { error: 'No 2FA setup in progress — call setup_2fa first' },
-          { status: 409 },
-        )
-      }
-      if (!verifyTOTP(token, cfg.secret)) {
-        return NextResponse.json({ error: 'Invalid TOTP token' }, { status: 401 })
-      }
-      const updated = await db.twoFactorConfig.update({
-        where: { id: cfg.id },
-        data: { enabled: true, enabledAt: new Date() },
-      })
-      log.info({ traffickerId: trafficker.id, enabledAt: updated.enabledAt }, '2fa verified — enabled')
-      return NextResponse.json({ enabled: updated.enabled, enabledAt: updated.enabledAt })
-    }
-
-    // ── Register a payout account (bank / nequi / daviplata / paypal / wise)
-    case 'register_account': {
-      const {
-        accountType, accountHolder, accountNumber, bankName,
-        documentType, documentNumber, isDefault,
-      } = body
-      if (!accountType || !accountHolder || !accountNumber) {
-        return NextResponse.json(
-          { error: 'accountType, accountHolder, accountNumber are required' },
-          { status: 400 },
-        )
-      }
-      const validTypes = ['bank', 'nequi', 'daviplata', 'paypal', 'wise']
-      if (!validTypes.includes(accountType)) {
-        return NextResponse.json({ error: 'Invalid accountType' }, { status: 400 })
-      }
-      // If this is set as default, clear the previous default first.
-      if (isDefault) {
-        await db.walletAccount.updateMany({
-          where: { traffickerId: trafficker.id, isDefault: true },
-          data: { isDefault: false },
         })
+        log.info({ traffickerId: trafficker.id }, '2fa setup initiated')
+        return NextResponse.json({ secret: plainSecret, uri, backupCodes: plainBackupCodes })
       }
-      const account = await db.walletAccount.create({
-        data: {
+
+      // ── 2FA verify: confirm TOTP, flip enabled=true ──────────────────────
+      case 'verify_2fa': {
+        const token = String(body.token || '').trim()
+        if (!/^\d{6}$/.test(token)) {
+          return NextResponse.json({ error: 'Invalid token format' }, { status: 400 })
+        }
+        const cfg = await walletService.getTwoFactorConfig(trafficker.id)
+        if (!cfg) {
+          return NextResponse.json(
+            { error: 'No 2FA setup in progress — call setup_2fa first' },
+            { status: 409 },
+          )
+        }
+        if (!verifyTOTP(token, cfg.secret)) {
+          return NextResponse.json({ error: 'Invalid TOTP token' }, { status: 401 })
+        }
+        const updated = await walletService.enableTwoFactor(cfg.id)
+        log.info({ traffickerId: trafficker.id, enabledAt: updated.enabledAt }, '2fa verified — enabled')
+        return NextResponse.json({ enabled: updated.enabled, enabledAt: updated.enabledAt })
+      }
+
+      // ── Register a payout account (bank / nequi / daviplata / paypal / wise)
+      case 'register_account': {
+        const {
+          accountType, accountHolder, accountNumber, bankName,
+          documentType, documentNumber, isDefault,
+        } = body
+        if (!accountType || !accountHolder || !accountNumber) {
+          return NextResponse.json(
+            { error: 'accountType, accountHolder, accountNumber are required' },
+            { status: 400 },
+          )
+        }
+        const validTypes = ['bank', 'nequi', 'daviplata', 'paypal', 'wise']
+        if (!validTypes.includes(accountType)) {
+          return NextResponse.json({ error: 'Invalid accountType' }, { status: 400 })
+        }
+        const account = await walletService.registerWalletAccount({
           traffickerId: trafficker.id,
           accountType,
           accountHolder: String(accountHolder),
@@ -297,58 +274,51 @@ export async function POST(req: NextRequest) {
           documentType: documentType ? String(documentType) : null,
           documentNumber: documentNumber ? String(documentNumber) : null,
           isDefault: !!isDefault,
-          verified: false,
-        },
-      })
-      return NextResponse.json({ account })
-    }
-
-    // ── Request a withdrawal (creates WithdrawalRequest in pending_2fa) ──
-    case 'request_withdrawal': {
-      const { walletAccountId, amount, totpToken } = body
-      const amt = Number(amount)
-      if (!walletAccountId || !amt || amt <= 0) {
-        return NextResponse.json(
-          { error: 'walletAccountId and a positive amount are required' },
-          { status: 400 },
-        )
-      }
-      if (amt > trafficker.walletBalance) {
-        return NextResponse.json(
-          { error: 'Insufficient balance' },
-          { status: 400 },
-        )
-      }
-      const account = await db.walletAccount.findUnique({
-        where: { id: walletAccountId },
-      })
-      if (!account || account.traffickerId !== trafficker.id) {
-        return NextResponse.json(
-          { error: 'Account not found or not owned by trafficker' },
-          { status: 404 },
-        )
+        })
+        return NextResponse.json({ account })
       }
 
-      // If 2FA is enabled, the request must be authorized with a TOTP.
-      const cfg = await db.twoFactorConfig.findUnique({
-        where: { traffickerId: trafficker.id },
-      })
-      const totpRequired = cfg?.enabled ?? false
-      let totpVerified = false
-      if (totpRequired) {
-        if (!totpToken || !verifyTOTP(String(totpToken), cfg!.secret)) {
+      // ── Request a withdrawal (creates WithdrawalRequest in pending_2fa) ──
+      case 'request_withdrawal': {
+        const { walletAccountId, amount, totpToken } = body
+        const amt = Number(amount)
+        if (!walletAccountId || !amt || amt <= 0) {
           return NextResponse.json(
-            { error: 'Invalid or missing TOTP token' },
-            { status: 401 },
+            { error: 'walletAccountId and a positive amount are required' },
+            { status: 400 },
           )
         }
-        totpVerified = true
-      }
+        if (amt > trafficker.walletBalance) {
+          return NextResponse.json(
+            { error: 'Insufficient balance' },
+            { status: 400 },
+          )
+        }
+        const account = await walletService.getWalletAccount(walletAccountId)
+        if (!account || account.traffickerId !== trafficker.id) {
+          return NextResponse.json(
+            { error: 'Account not found or not owned by trafficker' },
+            { status: 404 },
+          )
+        }
 
-      const fee = computeFee(amt)
-      const net = amt - fee
-      const withdrawal = await db.withdrawalRequest.create({
-        data: {
+        // If 2FA is enabled, the request must be authorized with a TOTP.
+        const cfg = await walletService.getTwoFactorConfig(trafficker.id)
+        const totpRequired = cfg?.enabled ?? false
+        let totpVerified = false
+        if (totpRequired) {
+          if (!totpToken || !verifyTOTP(String(totpToken), cfg!.secret)) {
+            return NextResponse.json(
+              { error: 'Invalid or missing TOTP token' },
+              { status: 401 },
+            )
+          }
+          totpVerified = true
+        }
+
+        const fee = computeFee(amt)
+        const net = amt - fee
+        const withdrawal = await walletService.createWithdrawalRequest({
           traffickerId: trafficker.id,
           walletAccountId: account.id,
           amount: amt,
@@ -356,159 +326,108 @@ export async function POST(req: NextRequest) {
           netAmount: net,
           totpRequired,
           totpVerified,
-          totpVerifiedAt: totpVerified ? new Date() : null,
-          status: totpVerified ? 'pending_processing' : 'pending_2fa',
-        },
-      })
-      log.info(
-        { traffickerId: trafficker.id, withdrawalId: withdrawal.id, amount: amt, fee, net, totpRequired, totpVerified },
-        'withdrawal request created',
-      )
-      return NextResponse.json({ withdrawal })
+        })
+        log.info(
+          { traffickerId: trafficker.id, withdrawalId: withdrawal.id, amount: amt, fee, net, totpRequired, totpVerified },
+          'withdrawal request created',
+        )
+        return NextResponse.json({ withdrawal })
+      }
+
+      // ── Process (complete) a withdrawal — admin/finance operation ────────
+      case 'process_withdrawal': {
+        const { withdrawalId, externalReference } = body
+        if (!withdrawalId) {
+          return NextResponse.json(
+            { error: 'withdrawalId required' },
+            { status: 400 },
+          )
+        }
+        const w = await walletService.getWithdrawalRequest(withdrawalId)
+        if (!w || w.traffickerId !== trafficker.id) {
+          return NextResponse.json(
+            { error: 'Withdrawal not found or not owned' },
+            { status: 404 },
+          )
+        }
+        if (w.status !== 'pending_processing') {
+          return NextResponse.json(
+            { error: `Cannot process withdrawal in status ${w.status}` },
+            { status: 409 },
+          )
+        }
+        if (w.amount > trafficker.walletBalance) {
+          return NextResponse.json(
+            { error: 'Balance changed — insufficient funds' },
+            { status: 400 },
+          )
+        }
+
+        const balanceBefore = trafficker.walletBalance
+        const balanceAfter = balanceBefore - w.amount
+
+        const result = await walletService.processWithdrawal({
+          withdrawalId: w.id,
+          traffickerId: trafficker.id,
+          walletAccountId: w.walletAccountId,
+          amount: w.amount,
+          balanceBefore,
+          balanceAfter,
+          externalReference: externalReference || null,
+        })
+        log.info(
+          { traffickerId: trafficker.id, withdrawalId: w.id, amount: w.amount, balanceBefore, balanceAfter, externalReference: externalReference || null },
+          'withdrawal processed — balance debited',
+        )
+        return NextResponse.json({ withdrawal: result, balance: balanceAfter })
+      }
+
+      // ── Record an arbitrary transaction (e.g. commission credit, refund) ─
+      case 'record_transaction': {
+        const { direction, type, category, amount, description, reference, referenceType } = body
+        const amt = Number(amount)
+        if (!direction || !type || !amt) {
+          return NextResponse.json(
+            { error: 'direction, type, amount are required' },
+            { status: 400 },
+          )
+        }
+        if (!['inbound', 'outbound'].includes(direction)) {
+          return NextResponse.json({ error: 'Invalid direction' }, { status: 400 })
+        }
+        const signedAmount = direction === 'inbound' ? Math.abs(amt) : -Math.abs(amt)
+        const balanceBefore = trafficker.walletBalance
+        const balanceAfter = balanceBefore + signedAmount
+        if (balanceAfter < 0) {
+          return NextResponse.json(
+            { error: 'Transaction would result in a negative balance' },
+            { status: 400 },
+          )
+        }
+        const txn = await walletService.recordTransaction({
+          traffickerId: trafficker.id,
+          direction,
+          type,
+          category: category || type,
+          amount: Math.abs(amt),
+          balanceBefore,
+          balanceAfter,
+          description: description || null,
+          reference: reference || null,
+          referenceType: referenceType || null,
+        })
+        return NextResponse.json({ transaction: txn, balance: balanceAfter })
+      }
+
+      default:
+        return NextResponse.json({ error: `Unknown action: ${action}` }, { status: 400 })
     }
-
-    // ── Process (complete) a withdrawal — admin/finance operation ────────
-    case 'process_withdrawal': {
-      const { withdrawalId, externalReference } = body
-      if (!withdrawalId) {
-        return NextResponse.json(
-          { error: 'withdrawalId required' },
-          { status: 400 },
-        )
-      }
-      const w = await db.withdrawalRequest.findUnique({
-        where: { id: withdrawalId },
-      })
-      if (!w || w.traffickerId !== trafficker.id) {
-        return NextResponse.json(
-          { error: 'Withdrawal not found or not owned' },
-          { status: 404 },
-        )
-      }
-      if (w.status !== 'pending_processing') {
-        return NextResponse.json(
-          { error: `Cannot process withdrawal in status ${w.status}` },
-          { status: 409 },
-        )
-      }
-      if (w.amount > trafficker.walletBalance) {
-        return NextResponse.json(
-          { error: 'Balance changed — insufficient funds' },
-          { status: 400 },
-        )
-      }
-
-      // CRITICAL: Use Prisma $transaction for atomicity — balance decrement,
-      // transaction record, and withdrawal status update MUST all succeed or
-      // all fail. This prevents money loss if the server crashes mid-operation.
-      const balanceBefore = trafficker.walletBalance
-      const balanceAfter = balanceBefore - w.amount
-
-      const result = await db.$transaction(async (tx) => {
-        // 1. Decrement trafficker balance
-        await tx.trafficker.update({
-          where: { id: trafficker.id },
-          data: { walletBalance: balanceAfter },
-        })
-        // 2. Record outbound transaction
-        await tx.walletTransaction.create({
-          data: {
-            traffickerId: trafficker.id,
-            direction: 'outbound',
-            type: 'withdrawal',
-            category: 'cashout',
-            amount: w.amount,
-            balanceBefore,
-            balanceAfter,
-            description: `Retiro #${w.id.slice(-6)} a ${w.walletAccountId}`,
-            reference: w.id,
-            referenceType: 'withdrawal',
-            status: 'completed',
-          },
-        })
-        // 3. Mark withdrawal as completed
-        const updated = await tx.withdrawalRequest.update({
-          where: { id: w.id },
-          data: {
-            status: 'completed',
-            externalReference: externalReference || null,
-            processedAt: new Date(),
-            completedAt: new Date(),
-          },
-        })
-        // 4. Create audit log entry
-        await tx.auditLog.create({
-          data: {
-            action: 'withdrawal_processed',
-            entity: 'withdrawal',
-            entityId: w.id,
-            meta: JSON.stringify({
-              withdrawalId: w.id,
-              traffickerId: trafficker.id,
-              amount: w.amount,
-              balanceBefore,
-              balanceAfter,
-              processedBy: 'wallet_api',
-            }),
-          },
-        })
-        return updated
-      })
-      log.info(
-        { traffickerId: trafficker.id, withdrawalId: w.id, amount: w.amount, balanceBefore, balanceAfter, externalReference: externalReference || null },
-        'withdrawal processed — balance debited',
-      )
-      return NextResponse.json({ withdrawal: result, balance: balanceAfter })
-    }
-
-    // ── Record an arbitrary transaction (e.g. commission credit, refund) ─
-    case 'record_transaction': {
-      const { direction, type, category, amount, description, reference, referenceType } = body
-      const amt = Number(amount)
-      if (!direction || !type || !amt) {
-        return NextResponse.json(
-          { error: 'direction, type, amount are required' },
-          { status: 400 },
-        )
-      }
-      if (!['inbound', 'outbound'].includes(direction)) {
-        return NextResponse.json({ error: 'Invalid direction' }, { status: 400 })
-      }
-      const signedAmount = direction === 'inbound' ? Math.abs(amt) : -Math.abs(amt)
-      const balanceBefore = trafficker.walletBalance
-      const balanceAfter = balanceBefore + signedAmount
-      if (balanceAfter < 0) {
-        return NextResponse.json(
-          { error: 'Transaction would result in a negative balance' },
-          { status: 400 },
-        )
-      }
-      const [txn] = await Promise.all([
-        db.walletTransaction.create({
-          data: {
-            traffickerId: trafficker.id,
-            direction,
-            type,
-            category: category || type,
-            amount: Math.abs(amt),
-            balanceBefore,
-            balanceAfter,
-            description: description || null,
-            reference: reference || null,
-            referenceType: referenceType || null,
-            status: 'completed',
-          },
-        }),
-        db.trafficker.update({
-          where: { id: trafficker.id },
-          data: { walletBalance: balanceAfter },
-        }),
-      ])
-      return NextResponse.json({ transaction: txn, balance: balanceAfter })
-    }
-
-    default:
-      return NextResponse.json({ error: `Unknown action: ${action}` }, { status: 400 })
+  } catch (err) {
+    captureError(err as Error, { path: '/api/wallet', method: 'POST', action })
+    return NextResponse.json(
+      { error: 'Internal server error', message: err instanceof Error ? err.message : 'Unknown error' },
+      { status: 500 },
+    )
   }
 }
 

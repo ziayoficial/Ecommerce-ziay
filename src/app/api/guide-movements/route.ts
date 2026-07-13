@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
 import { requireTenantAccess } from '@/lib/auth-helpers'
+import { captureError } from '@/lib/capture-error'
 import { rateLimit } from '@/lib/middleware/rate-limit'
+import { logisticsService } from '@/lib/services'
 
 // GET /api/guide-movements?tenantId=X&guideNumber=Y
 // Devuelve los movimientos (eventos de tracking) de una guía.
+//
+// SPRINT8-SERVICES-REST-001 — migrated `db.guideMovement.findMany` to
+// `logisticsService.getGuideMovements`. Response shape unchanged.
 export async function GET(req: NextRequest) {
   const tenantId = req.nextUrl.searchParams.get('tenantId')
   const guideNumber = req.nextUrl.searchParams.get('guideNumber')
@@ -17,21 +21,27 @@ export async function GET(req: NextRequest) {
   const { error } = await requireTenantAccess(tenantId)
   if (error) return error
 
-  const where: { tenantId: string; guideNumber?: string } = { tenantId }
-  if (guideNumber) where.guideNumber = guideNumber
-
-  const movements = await db.guideMovement.findMany({
-    where,
-    orderBy: { createdAt: 'desc' },
-    take: guideNumber ? 200 : 100,
-  })
-
-  return NextResponse.json({ movements })
+  try {
+    const movements = await logisticsService.getGuideMovements(tenantId, guideNumber || undefined)
+    return NextResponse.json({ movements })
+  } catch (err) {
+    captureError(err as Error, { path: '/api/guide-movements', method: 'GET', tenantId })
+    return NextResponse.json(
+      { error: 'Internal server error', message: err instanceof Error ? err.message : 'Unknown error' },
+      { status: 500 },
+    )
+  }
 }
 
 // POST /api/guide-movements
 // Body: { tenantId, guideNumber, eventType, location?, description?, carrierName? }
 // Crea un movimiento de tracking para una guía.
+//
+// SPRINT8-SERVICES-REST-001 — migrated `db.guideMovement.create` + the
+// best-effort `db.shipment.updateMany` cascade to
+// `logisticsService.createGuideMovement`. The service preserves the
+// best-effort semantics (Shipment update failure is non-fatal). Response
+// shape unchanged.
 export async function POST(req: NextRequest) {
   const limited = rateLimit(req, {
     max: 120,
@@ -74,37 +84,21 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  const movement = await db.guideMovement.create({
-    data: {
+  try {
+    const movement = await logisticsService.createGuideMovement({
       tenantId,
       guideNumber: String(guideNumber),
       eventType,
       location: location ?? null,
       description: description ?? null,
       carrierName: carrierName ?? null,
-    },
-  })
-
-  // Best-effort: if the movement is a delivery, also update the Shipment.estado.
-  if (eventType === 'delivered' || eventType === 'in_transit' || eventType === 'returned' || eventType === 'exception') {
-    try {
-      const estadoMap: Record<string, string> = {
-        in_transit: 'en_transito',
-        delivered: 'entregada',
-        returned: 'devuelta',
-        exception: 'novedad',
-      }
-      const targetEstado = estadoMap[eventType]
-      if (targetEstado) {
-        await db.shipment.updateMany({
-          where: { tenantId, numeroGuia: String(guideNumber) },
-          data: { estado: targetEstado },
-        })
-      }
-    } catch {
-      // Shipment update is best-effort; do not fail the movement creation.
-    }
+    })
+    return NextResponse.json({ movement })
+  } catch (err) {
+    captureError(err as Error, { path: '/api/guide-movements', method: 'POST', tenantId })
+    return NextResponse.json(
+      { error: 'Internal server error', message: err instanceof Error ? err.message : 'Unknown error' },
+      { status: 500 },
+    )
   }
-
-  return NextResponse.json({ movement })
 }

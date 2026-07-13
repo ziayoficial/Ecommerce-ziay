@@ -6,12 +6,19 @@
 // persiste el resultado como `Shipment` en la DB (con transportadora
 // normalizada contra `Carrier`) y la vincula al `Order`. Actualiza `Order.status`
 // a `shipped` y crea un `OrderEvent` de tipo `shipped`.
+//
+// SPRINT8-SERVICES-REST-001 — migrated the order lookup + the 4-write
+// persistence cascade (Shipment + Order + OrderEvent + AuditLog) to
+// `logisticsService`. The carrier adapter calls still live in the route
+// (they're HTTP-bound, not DB-bound). Response shape unchanged.
 
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-helpers'
 import { getLogisticsAdapter } from '@/lib/adapters/registry'
 import { normalizeCarrierName } from '@/lib/carriers'
+import { captureError } from '@/lib/capture-error'
 import { db } from '@/lib/db'
+import { logisticsService } from '@/lib/services'
 
 export async function POST(req: NextRequest) {
   const { error } = await requireAuth()
@@ -28,10 +35,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Cargar el pedido y sus items para saber cantidad de unidades y contacto.
-    const order = await db.order.findFirst({
-      where: { tenantId, id: orderId },
-      include: { items: true, customer: true },
-    })
+    const order = await logisticsService.getOrderForShipment(tenantId, orderId)
     if (!order) {
       return NextResponse.json({ error: `Order not found: ${orderId}` }, { status: 404 })
     }
@@ -71,51 +75,27 @@ export async function POST(req: NextRequest) {
       shipmentResult.transportadora,
     )
 
-    // Persistir como Shipment.
-    const shipment = await db.shipment.create({
-      data: {
-        tenantId,
-        orderId: order.id,
-        proveedor: (await db.tenant.findUnique({ where: { id: tenantId }, select: { proveedorLogistico: true } }))?.proveedorLogistico ?? 'dropi',
-        numeroGuia: shipmentResult.numero_guia,
-        urlSeguimiento: shipmentResult.url_seguimiento,
-        transportadora: shipmentResult.transportadora,
-        transportadoraCanonica,
-        tarifa: quote.tarifa,
-        tiempoEstimadoDias: quote.tiempo_estimado_dias,
-        estado: 'generada',
-      },
+    // Resolve the tenant's default logistics provider — the Shipment row
+    // stores it as the `proveedor` field. This is a tiny read that doesn't
+    // justify a service method on its own (rule #2 — 1 simple read).
+    const tenantRow = await db.tenant.findUnique({
+      where: { id: tenantId },
+      select: { proveedorLogistico: true },
     })
 
-    // Actualizar estado del pedido y registrar evento.
-    await db.order.update({
-      where: { id: order.id },
-      data: {
-        status: 'shipped',
-        shipping: quote.tarifa,
-      },
-    })
-    await db.orderEvent.create({
-      data: {
-        orderId: order.id,
-        type: 'shipped',
-        note: `Guía ${shipmentResult.numero_guia} (${transportadoraCanonica}) — $${quote.tarifa} COP, ETA ${quote.tiempo_estimado_dias} días`,
-      },
-    })
-    await db.auditLog.create({
-      data: {
-        tenantId,
-        action: 'shipping_guide_generated',
-        entity: 'shipment',
-        entityId: shipment.id,
-        meta: JSON.stringify({
-          orderId: order.id,
-          numero_guia: shipmentResult.numero_guia,
-          transportadora: shipmentResult.transportadora,
-          transportadoraCanonica,
-          tarifa: quote.tarifa,
-        }),
-      },
+    // Persist Shipment + Order + OrderEvent + AuditLog via the service.
+    const { shipment } = await logisticsService.persistShipmentGuide({
+      tenantId,
+      orderId: order.id,
+      customerId: order.customerId,
+      proveedor: tenantRow?.proveedorLogistico ?? 'dropi',
+      numeroGuia: shipmentResult.numero_guia,
+      urlSeguimiento: shipmentResult.url_seguimiento,
+      transportadora: shipmentResult.transportadora,
+      transportadoraCanonica,
+      tarifa: quote.tarifa,
+      tiempoEstimadoDias: quote.tiempo_estimado_dias,
+      orderNumber: order.number,
     })
 
     return NextResponse.json({
@@ -137,6 +117,7 @@ export async function POST(req: NextRequest) {
       },
     })
   } catch (err) {
+    captureError(err as Error, { path: '/api/shipping/guide', method: 'POST' })
     const message = err instanceof Error ? err.message : 'Unknown error'
     return NextResponse.json({ error: message }, { status: 500 })
   }

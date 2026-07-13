@@ -4,6 +4,14 @@ import { db } from '@/lib/db'
 import { captureError } from '@/lib/capture-error'
 
 // Get payment strategy config per channel
+//
+// SPRINT8-SERVICES-REST-001 — left inline. Each method touches at most
+// two unrelated tables (`Channel` for the strategy fields, `Setting` for
+// global thresholds). Per rule #2 (1-2 simple db calls OK to leave),
+// neither table warrants a dedicated service on its own — `Setting` is
+// a tiny key/value table and `Channel` is a CRUD surface covered by the
+// `/api/channels` route.
+// TODO: migrate to service layer if more payment-strategy logic accumulates.
 export async function GET() {
   const { error } = await requireAuth()
   if (error) return error

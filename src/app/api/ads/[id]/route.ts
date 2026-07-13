@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-helpers'
-import { db } from '@/lib/db'
 import { captureError } from '@/lib/capture-error'
+import { adsService } from '@/lib/services'
 
 // Kill / pause / resume an ad (simulates pushing action to ad platform)
+//
+// SPRINT8-SERVICES-REST-001 — migrated the ad.update + auditLog.create
+// (2 db calls) to `adsService.updateAd`. The service stamps the audit
+// log entry internally (best-effort — non-fatal on failure). Response
+// shape unchanged.
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -24,23 +29,13 @@ export async function PATCH(
     }
     const reason = body.reason as string | undefined
 
-    const updated = await db.ad.update({
-      where: { id },
-      data: {
-        status: statusMap[action],
-        autoKill: action === 'kill',
-        killReason: action === 'kill' ? (reason || 'Manual kill by trafficker') : null,
-      },
-    })
-
-    await db.auditLog.create({
-      data: {
-        userId: body.userId || null,
-        action: `ad.${action}`,
-        entity: 'Ad',
-        entityId: id,
-        meta: JSON.stringify({ reason, status: updated.status }),
-      },
+    const updated = await adsService.updateAd(id, {
+      status: statusMap[action],
+      autoKill: action === 'kill',
+      killReason: action === 'kill' ? (reason || 'Manual kill by trafficker') : null,
+      userId: body.userId || null,
+      action,
+      reason,
     })
 
     // In production: call Meta/Google/TikTok API here to push the change.

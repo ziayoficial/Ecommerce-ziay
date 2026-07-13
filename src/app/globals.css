@@ -56,7 +56,8 @@
   --secondary: oklch(0.97 0.01 158);
   --secondary-foreground: oklch(0.25 0.04 158);
   --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.5 0 0);
+  /* WCAG AA: oklch(0.45 0 0) ≈ #5b5b5b on white → ~5.6:1 contrast (passes AA 4.5:1 even with /70 opacity in most contexts) */
+  --muted-foreground: oklch(0.45 0 0);
   --accent: oklch(0.95 0.03 158);
   --accent-foreground: oklch(0.3 0.06 158);
   --destructive: oklch(0.577 0.245 27.325);

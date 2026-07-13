@@ -207,7 +207,7 @@ export function MessengerView() {
           <div className="flex items-center justify-between">
             <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Conversaciones</h3>
             <Button
-              variant="ghost" size="icon" className="size-7"
+              variant="ghost" size="icon" className="size-9"
               onClick={() => loadConvs()}
               aria-label="Refrescar conversaciones"
             >
@@ -220,7 +220,7 @@ export function MessengerView() {
           </div>
           <div className="flex gap-2">
             <Select value={channelFilter} onValueChange={setChannelFilter}>
-              <SelectTrigger className="h-8 text-xs flex-1"><SelectValue placeholder="Canal" /></SelectTrigger>
+              <SelectTrigger className="h-9 text-xs flex-1"><SelectValue placeholder="Canal" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos los canales</SelectItem>
                 <SelectItem value="ch-wa-co">WhatsApp CO</SelectItem>
@@ -230,9 +230,9 @@ export function MessengerView() {
               </SelectContent>
             </Select>
             <Tabs value={filter} onValueChange={(v) => setFilter(v as typeof filter)}>
-              <TabsList className="h-8">
-                <TabsTrigger value="all" className="text-xs px-2 h-7">Todas</TabsTrigger>
-                <TabsTrigger value="open" className="text-xs px-2 h-7">Abiertas</TabsTrigger>
+              <TabsList className="h-9">
+                <TabsTrigger value="all" className="text-xs px-3 h-9">Todas</TabsTrigger>
+                <TabsTrigger value="open" className="text-xs px-3 h-9">Abiertas</TabsTrigger>
               </TabsList>
             </Tabs>
           </div>
@@ -250,7 +250,7 @@ export function MessengerView() {
               <AlertTitle>Error</AlertTitle>
               <AlertDescription className="flex items-center justify-between gap-2 flex-wrap">
                 <span>{error}</span>
-                <Button size="sm" variant="outline" onClick={() => { setError(null); loadConvs() }} className="gap-1.5 h-7"><RefreshCw className="size-3" /> Reintentar</Button>
+                <Button size="sm" variant="outline" onClick={() => { setError(null); loadConvs() }} className="gap-1.5 h-9"><RefreshCw className="size-3.5" /> Reintentar</Button>
               </AlertDescription>
             </Alert>
           ) : convs.length === 0 ? (
@@ -346,7 +346,7 @@ export function MessengerView() {
                 </div>
               </div>
               <Select value={active.status} onValueChange={updateStatus}>
-                <SelectTrigger className="h-8 w-32 text-xs">
+                <SelectTrigger className="h-9 w-32 text-xs">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -553,11 +553,20 @@ export function MessengerView() {
       {/* Customer panel */}
       <Card className="hidden lg:flex flex-col overflow-hidden lg:h-[calc(100vh-13rem)] lg:max-h-[calc(100vh-13rem)]">
         {!active ? (
-          <div className="flex-1 flex flex-col items-center justify-center p-6 text-center gap-2">
-            <div className="size-12 rounded-xl bg-muted/60 ring-1 ring-border flex items-center justify-center">
-              <User className="size-5 text-muted-foreground" />
+          <div className="flex-1 flex flex-col items-center justify-center p-6 text-center gap-3">
+            <div className="size-14 rounded-2xl bg-muted/60 ring-1 ring-border flex items-center justify-center">
+              <User className="size-6 text-muted-foreground" />
             </div>
-            <p className="text-xs text-muted-foreground">Sin cliente seleccionado</p>
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-foreground">Sin cliente seleccionado</p>
+              <p className="text-xs text-muted-foreground max-w-[14rem]">
+                Elige una conversación a la izquierda para ver aquí los datos del cliente, atribución de campaña y pedidos asociados.
+              </p>
+            </div>
+            <div className="mt-2 flex flex-col gap-1.5 text-[11px] text-muted-foreground">
+              <div className="flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-emerald-500" /> Atajos: <kbd className="font-mono">↑/↓</kbd> navegar</div>
+              <div className="flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-sky-500" /> <kbd className="font-mono">Enter</kbd> abrir conversación</div>
+            </div>
           </div>
         ) : (
           <ScrollArea className="flex-1 scroll-thin">

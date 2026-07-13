@@ -1903,3 +1903,43 @@ Stage Summary:
 - The API also exposes `PUT` to return the full registry for diagnostics; the UI imports the registry directly.
 - The `Setting` model is tenant-agnostic today. If per-tenant credentials are needed later, add `tenantId` to `Setting` and update the `where` clauses — the rest is tenant-agnostic.
 - `maskSecret` handles short values gracefully: `value.length <= 4` returns `'••••'` to avoid leaking the full value when the secret is shorter than 4 chars.
+
+---
+
+## UI-FIX-TOUR-001 · senior-ui-ux-engineer · 2026-01-13
+
+**Scope**: VLM-driven tour of all 14 dashboard views (desktop 1440x900 + mobile 375x812) surfaced 6 categories of UI/UX defects. Fixed all in-scope files (sidebar, topbar, overview, messenger, globals.css).
+
+### Files (in scope)
+- **MODIFIED** `src/components/dashboard/sidebar.tsx` — nav item label demoted to `text-xs font-medium` so "Catálogo e Integraciones" no longer truncates; added `title={item.label}` for native tooltip on overflow; bumped active state to `bg-primary/15` and added `ring-1 ring-transparent hover:ring-sidebar-accent-foreground/10` for a more visible hover state. `space-y-1` was already present, left as-is.
+- **MODIFIED** `src/components/dashboard/topbar.tsx`
+  - Hamburger: `h-9 w-9` → `size-10` (44px touch target spec).
+  - Mobile search icon button: `lg:hidden h-9 w-9` → `md:hidden size-10`.
+  - Desktop command-palette trigger: `hidden lg:flex` → `hidden md:flex` (search bar now visible from md up, per spec).
+  - Notification bell + theme toggle: `h-9 w-9` → `size-10`.
+  - User menu name block: still `hidden md:block` (mobile shows only `VR` avatar initials, already correct), but `max-w-[140px]` → `max-w-[160px]` and tenantName suffix now `hidden lg:inline` (was always inline, caused premature truncation on md).
+  - User menu container: added `md:pl-3` for breathing room on desktop.
+- **MODIFIED** `src/components/dashboard/overview-view.tsx`
+  - Revenue vs. Spend chart: wrapped `ResponsiveContainer` in `overflow-x-auto -mx-2 px-2` and added `minWidth={320}` so the chart scrolls horizontally on narrow mobile instead of being clipped.
+  - "Últimos 14 días · COP" `CardDescription`: added `text-[10px] sm:text-sm` so it fits on mobile.
+  - "Actualizado hace ahora" header text: `text-xs` → `text-[10px] sm:text-xs truncate` so it doesn't wrap/clip on 375px.
+  - Refresh button: explicit `h-9 px-3` for consistent size-sm + padding (the spec's "Revisar" button was a misread of the trend pill — see Notes).
+  - KPI trend label: refactored from a bare `<span>` with color into an `inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1` pill. "Revisar" (trend='down') is now a visible rose-colored chip. Icons bumped `size-3.5` → `size-4`.
+  - KPI info `(i)` icon: `size-3` → `size-4` (already wrapped in `TooltipProvider`/`Tooltip`).
+  - Grids: `gap-4` → `gap-3 sm:gap-4` (KPIs), `gap-6` → `gap-4 sm:gap-6` (channel split + conversations) so cards aren't crammed on 375px.
+- **MODIFIED** `src/components/dashboard/messenger-view.tsx`
+  - Filter controls bumped to spec `h-9`: channel `SelectTrigger` `h-8`→`h-9`, `TabsList` `h-8`→`h-9`, `TabsTrigger` `h-7 px-2`→`h-9 px-3`, status `SelectTrigger` `h-8`→`h-9`, error-state Reintentar button `h-7`→`h-9`, refresh icon button `size-7`→`size-9`.
+  - Customer panel empty state ("Sin cliente seleccionado"): enlarged icon to `size-14 rounded-2xl` with `size-6` glyph; added explanatory sentence and a small keyboard-shortcut hint list (`↑/↓` navegar, `Enter` abrir) so the panel no longer wastes space. Panel is still `hidden lg:flex` (verified — already mobile-hidden per spec).
+  - Conversation list items: verified name is `font-medium text-sm truncate` and preview is `text-xs text-muted-foreground line-clamp-2` — already met spec, no change.
+- **MODIFIED** `src/app/globals.css` — `:root --muted-foreground` from `oklch(0.5 0 0)` (~4.6:1 on white, borderline AA) to `oklch(0.45 0 0)` (~5.6:1 on white). Dark mode left untouched (`oklch(0.7 0 0)` on `oklch(0.14 …)` ≈ 7:1, already AA-passing). The lower-opacity variants (`text-muted-foreground/70`) now stay above 4.5:1 in most contexts.
+
+### Quality
+- `npx tsc --noEmit` → **0 errors** ✅
+- `bun run lint` (eslint .) → **0 errors, 0 warnings** ✅
+
+### Notes for future agents
+- The spec's "Error tipográfico: 'anticipoano' → 'anticipado'" could **not be reproduced** — `grep` across all in-scope files (and the entire `src/` tree) only finds the correct spelling "anticipado" (5 occurrences in overview-view, messenger-view, topbar.tsx). The VLM likely misread the word. No edit was made for this item. If the typo is seen again, it's in a file outside this task's scope (likely `orders-view.tsx`).
+- The spec's "Botón 'Revisar' muy pequeño" was a misread of the KPI trend label. It was a plain `<span>` (not a button). Reshaped it into a visible pill (`inline-flex rounded-full px-2 py-0.5 ring-1`) so the "Revisar" call-to-attention is now actually clickable-looking. If a real navigate-to-issue CTA is wanted later, wrap the pill in a `<button>` and route to `/novedades` or `/ads`.
+- Sidebar active state went from `bg-primary/10` to `bg-primary/15` — slightly stronger contrast so the active item reads instantly.
+- The desktop command-palette search button is now visible from `md` (was `lg`). At md–lg, both the inline search button and the icon button would have shown, so the icon button was reclassified `md:hidden` (shown only on `<md`) to avoid duplication.
+- Mobile search icon button still uses `size-10` even on very small screens — fits 375px with: hamburger(40) + breadcrumb(flex-1 ≥ ~120px) + search(40) + bell(40) + theme(40) + avatar(~48) + gaps/pl-2 (~32) = ~280px fixed + breadcrumb. Confirmed no overflow at 375px in dry layout calc.

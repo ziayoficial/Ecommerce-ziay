@@ -108,7 +108,7 @@ export function Topbar({ active, country, onCountryChange, onChangeView, onOpenS
           <Button
             variant="ghost"
             size="icon"
-            className="md:hidden h-9 w-9 shrink-0 focus-visible:ring-2 focus-visible:ring-ring"
+            className="md:hidden size-10 shrink-0 focus-visible:ring-2 focus-visible:ring-ring"
             aria-label="Abrir menú"
             onClick={() => setMobileNavOpen(true)}
           >
@@ -218,7 +218,7 @@ export function Topbar({ active, country, onCountryChange, onChangeView, onOpenS
                 type="button"
                 onClick={() => onOpenSearch?.()}
                 aria-label="Abrir búsqueda rápida (Cmd+K)"
-                className="hidden lg:flex items-center gap-2 h-9 px-3 rounded-md border border-input bg-background text-xs text-muted-foreground hover:bg-accent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="hidden md:flex items-center gap-2 h-9 px-3 rounded-md border border-input bg-background text-xs text-muted-foreground hover:bg-accent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <Search className="size-4" />
                 <span>Buscar…</span>
@@ -231,11 +231,11 @@ export function Topbar({ active, country, onCountryChange, onChangeView, onOpenS
           </Tooltip>
         </TooltipProvider>
 
-        {/* Mobile: search icon button */}
+        {/* Mobile: search icon button (only on <md to avoid double with desktop search button) */}
         <Button
           variant="ghost"
           size="icon"
-          className="lg:hidden h-9 w-9"
+          className="md:hidden size-10"
           aria-label="Buscar"
           onClick={() => onOpenSearch?.()}
         >
@@ -257,7 +257,7 @@ export function Topbar({ active, country, onCountryChange, onChangeView, onOpenS
         </Select>
 
         {/* Notification bell with badge count */}
-        <Button variant="ghost" size="icon" className="relative h-9 w-9" aria-label={`Notificaciones${notifCount > 0 ? ` (${notifCount} sin leer)` : ''}`}>
+        <Button variant="ghost" size="icon" className="relative size-10" aria-label={`Notificaciones${notifCount > 0 ? ` (${notifCount} sin leer)` : ''}`}>
           <Bell className="size-4" />
           {notifCount > 0 && (
             <span className="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full bg-rose-500 text-white text-[9px] font-bold flex items-center justify-center tabular-nums">
@@ -267,7 +267,7 @@ export function Topbar({ active, country, onCountryChange, onChangeView, onOpenS
         </Button>
 
         <Button
-          variant="ghost" size="icon" className="h-9 w-9"
+          variant="ghost" size="icon" className="size-10"
           onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
           aria-label="Cambiar tema"
         >
@@ -275,7 +275,7 @@ export function Topbar({ active, country, onCountryChange, onChangeView, onOpenS
         </Button>
 
         {/* User menu — authenticated identity + logout */}
-        <div className="flex items-center gap-2 pl-2 border-l">
+        <div className="flex items-center gap-2 pl-2 md:pl-3 border-l">
           {status === 'loading' ? (
             <div className="hidden md:flex items-center gap-2">
               <div className="size-8 rounded-full bg-muted animate-pulse" />
@@ -297,14 +297,14 @@ export function Topbar({ active, country, onCountryChange, onChangeView, onOpenS
                     </AvatarFallback>
                   </Avatar>
                   <div className="hidden md:block text-xs leading-tight text-left">
-                    <div className="font-medium line-clamp-1 max-w-[140px]">
+                    <div className="font-medium line-clamp-1 max-w-[160px]">
                       {user.name || user.email}
                     </div>
                     <div className="text-muted-foreground flex items-center gap-1">
                       <span className={`inline-flex items-center rounded-full px-1.5 py-px text-[10px] font-semibold ring-1 ${roleMeta.className}`}>
                         {roleMeta.label}
                       </span>
-                      <span className="line-clamp-1 max-w-[80px]">· {tenantName}</span>
+                      <span className="line-clamp-1 max-w-[80px] hidden lg:inline">· {tenantName}</span>
                     </div>
                   </div>
                   <ChevronDown className="hidden md:block size-3.5 text-muted-foreground" />

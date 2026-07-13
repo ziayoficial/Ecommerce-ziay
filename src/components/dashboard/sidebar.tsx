@@ -52,11 +52,12 @@ export function Sidebar({ active, onChange, badges }: {
               key={item.id}
               onClick={() => onChange(item.id)}
               aria-current={isActive ? 'page' : undefined}
+              title={item.label}
               className={cn(
                 'group relative w-full flex items-center gap-3 rounded-lg pl-3 pr-2 py-2.5 text-sm transition-all duration-200',
                 isActive
-                  ? 'bg-primary/10 text-primary-foreground shadow-sm'
-                  : 'text-sidebar-foreground/90 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:translate-x-0.5'
+                  ? 'bg-primary/15 text-primary-foreground shadow-sm'
+                  : 'text-sidebar-foreground/90 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:translate-x-0.5 ring-1 ring-transparent hover:ring-sidebar-accent-foreground/10'
               )}
             >
               {/* Active indicator — left bar + icon separator (audited: previously only a color change) */}
@@ -76,7 +77,7 @@ export function Sidebar({ active, onChange, badges }: {
                 <Icon className="size-4" />
               </span>
               <div className="flex-1 text-left min-w-0">
-                <div className={cn('font-medium leading-tight truncate', isActive ? 'text-primary' : 'text-sidebar-foreground')}>{item.label}</div>
+                <div className={cn('text-xs font-medium leading-tight truncate', isActive ? 'text-primary' : 'text-sidebar-foreground')}>{item.label}</div>
                 <div className={cn('text-[10px] leading-tight truncate', isActive ? 'text-primary/70' : 'text-sidebar-foreground/70')}>{item.hint}</div>
               </div>
               {badge != null && badge > 0 && (

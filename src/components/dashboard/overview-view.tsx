@@ -63,7 +63,7 @@ function Kpi({ icon: Icon, label, value, sub, trend, accent, help }: {
                   <UITooltip>
                     <TooltipTrigger asChild>
                       <button type="button" aria-label={`¿Qué es ${label}?`} className="text-muted-foreground/70 hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded">
-                        <Info className="size-3" />
+                        <Info className="size-4" />
                       </button>
                     </TooltipTrigger>
                     <TooltipContent className="max-w-56"><p className="text-xs">{help}</p></TooltipContent>
@@ -79,10 +79,17 @@ function Kpi({ icon: Icon, label, value, sub, trend, accent, help }: {
           </div>
         </div>
         {trend && (
-          <div className="flex items-center gap-1 mt-3 text-xs">
-            {trend === 'up' && <TrendingUp className="size-3.5 text-emerald-600" />}
-            {trend === 'down' && <TrendingDown className="size-3.5 text-rose-600" />}
-            <span className={trend === 'up' ? 'text-emerald-700 dark:text-emerald-400 font-medium' : trend === 'down' ? 'text-rose-700 dark:text-rose-400 font-medium' : 'text-muted-foreground'}>
+          <div className="flex items-center gap-1.5 mt-3 text-xs">
+            {trend === 'up' && <TrendingUp className="size-4 text-emerald-600" />}
+            {trend === 'down' && <TrendingDown className="size-4 text-rose-600" />}
+            <span className={cn(
+              'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1',
+              trend === 'up'
+                ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 ring-emerald-500/20'
+                : trend === 'down'
+                  ? 'bg-rose-500/10 text-rose-700 dark:text-rose-400 ring-rose-500/20'
+                  : 'bg-muted text-muted-foreground ring-border'
+            )}>
               {trend === 'up' ? 'Tendencia positiva' : trend === 'down' ? 'Revisar' : 'Estable'}
             </span>
           </div>
@@ -212,21 +219,21 @@ export function OverviewView() {
     <div className="space-y-6 animate-fade-in-up">
       {/* ── Header: last-updated + refresh ── */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="text-xs text-muted-foreground">
+        <div className="text-[10px] sm:text-xs text-muted-foreground truncate">
           {lastUpdated ? (
             <span>Actualizado hace <strong className="text-foreground tabular-nums">{timeAgo(lastUpdated.toISOString())}</strong></span>
           ) : (
             <span>Datos de muestra</span>
           )}
         </div>
-        <Button variant="outline" size="sm" onClick={() => fetchData(true)} disabled={refreshing} className="gap-1.5">
+        <Button variant="outline" size="sm" onClick={() => fetchData(true)} disabled={refreshing} className="gap-1.5 h-9 px-3">
           <RefreshCw className={cn('size-3.5', refreshing && 'animate-spin')} />
           {refreshing ? 'Actualizando…' : 'Refrescar'}
         </Button>
       </div>
 
       {/* Top KPIs */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <Kpi icon={DollarSign} label="Ingresos (14d)" value={formatCurrency(k.revenue, 'COP', { compact: true })}
           sub={`${formatCurrency(k.revenuePaid, 'COP', { compact: true })} cobrados · AOV ${formatCurrency(k.aov)}`} accent="primary" trend="up" help={KPI_HELP.revenue} />
         <Kpi icon={Target} label="ROAS" value={formatMultiplier(k.roas)}
@@ -242,7 +249,7 @@ export function OverviewView() {
         <CardHeader className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 space-y-0">
           <div className="min-w-0">
             <CardTitle className="text-base">Ingresos vs. Inversión en pauta</CardTitle>
-            <CardDescription className="truncate md:whitespace-normal">Últimos 14 días · COP</CardDescription>
+            <CardDescription className="text-[10px] sm:text-sm truncate md:whitespace-normal">Últimos 14 días · COP</CardDescription>
           </div>
           <div className="flex items-center gap-4 text-xs shrink-0">
             <span className="flex items-center gap-1.5"><span className="size-2.5 rounded-sm bg-primary" /> Ingresos</span>
@@ -250,45 +257,47 @@ export function OverviewView() {
           </div>
         </CardHeader>
         <CardContent>
-          <ResponsiveContainer width="100%" height={280}>
-            <AreaChart data={data.series} margin={{ left: -10, right: 10, top: 5, bottom: 0 }}>
-              <defs>
-                <linearGradient id="rev" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.35} />
-                  <stop offset="95%" stopColor="var(--primary)" stopOpacity={0} />
-                </linearGradient>
-                <linearGradient id="spd" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#f43f5e" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-              <XAxis
-                dataKey="date"
-                tickFormatter={shortDate}
-                tick={{ fontSize: 11 }}
-                stroke="var(--muted-foreground)"
-                interval="preserveStartEnd"
-                minTickGap={24}
-                angle={-35}
-                textAnchor="end"
-                height={50}
-              />
-              <YAxis tickFormatter={(v) => formatCurrency(v, 'COP', { compact: true })} tick={{ fontSize: 11 }} stroke="var(--muted-foreground)" width={64} />
-              <Tooltip
-                contentStyle={{ background: 'var(--background)', border: '1px solid var(--border)', borderRadius: 12, fontSize: 12 }}
-                formatter={(v: number, n) => [formatCurrency(v), n === 'revenue' ? 'Ingresos' : 'Pauta']}
-                labelFormatter={(l) => `Día ${shortDate(l as string)}`}
-              />
-              <Area type="monotone" dataKey="revenue" stroke="var(--primary)" strokeWidth={2} fill="url(#rev)" />
-              <Area type="monotone" dataKey="spend" stroke="#f43f5e" strokeWidth={2} fill="url(#spd)" />
-            </AreaChart>
-          </ResponsiveContainer>
+          <div className="overflow-x-auto -mx-2 px-2">
+            <ResponsiveContainer width="100%" height={280} minWidth={320}>
+              <AreaChart data={data.series} margin={{ left: -10, right: 10, top: 5, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="rev" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.35} />
+                    <stop offset="95%" stopColor="var(--primary)" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="spd" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#f43f5e" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                <XAxis
+                  dataKey="date"
+                  tickFormatter={shortDate}
+                  tick={{ fontSize: 11 }}
+                  stroke="var(--muted-foreground)"
+                  interval="preserveStartEnd"
+                  minTickGap={24}
+                  angle={-35}
+                  textAnchor="end"
+                  height={50}
+                />
+                <YAxis tickFormatter={(v) => formatCurrency(v, 'COP', { compact: true })} tick={{ fontSize: 11 }} stroke="var(--muted-foreground)" width={64} />
+                <Tooltip
+                  contentStyle={{ background: 'var(--background)', border: '1px solid var(--border)', borderRadius: 12, fontSize: 12 }}
+                  formatter={(v: number, n) => [formatCurrency(v), n === 'revenue' ? 'Ingresos' : 'Pauta']}
+                  labelFormatter={(l) => `Día ${shortDate(l as string)}`}
+                />
+                <Area type="monotone" dataKey="revenue" stroke="var(--primary)" strokeWidth={2} fill="url(#rev)" />
+                <Area type="monotone" dataKey="spend" stroke="#f43f5e" strokeWidth={2} fill="url(#spd)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
         </CardContent>
       </Card>
 
       {/* Two columns: channel split + payment mode */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle className="text-base">Ingresos por canal</CardTitle>
@@ -348,7 +357,7 @@ export function OverviewView() {
       </div>
 
       {/* Conversations + summary */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
         <Card>
           <CardContent className="p-5 flex items-center gap-4">
             <div className="size-11 rounded-xl bg-emerald-500/10 text-emerald-600 ring-1 ring-emerald-500/20 flex items-center justify-center">

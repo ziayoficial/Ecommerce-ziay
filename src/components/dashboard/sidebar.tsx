@@ -37,7 +37,7 @@ export function Sidebar({ active, onChange, badges }: {
         </div>
         <div className="leading-tight min-w-0">
           <div className="font-semibold text-sm truncate">ZIAY</div>
-          <div className="text-[11px] text-sidebar-foreground/70 truncate">Conversational Commerce</div>
+          <div className="text-[11px] text-sidebar-foreground/70 truncate">Comercio Conversacional</div>
         </div>
       </div>
 

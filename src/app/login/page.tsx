@@ -152,7 +152,7 @@ function LoginInner() {
         <div className="relative z-10 space-y-6 max-w-md">
           <div className="inline-flex items-center gap-2 rounded-full bg-white/10 ring-1 ring-white/20 px-3 py-1 text-xs font-medium backdrop-blur">
             <Sparkles className="size-3.5" />
-            Conversational Commerce + Ad Attribution
+            Comercio Conversacional + Atribución Inteligente
           </div>
           <h1 className="text-4xl font-bold leading-tight tracking-tight">
             Tu negocio conversacional, <span className="text-emerald-200">atribuido de extremo a extremo.</span>

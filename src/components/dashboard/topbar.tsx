@@ -121,7 +121,7 @@ export function Topbar({ active, country, onCountryChange, onChangeView, onOpenS
               </div>
               <SheetTitle className="text-sm font-semibold leading-tight">
                 ZIAY
-                <span className="block text-[11px] font-normal text-muted-foreground">Conversational Commerce</span>
+                <span className="block text-[11px] font-normal text-muted-foreground">Comercio Conversacional</span>
               </SheetTitle>
             </SheetHeader>
             <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto scroll-thin">

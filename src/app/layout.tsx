@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ZIAY · Conversational Commerce + Ad Attribution",
+  title: "ZIAY · Comercio Conversacional + Atribución Inteligente",
   description: "Plataforma omnicanal de venta conversacional (WhatsApp, Messenger, Instagram) con órdenes, pagos anticipado/contra entrega y atribución de pauta con CPA, ROAS y ROI.",
   keywords: ["conversational commerce", "WhatsApp Business", "Messenger", "ad attribution", "ROAS", "CPA", "Colombia", "ecommerce"],
   authors: [{ name: "ZIAY" }],

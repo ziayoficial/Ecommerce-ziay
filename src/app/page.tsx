@@ -128,7 +128,7 @@ export default function Home() {
               <span className="font-medium text-foreground">ZIAY</span>
             </div>
             <span className="hidden sm:inline">·</span>
-            <span>Conversational Commerce + Ad Attribution</span>
+            <span>Comercio Conversacional + Atribución Inteligente</span>
           </div>
           <div className="flex items-center gap-4">
             <span className="hidden md:inline flex items-center gap-1.5">

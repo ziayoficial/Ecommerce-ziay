@@ -1,23 +1,32 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Checkbox } from '@/components/ui/checkbox'
+import {
+  Collapsible, CollapsibleContent, CollapsibleTrigger,
+} from '@/components/ui/collapsible'
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
+import {
+  Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger,
+} from '@/components/ui/tooltip'
 import { formatCurrency, shortDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { useTenantId } from '@/hooks/use-tenant'
 import {
   CreditCard, Truck, CheckCircle2, Clock, XCircle, Search,
-  TrendingUp, Wallet, Percent, Package,
+  TrendingUp, Wallet, Percent, Package, Download, ChevronDown,
+  ChevronRight, RefreshCw, AlertCircle, Inbox, SlidersHorizontal,
 } from 'lucide-react'
 
 type Order = {
@@ -54,23 +63,57 @@ const platformMeta = (p?: string) => {
   }
 }
 
+// All possible statuses — used to render quick-filter chips with counts.
+const STATUS_OPTIONS = [
+  { value: 'all', label: 'Todos' },
+  { value: 'new', label: 'Nuevo' },
+  { value: 'pending_payment', label: 'Pago pendiente' },
+  { value: 'paid', label: 'Pagado' },
+  { value: 'preparing', label: 'Preparando' },
+  { value: 'shipped', label: 'Enviado' },
+  { value: 'delivered', label: 'Entregado' },
+  { value: 'returned', label: 'Devuelto' },
+  { value: 'cancelled', label: 'Cancelado' },
+] as const
+
 export function OrdersView() {
   const tenantId = useTenantId()
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = useState('all')
   const [modeFilter, setModeFilter] = useState('all')
   const [q, setQ] = useState('')
+  const [filtersOpen, setFiltersOpen] = useState(true)
+  const [selected, setSelected] = useState<Record<string, boolean>>({})
 
-  useEffect(() => {
+  const loadOrders = useCallback(async (showRefreshing = false) => {
     if (!tenantId) return
-    let cancelled = false
-    fetch(`/api/orders?status=${statusFilter}&mode=${modeFilter}&q=${encodeURIComponent(q)}&tenantId=${tenantId}`)
-      .then(r => r.json())
-      .then(d => { if (!cancelled) { setOrders(d.orders || []); setLoading(false) } })
-      .catch(() => { if (!cancelled) setLoading(false) })
-    return () => { cancelled = true }
+    if (showRefreshing) setRefreshing(true)
+    try {
+      setError(null)
+      const res = await fetch(`/api/orders?status=${statusFilter}&mode=${modeFilter}&q=${encodeURIComponent(q)}&tenantId=${tenantId}`)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const d = await res.json()
+      setOrders(d.orders || [])
+    } catch (err) {
+      console.error('Orders fetch failed', err)
+      setError('No pudimos cargar los pedidos. Intenta de nuevo.')
+    } finally {
+      setLoading(false)
+      setRefreshing(false)
+    }
   }, [statusFilter, modeFilter, q, tenantId])
+
+  useEffect(() => { loadOrders() }, [loadOrders])
+
+  // ── Status counts for the quick-filter chips ──
+  const statusCounts = useMemo(() => {
+    const counts: Record<string, number> = { all: orders.length }
+    for (const o of orders) counts[o.status] = (counts[o.status] || 0) + 1
+    return counts
+  }, [orders])
 
   const advanceOrders = orders.filter(o => o.paymentMode === 'advance')
   const codOrders = orders.filter(o => o.paymentMode === 'cod')
@@ -79,6 +122,71 @@ export function OrdersView() {
   const codPending = orders.filter(o => o.paymentMode === 'cod' && o.paymentStatus === 'cod_pending').length
   const prepDiscount = orders.reduce((s, o) => s + o.discount, 0)
 
+  // ── Bulk selection helpers ──
+  const selectedIds = useMemo(() => Object.keys(selected).filter(id => selected[id]), [selected])
+  const selectedCount = selectedIds.length
+  const allSelected = orders.length > 0 && selectedCount === orders.length
+  const someSelected = selectedCount > 0 && !allSelected
+  function toggleAll(checked: boolean) {
+    if (checked) {
+      setSelected(Object.fromEntries(orders.map(o => [o.id, true])))
+    } else {
+      setSelected({})
+    }
+  }
+  function toggleOne(id: string, checked: boolean) {
+    setSelected(prev => ({ ...prev, [id]: checked }))
+  }
+
+  // ── CSV export: client-side, no backend round-trip needed ──
+  function exportCsv() {
+    const target = selectedCount > 0 ? orders.filter(o => selected[o.id]) : orders
+    if (target.length === 0) {
+      toast.info('No hay pedidos para exportar')
+      return
+    }
+    const headers = ['Número', 'Estado', 'Modo de pago', 'Pago status', 'Cliente', 'Ciudad', 'País', 'Items', 'Total', 'Descuento', 'Recargo COD', 'Campaña', 'Plataforma', 'Creado']
+    const rows = target.map(o => [
+      o.number, o.status, o.paymentMode, o.paymentStatus,
+      o.customer.name, o.city || '', o.country || '',
+      o.items.map(i => `${i.quantity}x ${i.name}`).join(' | '),
+      o.total, o.discount, o.codFee,
+      o.sourceCampaign || '', o.sourcePlatform || '',
+      o.createdAt,
+    ])
+    const csv = [headers, ...rows]
+      .map(r => r.map(cell => {
+        const s = String(cell ?? '')
+        // RFC 4180: wrap in quotes if contains comma/quote/newline, double the quotes.
+        return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+      }).join(','))
+      .join('\n')
+    // Prepend BOM so Excel reads UTF-8 correctly (accents, emojis).
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `pedidos-${new Date().toISOString().slice(0, 10)}${selectedCount > 0 ? `-_${selectedCount}` : ''}.csv`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    toast.success(`${target.length} pedidos exportados a CSV`)
+  }
+
+  async function bulkUpdateStatus(status: string) {
+    if (selectedCount === 0) return
+    await Promise.allSettled(selectedIds.map(id =>
+      fetch(`/api/orders/${id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      })
+    ))
+    setOrders(prev => prev.map(o => selected[o.id] ? { ...o, status } : o))
+    toast.success(`${selectedCount} pedidos actualizados a "${status}"`)
+    setSelected({})
+  }
+
   const updateStatus = async (id: string, status: string, paymentStatus?: string, event?: string) => {
     await fetch(`/api/orders/${id}`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
@@ -86,6 +194,21 @@ export function OrdersView() {
     })
     setOrders(prev => prev.map(o => o.id === id ? { ...o, status, ...(paymentStatus ? { paymentStatus } : {}) } : o))
     toast.success(`Pedido actualizado a "${status}"`)
+  }
+
+  if (error) {
+    return (
+      <Alert variant="destructive" className="animate-fade-in-up">
+        <AlertCircle className="size-4" />
+        <AlertTitle>Error al cargar los pedidos</AlertTitle>
+        <AlertDescription className="flex items-center justify-between gap-3 flex-wrap">
+          <span>{error}</span>
+          <Button size="sm" variant="outline" onClick={() => loadOrders(true)} className="gap-1.5">
+            <RefreshCw className="size-3.5" /> Reintentar
+          </Button>
+        </AlertDescription>
+      </Alert>
+    )
   }
 
   return (
@@ -110,51 +233,149 @@ export function OrdersView() {
         </CardContent></Card>
       </div>
 
-      {/* Filters */}
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-            <div>
-              <CardTitle className="text-base">Pedidos</CardTitle>
-              <CardDescription>{orders.length} pedidos · {advanceOrders.length} anticipado · {codOrders.length} contra entrega</CardDescription>
-            </div>
-            <div className="flex flex-wrap gap-2 items-center">
-              <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-                <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar # pedido..." className="pl-8 h-9 w-44" />
+      {/* ── Status quick-filter chips with counts ── */}
+      <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filtrar por estado">
+        {STATUS_OPTIONS.map(opt => {
+          const count = statusCounts[opt.value] || 0
+          const isActive = statusFilter === opt.value
+          if (opt.value !== 'all' && count === 0 && !isActive) return null
+          return (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => setStatusFilter(opt.value)}
+              aria-pressed={isActive}
+              className={cn(
+                'inline-flex items-center gap-1.5 h-8 px-3 rounded-full text-xs font-medium border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                isActive
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'bg-background hover:bg-accent border-border'
+              )}
+            >
+              {opt.label}
+              {count > 0 && (
+                <span className={cn(
+                  'inline-flex items-center justify-center min-w-4 h-4 px-1 rounded-full text-[10px] tabular-nums',
+                  isActive ? 'bg-primary-foreground/20 text-primary-foreground' : 'bg-muted text-muted-foreground'
+                )}>{count}</span>
+              )}
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Filters (collapsible) */}
+      <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
+        <Card>
+          <CollapsibleTrigger asChild>
+            <CardHeader className="pb-3 cursor-pointer select-none hover:bg-muted/30 transition-colors">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                <div className="min-w-0">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <SlidersHorizontal className="size-4 text-primary" />
+                    Pedidos
+                    <Badge variant="outline" className="text-[10px] h-5 tabular-nums">{orders.length}</Badge>
+                    {selectedCount > 0 && (
+                      <Badge variant="secondary" className="text-[10px] h-5">{selectedCount} seleccionados</Badge>
+                    )}
+                  </CardTitle>
+                  <CardDescription>{advanceOrders.length} anticipado · {codOrders.length} contra entrega</CardDescription>
+                </div>
+                <div className="flex flex-wrap gap-2 items-center">
+                  <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); exportCsv() }} className="gap-1.5" aria-label="Exportar a CSV">
+                    <Download className="size-3.5" /> <span className="hidden sm:inline">Exportar CSV</span>
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); loadOrders(true) }} disabled={refreshing} className="gap-1.5" aria-label="Refrescar pedidos">
+                    <RefreshCw className={cn('size-3.5', refreshing && 'animate-spin')} />
+                  </Button>
+                  <Button variant="ghost" size="sm" className="gap-1" aria-label={filtersOpen ? 'Contraer filtros' : 'Expandir filtros'}>
+                    {filtersOpen ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
+                    <span className="hidden sm:inline">{filtersOpen ? 'Contraer' : 'Expandir'}</span>
+                  </Button>
+                </div>
               </div>
-              <Select value={modeFilter} onValueChange={setModeFilter}>
-                <SelectTrigger className="h-9 w-40"><SelectValue placeholder="Modo de pago" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos los pagos</SelectItem>
-                  <SelectItem value="advance">Anticipado</SelectItem>
-                  <SelectItem value="cod">Contra entrega</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="h-9 w-36"><SelectValue placeholder="Estado" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos los estados</SelectItem>
-                  <SelectItem value="new">Nuevo</SelectItem>
-                  <SelectItem value="paid">Pagado</SelectItem>
-                  <SelectItem value="preparing">Preparando</SelectItem>
-                  <SelectItem value="shipped">Enviado</SelectItem>
-                  <SelectItem value="delivered">Entregado</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            </CardHeader>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <CardContent className="pt-0 pb-4 px-6">
+              <div className="flex flex-wrap gap-2 items-center">
+                <div className="relative flex-1 min-w-[200px]">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                  <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar # pedido, cliente, ciudad..." className="pl-8 h-9" aria-label="Buscar pedidos" />
+                </div>
+                <Select value={modeFilter} onValueChange={setModeFilter}>
+                  <SelectTrigger className="h-9 w-40"><SelectValue placeholder="Modo de pago" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos los pagos</SelectItem>
+                    <SelectItem value="advance">Anticipado</SelectItem>
+                    <SelectItem value="cod">Contra entrega</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="h-9 w-40"><SelectValue placeholder="Estado" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos los estados</SelectItem>
+                    <SelectItem value="new">Nuevo</SelectItem>
+                    <SelectItem value="paid">Pagado</SelectItem>
+                    <SelectItem value="preparing">Preparando</SelectItem>
+                    <SelectItem value="shipped">Enviado</SelectItem>
+                    <SelectItem value="delivered">Entregado</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
+
+      {/* Bulk actions bar — visible only when at least one order is selected */}
+      {selectedCount > 0 && (
+        <div className="flex items-center justify-between gap-3 p-3 rounded-lg border bg-primary/5 animate-fade-in-up flex-wrap" role="region" aria-label="Acciones masivas">
+          <div className="text-xs font-medium">{selectedCount} pedidos seleccionados</div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Select onValueChange={(v) => bulkUpdateStatus(v)} defaultValue="">
+              <SelectTrigger className="h-8 w-44 text-xs"><SelectValue placeholder="Mover selección a…" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="paid">Marcar pagado</SelectItem>
+                <SelectItem value="preparing">Preparando</SelectItem>
+                <SelectItem value="shipped">Enviar</SelectItem>
+                <SelectItem value="delivered">Entregado</SelectItem>
+                <SelectItem value="cancelled">Cancelar</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button variant="outline" size="sm" onClick={exportCsv} className="gap-1.5"><Download className="size-3.5" /> Exportar selección</Button>
+            <Button variant="ghost" size="sm" onClick={() => setSelected({})} aria-label="Limpiar selección">Limpiar</Button>
           </div>
-        </CardHeader>
+        </div>
+      )}
+
+      <Card>
         <CardContent className="p-0">
           {loading ? (
             <div className="p-4 space-y-2">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-12" />)}</div>
           ) : orders.length === 0 ? (
-            <div className="p-12 text-center text-sm text-muted-foreground">Sin pedidos con estos filtros</div>
+            <div className="flex flex-col items-center justify-center text-center py-14 px-4 gap-3">
+              <div className="size-14 rounded-2xl bg-muted/60 ring-1 ring-border flex items-center justify-center">
+                <Inbox className="size-6 text-muted-foreground" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-foreground">Sin pedidos con estos filtros</p>
+                <p className="text-xs text-muted-foreground mt-1 max-w-sm">Prueba cambiando los filtros de estado o modo de pago, o espera a que entren nuevos pedidos desde Mensajería.</p>
+              </div>
+              <Button variant="outline" size="sm" onClick={() => { setStatusFilter('all'); setModeFilter('all'); setQ('') }} className="gap-1.5">Limpiar filtros</Button>
+            </div>
           ) : (
             <div className="overflow-x-auto scroll-thin">
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-10 sticky left-0 bg-background z-10">
+                      <Checkbox
+                        checked={allSelected ? true : someSelected ? 'indeterminate' : false}
+                        onCheckedChange={(v) => toggleAll(!!v)}
+                        aria-label="Seleccionar todos los pedidos"
+                      />
+                    </TableHead>
                     <TableHead className="w-32">Pedido</TableHead>
                     <TableHead className="min-w-[180px]">Cliente</TableHead>
                     <TableHead className="min-w-[240px]">Items</TableHead>
@@ -170,8 +391,16 @@ export function OrdersView() {
                     const sm = statusMeta(o.status)
                     const pm = platformMeta(o.sourcePlatform)
                     const StatusIcon = sm.icon
+                    const isSel = !!selected[o.id]
                     return (
-                      <TableRow key={o.id} className="hover:bg-muted/40">
+                      <TableRow key={o.id} className={cn('hover:bg-muted/40', isSel && 'bg-primary/5')} data-selected={isSel || undefined}>
+                        <TableCell className="sticky left-0 bg-background z-10">
+                          <Checkbox
+                            checked={isSel}
+                            onCheckedChange={(v) => toggleOne(o.id, !!v)}
+                            aria-label={`Seleccionar pedido ${o.number}`}
+                          />
+                        </TableCell>
                         <TableCell>
                           <div className="font-mono font-medium text-sm">{o.number}</div>
                           <div className="text-[10px] text-muted-foreground">{shortDate(o.createdAt)}</div>
@@ -198,9 +427,16 @@ export function OrdersView() {
                           {o.codFee > 0 && <div className="text-[10px] text-muted-foreground">+{formatCurrency(o.codFee)} envío COD</div>}
                         </TableCell>
                         <TableCell>
-                          <span className={cn('inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full', sm.cls)}>
-                            <StatusIcon className="size-3" /> {sm.label}
-                          </span>
+                          <TooltipProvider delayDuration={200}>
+                            <UITooltip>
+                              <TooltipTrigger asChild>
+                                <span className={cn('inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full cursor-help')}>
+                                  <StatusIcon className="size-3" /> {sm.label}
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent><p className="text-xs">Estado actual: {o.status}</p></TooltipContent>
+                            </UITooltip>
+                          </TooltipProvider>
                         </TableCell>
                         <TableCell>
                           <div className="flex flex-col gap-1">

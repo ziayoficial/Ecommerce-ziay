@@ -1,18 +1,32 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
-  BarChart, Bar, Cell, PieChart, Pie, Legend,
+  PieChart, Pie,
 } from 'recharts'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import {
+  Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger,
+} from '@/components/ui/tooltip'
 import {
   TrendingUp, TrendingDown, DollarSign, ShoppingCart, MessagesSquare,
-  Target, Wallet, Percent, Sparkles,
+  Target, Wallet, Percent, Sparkles, RefreshCw, AlertCircle, Info,
+  Inbox,
 } from 'lucide-react'
-import { formatCurrency, formatNumber, formatPercent, formatMultiplier, shortDate } from '@/lib/format'
+import { formatCurrency, formatNumber, formatPercent, formatMultiplier, shortDate, timeAgo } from '@/lib/format'
+import { cn } from '@/lib/utils'
 import { useTenantId } from '@/hooks/use-tenant'
+
+// Human-readable tooltip text for each KPI — explains what the metric means.
+const KPI_HELP = {
+  revenue: 'Ingresos brutos de los pedidos en los últimos 14 días (independientemente de si ya están cobrados).',
+  roas: 'Return on Ad Spend: ingresos por cada $1 invertido en pauta. ROAS ≥ 1.5 es sano.',
+  orders: 'Número total de pedidos en los últimos 14 días, dividido por modo de pago.',
+  spend: 'Total invertido en pauta (Meta/Google/TikTok) y utilidad neta después de COGS y pauta.',
+} as const
 
 type Overview = {
   range: { days: number }
@@ -26,9 +40,10 @@ type Overview = {
   series: { date: string; revenue: number; spend: number; orders: number }[]
 }
 
-function Kpi({ icon: Icon, label, value, sub, trend, accent }: {
+function Kpi({ icon: Icon, label, value, sub, trend, accent, help }: {
   icon: typeof DollarSign; label: string; value: string; sub?: string
   trend?: 'up' | 'down' | 'neutral'; accent?: 'primary' | 'amber' | 'rose' | 'violet'
+  help?: string
 }) {
   const accentMap = {
     primary: 'bg-primary/10 text-primary ring-primary/20',
@@ -41,11 +56,25 @@ function Kpi({ icon: Icon, label, value, sub, trend, accent }: {
       <CardContent className="p-5">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <div className="text-xs text-muted-foreground font-medium uppercase tracking-wide">{label}</div>
+            <div className="text-xs text-muted-foreground font-medium uppercase tracking-wide flex items-center gap-1">
+              {label}
+              {help && (
+                <TooltipProvider delayDuration={200}>
+                  <UITooltip>
+                    <TooltipTrigger asChild>
+                      <button type="button" aria-label={`¿Qué es ${label}?`} className="text-muted-foreground/70 hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded">
+                        <Info className="size-3" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-56"><p className="text-xs">{help}</p></TooltipContent>
+                  </UITooltip>
+                </TooltipProvider>
+              )}
+            </div>
             <div className="text-2xl font-bold mt-1 tabular-nums">{value}</div>
             {sub && <div className="text-xs text-muted-foreground mt-1">{sub}</div>}
           </div>
-          <div className={`size-9 rounded-xl flex items-center justify-center ring-1 ${accentMap[accent || 'primary']}`}>
+          <div className={`size-9 rounded-xl flex items-center justify-center ring-1 ${accentMap[accent || 'primary']}`} aria-hidden>
             <Icon className="size-4.5" />
           </div>
         </div>
@@ -76,24 +105,102 @@ export function OverviewView() {
   const tenantId = useTenantId()
   const [data, setData] = useState<Overview | null>(null)
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
+
+  const fetchData = useCallback(async (showRefreshing = false) => {
+    if (!tenantId) return
+    if (showRefreshing) setRefreshing(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/overview?days=14&tenantId=${tenantId}`)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const d = await res.json()
+      setData(d)
+      setLastUpdated(new Date())
+    } catch (err) {
+      console.error('Overview fetch failed', err)
+      setError('No pudimos cargar los KPIs. Verifica tu conexión o intenta de nuevo.')
+    } finally {
+      setLoading(false)
+      setRefreshing(false)
+    }
+  }, [tenantId])
 
   useEffect(() => {
     if (!tenantId) return
     let cancelled = false
     fetch(`/api/overview?days=14&tenantId=${tenantId}`)
-      .then(r => r.json())
-      .then(d => { if (!cancelled) { setData(d); setLoading(false) } })
-      .catch(() => { if (!cancelled) setLoading(false) })
+      .then(async r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+        return r.json()
+      })
+      .then(d => { if (!cancelled) { setData(d); setLastUpdated(new Date()); setLoading(false) } })
+      .catch((err) => {
+        console.error('Overview fetch failed', err)
+        if (!cancelled) { setError('No pudimos cargar los KPIs. Verifica tu conexión o intenta de nuevo.'); setLoading(false) }
+      })
     return () => { cancelled = true }
   }, [tenantId])
+
+  // ── Empty state: tenant has data but zero orders in the window ──
+  const isEmpty = data && (data.kpis.orders === 0 && data.kpis.conversations === 0)
+
+  if (error) {
+    return (
+      <Alert variant="destructive" className="animate-fade-in-up">
+        <AlertCircle className="size-4" />
+        <AlertTitle>Error al cargar el resumen</AlertTitle>
+        <AlertDescription className="flex items-center justify-between gap-3 flex-wrap">
+          <span>{error}</span>
+          <Button size="sm" variant="outline" onClick={() => fetchData(true)} className="gap-1.5">
+            <RefreshCw className="size-3.5" /> Reintentar
+          </Button>
+        </AlertDescription>
+      </Alert>
+    )
+  }
 
   if (loading || !data) {
     return (
       <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <Skeleton className="h-9 w-40" />
+          <Skeleton className="h-9 w-32" />
+        </div>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-28 rounded-xl" />)}
         </div>
         <Skeleton className="h-72 rounded-xl" />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <Skeleton className="h-48 rounded-xl lg:col-span-2" />
+          <Skeleton className="h-48 rounded-xl" />
+        </div>
+      </div>
+    )
+  }
+
+  // ── Friendly empty state with CTA ──
+  if (isEmpty) {
+    return (
+      <div className="flex flex-col items-center justify-center text-center py-16 px-4 animate-fade-in-up">
+        <div className="size-20 rounded-2xl bg-primary/10 ring-1 ring-primary/20 flex items-center justify-center mb-5">
+          <Inbox className="size-9 text-primary" />
+        </div>
+        <h2 className="text-lg font-semibold">Aún no hay actividad en los últimos 14 días</h2>
+        <p className="text-sm text-muted-foreground max-w-md mt-2">
+          Una vez que entran conversaciones y se registran pedidos, verás aquí los KPIs de ingresos,
+          ROAS, CPA y el split por canal. Conecta un canal en Mensajería para empezar.
+        </p>
+        <div className="flex flex-wrap gap-2 mt-5">
+          <a href="/messenger" className="inline-flex items-center gap-1.5 h-9 px-4 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors">
+            <MessagesSquare className="size-4" /> Ir a Mensajería
+          </a>
+          <Button variant="outline" size="sm" onClick={() => fetchData(true)} disabled={refreshing} className="gap-1.5">
+            <RefreshCw className={cn('size-3.5', refreshing && 'animate-spin')} /> Refrescar
+          </Button>
+        </div>
       </div>
     )
   }
@@ -103,16 +210,31 @@ export function OverviewView() {
 
   return (
     <div className="space-y-6 animate-fade-in-up">
+      {/* ── Header: last-updated + refresh ── */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="text-xs text-muted-foreground">
+          {lastUpdated ? (
+            <span>Actualizado hace <strong className="text-foreground tabular-nums">{timeAgo(lastUpdated.toISOString())}</strong></span>
+          ) : (
+            <span>Datos de muestra</span>
+          )}
+        </div>
+        <Button variant="outline" size="sm" onClick={() => fetchData(true)} disabled={refreshing} className="gap-1.5">
+          <RefreshCw className={cn('size-3.5', refreshing && 'animate-spin')} />
+          {refreshing ? 'Actualizando…' : 'Refrescar'}
+        </Button>
+      </div>
+
       {/* Top KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <Kpi icon={DollarSign} label="Ingresos (14d)" value={formatCurrency(k.revenue, 'COP', { compact: true })}
-          sub={`${formatCurrency(k.revenuePaid, 'COP', { compact: true })} cobrados · AOV ${formatCurrency(k.aov)}`} accent="primary" trend="up" />
+          sub={`${formatCurrency(k.revenuePaid, 'COP', { compact: true })} cobrados · AOV ${formatCurrency(k.aov)}`} accent="primary" trend="up" help={KPI_HELP.revenue} />
         <Kpi icon={Target} label="ROAS" value={formatMultiplier(k.roas)}
-          sub={`CPA ${formatCurrency(k.cpa)} · ROI ${formatMultiplier(k.roi)}`} accent="amber" trend={k.roas >= 1.5 ? 'up' : 'down'} />
+          sub={`CPA ${formatCurrency(k.cpa)} · ROI ${formatMultiplier(k.roi)}`} accent="amber" trend={k.roas >= 1.5 ? 'up' : 'down'} help={KPI_HELP.roas} />
         <Kpi icon={ShoppingCart} label="Pedidos" value={formatNumber(k.orders)}
-          sub={`${k.advanceOrders} anticipado · ${k.codOrders} contra entrega`} accent="violet" trend="up" />
+          sub={`${k.advanceOrders} anticipado · ${k.codOrders} contra entrega`} accent="violet" trend="up" help={KPI_HELP.orders} />
         <Kpi icon={Wallet} label="Inversión en pauta" value={formatCurrency(k.totalSpend, 'COP', { compact: true })}
-          sub={`Utilidad neta ${formatCurrency(k.netProfit, 'COP', { compact: true })}`} accent="rose" trend={k.netProfit > 0 ? 'up' : 'down'} />
+          sub={`Utilidad neta ${formatCurrency(k.netProfit, 'COP', { compact: true })}`} accent="rose" trend={k.netProfit > 0 ? 'up' : 'down'} help={KPI_HELP.spend} />
       </div>
 
       {/* Revenue vs Spend chart */}

@@ -16,6 +16,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { cn } from '@/lib/utils'
 import { timeAgo, shortTime, formatCurrency } from '@/lib/format'
 import { getSocket } from '@/lib/socket'
@@ -23,7 +24,7 @@ import { toast } from 'sonner'
 import { useTenantId } from '@/hooks/use-tenant'
 import {
   MessageCircle, Send, Sparkles, Phone, MapPin, Tag, Bot, User, Search,
-  CircleDot, ArrowRight, ShoppingCart,
+  CircleDot, ArrowRight, ShoppingCart, RefreshCw, AlertCircle, Inbox, CornerDownLeft,
 } from 'lucide-react'
 
 type ConvListItem = {
@@ -75,14 +76,32 @@ export function MessengerView() {
   const [draft, setDraft] = useState('')
   const [aiLoading, setAiLoading] = useState(false)
   const [connected, setConnected] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const threadRef = useRef<HTMLDivElement>(null)
+
+  // Quick replies — common agent responses, single-tap to send.
+  const QUICK_REPLIES = [
+    '¡Hola! ¿En qué te puedo ayudar hoy?',
+    'Claro, te envío el catálogo actualizado 📦',
+    '¿Me confirmas dirección y ciudad para cotizar el envío?',
+    'El pago anticipado tiene 5% off. Te envío el link del carrito 🔗',
+    'Gracias por tu compra 🙌 Tu pedido queda en preparación.',
+  ] as const
 
   const loadConvs = useCallback(async () => {
     if (!tenantId) return
-    const res = await fetch(`/api/conversations?status=${filter}&channel=${channelFilter}&q=${encodeURIComponent(q)}&tenantId=${tenantId}`)
-    const data = await res.json()
-    setConvs(data.conversations || [])
-    setLoading(false)
+    try {
+      setError(null)
+      const res = await fetch(`/api/conversations?status=${filter}&channel=${channelFilter}&q=${encodeURIComponent(q)}&tenantId=${tenantId}`)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = await res.json()
+      setConvs(data.conversations || [])
+    } catch (err) {
+      console.error('loadConvs failed', err)
+      setError('No se pudieron cargar las conversaciones.')
+    } finally {
+      setLoading(false)
+    }
   }, [filter, channelFilter, q, tenantId])
 
   useEffect(() => { loadConvs() }, [loadConvs])
@@ -128,22 +147,22 @@ export function MessengerView() {
     if (threadRef.current) threadRef.current.scrollTop = threadRef.current.scrollHeight
   }, [active?.messages.length])
 
-  const send = async () => {
-    if (!draft.trim() || !activeId) return
-    const text = draft.trim()
+  const send = async (text?: string) => {
+    const body = (text ?? draft).trim()
+    if (!body || !activeId) return
     setDraft('')
     // Optimistic append
     setActive(prev => prev ? {
       ...prev,
-      messages: [...prev.messages, { id: `opt-${Date.now()}`, direction: 'outbound', body: text, type: 'text', createdAt: new Date().toISOString() }],
+      messages: [...prev.messages, { id: `opt-${Date.now()}`, direction: 'outbound', body, type: 'text', createdAt: new Date().toISOString() }],
     } : prev)
     // Persist via API
     await fetch('/api/conversations', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tenantId, conversationId: activeId, body: text }),
+      body: JSON.stringify({ tenantId, conversationId: activeId, body }),
     })
     // Broadcast via socket for other dashboards + simulated customer reply
-    getSocket().emit('message:sent', { conversationId: activeId, body: text, agentName: 'Valentina' })
+    getSocket().emit('message:sent', { conversationId: activeId, body, agentName: 'Valentina' })
   }
 
   const aiSuggest = async (agentName: string = 'speech') => {
@@ -185,9 +204,19 @@ export function MessengerView() {
       {/* Conversation list */}
       <Card className="flex flex-col overflow-hidden">
         <div className="p-3 border-b space-y-2">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Conversaciones</h3>
+            <Button
+              variant="ghost" size="icon" className="size-7"
+              onClick={() => loadConvs()}
+              aria-label="Refrescar conversaciones"
+            >
+              <RefreshCw className="size-3.5" />
+            </Button>
+          </div>
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar cliente..." className="pl-8 h-9" />
+            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar cliente..." className="pl-8 h-9" aria-label="Buscar conversaciones" />
           </div>
           <div className="flex gap-2">
             <Select value={channelFilter} onValueChange={setChannelFilter}>
@@ -208,15 +237,32 @@ export function MessengerView() {
             </Tabs>
           </div>
           <div className="flex items-center gap-1.5 text-[11px]">
-            <CircleDot className={cn('size-3', connected ? 'text-emerald-600' : 'text-muted-foreground')} />
+            <CircleDot className={cn('size-3', connected ? 'text-emerald-600' : 'text-muted-foreground')} aria-hidden />
             <span className="text-muted-foreground">{connected ? 'Tiempo real conectado' : 'Conectando socket...'}</span>
           </div>
         </div>
         <ScrollArea className="flex-1 scroll-thin">
           {loading ? (
             <div className="p-3 space-y-2">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-16" />)}</div>
+          ) : error ? (
+            <Alert variant="destructive" className="m-3">
+              <AlertCircle className="size-4" />
+              <AlertTitle>Error</AlertTitle>
+              <AlertDescription className="flex items-center justify-between gap-2 flex-wrap">
+                <span>{error}</span>
+                <Button size="sm" variant="outline" onClick={() => { setError(null); loadConvs() }} className="gap-1.5 h-7"><RefreshCw className="size-3" /> Reintentar</Button>
+              </AlertDescription>
+            </Alert>
           ) : convs.length === 0 ? (
-            <div className="p-8 text-center text-sm text-muted-foreground">Sin conversaciones</div>
+            <div className="flex flex-col items-center text-center p-8 gap-3">
+              <div className="size-12 rounded-xl bg-muted/60 ring-1 ring-border flex items-center justify-center">
+                <Inbox className="size-5 text-muted-foreground" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-foreground">Sin conversaciones</p>
+                <p className="text-xs text-muted-foreground mt-1 max-w-[14rem]">Cuando entren mensajes por WhatsApp, Messenger o Instagram aparecerán aquí.</p>
+              </div>
+            </div>
           ) : (
             convs.map((c) => {
               const cm = channelMeta(c.channel.type)
@@ -226,12 +272,14 @@ export function MessengerView() {
                 <button
                   key={c.id}
                   onClick={() => openConv(c.id)}
+                  aria-current={isActive ? 'true' : undefined}
+                  aria-label={`Abrir conversación con ${c.customer.name}${c.unreadCount > 0 ? `, ${c.unreadCount} sin leer` : ''}`}
                   className={cn(
-                    'w-full text-left px-3 py-3 border-b hover:bg-muted/50 transition-colors flex gap-3',
+                    'w-full text-left px-3 py-3 border-b hover:bg-muted/50 transition-colors flex gap-3 focus-visible:outline-none focus-visible:bg-muted/50',
                     isActive && 'bg-primary/5 border-l-2 border-l-primary'
                   )}
                 >
-                  <Avatar className="size-10 rounded-full ring-1 ring-border">
+                  <Avatar className="size-10 rounded-full ring-1 ring-border shrink-0">
                     <AvatarFallback className={cn('text-xs font-medium', cm.color)}>
                       {c.customer.name.split(' ').map(n => n[0]).slice(0, 2).join('')}
                     </AvatarFallback>
@@ -239,21 +287,25 @@ export function MessengerView() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-sm truncate">{c.customer.name}</span>
-                      <span className={cn('size-1.5 rounded-full shrink-0', cm.dot)} />
-                      <span className="text-[10px] text-muted-foreground ml-auto">{timeAgo(c.lastMessageAt)}</span>
+                      <span className={cn('size-1.5 rounded-full shrink-0', cm.dot)} aria-hidden />
+                      <span className="text-[10px] text-muted-foreground ml-auto tabular-nums shrink-0">{timeAgo(c.lastMessageAt)}</span>
                     </div>
                     <div className="flex items-center gap-1.5 mt-0.5">
                       <span className={cn('text-[10px] px-1.5 py-0.5 rounded ring-1', cm.color)}>{cm.label}</span>
                       {c.customer.country && <span className="text-[10px] text-muted-foreground">{c.customer.country}</span>}
                       {c.priority === 'urgent' && <Badge variant="destructive" className="text-[9px] h-4 px-1">URGENTE</Badge>}
+                      {c.unreadCount > 0 && (
+                        <span className="ml-auto inline-flex items-center justify-center min-w-4 h-4 px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-semibold tabular-nums" aria-label={`${c.unreadCount} mensajes sin leer`}>
+                          {c.unreadCount}
+                        </span>
+                      )}
                     </div>
                     <p className="text-xs text-muted-foreground line-clamp-2 mt-1 leading-snug">
-                      {c.lastMessage?.direction === 'outbound' && 'Tú: '}
+                      {c.lastMessage?.direction === 'outbound' && <span className="text-muted-foreground/80">Tú: </span>}
                       {c.lastMessage?.body || 'Sin mensajes'}
                     </p>
                     <div className="flex items-center gap-1.5 mt-1">
                       <span className={cn('text-[10px] px-1.5 py-0.5 rounded', sm.cls)}>{sm.label}</span>
-                      {c.unreadCount > 0 && <span className="ml-auto size-4 rounded-full bg-primary text-primary-foreground text-[10px] font-semibold flex items-center justify-center">{c.unreadCount}</span>}
                     </div>
                   </div>
                 </button>
@@ -307,13 +359,13 @@ export function MessengerView() {
             </div>
 
             {/* Messages */}
-            <div ref={threadRef} className="flex-1 overflow-y-visible p-4 space-y-3 bg-muted/20">
+            <div ref={threadRef} className="flex-1 overflow-y-visible p-4 space-y-3 bg-muted/20" aria-live="polite">
               {active.messages.map((m) => {
                 const isOut = m.direction === 'outbound'
                 return (
                   <div key={m.id} className={cn('flex gap-2 max-w-[80%]', isOut ? 'ml-auto flex-row-reverse' : '')}>
                     {!isOut && (
-                      <div className="size-7 rounded-full bg-muted flex items-center justify-center shrink-0">
+                      <div className="size-7 rounded-full bg-muted flex items-center justify-center shrink-0" aria-hidden>
                         <User className="size-3.5 text-muted-foreground" />
                       </div>
                     )}
@@ -329,16 +381,47 @@ export function MessengerView() {
                   </div>
                 )
               })}
+              {/* Typing indicator while AI agent is generating */}
+              {aiLoading && (
+                <div className="flex gap-2 max-w-[80%]" aria-live="polite" aria-label="El agente IA está escribiendo">
+                  <div className="size-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                    <Bot className="size-3.5 text-primary" />
+                  </div>
+                  <div className="rounded-2xl rounded-bl-md bg-background border px-3.5 py-2.5">
+                    <div className="flex items-center gap-1" aria-hidden>
+                      <span className="size-1.5 rounded-full bg-muted-foreground/60 animate-bounce [animation-delay:-0.3s]" />
+                      <span className="size-1.5 rounded-full bg-muted-foreground/60 animate-bounce [animation-delay:-0.15s]" />
+                      <span className="size-1.5 rounded-full bg-muted-foreground/60 animate-bounce" />
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Composer */}
             <div className="p-3 border-t space-y-2">
+              {/* Quick-reply chips — one-tap common responses */}
+              <div className="flex flex-wrap gap-1.5" role="group" aria-label="Respuestas rápidas">
+                {QUICK_REPLIES.map((reply) => (
+                  <button
+                    key={reply}
+                    type="button"
+                    onClick={() => send(reply)}
+                    disabled={!activeId || aiLoading}
+                    className="text-[11px] px-2 py-1 rounded-full border bg-background hover:bg-accent hover:border-primary/40 transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring truncate max-w-full"
+                    title={reply}
+                  >
+                    {reply.length > 42 ? reply.slice(0, 42) + '…' : reply}
+                  </button>
+                ))}
+              </div>
               <div className="flex gap-2">
                 <Textarea
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
-                  placeholder="Escribe un mensaje... (Enter para enviar, Shift+Enter para salto)"
+                  placeholder="Escribe un mensaje..."
+                  aria-label="Mensaje al cliente"
                   className="min-h-[44px] max-h-24 resize-none text-sm"
                 />
               </div>
@@ -389,9 +472,18 @@ export function MessengerView() {
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
-                <div className="flex items-center gap-2">
-                  <span className="text-[11px] text-muted-foreground hidden sm:inline">Estrategia: <strong className="text-foreground">{active.channel.paymentStrategy}</strong></span>
-                  <Button size="sm" onClick={send} disabled={!draft.trim()} className="gap-1.5">
+                <div className="flex items-center gap-3">
+                  {/* Visible keyboard-shortcut hint */}
+                  <span className="text-[11px] text-muted-foreground hidden sm:flex items-center gap-1" aria-hidden>
+                    <kbd className="inline-flex h-5 items-center gap-0.5 rounded border bg-muted px-1 font-mono text-[10px] font-medium">
+                      <CornerDownLeft className="size-2.5" /> Enter
+                    </kbd>
+                    <span>enviar ·</span>
+                    <kbd className="inline-flex h-5 items-center rounded border bg-muted px-1 font-mono text-[10px] font-medium">⇧+Enter</kbd>
+                    <span>salto</span>
+                  </span>
+                  <span className="text-[11px] text-muted-foreground sm:hidden">Estrategia: <strong className="text-foreground">{active.channel.paymentStrategy}</strong></span>
+                  <Button size="sm" onClick={() => send()} disabled={!draft.trim() || aiLoading} className="gap-1.5" aria-label="Enviar mensaje">
                     <Send className="size-3.5" /> Enviar
                   </Button>
                 </div>

@@ -4,10 +4,11 @@ import {
   DndContext, DragEndEvent, DragOverlay, DragStartEvent, PointerSensor, useSensor, useSensors,
   useDroppable, useDraggable,
 } from '@dnd-kit/core'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from '@/components/ui/tooltip'
@@ -20,13 +21,33 @@ import {
 } from '@/lib/orchestrator/constants'
 import {
   RefreshCw, GripVertical, CreditCard, Truck, MapPin, AlertTriangle, Sparkles,
+  ChevronLeft, Clock, AlertCircle, Inbox,
 } from 'lucide-react'
+
+// WIP limit per stage. If a column exceeds this many cards we surface a
+// warning chip in its header (configurable per stage id).
+const WIP_LIMITS: Partial<Record<KanbanStageId, number>> = {
+  pending_confirmation: 25,
+  intent_cancelacion: 8,
+  datos_completados: 15,
+  seguimiento: 12,
+  oficina: 12,
+  programado: 15,
+  despachado: 30,
+  pendiente_guia: 10,
+}
+
+// A card is "stuck" if it has been in its current stage for at least this
+// many days (we approximate using the order's createdAt when the stage was
+// last touched isn't available — see note inside KanbanCard).
+const STUCK_DAYS = 3
 
 type Order = {
   id: string; number: string; status: string; paymentMode: string; paymentStatus: string
   total: number; currency: string; country?: string | null; city?: string | null
   customer: { id: string; name: string; phone?: string; country?: string }
   items: { name: string; quantity: number; unitPrice: number }[]
+  createdAt?: string
 }
 
 // Map any incoming order status (from §15.1 funnel or legacy statuses) →
@@ -62,27 +83,53 @@ function normalizeStage(rawStatus: string): KanbanStageId {
   return map[s] || 'pending_confirmation'
 }
 
+// Heuristic: if the order's createdAt is older than STUCK_DAYS and the
+// status hasn't been touched, flag it as stuck. Real per-stage timestamps
+// would come from the order event log (§10) but createdAt is a safe proxy.
+function isStuck(createdAt: string | undefined): boolean {
+  if (!createdAt) return false
+  const ms = Date.now() - new Date(createdAt).getTime()
+  return ms > STUCK_DAYS * 24 * 60 * 60 * 1000
+}
+
 function KanbanCard({ order, isDragging }: { order: Order; isDragging?: boolean }) {
   const itemCount = order.items.reduce((s, i) => s + i.quantity, 0)
   const isAdvance = order.paymentMode === 'advance'
+  const stuck = isStuck(order.createdAt)
   return (
     <div
       className={cn(
-        'rounded-lg border bg-card p-2.5 shadow-sm transition-all',
-        isDragging ? 'opacity-40 ring-2 ring-primary/40 shadow-md scale-[0.98]' : 'hover:shadow-md hover:border-primary/30'
+        'rounded-lg border bg-card p-2.5 transition-all',
+        isDragging
+          ? 'opacity-40 ring-2 ring-primary/50 shadow-xl scale-[0.97]'
+          : 'shadow-sm hover:shadow-lg hover:border-primary/40 hover:-translate-y-0.5'
       )}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
-          <div className="font-mono text-[11px] font-semibold text-primary truncate">{order.number}</div>
+          <div className="flex items-center gap-1.5">
+            <span className="font-mono text-[11px] font-semibold text-primary truncate">{order.number}</span>
+            {stuck && (
+              <TooltipProvider delayDuration={200}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="inline-flex items-center justify-center size-4 rounded-full bg-amber-500/15 text-amber-600" aria-label="Pedido estancado">
+                      <Clock className="size-2.5" />
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent><p className="text-xs max-w-56">Pedido estancado: lleva más de {STUCK_DAYS} días sin moverse de etapa. Considera escalarlo.</p></TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+          </div>
           <div className="text-sm font-medium leading-tight mt-0.5 truncate" title={order.customer.name}>
             {order.customer.name}
           </div>
         </div>
-        <GripVertical className="size-3.5 text-muted-foreground shrink-0 mt-0.5" />
+        <GripVertical className="size-3.5 text-muted-foreground shrink-0 mt-0.5 cursor-grab active:cursor-grabbing" aria-hidden />
       </div>
       <div className="flex items-center gap-1 mt-1 text-[11px] text-muted-foreground">
-        <MapPin className="size-3 shrink-0" />
+        <MapPin className="size-3 shrink-0" aria-hidden />
         <span className="truncate">{order.city || '—'}{order.country ? `, ${order.country}` : ''}</span>
       </div>
       <div className="flex items-center justify-between mt-1.5">
@@ -120,27 +167,87 @@ function DraggableCard({ order }: { order: Order }) {
   )
 }
 
-function DroppableColumn({ stage, orders }: { stage: typeof KANBAN_STAGES[number]; orders: Order[] }) {
+function DroppableColumn({ stage, orders, collapsed, onToggleCollapse }: { stage: typeof KANBAN_STAGES[number]; orders: Order[]; collapsed: boolean; onToggleCollapse: () => void }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id })
   const accent = KANBAN_ACCENT[stage.accent]
+  const wipLimit = WIP_LIMITS[stage.id]
+  const overWip = wipLimit != null && orders.length > wipLimit
+  const stuckCount = orders.filter(o => isStuck(o.createdAt)).length
+
+  // Collapsed view: just the header + count, no list.
+  if (collapsed) {
+    return (
+      <div className="flex flex-col min-w-[52px] w-[52px] shrink-0">
+        <button
+          type="button"
+          onClick={onToggleCollapse}
+          aria-label={`Expandir columna ${stage.label}`}
+          aria-expanded={false}
+          className={cn('rounded-lg border bg-muted/40 px-2 py-3 text-center hover:bg-muted/70 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring')}
+        >
+          <div className="text-base leading-none rotate-180 [writing-mode:vertical-rl]" aria-hidden>{stage.emoji}</div>
+          <div className={cn('text-[10px] font-semibold mt-2 [writing-mode:vertical-rl] rotate-180', accent.header)}>{stage.label}</div>
+          <div className="text-[10px] text-muted-foreground mt-2 tabular-nums">{orders.length}</div>
+        </button>
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-col min-w-[260px] w-[260px] shrink-0">
       <div className={cn('rounded-t-lg border-b bg-muted/40 px-3 py-2.5', isOver && 'bg-primary/5')}>
         <div className="flex items-center gap-2">
-          <span className="text-base leading-none">{stage.emoji}</span>
+          <button
+            type="button"
+            onClick={onToggleCollapse}
+            aria-label={`Contraer columna ${stage.label}`}
+            aria-expanded={true}
+            className="size-5 flex items-center justify-center rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <ChevronLeft className="size-3.5" />
+          </button>
+          <span className="text-base leading-none" aria-hidden>{stage.emoji}</span>
           <h3 className={cn('text-sm font-semibold leading-tight flex-1 min-w-0', accent.header)}>{stage.label}</h3>
           <Badge variant="outline" className={cn('text-[10px] h-5 tabular-nums', accent.chip)}>{orders.length}</Badge>
         </div>
-        <div className="flex items-center gap-1.5 mt-1 text-[10px] text-muted-foreground">
-          <span className="size-1.5 rounded-full" aria-hidden />
-          <span className="tabular-nums">Histórico §15.1: {stage.historicalPct}%</span>
+        <div className="flex items-center gap-1.5 mt-1 text-[10px] text-muted-foreground flex-wrap">
+          <span className="tabular-nums">§15.1: {stage.historicalPct}%</span>
+          {wipLimit != null && (
+            <span className={cn('tabular-nums', overWip ? 'text-rose-600 font-semibold' : '')}>
+              · WIP {orders.length}/{wipLimit}
+            </span>
+          )}
+          {stuckCount > 0 && (
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="inline-flex items-center gap-0.5 text-amber-600 font-medium" aria-label={`${stuckCount} pedidos estancados`}>
+                    · <Clock className="size-2.5" /> {stuckCount}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent><p className="text-xs max-w-56">{stuckCount} pedidos llevan más de {STUCK_DAYS} días en esta etapa sin moverse.</p></TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+          {overWip && (
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="inline-flex items-center gap-0.5 text-rose-600 font-semibold" aria-label={`WIP excedido: ${orders.length} de ${wipLimit}`}>
+                    · <AlertTriangle className="size-2.5" /> sobre WIP
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent><p className="text-xs max-w-56">Esta columna excede su límite WIP de {wipLimit}. Procesa pedidos antes de añadir más.</p></TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
         </div>
       </div>
       <div
         ref={setNodeRef}
         className={cn(
-          'flex-1 rounded-b-lg border-x border-b bg-muted/20 p-2 space-y-2 min-h-[120px] transition-colors overflow-y-auto',
-          isOver && 'bg-primary/5 border-primary/30'
+          'flex-1 rounded-b-lg border-x border-b bg-muted/20 p-2 space-y-2 min-h-[120px] transition-all overflow-y-auto',
+          isOver && 'bg-primary/5 border-primary/30 ring-2 ring-primary/20'
         )}
         style={{ maxHeight: 'calc(100vh - 16rem)' }}
       >
@@ -158,8 +265,14 @@ export function KanbanView() {
   const tenantId = useTenantId()
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
-  const [activeId, setActiveId] = useState<string | null>(null)
   const [refreshing, setRefreshing] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [activeId, setActiveId] = useState<string | null>(null)
+  const [collapsedCols, setCollapsedCols] = useState<Partial<Record<KanbanStageId, boolean>>>({})
+
+  function toggleCollapse(id: KanbanStageId) {
+    setCollapsedCols(prev => ({ ...prev, [id]: !prev[id] }))
+  }
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } })
@@ -168,11 +281,16 @@ export function KanbanView() {
   const loadOrders = useCallback(async () => {
     if (!tenantId) return
     setRefreshing(true)
+    setError(null)
     try {
       const res = await fetch(`/api/orders?tenantId=${tenantId}`)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data = await res.json()
       setOrders(data.orders || [])
-    } catch { /* ignore */ } finally {
+    } catch (err) {
+      console.error('Kanban fetch failed', err)
+      setError('No se pudieron cargar los pedidos del tablero.')
+    } finally {
       setLoading(false)
       setRefreshing(false)
     }
@@ -243,6 +361,38 @@ export function KanbanView() {
     )
   }
 
+  if (error) {
+    return (
+      <Alert variant="destructive" className="animate-fade-in-up">
+        <AlertCircle className="size-4" />
+        <AlertTitle>Error al cargar el tablero</AlertTitle>
+        <AlertDescription className="flex items-center justify-between gap-3 flex-wrap">
+          <span>{error}</span>
+          <Button size="sm" variant="outline" onClick={() => loadOrders()} className="gap-1.5">
+            <RefreshCw className="size-3.5" /> Reintentar
+          </Button>
+        </AlertDescription>
+      </Alert>
+    )
+  }
+
+  if (orders.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center text-center py-16 px-4 gap-3 animate-fade-in-up">
+        <div className="size-16 rounded-2xl bg-muted/60 ring-1 ring-border flex items-center justify-center">
+          <Inbox className="size-7 text-muted-foreground" />
+        </div>
+        <div>
+          <h2 className="text-lg font-semibold">El tablero está vacío</h2>
+          <p className="text-sm text-muted-foreground max-w-md mt-1">Cuando entren pedidos desde Mensajería aparecerán aquí, agrupados por etapa del embudo §15.1. Podrás arrastrarlos entre columnas para actualizar su estado.</p>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => loadOrders()} disabled={refreshing} className="gap-1.5">
+          <RefreshCw className={cn('size-3.5', refreshing && 'animate-spin')} /> Refrescar
+        </Button>
+      </div>
+    )
+  }
+
   const total = orders.length
   const stuck = grouped.pending_confirmation.length
   const stuckPct = total > 0 ? Math.round((stuck / total) * 100) : 0
@@ -297,7 +447,13 @@ export function KanbanView() {
           <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragCancel={() => setActiveId(null)}>
             <div className="flex gap-3 overflow-x-auto scroll-thin p-3 bg-muted/10" style={{ minHeight: 'calc(100vh - 16rem)' }}>
               {KANBAN_STAGES.map(stage => (
-                <DroppableColumn key={stage.id} stage={stage} orders={grouped[stage.id]} />
+                <DroppableColumn
+                  key={stage.id}
+                  stage={stage}
+                  orders={grouped[stage.id]}
+                  collapsed={!!collapsedCols[stage.id]}
+                  onToggleCollapse={() => toggleCollapse(stage.id)}
+                />
               ))}
             </div>
             <DragOverlay>

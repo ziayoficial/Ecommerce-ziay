@@ -68,7 +68,15 @@ function LoginInner() {
   const [submitting, setSubmitting] = useState(false)
   const [serverError, setServerError] = useState<string | null>(null)
 
-  const callbackUrl = search.get('callbackUrl') || '/'
+  // Sanitize callbackUrl: only accept a relative path that starts with '/'
+  // and is NOT the login page itself. Otherwise default to '/'.
+  // This fixes the bug where the user gets bounced back to /login?callbackUrl=%2F
+  // after a successful login (because router.push with a relative URL doesn't
+  // always re-evaluate middleware cookies before navigation completes).
+  const rawCallback = search.get('callbackUrl') || '/'
+  const isSafeRelative = (u: string) =>
+    u.startsWith('/') && !u.startsWith('//') && !u.toLowerCase().startsWith('/login')
+  const callbackUrl = isSafeRelative(rawCallback) ? rawCallback : '/'
 
   const {
     register,
@@ -80,13 +88,13 @@ function LoginInner() {
     defaultValues: { email: '', password: '' },
   })
 
-  async function onSubmit(values: LoginForm) {
+  async function submitCredentials(email: string, password: string) {
     setSubmitting(true)
     setServerError(null)
     try {
       const res = await signIn('credentials', {
-        email: values.email.toLowerCase(),
-        password: values.password,
+        email: email.toLowerCase(),
+        password,
         redirect: false,
       })
       if (!res || res.error) {
@@ -94,10 +102,16 @@ function LoginInner() {
         setSubmitting(false)
         return
       }
-      // On success, force a hard navigation so the middleware re-evaluates
-      // with the new JWT cookie.
-      router.push(callbackUrl)
-      router.refresh()
+      // CRITICAL FIX: use a hard navigation (window.location) instead of
+      // router.push so the browser sends a brand-new request that includes
+      // the just-set NextAuth JWT cookie. router.push + router.refresh can
+      // race with cookie propagation and cause the middleware to bounce
+      // the user back to /login?callbackUrl=%2F.
+      if (typeof window !== 'undefined') {
+        window.location.assign(callbackUrl)
+      } else {
+        router.push(callbackUrl)
+      }
     } catch (err) {
       console.error(err)
       setServerError('No pudimos iniciar sesión. Intenta nuevamente.')
@@ -105,10 +119,18 @@ function LoginInner() {
     }
   }
 
-  function fillDemo(email: string, password: string) {
-    setValue('email', email)
-    setValue('password', password)
+  // Form submit handler — wraps submitCredentials for react-hook-form.
+  async function onSubmit(values: LoginForm) {
+    await submitCredentials(values.email, values.password)
+  }
+
+  // Demo buttons: fill the visible fields AND auto-submit, so the user gets
+  // logged in with a single click (no second "Iniciar sesión" click needed).
+  async function fillAndSubmitDemo(email: string, password: string) {
+    setValue('email', email, { shouldValidate: true })
+    setValue('password', password, { shouldValidate: true })
     setServerError(null)
+    await submitCredentials(email, password)
   }
 
   return (
@@ -290,8 +312,10 @@ function LoginInner() {
                 <button
                   key={acc.email}
                   type="button"
-                  onClick={() => fillDemo(acc.email, acc.password)}
-                  className="group flex items-center gap-3 rounded-lg border bg-card hover:border-primary/40 hover:bg-accent/40 transition-all p-3 text-left"
+                  disabled={submitting}
+                  onClick={() => fillAndSubmitDemo(acc.email, acc.password)}
+                  aria-label={`Entrar como ${acc.role} con ${acc.email}`}
+                  className="group flex items-center gap-3 rounded-lg border bg-card hover:border-primary/40 hover:bg-accent/40 transition-all p-3 text-left disabled:opacity-60 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 >
                   <div
                     className={`size-9 shrink-0 rounded-md bg-gradient-to-br ${acc.color} text-white flex items-center justify-center text-xs font-bold shadow-sm`}

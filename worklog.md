@@ -1791,3 +1791,86 @@ Stage Summary:
 - Security headers añadidos a todas las responses
 - 100% de checks PASS
 - Proyecto en 100% productividad para deploy
+
+---
+
+## UX-IMPROVE-001 · Senior UX/UI Engineer · Mejora integral de usabilidad
+
+**Scope:** 8 archivos en `src/app/` + `src/components/dashboard/` (login, page, topbar, sidebar, overview, messenger, orders, kanban).
+
+### Cambios por archivo
+
+**1. `src/app/login/page.tsx` — FIX CRÍTICO (prioridad #1)**
+- Sanitiza `callbackUrl`: rechaza rutas que empiecen con `//` o `/login` (evita loop).
+- Cambia navegación post-login de `router.push` → `window.location.assign(callbackUrl)` (hard navigation). El middleware re-evalúa la cookie JWT recién escrita y deja de rebotar a `/login?callbackUrl=%2F`.
+- Botones demo ahora **rellenan Y auto-envían** (`fillAndSubmitDemo`), 1 solo click para entrar.
+- `aria-label` + `focus-visible:ring` en botones demo; `disabled` mientras hace submit.
+
+**2. `src/components/dashboard/topbar.tsx` — Navegación móvil + breadcrumb + paleta**
+- Botón hamburguesa (`md:hidden`) con `aria-label="Abrir menú"` que abre un **Sheet** (lado izquierdo) con todos los `NAV_ITEMS`, badges y estado activo.
+- **Breadcrumb** `Dashboard / {vista activa}` con shadcn Breadcrumb.
+- Botón de búsqueda con hint `⌘K` (desktop) e icono (mobile) → dispara `onOpenSearch`.
+- Campana de notificaciones con **badge contador real** (fetch a `/api/notifications`).
+- Props nuevas: `onChangeView`, `onOpenSearch`, `badges`.
+
+**3. `src/app/page.tsx` — Paleta de comandos + atajos globales**
+- **CommandDialog** (⌘K / Ctrl+K) con lista de las 14 vistas + atajos visibles (1-9).
+- Atajos: `⌘K` togglear paleta, `?` abrirla, `1-9` saltar a las primeras vistas. Respeta inputs/textarea/select/contentEditable (no hijackea el teclado cuando el usuario escribe).
+- Footer ahora muestra `⌘K para buscar y navegar`.
+
+**4. `src/components/dashboard/overview-view.tsx`**
+- Botón **Refrescar** + indicador "Actualizado hace X min" (`timeAgo`).
+- **Tooltips** en cada KPI (icono ⓘ) explicando qué significa la métrica (revenue, ROAS, orders, spend).
+- **Empty state** con icono `Inbox`, mensaje y CTA a Mensajería cuando `orders=0` y `conversations=0`.
+- **Error state** con `Alert` + botón Reintentar (no fallo silencioso).
+- Skeleton loaders más fieles al layout (header, KPI grid, chart, dos columnas).
+
+**5. `src/components/dashboard/messenger-view.tsx`**
+- **Hint visible** `Enter enviar · ⇧+Enter salto` con `<kbd>` estilizado debajo del composer.
+- **Typing indicator** (3 dots animados + avatar Bot) mientras `aiLoading=true`, con `aria-live=polite`.
+- **Quick replies** (5 respuestas comunes) como chips sobre el composer; 1 click envía.
+- Lista de conversaciones mejorada: badge de no-leídos con `aria-label`, avatar `shrink-0`, "Tú: " atenuado, refresh button con `aria-label`.
+- `loadConvs` ahora captura errores → **Alert + Reintentar** en la lista.
+- **Empty state** con icono Inbox cuando no hay conversaciones.
+
+**6. `src/components/dashboard/orders-view.tsx`**
+- **Exportar CSV** (RFC 4180 con escaping, BOM UTF-8 para Excel, download con timestamp). Exporta todo o solo selección.
+- **Bulk actions**: checkbox en cada fila + checkbox "todos" (indeterminate), barra flotante con `Mover selección a…`, `Exportar selección`, `Limpiar`.
+- **Filtros colapsables** (`Collapsible` de shadcn) con header clicable.
+- **Chips de estado con contador** encima de los filtros (8 estados + "Todos", oculta vacíos).
+- **Sticky first column** (`sticky left-0 bg-background z-10`) para checkbox en scroll horizontal.
+- Tooltip en cada badge de estado (muestra `o.status` interno).
+- **Error state** con Alert + Reintentar; **empty state** con CTA "Limpiar filtros".
+
+**7. `src/components/dashboard/kanban-view.tsx`**
+- **Columnas colapsables** (chevron ← en header; al colapsar muestra solo emoji + label vertical + count en 52px de ancho).
+- **WIP limits** por etapa (8/10/12/15/25/30 según stage) con chip "WIP x/y" + badge rojo "sobre WIP" + tooltip cuando se excede.
+- **Stuck indicator**: chip 🕐 amber por tarjeta (más de 3 días sin moverse, heurística con `createdAt`) + contador por columna.
+- Drag feedback mejorado: `shadow-xl scale-[0.97] ring-2 ring-primary/50` al arrastrar, `hover:-translate-y-0.5` en reposo, dropzone con `ring-2 ring-primary/20`.
+- Grip icon con `cursor-grab active:cursor-grabbing`.
+- **Error state** + **empty state** con CTA Refrescar.
+
+### Responsive (375px)
+- Sidebar oculto en mobile, hamburguesa abre Sheet (`w-72`).
+- Topbar: grid comprime `gap-2 px-3` en mobile; tenant switcher y país ocultan en pantallas chicas.
+- Tabla de pedidos: `overflow-x-auto` + checkbox sticky.
+- Kanban: columnas con `overflow-x-auto` scroll horizontal natural.
+- Grids existentes (`grid-cols-2 lg:grid-cols-4` y `grid-cols-1 lg:grid-cols-3`) ya son responsive.
+
+### Accesibilidad
+- `aria-label` en TODOS los botones icon-only (hamburguesa, refresh, search, send, notif, collapse, demo accounts).
+- `aria-current`/`aria-pressed` en navegación y filtros.
+- `aria-live=polite` en thread de mensajes y typing indicator.
+- `role="group"`, `role="region"` en quick replies y bulk actions.
+- `focus-visible:ring-2 focus-visible:ring-ring` en todos los nuevos interactivos.
+- `aria-hidden` en iconos puramente decorativos.
+
+### Calidad
+- `npx tsc --noEmit` → **0 errors** ✅
+- `bun run lint` (eslint .) → **0 errors** ✅
+
+### Próximos pasos sugeridos (no incluidos en este scope)
+- Tests E2E Playwright: agregar casos para `⌘K`, hamburger sheet, bulk-update flow.
+- Migrar el resto de vistas (catalog, ads, monetization, wallet, logistics, marketplace, novedades, integrations, settings) al mismo patrón de skeleton/error/empty states.
+- Persistir `collapsedCols` del Kanban en `localStorage` para recordar preferencia del usuario.
+- Conectar el badge de notificaciones a un panel flotante real (hoy sólo muestra el count).

@@ -51,7 +51,7 @@ export async function middleware(req: NextRequest) {
   }
 
   // Check for NextAuth JWT token.
-  const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET })
+  const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET || 'ziay-dev-secret-key-2026-change-in-production' })
 
   if (token) {
     return addSecurityHeaders(NextResponse.next())

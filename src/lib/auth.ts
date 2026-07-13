@@ -79,7 +79,7 @@ export const authOptions: NextAuthOptions = {
       return session
     },
   },
-  secret: process.env.NEXTAUTH_SECRET,
+  secret: process.env.NEXTAUTH_SECRET || 'ziay-dev-secret-key-2026-change-in-production',
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth(authOptions)

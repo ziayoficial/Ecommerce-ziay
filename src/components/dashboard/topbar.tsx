@@ -3,10 +3,10 @@ import { useEffect, useState } from 'react'
 import { useTheme } from 'next-themes'
 import { useSession, signOut } from 'next-auth/react'
 import {
-  Sun, Moon, Search, Bell, Globe, Building2, LogOut, User as UserIcon, ChevronDown, ShieldCheck,
+  Sun, Moon, Search, Bell, Globe, Building2, LogOut, User as UserIcon,
+  ChevronDown, ShieldCheck, Menu, Zap,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
@@ -16,7 +16,18 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
+import {
+  Sheet, SheetContent, SheetHeader, SheetTitle,
+} from '@/components/ui/sheet'
+import {
+  Breadcrumb, BreadcrumbList, BreadcrumbItem, BreadcrumbLink,
+  BreadcrumbPage, BreadcrumbSeparator,
+} from '@/components/ui/breadcrumb'
+import {
+  Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
+} from '@/components/ui/tooltip'
 import { ViewId, NAV_ITEMS } from './sidebar'
+import { cn } from '@/lib/utils'
 import { useMounted } from '@/hooks/use-mounted'
 import { useTenantStore } from '@/hooks/use-tenant'
 
@@ -37,21 +48,40 @@ function initials(name?: string | null): string {
   return parts.map((p) => p.charAt(0).toUpperCase()).join('') || '?'
 }
 
-export function Topbar({ active, country, onCountryChange }: {
+export function Topbar({ active, country, onCountryChange, onChangeView, onOpenSearch, badges }: {
   active: ViewId
   country: string
   onCountryChange: (c: string) => void
+  onChangeView?: (v: ViewId) => void
+  onOpenSearch?: () => void
+  badges?: Partial<Record<ViewId, number>>
 }) {
   const { theme, setTheme } = useTheme()
   const mounted = useMounted()
   const { data: session, status } = useSession()
   const [signingOut, setSigningOut] = useState(false)
+  const [mobileNavOpen, setMobileNavOpen] = useState(false)
+  const [notifCount, setNotifCount] = useState(0)
   const item = NAV_ITEMS.find(n => n.id === active)
   const { tenants, activeTenant, setTenants, setActive } = useTenantStore()
 
   useEffect(() => {
     fetch('/api/tenants').then(r => r.json()).then(d => setTenants(d.tenants || []))
   }, [setTenants])
+
+  // Lightweight unread-notification count (Messenger priority + Novedades).
+  // Best-effort: failures don't break the topbar.
+  useEffect(() => {
+    let cancelled = false
+    Promise.allSettled([
+      fetch('/api/notifications').then(r => r.ok ? r.json() : null),
+    ]).then(([nRes]) => {
+      if (cancelled) return
+      const n = (nRes.status === 'fulfilled' && nRes.value)?.notifications?.length
+      if (typeof n === 'number') setNotifCount(n)
+    })
+    return () => { cancelled = true }
+  }, [])
 
   const user = session?.user
   const roleMeta = user?.role ? ROLE_META[user.role] || ROLE_META.agent : ROLE_META.agent
@@ -65,12 +95,87 @@ export function Topbar({ active, country, onCountryChange }: {
     await signOut({ callbackUrl: '/login', redirect: true })
   }
 
+  function handleMobileNavClick(v: ViewId) {
+    setMobileNavOpen(false)
+    onChangeView?.(v)
+  }
+
   return (
     <header className="h-16 shrink-0 border-b bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-30">
-      <div className="h-full flex items-center gap-3 px-4 md:px-6">
+      <div className="h-full flex items-center gap-2 md:gap-3 px-3 md:px-6">
+        {/* ── Mobile: hamburger button (opens Sheet with sidebar nav) ── */}
+        <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="md:hidden h-9 w-9 shrink-0 focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label="Abrir menú"
+            onClick={() => setMobileNavOpen(true)}
+          >
+            <Menu className="size-5" />
+          </Button>
+          <SheetContent side="left" className="w-72 p-0">
+            <SheetHeader className="h-16 flex flex-row items-center gap-3 px-5 border-b border-sidebar-border m-0">
+              <div className="size-9 rounded-xl bg-primary/20 ring-1 ring-primary/30 flex items-center justify-center">
+                <Zap className="size-5 text-primary" />
+              </div>
+              <SheetTitle className="text-sm font-semibold leading-tight">
+                CommerceFlow OS
+                <span className="block text-[11px] font-normal text-muted-foreground">Conversational Commerce</span>
+              </SheetTitle>
+            </SheetHeader>
+            <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto scroll-thin">
+              <div className="px-2 pb-2 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Operación</div>
+              {NAV_ITEMS.map((navItem) => {
+                const Icon = navItem.icon
+                const isActive = active === navItem.id
+                const badge = badges?.[navItem.id]
+                return (
+                  <button
+                    key={navItem.id}
+                    onClick={() => handleMobileNavClick(navItem.id)}
+                    aria-current={isActive ? 'page' : undefined}
+                    className={cn(
+                      'group relative w-full flex items-center gap-3 rounded-lg pl-3 pr-2 py-2.5 text-sm transition-all',
+                      isActive
+                        ? 'bg-primary/10 text-primary'
+                        : 'text-foreground hover:bg-accent hover:translate-x-0.5'
+                    )}
+                  >
+                    <span className={cn(
+                      'flex size-7 items-center justify-center rounded-md shrink-0',
+                      isActive ? 'bg-primary text-primary-foreground' : 'bg-transparent text-muted-foreground'
+                    )}>
+                      <Icon className="size-4" />
+                    </span>
+                    <div className="flex-1 text-left min-w-0">
+                      <div className={cn('font-medium leading-tight truncate', isActive ? 'text-primary' : 'text-foreground')}>{navItem.label}</div>
+                      <div className="text-[10px] leading-tight truncate text-muted-foreground">{navItem.hint}</div>
+                    </div>
+                    {badge != null && badge > 0 && (
+                      <span className="min-w-5 h-5 px-1.5 rounded-full text-[10px] font-semibold flex items-center justify-center tabular-nums shrink-0 bg-primary/20 text-primary">{badge}</span>
+                    )}
+                  </button>
+                )
+              })}
+            </nav>
+          </SheetContent>
+        </Sheet>
+
+        {/* ── Title + breadcrumb ── */}
         <div className="flex-1 min-w-0">
-          <h1 className="font-semibold text-sm md:text-lg leading-tight line-clamp-2 sm:line-clamp-1">{item?.label}</h1>
-          <p className="text-[11px] md:text-xs text-muted-foreground leading-snug line-clamp-1 hidden sm:block">
+          <Breadcrumb>
+            <BreadcrumbList className="text-[11px] md:text-xs">
+              <BreadcrumbItem>
+                <BreadcrumbLink asChild><button type="button" className="hover:text-foreground transition-colors" onClick={() => onChangeView?.('overview')}>Dashboard</button></BreadcrumbLink>
+              </BreadcrumbItem>
+              <BreadcrumbSeparator />
+              <BreadcrumbItem>
+                <BreadcrumbPage className="font-semibold text-sm md:text-base leading-tight line-clamp-1">{item?.label}</BreadcrumbPage>
+              </BreadcrumbItem>
+            </BreadcrumbList>
+          </Breadcrumb>
+          <p className="text-[10px] md:text-xs text-muted-foreground leading-snug line-clamp-1 hidden sm:block mt-0.5">
             {active === 'overview' && 'Tu negocio en una pantalla · ingresos, ROAS, CPA y canales'}
             {active === 'messenger' && 'Bandeja unificada WhatsApp + Messenger + Instagram · atribución de campaña'}
             {active === 'catalog' && 'Catálogo visual-primero · filtra por diseño/categoría · chatea con la IA'}
@@ -84,7 +189,7 @@ export function Topbar({ active, country, onCountryChange }: {
           </p>
         </div>
 
-        {/* Tenant switcher — multi-tenant core */}
+        {/* Tenant switcher — multi-tenant core (desktop only) */}
         <Select value={activeTenant?.id || ''} onValueChange={(v) => {
           const t = tenants.find((x) => x.id === v)
           if (t) setActive(t)
@@ -105,12 +210,37 @@ export function Topbar({ active, country, onCountryChange }: {
           </SelectContent>
         </Select>
 
-        <div className="hidden lg:flex items-center gap-2 w-56">
-          <div className="relative flex-1">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-            <Input placeholder="Buscar pedido, cliente, ad ID..." className="pl-8 h-9" />
-          </div>
-        </div>
+        {/* ── Command palette trigger (desktop button, mobile icon) ── */}
+        <TooltipProvider delayDuration={300}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={() => onOpenSearch?.()}
+                aria-label="Abrir búsqueda rápida (Cmd+K)"
+                className="hidden lg:flex items-center gap-2 h-9 px-3 rounded-md border border-input bg-background text-xs text-muted-foreground hover:bg-accent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <Search className="size-4" />
+                <span>Buscar…</span>
+                <kbd className="ml-2 inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
+                  <span className="text-xs">⌘</span>K
+                </kbd>
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>Buscar pedidos, clientes y navegar (Cmd+K)</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+
+        {/* Mobile: search icon button */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="lg:hidden h-9 w-9"
+          aria-label="Buscar"
+          onClick={() => onOpenSearch?.()}
+        >
+          <Search className="size-4" />
+        </Button>
 
         <Select value={country} onValueChange={onCountryChange}>
           <SelectTrigger className="w-[120px] h-9 hidden sm:flex">
@@ -126,9 +256,14 @@ export function Topbar({ active, country, onCountryChange }: {
           </SelectContent>
         </Select>
 
-        <Button variant="ghost" size="icon" className="relative h-9 w-9" aria-label="Notificaciones">
+        {/* Notification bell with badge count */}
+        <Button variant="ghost" size="icon" className="relative h-9 w-9" aria-label={`Notificaciones${notifCount > 0 ? ` (${notifCount} sin leer)` : ''}`}>
           <Bell className="size-4" />
-          <span className="absolute top-1.5 right-1.5 size-2 rounded-full bg-rose-500" />
+          {notifCount > 0 && (
+            <span className="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full bg-rose-500 text-white text-[9px] font-bold flex items-center justify-center tabular-nums">
+              {notifCount > 9 ? '9+' : notifCount}
+            </span>
+          )}
         </Button>
 
         <Button

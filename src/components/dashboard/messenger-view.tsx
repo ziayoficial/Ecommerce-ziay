@@ -200,7 +200,7 @@ export function MessengerView() {
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr_300px] gap-4 min-h-[calc(100vh-13rem)] animate-fade-in-up">
+    <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr_300px] gap-4 h-[calc(100vh-13rem)] max-h-[calc(100vh-13rem)] animate-fade-in-up overflow-hidden">
       {/* Conversation list */}
       <Card className="flex flex-col overflow-hidden">
         <div className="p-3 border-b space-y-2">
@@ -359,7 +359,7 @@ export function MessengerView() {
             </div>
 
             {/* Messages */}
-            <div ref={threadRef} className="flex-1 overflow-y-auto p-4 space-y-2 bg-muted/20 scroll-thin" aria-live="polite">
+            <div ref={threadRef} className="flex-1 min-h-0 overflow-y-auto p-4 space-y-2 bg-muted/20 scroll-thin" aria-live="polite">
               {/* Date separator */}
               <div className="flex items-center justify-center my-2">
                 <div className="text-[10px] uppercase tracking-wider text-muted-foreground bg-muted/60 px-3 py-1 rounded-full">Hoy</div>

@@ -210,24 +210,26 @@ FORMATO DE RESPUESTA — envía un mensaje con esta estructura:
 📦 *Para completar tu pedido, necesito estos datos:*
 
 1️⃣ *Nombre completo:* (ej: María González)
-2️⃣ *Teléfono:* (ej: 300 123 4567)
-3️⃣ *Departamento:* (ej: Antioquia)
-4️⃣ *Ciudad:* (ej: Medellín)
-5️⃣ *Dirección completa:* (ej: Calle 45 # 23-18, El Poblado)
-6️⃣ *Barrio:* (ej: El Poblado)
-7️⃣ *Horario de entrega:* (ej: 9am-5pm / Mañana / Tarde)
-8️⃣ *Talla:* (ej: S / M / L / XL / 2 / 4 / 6)
-9️⃣ *Diseño:* (ej: Stitch / Hello Kitty / Marvel)
-🔟 *Cantidad:* (ej: 2 unidades)
+2️⃣ *Cédula / Documento:* (ej: 1037548920 — requerido por la transportadora)
+3️⃣ *Teléfono:* (ej: 300 123 4567)
+4️⃣ *Departamento:* (ej: Antioquia)
+5️⃣ *Ciudad:* (ej: Medellín)
+6️⃣ *Dirección completa:* (ej: Calle 45 # 23-18, El Poblado)
+7️⃣ *Barrio:* (ej: El Poblado)
+8️⃣ *Horario de entrega:* (ej: 9am-5pm / Mañana / Tarde)
+9️⃣ *Talla:* (ej: S / M / L / XL / 2 / 4 / 6)
+🔟 *Diseño:* (ej: Stitch / Hello Kitty / Marvel)
+1️⃣1️⃣ *Cantidad:* (ej: 2 unidades)
 
 ✏️ *Copia y completa, o escribe todos los datos en un solo mensaje.*
 
 REGLAS:
+- La cédula/documento es OBLIGATORIA — las transportadoras (Dropi, Interrapidísimo, Servientrega, etc.) la requieren para generar la guía
 - Si ya tienes algunos datos de la conversación, INDICA cuáles ya tienes y pide SOLO los faltantes en un solo mensaje
-- NUNCA pidas un dato a la vez (ej: "¿Cuál es tu nombre?" → mal; "¿Nombre, teléfono y dirección?" → bien)
+- NUNCA pidas un dato a la vez (ej: "¿Cuál es tu nombre?" → mal; "¿Nombre, cédula, teléfono y dirección?" → bien)
 - Cuando el cliente envíe todos los datos, normaliza la dirección y consulta historial_entrega_direccion
 - Si el cliente envía los datos en desorden o todos juntos, extrae cada campo y confirma
-- Valida que el teléfono tenga 10 dígitos, que la dirección tenga vía + número
+- Valida que el teléfono tenga 10 dígitos, que la cédula tenga entre 6 y 11 dígitos, que la dirección tenga vía + número
 - Si algún dato está incompleto, pide SOLO ese dato faltante en una sola línea`
   // Fetch delivery history for this customer
   let history = ''

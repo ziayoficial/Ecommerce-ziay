@@ -200,7 +200,7 @@ export function MessengerView() {
   }
 
   return (
-    <div className="flex flex-col lg:grid lg:grid-cols-[320px_1fr_300px] gap-4 animate-fade-in-up" style={{ minHeight: '70vh' }}>
+    <div className="flex flex-col lg:grid lg:grid-cols-[280px_1fr_260px] gap-3 animate-fade-in-up" style={{ minHeight: '70vh' }}>
       {/* Conversation list */}
       <Card className="flex flex-col overflow-hidden h-[300px] lg:h-[calc(100vh-13rem)] lg:max-h-[calc(100vh-13rem)]">
         <div className="p-3 border-b space-y-2">

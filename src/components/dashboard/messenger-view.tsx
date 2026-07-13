@@ -41,7 +41,7 @@ type ConvDetail = {
   customer: { id: string; name: string; phone?: string; country?: string; city?: string; address?: string; tags?: string }
   channel: { id: string; type: string; displayName: string; paymentStrategy: string; prepayDiscountPct?: number; codFee?: number; requirePrepayMin?: number }
   assignee: { id: string; name: string } | null
-  messages: { id: string; direction: string; body: string; type: string; createdAt: string; aiSuggested?: boolean }[]
+  messages: { id: string; direction: string; body: string; type: string; mediaUrl?: string | null; createdAt: string; aiSuggested?: boolean }[]
   orders: { id: string; number: string; status: string; paymentMode: string; total: number; currency: string; items: { name: string; quantity: number }[] }[]
 }
 
@@ -359,23 +359,63 @@ export function MessengerView() {
             </div>
 
             {/* Messages */}
-            <div ref={threadRef} className="flex-1 overflow-y-visible p-4 space-y-3 bg-muted/20" aria-live="polite">
-              {active.messages.map((m) => {
+            <div ref={threadRef} className="flex-1 overflow-y-auto p-4 space-y-2 bg-muted/20 scroll-thin" aria-live="polite">
+              {/* Date separator */}
+              <div className="flex items-center justify-center my-2">
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground bg-muted/60 px-3 py-1 rounded-full">Hoy</div>
+              </div>
+              {active.messages.map((m, idx) => {
                 const isOut = m.direction === 'outbound'
+                const prevMsg = active.messages[idx - 1]
+                const showAvatar = !isOut && (!prevMsg || prevMsg.direction !== 'inbound')
+                const isConsecutive = prevMsg && prevMsg.direction === m.direction
                 return (
-                  <div key={m.id} className={cn('flex gap-2 max-w-[80%]', isOut ? 'ml-auto flex-row-reverse' : '')}>
+                  <div key={m.id} className={cn('flex gap-2 max-w-[78%]', isOut ? 'ml-auto flex-row-reverse' : '', isConsecutive ? 'mt-0.5' : 'mt-2')}>
+                    {/* Avatar — only show for first message in a group */}
                     {!isOut && (
-                      <div className="size-7 rounded-full bg-muted flex items-center justify-center shrink-0" aria-hidden>
-                        <User className="size-3.5 text-muted-foreground" />
+                      <div className={cn('size-7 rounded-full flex items-center justify-center shrink-0', showAvatar ? 'bg-gradient-to-br from-emerald-400 to-teal-600 text-white' : 'opacity-0')}>
+                        {showAvatar ? <User className="size-3.5" /> : null}
                       </div>
                     )}
-                    <div className={cn(
-                      'rounded-2xl px-3.5 py-2 text-sm',
-                      isOut ? 'bg-primary text-primary-foreground rounded-br-md' : 'bg-background border rounded-bl-md'
-                    )}>
-                      <p className="whitespace-pre-wrap">{m.body}</p>
-                      <div className={cn('text-[10px] mt-1', isOut ? 'text-primary-foreground/60' : 'text-muted-foreground')}>
-                        {shortTime(m.createdAt)} {isOut && '·✓✓'}
+                    {/* Outbound avatar (ZIAY agent) */}
+                    {isOut && (
+                      <div className={cn('size-7 rounded-full flex items-center justify-center shrink-0', !isConsecutive ? 'bg-primary/10 ring-1 ring-primary/20' : 'opacity-0')}>
+                        {!isConsecutive && <Bot className="size-3.5 text-primary" />}
+                      </div>
+                    )}
+                    <div className={cn('flex flex-col', isOut ? 'items-end' : 'items-start')}>
+                      {/* Product image if present */}
+                      {m.mediaUrl && (
+                        <div className="mb-1 rounded-xl overflow-hidden shadow-sm max-w-[240px]">
+                          <img
+                            src={m.mediaUrl}
+                            alt="Producto"
+                            className="w-full h-auto object-cover"
+                            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                          />
+                        </div>
+                      )}
+                      <div className={cn(
+                        'rounded-2xl px-3.5 py-2 text-sm shadow-sm',
+                        isOut
+                          ? 'bg-gradient-to-br from-emerald-600 to-emerald-700 text-white rounded-br-md'
+                          : 'bg-background border rounded-bl-md',
+                        isConsecutive && (isOut ? 'rounded-tr-md' : 'rounded-tl-md')
+                      )}>
+                        <p className="whitespace-pre-wrap break-words leading-relaxed">{m.body}</p>
+                      </div>
+                      {/* Timestamp + read receipt */}
+                      <div className={cn('flex items-center gap-1 text-[10px] mt-0.5 px-1', isOut ? 'text-muted-foreground' : 'text-muted-foreground')}>
+                        <span>{shortTime(m.createdAt)}</span>
+                        {isOut && (
+                          <svg className="size-3 text-emerald-500" viewBox="0 0 16 11" fill="currentColor" aria-label="Leído">
+                            <path d="M11.071.653a.457.457 0 0 0-.304-.102.493.493 0 0 0-.381.178l-6.19 7.636-2.405-2.272a.463.463 0 0 0-.336-.146.47.47 0 0 0-.343.146l-.328.328a.486.486 0 0 0 0 .681l3.197 3.197a.464.464 0 0 0 .353.146.503.503 0 0 0 .381-.178L11.405 1.41a.504.504 0 0 0-.025-.67l-.309-.087z"/>
+                            <path d="M15.071.653a.457.457 0 0 0-.304-.102.493.493 0 0 0-.381.178l-6.19 7.636-2.405-2.272a.463.463 0 0 0-.336-.146.47.47 0 0 0-.343.146l-.328.328a.486.486 0 0 0 0 .681l3.197 3.197a.464.464 0 0 0 .353.146.503.503 0 0 0 .381-.178L15.405 1.41a.504.504 0 0 0-.025-.67l-.309-.087z"/>
+                          </svg>
+                        )}
+                        {m.aiSuggested && (
+                          <span className="text-primary/60" title="Sugerido por IA">✨</span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -383,23 +423,25 @@ export function MessengerView() {
               })}
               {/* Typing indicator while AI agent is generating */}
               {aiLoading && (
-                <div className="flex gap-2 max-w-[80%]" aria-live="polite" aria-label="El agente IA está escribiendo">
-                  <div className="size-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                <div className="flex gap-2 max-w-[78%]" aria-live="polite" aria-label="El agente IA está escribiendo">
+                  <div className="size-7 rounded-full bg-primary/10 ring-1 ring-primary/20 flex items-center justify-center shrink-0">
                     <Bot className="size-3.5 text-primary" />
                   </div>
-                  <div className="rounded-2xl rounded-bl-md bg-background border px-3.5 py-2.5">
+                  <div className="rounded-2xl rounded-bl-md bg-background border px-4 py-3 shadow-sm">
                     <div className="flex items-center gap-1" aria-hidden>
-                      <span className="size-1.5 rounded-full bg-muted-foreground/60 animate-bounce [animation-delay:-0.3s]" />
-                      <span className="size-1.5 rounded-full bg-muted-foreground/60 animate-bounce [animation-delay:-0.15s]" />
-                      <span className="size-1.5 rounded-full bg-muted-foreground/60 animate-bounce" />
+                      <span className="size-2 rounded-full bg-primary/50 animate-bounce [animation-delay:-0.3s]" />
+                      <span className="size-2 rounded-full bg-primary/50 animate-bounce [animation-delay:-0.15s]" />
+                      <span className="size-2 rounded-full bg-primary/50 animate-bounce" />
                     </div>
                   </div>
                 </div>
               )}
+              {/* Scroll anchor */}
+              <div className="h-1" ref={(el) => { if (el) el.scrollIntoView({ behavior: 'smooth' }) }} />
             </div>
 
             {/* Composer */}
-            <div className="p-3 border-t space-y-2">
+            <div className="p-3 border-t space-y-2 bg-background">
               {/* Quick-reply chips — one-tap common responses */}
               <div className="flex flex-wrap gap-1.5" role="group" aria-label="Respuestas rápidas">
                 {QUICK_REPLIES.map((reply) => (
@@ -408,22 +450,37 @@ export function MessengerView() {
                     type="button"
                     onClick={() => send(reply)}
                     disabled={!activeId || aiLoading}
-                    className="text-[11px] px-2 py-1 rounded-full border bg-background hover:bg-accent hover:border-primary/40 transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring truncate max-w-full"
+                    className="text-[11px] px-2.5 py-1 rounded-full border bg-background hover:bg-primary/10 hover:border-primary/40 hover:text-primary transition-all disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring truncate max-w-full shadow-sm"
                     title={reply}
                   >
                     {reply.length > 42 ? reply.slice(0, 42) + '…' : reply}
                   </button>
                 ))}
               </div>
-              <div className="flex gap-2">
-                <Textarea
-                  value={draft}
-                  onChange={(e) => setDraft(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
-                  placeholder="Escribe un mensaje..."
-                  aria-label="Mensaje al cliente"
-                  className="min-h-[44px] max-h-24 resize-none text-sm"
-                />
+              <div className="flex gap-2 items-end">
+                <div className="flex-1 relative">
+                  <Textarea
+                    value={draft}
+                    onChange={(e) => setDraft(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
+                    placeholder="Escribe un mensaje... (Enter para enviar, Shift+Enter para salto)"
+                    aria-label="Mensaje al cliente"
+                    className="min-h-[44px] max-h-24 resize-none text-sm pr-10 rounded-2xl border-2 focus-visible:ring-1"
+                  />
+                  {/* Send button inside textarea */}
+                  <button
+                    type="button"
+                    onClick={() => send()}
+                    disabled={!draft.trim() || !activeId || aiLoading}
+                    aria-label="Enviar mensaje"
+                    className="absolute right-2 bottom-2 size-7 rounded-full bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M22 2L11 13" />
+                      <path d="M22 2l-7 20-4-9-9-4 20-7z" />
+                    </svg>
+                  </button>
+                </div>
               </div>
               <div className="flex items-center justify-between gap-2">
                 <DropdownMenu>

@@ -3,24 +3,31 @@
 
 import { describe, it, expect } from 'vitest'
 import { TOTP, Secret } from 'otpauth'
-import { generateTOTPSecret, verifyTOTP, generateBackupCodes } from '@/lib/totp'
+import { generateTOTPSecret, verifyTOTP, generateBackupCodes, hashBackupCodes, verifyBackupCode } from '@/lib/totp'
 
 describe('generateTOTPSecret', () => {
   it('returns an object with secret + uri', () => {
     const result = generateTOTPSecret('user@example.com')
     expect(result).toHaveProperty('secret')
+    expect(result).toHaveProperty('plainSecret')
     expect(result).toHaveProperty('uri')
     expect(typeof result.secret).toBe('string')
+    expect(typeof result.plainSecret).toBe('string')
     expect(typeof result.uri).toBe('string')
     expect(result.secret.length).toBeGreaterThan(0)
+    expect(result.plainSecret.length).toBeGreaterThan(0)
     expect(result.uri.length).toBeGreaterThan(0)
+    // secret should be encrypted (contains ':' separator from AES-GCM format)
+    expect(result.secret).toContain(':')
+    // plainSecret should be base32 (no ':')
+    expect(result.plainSecret).not.toContain(':')
   })
 
   it('returns an otpauth:// URI compatible with authenticator apps', () => {
     const { uri } = generateTOTPSecret('user@example.com')
     expect(uri).toMatch(/^otpauth:\/\/totp\//)
     // Issuer should be encoded in the URI.
-    expect(uri.toLowerCase()).toContain('commerceflow')
+    expect(uri.toLowerCase()).toContain('ziay')
   })
 
   it('produces a different secret each call (entropy)', () => {
@@ -39,16 +46,17 @@ describe('generateTOTPSecret', () => {
 
 describe('verifyTOTP', () => {
   it('returns true for a valid current token', () => {
-    const { secret } = generateTOTPSecret('user@example.com')
+    const { secret, plainSecret } = generateTOTPSecret('user@example.com')
     const totp = new TOTP({
-      issuer: 'CommerceFlow OS',
+      issuer: 'ZIAY',
       label: 'verify',
       algorithm: 'SHA1',
       digits: 6,
       period: 30,
-      secret: Secret.fromBase32(secret),
+      secret: Secret.fromBase32(plainSecret),
     })
     const token = totp.generate()
+    // verifyTOTP now receives the ENCRYPTED secret and decrypts internally
     expect(verifyTOTP(token, secret)).toBe(true)
   })
 
@@ -75,14 +83,14 @@ describe('verifyTOTP', () => {
   })
 
   it('tolerates tokens with whitespace (trims them)', () => {
-    const { secret } = generateTOTPSecret('user@example.com')
+    const { secret, plainSecret } = generateTOTPSecret('user@example.com')
     const totp = new TOTP({
-      issuer: 'CommerceFlow OS',
+      issuer: 'ZIAY',
       label: 'verify',
       algorithm: 'SHA1',
       digits: 6,
       period: 30,
-      secret: Secret.fromBase32(secret),
+      secret: Secret.fromBase32(plainSecret),
     })
     const token = totp.generate()
     // Insert whitespace — should still verify after cleanup.

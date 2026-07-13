@@ -19,7 +19,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAuth } from '@/lib/auth-helpers'
-import { generateTOTPSecret, verifyTOTP } from '@/lib/totp'
+import { generateTOTPSecret, verifyTOTP, hashBackupCodes } from '@/lib/totp'
+import { rateLimit } from '@/lib/middleware/rate-limit'
 
 // ───────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -98,6 +99,10 @@ function computeFee(amount: number) {
 // ───────────────────────────────────────────────────────────────────────────
 
 export async function GET(req: NextRequest) {
+  // Rate limit: 20 req/min per IP
+  const limited = rateLimit(req, { max: 20, windowMs: 60_000, namespace: 'api:wallet:get' })
+  if (limited) return limited
+
   const { error, trafficker } = await resolveTrafficker(req)
   if (error) return error
   if (!trafficker) return NextResponse.json({ error: 'No trafficker' }, { status: 400 })
@@ -175,6 +180,10 @@ export async function GET(req: NextRequest) {
 // ───────────────────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
+  // Rate limit: 10 req/min per IP (stricter for POST — financial operations)
+  const limited = rateLimit(req, { max: 10, windowMs: 60_000, namespace: 'api:wallet:post' })
+  if (limited) return limited
+
   const { error, trafficker } = await resolveTrafficker(req)
   if (error) return error
   if (!trafficker) return NextResponse.json({ error: 'No trafficker' }, { status: 400 })
@@ -204,19 +213,23 @@ export async function POST(req: NextRequest) {
           { status: 409 },
         )
       }
-      const { secret, uri } = generateTOTPSecret(trafficker.email)
-      const backupCodes = generateBackupCodesJSON()
+      // CRITICAL: secret is AES-256-GCM encrypted before storing.
+      // plainSecret is returned ONCE for QR code display.
+      // backupCodes are hashed (scrypt + salt) before storing — plain returned once.
+      const { secret: encryptedSecret, plainSecret, uri } = generateTOTPSecret(trafficker.email)
+      const plainBackupCodes = generateBackupCodesPlain()
+      const hashedBackupCodes = hashBackupCodes(plainBackupCodes)
       await db.twoFactorConfig.upsert({
         where: { traffickerId: trafficker.id },
-        update: { secret, backupCodes, enabled: false, enabledAt: null },
+        update: { secret: encryptedSecret, backupCodes: hashedBackupCodes, enabled: false, enabledAt: null },
         create: {
           traffickerId: trafficker.id,
-          secret,
-          backupCodes,
+          secret: encryptedSecret,
+          backupCodes: hashedBackupCodes,
           enabled: false,
         },
       })
-      return NextResponse.json({ secret, uri, backupCodes: parseBackupCodes(backupCodes) })
+      return NextResponse.json({ secret: plainSecret, uri, backupCodes: plainBackupCodes })
     }
 
     // ── 2FA verify: confirm TOTP, flip enabled=true ──────────────────────
@@ -374,40 +387,63 @@ export async function POST(req: NextRequest) {
         )
       }
 
-      // Atomic-ish: decrement balance + record outbound transaction + mark
-      // withdrawal completed. Using a sequential set of writes; for production
-      // wrap in a transaction (omitted to keep this file dependency-light).
+      // CRITICAL: Use Prisma $transaction for atomicity — balance decrement,
+      // transaction record, and withdrawal status update MUST all succeed or
+      // all fail. This prevents money loss if the server crashes mid-operation.
       const balanceBefore = trafficker.walletBalance
       const balanceAfter = balanceBefore - w.amount
-      await db.trafficker.update({
-        where: { id: trafficker.id },
-        data: { walletBalance: balanceAfter },
+
+      const result = await db.$transaction(async (tx) => {
+        // 1. Decrement trafficker balance
+        await tx.trafficker.update({
+          where: { id: trafficker.id },
+          data: { walletBalance: balanceAfter },
+        })
+        // 2. Record outbound transaction
+        await tx.walletTransaction.create({
+          data: {
+            traffickerId: trafficker.id,
+            direction: 'outbound',
+            type: 'withdrawal',
+            category: 'cashout',
+            amount: w.amount,
+            balanceBefore,
+            balanceAfter,
+            description: `Retiro #${w.id.slice(-6)} a ${w.walletAccountId}`,
+            reference: w.id,
+            referenceType: 'withdrawal',
+            status: 'completed',
+          },
+        })
+        // 3. Mark withdrawal as completed
+        const updated = await tx.withdrawalRequest.update({
+          where: { id: w.id },
+          data: {
+            status: 'completed',
+            externalReference: externalReference || null,
+            processedAt: new Date(),
+            completedAt: new Date(),
+          },
+        })
+        // 4. Create audit log entry
+        await tx.auditLog.create({
+          data: {
+            action: 'withdrawal_processed',
+            entity: 'withdrawal',
+            entityId: w.id,
+            meta: JSON.stringify({
+              withdrawalId: w.id,
+              traffickerId: trafficker.id,
+              amount: w.amount,
+              balanceBefore,
+              balanceAfter,
+              processedBy: 'wallet_api',
+            }),
+          },
+        })
+        return updated
       })
-      await db.walletTransaction.create({
-        data: {
-          traffickerId: trafficker.id,
-          direction: 'outbound',
-          type: 'withdrawal',
-          category: 'cashout',
-          amount: w.amount,
-          balanceBefore,
-          balanceAfter,
-          description: `Retiro #${w.id.slice(-6)} a ${w.walletAccountId}`,
-          reference: w.id,
-          referenceType: 'withdrawal',
-          status: 'completed',
-        },
-      })
-      const updated = await db.withdrawalRequest.update({
-        where: { id: w.id },
-        data: {
-          status: 'completed',
-          externalReference: externalReference || null,
-          processedAt: new Date(),
-          completedAt: new Date(),
-        },
-      })
-      return NextResponse.json({ withdrawal: updated, balance: balanceAfter })
+      return NextResponse.json({ withdrawal: result, balance: balanceAfter })
     }
 
     // ── Record an arbitrary transaction (e.g. commission credit, refund) ─
@@ -465,7 +501,7 @@ export async function POST(req: NextRequest) {
 // Backup-code storage helpers (stored as JSON in a String column).
 // ───────────────────────────────────────────────────────────────────────────
 
-function generateBackupCodesJSON(): string {
+function generateBackupCodesPlain(): string[] {
   const codes: string[] = []
   const seen = new Set<string>()
   while (codes.length < 10) {
@@ -476,15 +512,5 @@ function generateBackupCodesJSON(): string {
     seen.add(formatted)
     codes.push(formatted)
   }
-  return JSON.stringify(codes)
-}
-
-function parseBackupCodes(json: string | null): string[] {
-  if (!json) return []
-  try {
-    const arr = JSON.parse(json)
-    return Array.isArray(arr) ? arr : []
-  } catch {
-    return []
-  }
+  return codes
 }

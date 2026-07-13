@@ -327,6 +327,15 @@ async function confirmSale(body: any) {
   return NextResponse.json(result)
 }
 
+// Compensation rates when seller fails (Saramantha §17.8)
+const COMPENSATION_RATES: Record<string, number> = {
+  seller_no_ship: 1.0,      // 100% of commission
+  seller_delayed: 0.5,      // 50% of commission
+  seller_cancelled: 1.0,    // 100% of commission
+  delivery_failed: 0.5,     // 50% of commission
+  product_damaged: 0.25,    // 25% of commission
+}
+
 async function failSale(body: any) {
   const { saleId, reason } = body
   if (!saleId) {
@@ -335,7 +344,15 @@ async function failSale(body: any) {
       { status: 400 },
     )
   }
-  const sale = await db.traffickerSale.findUnique({ where: { id: saleId } })
+
+  const validReasons = Object.keys(COMPENSATION_RATES)
+  const failReason = reason && validReasons.includes(reason) ? reason : 'seller_no_ship'
+  const compPct = COMPENSATION_RATES[failReason]
+
+  const sale = await db.traffickerSale.findUnique({
+    where: { id: saleId },
+    include: { campaign: true },
+  })
   if (!sale) {
     return NextResponse.json({ error: 'Sale not found' }, { status: 404 })
   }
@@ -345,15 +362,104 @@ async function failSale(body: any) {
       { status: 409 },
     )
   }
-  const updated = await db.traffickerSale.update({
-    where: { id: saleId },
-    data: { status: 'failed' },
+
+  // CRITICAL: Use $transaction for atomicity — sale status, compensation,
+  // wallet credit, and transaction record MUST all succeed or all fail.
+  const compensationAmount = sale.commission * compPct
+
+  const result = await db.$transaction(async (tx) => {
+    // 1. Mark sale as failed
+    const updatedSale = await tx.traffickerSale.update({
+      where: { id: saleId },
+      data: { status: 'failed' },
+    })
+
+    // 2. Create compensation record (if compensation > 0)
+    let compensation: Awaited<ReturnType<typeof tx.traffickerCompensation.create>> | null = null
+    if (compensationAmount > 0) {
+      compensation = await tx.traffickerCompensation.create({
+        data: {
+          traffickerId: sale.traffickerId,
+          tenantId: sale.tenantId,
+          saleId: sale.id,
+          reason: failReason,
+          amount: compensationAmount,
+        },
+      })
+
+      // 3. Credit trafficker wallet
+      const trafficker = await tx.trafficker.findUnique({
+        where: { id: sale.traffickerId },
+      })
+      if (!trafficker) throw new Error('Trafficker vanished mid-transaction')
+
+      const balanceBefore = trafficker.walletBalance
+      const balanceAfter = balanceBefore + compensationAmount
+
+      await tx.trafficker.update({
+        where: { id: trafficker.id },
+        data: { walletBalance: balanceAfter },
+      })
+
+      // 4. Record wallet transaction
+      await tx.traffickerTransaction.create({
+        data: {
+          traffickerId: trafficker.id,
+          direction: 'inbound',
+          type: 'compensation',
+          category: 'seller_fault',
+          amount: compensationAmount,
+          balanceBefore,
+          balanceAfter,
+          description: `Compensación (${failReason}, ${compPct * 100}%) por venta fallida ${sale.id}`,
+          reference: sale.id,
+          referenceType: 'sale',
+          status: 'completed',
+        },
+      })
+
+      // 5. Also record in WalletTransaction (for wallet view)
+      await tx.walletTransaction.create({
+        data: {
+          traffickerId: trafficker.id,
+          direction: 'inbound',
+          type: 'compensation',
+          category: 'seller_fault',
+          amount: compensationAmount,
+          balanceBefore,
+          balanceAfter,
+          description: `Compensación (${failReason}) venta ${sale.id.slice(-6)}`,
+          reference: sale.id,
+          referenceType: 'sale',
+          status: 'completed',
+        },
+      })
+    }
+
+    // 6. Audit log
+    await tx.auditLog.create({
+      data: {
+        action: 'sale_failed_with_compensation',
+        entity: 'trafficker_sale',
+        entityId: sale.id,
+        meta: JSON.stringify({
+          saleId: sale.id,
+          traffickerId: sale.traffickerId,
+          reason: failReason,
+          compensationPct: compPct,
+          compensationAmount,
+        }),
+      },
+    })
+
+    return { sale: updatedSale, compensation, compensationAmount }
   })
+
   log.info(
-    { saleId, traffickerId: sale.traffickerId, reason },
-    'sale marked as failed',
+    { saleId, traffickerId: sale.traffickerId, reason: failReason, compensation: compensationAmount },
+    'sale failed + compensation credited',
   )
-  return NextResponse.json({ sale: updated })
+  return NextResponse.json(result)
 }
 
 async function withdraw(body: any) {

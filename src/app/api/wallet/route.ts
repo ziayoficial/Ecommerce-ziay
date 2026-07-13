@@ -27,7 +27,7 @@ import { generateTOTPSecret, verifyTOTP, hashBackupCodes } from '@/lib/totp'
 import { rateLimit } from '@/lib/middleware/rate-limit'
 import { captureError } from '@/lib/capture-error'
 import { getLogger } from '@/lib/logger'
-import { walletService } from '@/lib/services'
+import { walletService, traffickerService } from '@/lib/services'
 
 const log = getLogger('api:wallet')
 
@@ -46,7 +46,7 @@ async function resolveTrafficker(req: NextRequest) {
 
   // 1) Explicit ID — admin/finance can read anyone; trafficker can only read self.
   if (explicitId) {
-    const t = await walletService.getTraffickerById(explicitId)
+    const t = await traffickerService.getTraffickerById(explicitId)
     if (!t) {
       return {
         session,
@@ -75,7 +75,7 @@ async function resolveTrafficker(req: NextRequest) {
       trafficker: null,
     }
   }
-  const t = await walletService.getTraffickerByEmail(email)
+  const t = await traffickerService.getTraffickerByEmail(email)
   if (t) {
     return { session, error: null, trafficker: t }
   }
@@ -83,7 +83,7 @@ async function resolveTrafficker(req: NextRequest) {
   // 3) Logged-in user is NOT a trafficker (e.g. admin/agent/finance).
   //    For admins/finance, show the first trafficker as a demo view.
   if (role === 'admin' || role === 'finance') {
-    const demoTrafficker = await walletService.getFirstTrafficker()
+    const demoTrafficker = await traffickerService.getFirstTrafficker()
     if (demoTrafficker) {
       return { session, error: null, trafficker: demoTrafficker }
     }

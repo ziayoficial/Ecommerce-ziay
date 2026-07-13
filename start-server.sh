@@ -1,11 +1,7 @@
 #!/bin/bash
-# ZIAY server starter — loads env vars and starts standalone server
 cd /home/z/my-project
-
-# Load env vars manually (source .env doesn't work with file: URLs)
 export DATABASE_URL="file:/home/z/my-project/db/custom.db"
 export NEXTAUTH_URL="http://localhost:3000"
-export NEXTAUTH_SECRET="ziay-dev-secret-key-2026-change-in-production"
-
-# Start standalone server
+export NEXTAUTH_SECRET="ziay-prod-secret-change-with-openssl-rand-base64-32"
+export ENCRYPTION_KEY="ziay-encryption-key-change-with-openssl-rand-hex-32"
 exec node .next/standalone/server.js

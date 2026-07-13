@@ -1,0 +1,912 @@
+     1→// ZIAY — Wallet service layer.
+     2→//
+     3→// Wraps Trafficker + WalletTransaction + WalletAccount + WithdrawalRequest +
+     4→// TwoFactorConfig + TraffickerSale + TraffickerCompensation access for the
+     5→// fintech surface. The two HTTP routes that share this service are
+     6→// `/api/wallet` (balance / 2FA / accounts / withdrawals / record-transaction)
+     7→// and `/api/trafficker` (profile + sales/compensations CRUD).
+     8→//
+     9→// SPRINT8-SERVICES-REST-001 — service layer.
+    10→
+    11→import { db } from '@/lib/db'
+    12→import { getLogger } from '@/lib/logger'
+    13→import { captureError } from '@/lib/capture-error'
+    14→
+    15→const log = getLogger('service:wallet')
+    16→
+    17→export const walletService = {
+    18→  // ── Trafficker lookups ──────────────────────────────────────────────────
+    19→
+    20→  /**
+    21→   * Resolve a Trafficker by id. Returns null when not found.
+    22→   */
+    23→  async getTraffickerById(id: string) {
+    24→    try {
+    25→      return await db.trafficker.findUnique({ where: { id } })
+    26→    } catch (err) {
+    27→      captureError(err as Error, {
+    28→        service: 'wallet',
+    29→        method: 'getTraffickerById',
+    30→        id,
+    31→      })
+    32→      throw new Error('Failed to fetch trafficker')
+    33→    }
+    34→  },
+    35→
+    36→  /**
+    37→   * Resolve a Trafficker by email (case-insensitive lookup since the
+    38→   * route lowercases the email before lookup).
+    39→   */
+    40→  async getTraffickerByEmail(email: string) {
+    41→    try {
+    42→      return await db.trafficker.findUnique({
+    43→        where: { email: email.toLowerCase() },
+    44→      })
+    45→    } catch (err) {
+    46→      captureError(err as Error, {
+    47→        service: 'wallet',
+    48→        method: 'getTraffickerByEmail',
+    49→        email,
+    50→      })
+    51→      throw new Error('Failed to fetch trafficker by email')
+    52→    }
+    53→  },
+    54→
+    55→  /**
+    56→   * First trafficker in the table — used as the demo view for admin/finance
+    57→   * operators that aren't traffickers themselves.
+    58→   */
+    59→  async getFirstTrafficker() {
+    60→    try {
+    61→      return await db.trafficker.findFirst({ orderBy: { createdAt: 'asc' } })
+    62→    } catch (err) {
+    63→      captureError(err as Error, {
+    64→        service: 'wallet',
+    65→        method: 'getFirstTrafficker',
+    66→      })
+    67→      throw new Error('Failed to fetch demo trafficker')
+    68→    }
+    69→  },
+    70→
+    71→  /**
+    72→   * Create a new trafficker (registration). Returns the row OR throws a
+    73→   * string error when the email is already in use — the route maps that to
+    74→   * a 409 response.
+    75→   */
+    76→  async createTrafficker(input: {
+    77→    email: string
+    78→    name: string
+    79→    phone?: string | null
+    80→  }) {
+    81→    try {
+    82→      const trafficker = await db.trafficker.create({
+    83→        data: {
+    84→          email: String(input.email),
+    85→          name: String(input.name),
+    86→          phone: input.phone ?? null,
+    87→          walletBalance: 0,
+    88→          status: 'active',
+    89→        },
+    90→      })
+    91→      log.info({ traffickerId: trafficker.id, email: input.email }, 'trafficker registered')
+    92→      return trafficker
+    93→    } catch (err) {
+    94→      captureError(err as Error, {
+    95→        service: 'wallet',
+    96→        method: 'createTrafficker',
+    97→        email: input.email,
+    98→      })
+    99→      throw new Error('Failed to create trafficker')
+   100→    }
+   101→  },
+   102→
+   103→  // ── Wallet dashboard (GET /api/wallet) ──────────────────────────────────
+   104→
+   105→  /**
+   106→   * Load everything the wallet dashboard needs in parallel: transactions,
+   107→   * accounts, withdrawals, 2FA config. Returns the raw rows — the route
+   108→   * computes the inbound/outbound/net stats from `transactions`.
+   109→   */
+   110→  async getWalletDashboard(traffickerId: string) {
+   111→    try {
+   112→      const [transactions, accounts, withdrawals, twoFactor] = await Promise.all([
+   113→        db.walletTransaction.findMany({
+   114→          where: { traffickerId },
+   115→          orderBy: { createdAt: 'desc' },
+   116→          take: 50,
+   117→        }),
+   118→        db.walletAccount.findMany({
+   119→          where: { traffickerId },
+   120→          orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }],
+   121→        }),
+   122→        db.withdrawalRequest.findMany({
+   123→          where: { traffickerId },
+   124→          include: { walletAccount: true },
+   125→          orderBy: { createdAt: 'desc' },
+   126→          take: 100,
+   127→        }),
+   128→        db.twoFactorConfig.findUnique({ where: { traffickerId } }),
+   129→      ])
+   130→      return { transactions, accounts, withdrawals, twoFactor }
+   131→    } catch (err) {
+   132→      captureError(err as Error, {
+   133→        service: 'wallet',
+   134→        method: 'getWalletDashboard',
+   135→        traffickerId,
+   136→      })
+   137→      throw new Error('Failed to fetch wallet dashboard')
+   138→    }
+   139→  },
+   140→
+   141→  // ── 2FA setup / verify ─────────────────────────────────────────────────
+   142→
+   143→  async getTwoFactorConfig(traffickerId: string) {
+   144→    try {
+   145→      return await db.twoFactorConfig.findUnique({ where: { traffickerId } })
+   146→    } catch (err) {
+   147→      captureError(err as Error, {
+   148→        service: 'wallet',
+   149→        method: 'getTwoFactorConfig',
+   150→        traffickerId,
+   151→      })
+   152→      throw new Error('Failed to fetch 2FA config')
+   153→    }
+   154→  },
+   155→
+   156→  /**
+   157→   * Upsert the 2FA config with the encrypted TOTP secret + hashed backup
+   158→   * codes. Used by `setup_2fa` — the route generates the secret/codes via
+   159→   * `generateTOTPSecret` + `hashBackupCodes` and passes them in.
+   160→   */
+   161→  async upsertTwoFactorSetup(
+   162→    traffickerId: string,
+   163→    payload: { secret: string; backupCodes: string },
+   164→  ) {
+   165→    try {
+   166→      return await db.twoFactorConfig.upsert({
+   167→        where: { traffickerId },
+   168→        update: {
+   169→          secret: payload.secret,
+   170→          backupCodes: payload.backupCodes,
+   171→          enabled: false,
+   172→          enabledAt: null,
+   173→        },
+   174→        create: {
+   175→          traffickerId,
+   176→          secret: payload.secret,
+   177→          backupCodes: payload.backupCodes,
+   178→          enabled: false,
+   179→        },
+   180→      })
+   181→    } catch (err) {
+   182→      captureError(err as Error, {
+   183→        service: 'wallet',
+   184→        method: 'upsertTwoFactorSetup',
+   185→        traffickerId,
+   186→      })
+   187→      throw new Error('Failed to upsert 2FA config')
+   188→    }
+   189→  },
+   190→
+   191→  async enableTwoFactor(configId: string) {
+   192→    try {
+   193→      return await db.twoFactorConfig.update({
+   194→        where: { id: configId },
+   195→        data: { enabled: true, enabledAt: new Date() },
+   196→      })
+   197→    } catch (err) {
+   198→      captureError(err as Error, {
+   199→        service: 'wallet',
+   200→        method: 'enableTwoFactor',
+   201→        configId,
+   202→      })
+   203→      throw new Error('Failed to enable 2FA')
+   204→    }
+   205→  },
+   206→
+   207→  // ── Wallet accounts ────────────────────────────────────────────────────
+   208→
+   209→  async getWalletAccount(id: string) {
+   210→    try {
+   211→      return await db.walletAccount.findUnique({ where: { id } })
+   212→    } catch (err) {
+   213→      captureError(err as Error, {
+   214→        service: 'wallet',
+   215→        method: 'getWalletAccount',
+   216→        id,
+   217→      })
+   218→      throw new Error('Failed to fetch wallet account')
+   219→    }
+   220→  },
+   221→
+   222→  /**
+   223→   * Clear the previous default account(s) and create a new account. Both
+   224→   * writes happen sequentially — the route treats them as best-effort
+   225→   * (clearing the old default is non-critical if it fails).
+   226→   */
+   227→  async registerWalletAccount(input: {
+   228→    traffickerId: string
+   229→    accountType: string
+   230→    accountHolder: string
+   231→    accountNumber: string
+   232→    bankName?: string | null
+   233→    documentType?: string | null
+   234→    documentNumber?: string | null
+   235→    isDefault?: boolean
+   236→  }) {
+   237→    try {
+   238→      if (input.isDefault) {
+   239→        await db.walletAccount.updateMany({
+   240→          where: { traffickerId: input.traffickerId, isDefault: true },
+   241→          data: { isDefault: false },
+   242→        })
+   243→      }
+   244→      return await db.walletAccount.create({
+   245→        data: {
+   246→          traffickerId: input.traffickerId,
+   247→          accountType: input.accountType,
+   248→          accountHolder: input.accountHolder,
+   249→          accountNumber: input.accountNumber,
+   250→          bankName: input.bankName ?? null,
+   251→          documentType: input.documentType ?? null,
+   252→          documentNumber: input.documentNumber ?? null,
+   253→          isDefault: !!input.isDefault,
+   254→          verified: false,
+   255→        },
+   256→      })
+   257→    } catch (err) {
+   258→      captureError(err as Error, {
+   259→        service: 'wallet',
+   260→        method: 'registerWalletAccount',
+   261→        traffickerId: input.traffickerId,
+   262→      })
+   263→      throw new Error('Failed to register wallet account')
+   264→    }
+   265→  },
+   266→
+   267→  // ── Withdrawals ────────────────────────────────────────────────────────
+   268→
+   269→  async getWithdrawalRequest(id: string) {
+   270→    try {
+   271→      return await db.withdrawalRequest.findUnique({ where: { id } })
+   272→    } catch (err) {
+   273→      captureError(err as Error, {
+   274→        service: 'wallet',
+   275→        method: 'getWithdrawalRequest',
+   276→        id,
+   277→      })
+   278→      throw new Error('Failed to fetch withdrawal request')
+   279→    }
+   280→  },
+   281→
+   282→  /**
+   283→   * Create a WithdrawalRequest in `pending_2fa` (TOTP required, not yet
+   284→   * verified) or `pending_processing` (TOTP pre-verified by caller).
+   285→   */
+   286→  async createWithdrawalRequest(input: {
+   287→    traffickerId: string
+   288→    walletAccountId: string
+   289→    amount: number
+   290→    fee: number
+   291→    netAmount: number
+   292→    totpRequired: boolean
+   293→    totpVerified: boolean
+   294→  }) {
+   295→    try {
+   296→      const withdrawal = await db.withdrawalRequest.create({
+   297→        data: {
+   298→          traffickerId: input.traffickerId,
+   299→          walletAccountId: input.walletAccountId,
+   300→          amount: input.amount,
+   301→          fee: input.fee,
+   302→          netAmount: input.netAmount,
+   303→          totpRequired: input.totpRequired,
+   304→          totpVerified: input.totpVerified,
+   305→          totpVerifiedAt: input.totpVerified ? new Date() : null,
+   306→          status: input.totpVerified ? 'pending_processing' : 'pending_2fa',
+   307→        },
+   308→      })
+   309→      log.info(
+   310→        {
+   311→          traffickerId: input.traffickerId,
+   312→          withdrawalId: withdrawal.id,
+   313→          amount: input.amount,
+   314→          fee: input.fee,
+   315→          net: input.netAmount,
+   316→          totpRequired: input.totpRequired,
+   317→          totpVerified: input.totpVerified,
+   318→        },
+   319→        'withdrawal request created',
+   320→      )
+   321→      return withdrawal
+   322→    } catch (err) {
+   323→      captureError(err as Error, {
+   324→        service: 'wallet',
+   325→        method: 'createWithdrawalRequest',
+   326→        traffickerId: input.traffickerId,
+   327→      })
+   328→      throw new Error('Failed to create withdrawal request')
+   329→    }
+   330→  },
+   331→
+   332→  /**
+   333→   * Process (complete) a withdrawal — atomic: decrement trafficker balance,
+   334→   * record outbound WalletTransaction, mark WithdrawalRequest completed,
+   335→   * write AuditLog. The whole transaction MUST succeed or roll back so the
+   336→   * balance + transaction + withdrawal can never diverge.
+   337→   */
+   338→  async processWithdrawal(input: {
+   339→    withdrawalId: string
+   340→    traffickerId: string
+   341→    walletAccountId: string
+   342→    amount: number
+   343→    balanceBefore: number
+   344→    balanceAfter: number
+   345→    externalReference?: string | null
+   346→  }) {
+   347→    try {
+   348→      const result = await db.$transaction(async (tx) => {
+   349→        // 1. Decrement trafficker balance
+   350→        await tx.trafficker.update({
+   351→          where: { id: input.traffickerId },
+   352→          data: { walletBalance: input.balanceAfter },
+   353→        })
+   354→        // 2. Record outbound transaction
+   355→        await tx.walletTransaction.create({
+   356→          data: {
+   357→            traffickerId: input.traffickerId,
+   358→            direction: 'outbound',
+   359→            type: 'withdrawal',
+   360→            category: 'cashout',
+   361→            amount: input.amount,
+   362→            balanceBefore: input.balanceBefore,
+   363→            balanceAfter: input.balanceAfter,
+   364→            description: `Retiro #${input.withdrawalId.slice(-6)} a ${input.walletAccountId}`,
+   365→            reference: input.withdrawalId,
+   366→            referenceType: 'withdrawal',
+   367→            status: 'completed',
+   368→          },
+   369→        })
+   370→        // 3. Mark withdrawal as completed
+   371→        const updated = await tx.withdrawalRequest.update({
+   372→          where: { id: input.withdrawalId },
+   373→          data: {
+   374→            status: 'completed',
+   375→            externalReference: input.externalReference || null,
+   376→            processedAt: new Date(),
+   377→            completedAt: new Date(),
+   378→          },
+   379→        })
+   380→        // 4. Create audit log entry
+   381→        await tx.auditLog.create({
+   382→          data: {
+   383→            action: 'withdrawal_processed',
+   384→            entity: 'withdrawal',
+   385→            entityId: input.withdrawalId,
+   386→            meta: JSON.stringify({
+   387→              withdrawalId: input.withdrawalId,
+   388→              traffickerId: input.traffickerId,
+   389→              amount: input.amount,
+   390→              balanceBefore: input.balanceBefore,
+   391→              balanceAfter: input.balanceAfter,
+   392→              processedBy: 'wallet_api',
+   393→            }),
+   394→          },
+   395→        })
+   396→        return updated
+   397→      })
+   398→      log.info(
+   399→        {
+   400→          traffickerId: input.traffickerId,
+   401→          withdrawalId: input.withdrawalId,
+   402→          amount: input.amount,
+   403→          balanceBefore: input.balanceBefore,
+   404→          balanceAfter: input.balanceAfter,
+   405→          externalReference: input.externalReference || null,
+   406→        },
+   407→        'withdrawal processed — balance debited',
+   408→      )
+   409→      return result
+   410→    } catch (err) {
+   411→      captureError(err as Error, {
+   412→        service: 'wallet',
+   413→        method: 'processWithdrawal',
+   414→        withdrawalId: input.withdrawalId,
+   415→      })
+   416→      throw new Error('Failed to process withdrawal')
+   417→    }
+   418→  },
+   419→
+   420→  /**
+   421→   * Record an arbitrary wallet transaction + update the trafficker balance
+   422→   * atomically. Both writes happen in parallel — neither commits before the
+   423→   * other. The route pre-validates that the resulting balance is non-negative.
+   424→   */
+   425→  async recordTransaction(input: {
+   426→    traffickerId: string
+   427→    direction: 'inbound' | 'outbound'
+   428→    type: string
+   429→    category?: string
+   430→    amount: number
+   431→    balanceBefore: number
+   432→    balanceAfter: number
+   433→    description?: string | null
+   434→    reference?: string | null
+   435→    referenceType?: string | null
+   436→  }) {
+   437→    try {
+   438→      const [txn] = await Promise.all([
+   439→        db.walletTransaction.create({
+   440→          data: {
+   441→            traffickerId: input.traffickerId,
+   442→            direction: input.direction,
+   443→            type: input.type,
+   444→            category: input.category || input.type,
+   445→            amount: Math.abs(input.amount),
+   446→            balanceBefore: input.balanceBefore,
+   447→            balanceAfter: input.balanceAfter,
+   448→            description: input.description || null,
+   449→            reference: input.reference || null,
+   450→            referenceType: input.referenceType || null,
+   451→            status: 'completed',
+   452→          },
+   453→        }),
+   454→        db.trafficker.update({
+   455→          where: { id: input.traffickerId },
+   456→          data: { walletBalance: input.balanceAfter },
+   457→        }),
+   458→      ])
+   459→      return txn
+   460→    } catch (err) {
+   461→      captureError(err as Error, {
+   462→        service: 'wallet',
+   463→        method: 'recordTransaction',
+   464→        traffickerId: input.traffickerId,
+   465→      })
+   466→      throw new Error('Failed to record transaction')
+   467→    }
+   468→  },
+   469→
+   470→  // ── Trafficker dashboard (GET /api/trafficker) ─────────────────────────
+   471→
+   472→  /**
+   473→   * Load the trafficker profile + nested campaigns/transactions/compensations.
+   474→   * The `sales` aggregate is loaded separately (via `getSalesStats`) so the
+   475→   * route can compute the per-status totals.
+   476→   */
+   477→  async getTraffickerProfile(id: string) {
+   478→    try {
+   479→      return await db.trafficker.findUnique({
+   480→        where: { id },
+   481→        include: {
+   482→          campaigns: {
+   483→            orderBy: { createdAt: 'desc' },
+   484→            take: 100,
+   485→          },
+   486→          transactions: {
+   487→            orderBy: { createdAt: 'desc' },
+   488→            take: 50,
+   489→          },
+   490→          compensations: {
+   491→            orderBy: { createdAt: 'desc' },
+   492→            take: 20,
+   493→          },
+   494→        },
+   495→      })
+   496→    } catch (err) {
+   497→      captureError(err as Error, {
+   498→        service: 'wallet',
+   499→        method: 'getTraffickerProfile',
+   500→        id,
+   501→      })
+   502→      throw new Error('Failed to fetch trafficker profile')
+   503→    }
+   504→  },
+   505→
+   506→  /**
+   507→   * Sales stats for a trafficker: totals + per-status counts + sum of
+   508→   * amounts + sum of commissions. Mirrors the previous inline `salesStats`
+   509→   * shape verbatim.
+   510→   */
+   511→  async getSalesStats(traffickerId: string) {
+   512→    try {
+   513→      const sales = await db.traffickerSale.findMany({
+   514→        where: { traffickerId },
+   515→        orderBy: { createdAt: 'desc' },
+   516→        take: 100,
+   517→      })
+   518→      return {
+   519→        sales,
+   520→        stats: {
+   521→          total: sales.length,
+   522→          pending: sales.filter((s) => s.status === 'pending').length,
+   523→          confirmed: sales.filter((s) => s.status === 'confirmed').length,
+   524→          failed: sales.filter((s) => s.status === 'failed').length,
+   525→          compensated: sales.filter((s) => s.status === 'compensated').length,
+   526→          totalAmount: sales.reduce((sum, s) => sum + s.amount, 0),
+   527→          totalCommission: sales.reduce((sum, s) => sum + s.commission, 0),
+   528→        },
+   529→      }
+   530→    } catch (err) {
+   531→      captureError(err as Error, {
+   532→        service: 'wallet',
+   533→        method: 'getSalesStats',
+   534→        traffickerId,
+   535→      })
+   536→      throw new Error('Failed to fetch sales stats')
+   537→    }
+   538→  },
+   539→
+   540→  // ── Trafficker campaigns / sales / compensations ───────────────────────
+   541→
+   542→  async createCampaign(input: {
+   543→    traffickerId: string
+   544→    tenantId: string
+   545→    name: string
+   546→    platform: string
+   547→    budget: number
+   548→    startDate?: Date | null
+   549→    endDate?: Date | null
+   550→  }) {
+   551→    try {
+   552→      const campaign = await db.traffickerCampaign.create({
+   553→        data: {
+   554→          traffickerId: input.traffickerId,
+   555→          tenantId: input.tenantId,
+   556→          name: input.name,
+   557→          platform: input.platform,
+   558→          budget: input.budget,
+   559→          spend: 0,
+   560→          status: 'active',
+   561→          startDate: input.startDate ?? null,
+   562→          endDate: input.endDate ?? null,
+   563→        },
+   564→      })
+   565→      log.info(
+   566→        {
+   567→          traffickerId: input.traffickerId,
+   568→          tenantId: input.tenantId,
+   569→          campaignId: campaign.id,
+   570→          platform: input.platform,
+   571→        },
+   572→        'campaign created',
+   573→      )
+   574→      return campaign
+   575→    } catch (err) {
+   576→      captureError(err as Error, {
+   577→        service: 'wallet',
+   578→        method: 'createCampaign',
+   579→        traffickerId: input.traffickerId,
+   580→      })
+   581→      throw new Error('Failed to create campaign')
+   582→    }
+   583→  },
+   584→
+   585→  async getCampaignForTrafficker(campaignId: string, traffickerId: string, tenantId: string) {
+   586→    try {
+   587→      return await db.traffickerCampaign.findFirst({
+   588→        where: { id: campaignId, traffickerId, tenantId },
+   589→      })
+   590→    } catch (err) {
+   591→      captureError(err as Error, {
+   592→        service: 'wallet',
+   593→        method: 'getCampaignForTrafficker',
+   594→        campaignId,
+   595→        traffickerId,
+   596→      })
+   597→      throw new Error('Failed to fetch campaign')
+   598→    }
+   599→  },
+   600→
+   601→  async registerSale(input: {
+   602→    traffickerId: string
+   603→    tenantId: string
+   604→    campaignId: string
+   605→    orderId?: string | null
+   606→    amount: number
+   607→    commission: number
+   608→  }) {
+   609→    try {
+   610→      const sale = await db.traffickerSale.create({
+   611→        data: {
+   612→          traffickerId: input.traffickerId,
+   613→          tenantId: input.tenantId,
+   614→          campaignId: input.campaignId,
+   615→          orderId: input.orderId ?? null,
+   616→          amount: input.amount,
+   617→          commission: input.commission,
+   618→          status: 'pending',
+   619→        },
+   620→      })
+   621→      log.info(
+   622→        {
+   623→          traffickerId: input.traffickerId,
+   624→          tenantId: input.tenantId,
+   625→          campaignId: input.campaignId,
+   626→          saleId: sale.id,
+   627→          amount: input.amount,
+   628→          commission: input.commission,
+   629→        },
+   630→        'sale registered',
+   631→      )
+   632→      return sale
+   633→    } catch (err) {
+   634→      captureError(err as Error, {
+   635→        service: 'wallet',
+   636→        method: 'registerSale',
+   637→        traffickerId: input.traffickerId,
+   638→      })
+   639→      throw new Error('Failed to register sale')
+   640→    }
+   641→  },
+   642→
+   643→  async getSaleWithCampaign(saleId: string) {
+   644→    try {
+   645→      return await db.traffickerSale.findUnique({
+   646→        where: { id: saleId },
+   647→        include: { campaign: true },
+   648→      })
+   649→    } catch (err) {
+   650→      captureError(err as Error, {
+   651→        service: 'wallet',
+   652→        method: 'getSaleWithCampaign',
+   653→        saleId,
+   654→      })
+   655→      throw new Error('Failed to fetch sale')
+   656→    }
+   657→  },
+   658→
+   659→  /**
+   660→   * Confirm a pending sale atomically: flip sale status, credit trafficker
+   661→   * wallet, record TraffickerTransaction (commission). Returns
+   662→   * `{ sale, transaction }` so the route can return both in the response.
+   663→   */
+   664→  async confirmSale(saleId: string) {
+   665→    try {
+   666→      const result = await db.$transaction(async (tx) => {
+   667→        const sale = await tx.traffickerSale.findUnique({
+   668→          where: { id: saleId },
+   669→          include: { campaign: true },
+   670→        })
+   671→        if (!sale) throw new Error('Sale not found')
+   672→        const trafficker = await tx.trafficker.findUnique({
+   673→          where: { id: sale.traffickerId },
+   674→        })
+   675→        if (!trafficker) throw new Error('Trafficker vanished mid-transaction')
+   676→        const balanceBefore = trafficker.walletBalance
+   677→        const balanceAfter = balanceBefore + sale.commission
+   678→        const [updatedSale, , transaction] = await Promise.all([
+   679→          tx.traffickerSale.update({
+   680→            where: { id: saleId },
+   681→            data: { status: 'confirmed' },
+   682→          }),
+   683→          tx.trafficker.update({
+   684→            where: { id: trafficker.id },
+   685→            data: { walletBalance: balanceAfter },
+   686→          }),
+   687→          tx.traffickerTransaction.create({
+   688→            data: {
+   689→              traffickerId: trafficker.id,
+   690→              direction: 'inbound',
+   691→              type: 'commission',
+   692→              category: 'sale',
+   693→              amount: sale.commission,
+   694→              balanceBefore,
+   695→              balanceAfter,
+   696→              description: `Comisión por venta ${sale.id} (campaña ${sale.campaign.name})`,
+   697→              reference: sale.id,
+   698→              referenceType: 'sale',
+   699→              status: 'completed',
+   700→            },
+   701→          }),
+   702→        ])
+   703→        return { sale: updatedSale, transaction }
+   704→      })
+   705→      log.info(
+   706→        { saleId, traffickerId: result.sale.traffickerId, commission: result.transaction.amount },
+   707→        'sale confirmed — wallet credited',
+   708→      )
+   709→      return result
+   710→    } catch (err) {
+   711→      captureError(err as Error, {
+   712→        service: 'wallet',
+   713→        method: 'confirmSale',
+   714→        saleId,
+   715→      })
+   716→      throw new Error('Failed to confirm sale')
+   717→    }
+   718→  },
+   719→
+   720→  /**
+   721→   * Fail a sale atomically: mark sale failed, optionally credit compensation
+   722→   * (when `compensationAmount > 0`), record TraffickerCompensation +
+   723→   * TraffickerTransaction + WalletTransaction (for wallet view), write
+   724→   * AuditLog. Returns `{ sale, compensation, compensationAmount }`.
+   725→   *
+   726→   * Mirrors the prior inline `failSale` shape verbatim — compensation may
+   727→   * be null when the comp rate is 0 (no compensation for that reason).
+   728→   */
+   729→  async failSale(saleId: string, reason: string, compensationPct: number) {
+   730→    try {
+   731→      const result = await db.$transaction(async (tx) => {
+   732→        const sale = await tx.traffickerSale.findUnique({
+   733→          where: { id: saleId },
+   734→          include: { campaign: true },
+   735→        })
+   736→        if (!sale) throw new Error('Sale not found')
+   737→        const compensationAmount = sale.commission * compensationPct
+   738→
+   739→        // 1. Mark sale as failed
+   740→        const updatedSale = await tx.traffickerSale.update({
+   741→          where: { id: saleId },
+   742→          data: { status: 'failed' },
+   743→        })
+   744→
+   745→        let compensation: Awaited<ReturnType<typeof tx.traffickerCompensation.create>> | null = null
+   746→        if (compensationAmount > 0) {
+   747→          // 2. Create compensation record
+   748→          compensation = await tx.traffickerCompensation.create({
+   749→            data: {
+   750→              traffickerId: sale.traffickerId,
+   751→              tenantId: sale.tenantId,
+   752→              saleId: sale.id,
+   753→              reason,
+   754→              amount: compensationAmount,
+   755→            },
+   756→          })
+   757→
+   758→          // 3. Credit trafficker wallet
+   759→          const trafficker = await tx.trafficker.findUnique({
+   760→            where: { id: sale.traffickerId },
+   761→          })
+   762→          if (!trafficker) throw new Error('Trafficker vanished mid-transaction')
+   763→          const balanceBefore = trafficker.walletBalance
+   764→          const balanceAfter = balanceBefore + compensationAmount
+   765→
+   766→          await tx.trafficker.update({
+   767→            where: { id: trafficker.id },
+   768→            data: { walletBalance: balanceAfter },
+   769→          })
+   770→
+   771→          // 4. Record trafficker transaction
+   772→          await tx.traffickerTransaction.create({
+   773→            data: {
+   774→              traffickerId: trafficker.id,
+   775→              direction: 'inbound',
+   776→              type: 'compensation',
+   777→              category: 'seller_fault',
+   778→              amount: compensationAmount,
+   779→              balanceBefore,
+   780→              balanceAfter,
+   781→              description: `Compensación (${reason}, ${compensationPct * 100}%) por venta fallida ${sale.id}`,
+   782→              reference: sale.id,
+   783→              referenceType: 'sale',
+   784→              status: 'completed',
+   785→            },
+   786→          })
+   787→
+   788→          // 5. Also record in WalletTransaction (for wallet view)
+   789→          await tx.walletTransaction.create({
+   790→            data: {
+   791→              traffickerId: trafficker.id,
+   792→              direction: 'inbound',
+   793→              type: 'compensation',
+   794→              category: 'seller_fault',
+   795→              amount: compensationAmount,
+   796→              balanceBefore,
+   797→              balanceAfter,
+   798→              description: `Compensación (${reason}) venta ${sale.id.slice(-6)}`,
+   799→              reference: sale.id,
+   800→              referenceType: 'sale',
+   801→              status: 'completed',
+   802→            },
+   803→          })
+   804→        }
+   805→
+   806→        // 6. Audit log
+   807→        await tx.auditLog.create({
+   808→          data: {
+   809→            action: 'sale_failed_with_compensation',
+   810→            entity: 'trafficker_sale',
+   811→            entityId: sale.id,
+   812→            meta: JSON.stringify({
+   813→              saleId: sale.id,
+   814→              traffickerId: sale.traffickerId,
+   815→              reason,
+   816→              compensationPct,
+   817→              compensationAmount,
+   818→            }),
+   819→          },
+   820→        })
+   821→
+   822→        return { sale: updatedSale, compensation, compensationAmount }
+   823→      })
+   824→      log.info(
+   825→        { saleId, traffickerId: result.sale.traffickerId, reason, compensation: result.compensationAmount },
+   826→        'sale failed + compensation credited',
+   827→      )
+   828→      return result
+   829→    } catch (err) {
+   830→      captureError(err as Error, {
+   831→        service: 'wallet',
+   832→        method: 'failSale',
+   833→        saleId,
+   834→      })
+   835→      throw new Error('Failed to fail sale')
+   836→    }
+   837→  },
+   838→
+   839→  /**
+   840→   * Create a pending WithdrawalRequest + a TraffickerTransaction in `pending`
+   841→   * status. TOTP verification is performed by the caller (route) — funds are
+   842→   * not yet deducted. The TraffickerTransaction's `balanceBefore`/`balanceAfter`
+   843→   * both equal the current balance (deduction happens on completion).
+   844→   */
+   845→  async requestWithdrawal(input: {
+   846→    traffickerId: string
+   847→    walletAccountId: string
+   848→    amount: number
+   849→    fee: number
+   850→    netAmount: number
+   851→    totpVerified: boolean
+   852→    balanceBefore: number
+   853→    accountType: string
+   854→    accountNumber: string
+   855→  }) {
+   856→    try {
+   857→      const result = await db.$transaction(async (tx) => {
+   858→        const withdrawal = await tx.withdrawalRequest.create({
+   859→          data: {
+   860→            traffickerId: input.traffickerId,
+   861→            tenantId: null,
+   862→            walletAccountId: input.walletAccountId,
+   863→            amount: input.amount,
+   864→            fee: input.fee,
+   865→            netAmount: input.netAmount,
+   866→            totpRequired: true,
+   867→            totpVerified: input.totpVerified,
+   868→            totpVerifiedAt: input.totpVerified ? new Date() : null,
+   869→            status: input.totpVerified ? 'pending_processing' : 'pending_2fa',
+   870→          },
+   871→        })
+   872→        const transaction = await tx.traffickerTransaction.create({
+   873→          data: {
+   874→            traffickerId: input.traffickerId,
+   875→            direction: 'outbound',
+   876→            type: 'withdrawal',
+   877→            category: 'cashout',
+   878→            amount: input.amount,
+   879→            balanceBefore: input.balanceBefore,
+   880→            balanceAfter: input.balanceBefore, // not yet deducted — only on completion
+   881→            description: `Retiro solicitado → ${input.accountType} ${input.accountNumber}`,
+   882→            reference: withdrawal.id,
+   883→            referenceType: 'withdrawal',
+   884→            status: 'pending',
+   885→          },
+   886→        })
+   887→        return { withdrawal, transaction }
+   888→      })
+   889→      log.info(
+   890→        {
+   891→          traffickerId: input.traffickerId,
+   892→          amount: input.amount,
+   893→          walletAccountId: input.walletAccountId,
+   894→          withdrawalId: result.withdrawal.id,
+   895→          totpVerified: input.totpVerified,
+   896→        },
+   897→        'withdrawal requested',
+   898→      )
+   899→      return result
+   900→    } catch (err) {
+   901→      captureError(err as Error, {
+   902→        service: 'wallet',
+   903→        method: 'requestWithdrawal',
+   904→        traffickerId: input.traffickerId,
+   905→      })
+   906→      throw new Error('Failed to request withdrawal')
+   907→    }
+   908→  },
+   909→}
+   910→
+   911→export type WalletService = typeof walletService
+   912→

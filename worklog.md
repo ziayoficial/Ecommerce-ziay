@@ -3335,3 +3335,101 @@ remarketing. Plus `/api/agents` and `/api/route` (no db calls — n/a).
   changes required.
 
 **Full worklog:** `agent-ctx/SPRINT8-SERVICES-REST-001-senior-backend-architect.md`
+
+---
+
+## AUDIT-FINAL-SPLIT-001 — Split last 3 files >700 lines (senior architect)
+
+**Goal:** ZIAY had 3 source files >700 lines. This refactor splits all 3
+and reaches 0 ZIAY-owned source files >700 lines (sidebar.tsx at 726 lines
+is a vendored shadcn/ui primitive, out of scope).
+
+**Files split:**
+
+| Before | Lines | After | Max line count |
+|---|---|---|---|
+| `src/lib/services/wallet.service.ts` | 911 | `wallet.service.ts` (388) + `trafficker.service.ts` (547) | 547 |
+| `src/components/dashboard/marketplace-view.tsx` | 770 | `marketplace/{index,marketplace-listings,marketplace-my,marketplace-referrals,marketplace-shared}.tsx` + barrel | 385 |
+| `src/components/dashboard/logistics-intelligence-view.tsx` | 749 | `logistics/{index,logistics-scores,logistics-guides,logistics-alerts,logistics-shared}.tsx` + barrel | 311 |
+
+**1. wallet.service.ts → wallet.service.ts + trafficker.service.ts**
+
+`walletService` was a 911-line mega-object covering both the `/api/wallet`
+route (balance / 2FA / accounts / withdrawals / record-transaction) and
+the `/api/trafficker` route (profile + campaigns + sales + compensations).
+
+Split along the natural domain seam:
+- `walletService` (kept) — getWalletDashboard, 2FA trio (getTwoFactorConfig
+  / upsertTwoFactorSetup / enableTwoFactor), wallet accounts (getWalletAccount
+  / registerWalletAccount), withdrawals (getWithdrawalRequest /
+  createWithdrawalRequest / processWithdrawal), recordTransaction. 388 lines.
+- `traffickerService` (new) — trafficker lookups (getTraffickerById /
+  getTraffickerByEmail / getFirstTrafficker / createTrafficker), profile
+  (getTraffickerProfile / getSalesStats), campaigns (createCampaign /
+  getCampaignForTrafficker), sales (registerSale / getSaleWithCampaign /
+  confirmSale / failSale), and requestWithdrawal (the "withdraw" action —
+  creates the pending WithdrawalRequest + TraffickerTransaction). 547 lines.
+
+Both exported from `src/lib/services/index.ts` so existing
+`import { walletService } from '@/lib/services'` consumers keep working.
+
+**Route updates (API responses are byte-for-byte identical):**
+- `/api/wallet/route.ts` — three trafficker lookups (resolveTrafficker helper)
+  now call `traffickerService`; everything else (dashboard / 2FA / accounts /
+  withdrawals / record-transaction) stays on `walletService`.
+- `/api/trafficker/route.ts` — every method migrated to `traffickerService`
+  EXCEPT `walletService.getWalletAccount` (used by the `withdraw` action to
+  validate the payout account, which is wallet-domain).
+
+All 3 atomic `$transaction` blocks (processWithdrawal, confirmSale, failSale,
+requestWithdrawal) preserved verbatim — only the owning service object
+changed.
+
+**2. marketplace-view.tsx → marketplace/ directory (5 files)**
+
+| File | Lines | Owns |
+|---|---|---|
+| `marketplace-shared.tsx` | 148 | Types (MarketplaceListing / LeadShareConfig / LeadReferral / MarketplaceData), `referralStatusMeta` helper, shared `ListingCard` + `EmptyState` (used by both catalog and my-listings tabs) |
+| `marketplace-listings.tsx` | 141 | `CatalogTab` (cross-brand grid) + internal `ReferButton` (Referir dialog) |
+| `marketplace-my.tsx` | 103 | `MyListingsTab` + internal `ToggleActiveButton` |
+| `marketplace-referrals.tsx` | 114 | `ReferralsTab` + internal `ReferralColumn` (rendered twice — sent + received) |
+| `index.tsx` | 385 | Main `MarketplaceView` (state, fetch, saveConfig, tab composition) + internal `KpiCard` + `PublishListingDialog` (used only in the main header) |
+
+State stays in `index.tsx`. All sub-components are pure (props in, JSX out).
+`marketplace-view.tsx` is now a 7-line barrel re-export so `app/page.tsx`
+doesn't need to change.
+
+**3. logistics-intelligence-view.tsx → logistics/ directory (5 files)**
+
+| File | Lines | Owns |
+|---|---|---|
+| `logistics-shared.tsx` | 100 | Types (CustomerScore / CarrierScore / GuideTracking / BehaviorAlert / LogisticsData) + helpers (`categoryMeta`, `alertSeverity`, `severityMeta`) |
+| `logistics-scores.tsx` | 258 | `CustomerScoresTab` (table + search/filter controls) + `CarrierScoresTab` (recharts bar chart + detail table) |
+| `logistics-guides.tsx` | 117 | `StuckGuidesTab` + internal `StuckGuideRow` (with "Crear novedad" agent call) |
+| `logistics-alerts.tsx` | 78 | `BehaviorAlertsCard` (alerts list with severity badges) |
+| `index.tsx` | 311 | Main `LogisticsIntelligenceView` (state, fetch, search/category filter, carrierChartData memo, KPI grid, tab composition, alerts card, quick-actions panel) + internal `KpiCard` + `AgentButton` |
+
+All hooks (`useTenantId`, `useEffect`, `useMemo`, `useCallback`, `useState`)
+stay in `index.tsx`. Sub-components receive props (or pre-computed memos).
+`logistics-intelligence-view.tsx` is now a 7-line barrel re-export so
+`app/page.tsx` doesn't need to change.
+
+**Verification:**
+- `bun run lint` — clean (no warnings, no errors)
+- `npx tsc --noEmit` — clean (no type errors)
+- `bunx vitest run` — all 6 test files / 65 tests pass (rate-limit, format,
+  totp, payment-registry, payment-adapter, hmac)
+- Dev log: only `EADDRINUSE :::3000` (system's auto-restart, not a build error)
+
+**Design rules followed:**
+- UI byte-for-byte identical — only file structure changes.
+- All state stays in `index.tsx`; sub-components receive props.
+- Relative imports within each new directory (`./marketplace-shared`,
+  `./logistics-shared`).
+- `@/...` alias preserved for cross-tree imports (ui components, lib/utils,
+  hooks, format).
+- `marketplace-view.tsx` and `logistics-intelligence-view.tsx` retained as
+  barrel re-exports so `app/page.tsx` imports remain unchanged.
+- Service split: both `walletService` and `traffickerService` exported from
+  the same barrel (`@/lib/services`), so consumers can adopt the new name
+  incrementally without breaking.

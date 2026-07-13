@@ -65,3 +65,10 @@ export type {
 
 export { walletService } from './wallet.service'
 export type { WalletService } from './wallet.service'
+
+// AUDIT-FINAL-SPLIT-001 — Trafficker operations (registration, campaigns,
+// sales, compensation, withdrawal requests) split out of `wallet.service.ts`
+// so both files stay under 700 lines. Wallet owns balance / 2FA / accounts /
+// withdrawals / record-transaction; Trafficker owns the rest.
+export { traffickerService } from './trafficker.service'
+export type { TraffickerService } from './trafficker.service'

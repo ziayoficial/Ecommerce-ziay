@@ -3,7 +3,7 @@ import { requireAuth } from '@/lib/auth-helpers'
 import { rateLimit } from '@/lib/middleware/rate-limit'
 import { captureError } from '@/lib/capture-error'
 import { getLogger } from '@/lib/logger'
-import { walletService } from '@/lib/services'
+import { walletService, traffickerService } from '@/lib/services'
 
 const log = getLogger('api/trafficker')
 
@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const trafficker = await walletService.getTraffickerProfile(traffickerId)
+    const trafficker = await traffickerService.getTraffickerProfile(traffickerId)
 
     if (!trafficker) {
       return NextResponse.json(
@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Aggregate sales stats
-    const { sales, stats: salesStats } = await walletService.getSalesStats(traffickerId)
+    const { sales, stats: salesStats } = await traffickerService.getSalesStats(traffickerId)
 
     return NextResponse.json({
       trafficker: {
@@ -153,14 +153,14 @@ async function registerTrafficker(body: any) {
   }
   // Pre-check for duplicate email — service create would throw, but a
   // friendly 409 with the existing row is more useful.
-  const existing = await walletService.getTraffickerByEmail(String(email))
+  const existing = await traffickerService.getTraffickerByEmail(String(email))
   if (existing) {
     return NextResponse.json(
       { error: 'A trafficker with that email already exists', trafficker: existing },
       { status: 409 },
     )
   }
-  const trafficker = await walletService.createTrafficker({
+  const trafficker = await traffickerService.createTrafficker({
     email: String(email),
     name: String(name),
     phone: phone ?? null,
@@ -188,14 +188,14 @@ async function createCampaign(body: any) {
     )
   }
   // Verify trafficker exists and is active
-  const trafficker = await walletService.getTraffickerById(traffickerId)
+  const trafficker = await traffickerService.getTraffickerById(traffickerId)
   if (!trafficker) {
     return NextResponse.json(
       { error: 'Trafficker not found' },
       { status: 404 },
     )
   }
-  const campaign = await walletService.createCampaign({
+  const campaign = await traffickerService.createCampaign({
     traffickerId,
     tenantId,
     name,
@@ -226,14 +226,14 @@ async function registerSale(body: any) {
     )
   }
   // Verify campaign belongs to this trafficker
-  const campaign = await walletService.getCampaignForTrafficker(campaignId, traffickerId, tenantId)
+  const campaign = await traffickerService.getCampaignForTrafficker(campaignId, traffickerId, tenantId)
   if (!campaign) {
     return NextResponse.json(
       { error: 'Campaign not found for this trafficker+tenant' },
       { status: 404 },
     )
   }
-  const sale = await walletService.registerSale({
+  const sale = await traffickerService.registerSale({
     traffickerId,
     tenantId,
     campaignId,
@@ -252,7 +252,7 @@ async function confirmSale(body: any) {
       { status: 400 },
     )
   }
-  const sale = await walletService.getSaleWithCampaign(saleId)
+  const sale = await traffickerService.getSaleWithCampaign(saleId)
   if (!sale) {
     return NextResponse.json({ error: 'Sale not found' }, { status: 404 })
   }
@@ -263,7 +263,7 @@ async function confirmSale(body: any) {
     )
   }
 
-  const result = await walletService.confirmSale(saleId)
+  const result = await traffickerService.confirmSale(saleId)
   log.info(
     { saleId, traffickerId: sale.traffickerId, commission: sale.commission },
     'sale confirmed — wallet credited',
@@ -284,7 +284,7 @@ async function failSale(body: any) {
   const failReason = reason && validReasons.includes(reason) ? reason : 'seller_no_ship'
   const compPct = COMPENSATION_RATES[failReason]
 
-  const sale = await walletService.getSaleWithCampaign(saleId)
+  const sale = await traffickerService.getSaleWithCampaign(saleId)
   if (!sale) {
     return NextResponse.json({ error: 'Sale not found' }, { status: 404 })
   }
@@ -295,7 +295,7 @@ async function failSale(body: any) {
     )
   }
 
-  const result = await walletService.failSale(saleId, failReason, compPct)
+  const result = await traffickerService.failSale(saleId, failReason, compPct)
   log.info(
     { saleId, traffickerId: sale.traffickerId, reason: failReason, compensation: result.compensationAmount },
     'sale failed + compensation credited',
@@ -313,7 +313,7 @@ async function withdraw(body: any) {
       { status: 400 },
     )
   }
-  const trafficker = await walletService.getTraffickerById(traffickerId)
+  const trafficker = await traffickerService.getTraffickerById(traffickerId)
   if (!trafficker) {
     return NextResponse.json(
       { error: 'Trafficker not found' },
@@ -351,7 +351,7 @@ async function withdraw(body: any) {
   const fee = 0 // platform covers withdrawal fees for now
   const netAmount = amt - fee
 
-  const result = await walletService.requestWithdrawal({
+  const result = await traffickerService.requestWithdrawal({
     traffickerId,
     walletAccountId,
     amount: amt,

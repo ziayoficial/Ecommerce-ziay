@@ -2574,3 +2574,92 @@ optional Redis (cache/queue/socket), webhook idempotency, graceful shutdown.
 - `isGracefulShuttingDown()` is exported from both shutdown modules — long-
   running handlers can poll it and bail early instead of starting work that
   won't get to finish.
+
+---
+
+## SPRINT5-FINAL-001 — Final sprint: i18n, API docs, health v2, prod checklist
+
+**Agent**: senior-full-stack-engineer
+**Scope**: lightweight i18n, auto-documented API surface, enhanced health
+endpoint with runtime metrics, production deployment checklist.
+
+### Files touched
+- `src/lib/i18n.ts` (NEW) — `t()`, `getLocale()`, `getAvailableLocales()`
+- `src/app/api-docs/route.ts` (NEW) — `GET /api-docs` JSON manifest
+- `src/app/api/health/route.ts` (UPDATE) — adds `database_latency`,
+  `socket_service`, `disk_space` checks + `runtime` block
+- `PRODUCTION-CHECKLIST.md` (NEW) — 🔴/🟡/🟢 deployment checklist
+- `.env.example` (UPDATE) — appended `ZIAY_LOCALE=es-CO`
+
+### Design decisions
+1. **No `next-intl` dependency.** The i18n module is 3 pure functions
+   (`t`, `getLocale`, `getAvailableLocales`) over a static `translations`
+   object. Bundle impact: ~2 KB minified. The fallback chain is
+   `locale → es-CO → key itself`, so a missing translation never breaks
+   the UI — it just shows the key. To add `pt-BR` later, extend the
+   `translations` object, nothing else changes.
+2. **API docs are a static manifest, not a filesystem scanner.** A
+   scanner would need to import every `route.ts` module to read exported
+   HTTP verbs — fragile across ESM/CJS and slow on cold start. The static
+   `ROUTES` array carries business descriptions that can't be inferred
+   from source anyway. Total: 52 routes across 16 groups.
+3. **Health endpoint keeps its 30s cache for integration checks, but
+   computes `runtime` fresh on every call.** Caching uptime / memory
+   would be misleading — those values change every second. The cache
+   layer wraps only `runHealthChecks()`, then `collectRuntime()` is
+   appended after the cache lookup. This keeps the expensive DB +
+   adapter checks cached while the cheap process metrics stay live.
+4. **`socket_service` is a soft check.** It tries a TCP connect to
+   `127.0.0.1:CHAT_SERVICE_PORT` (default 3003) with a 500ms timeout.
+   `ECONNREFUSED` returns `warning` (chat-service is optional in dev);
+   other errors return `warning` too. Never `error` — the main app can
+   serve dashboards without the chat-service. Verified live: returns
+   `ok` with `latency_ms: 2` against the running chat-service.
+5. **`disk_space` uses `fs.statfs` (Node 18.17+).** Thresholds:
+   `<10% free → error`, `<25% → warning`, else `ok`. Degrades to
+   `not_configured` if `statfs` is unavailable on the platform.
+6. **`database_latency` is a separate check from `database`.** The
+   `database` check stays binary (connected / not), while
+   `database_latency` grades the response time: `<250ms → ok`,
+   `<1s → warning`, else `error`. This lets the dashboard surface
+   slow-DB warnings without flipping the main DB check red.
+7. **`database` check now also reports `latency_ms`.** Same number as
+   `database_latency` — exposes it on both checks so dashboards that
+   only watch `database` still see the latency.
+
+### Verification
+- `bun run lint` — clean
+- `npx tsc --noEmit` — clean
+- `bunx vitest run` — 65/65 tests passing (6 files)
+- `curl /api/health` (live) — returns:
+  ```json
+  {"status":"warning","summary":{"ok":6,"warning":2,"error":0,"not_configured":12},
+   "checks":[
+     {"name":"database","status":"ok","latency_ms":50},
+     {"name":"database_latency","status":"ok","latency_ms":50},
+     {"name":"socket_service","status":"ok","latency_ms":2},
+     {"name":"disk_space","status":"ok","detail":"81.8% free (8.02 GB)"}
+     ...
+   ],
+   "runtime":{
+     "uptime_seconds":1556,
+     "memory_mb":{"rss":1221,"heapUsed":132,"heapTotal":154,"external":4,"arrayBuffers":0},
+     "node_version":"v24.18.0","pid":1136,"platform":"linux","arch":"x64"
+   }}
+  ```
+
+### Notes for future agents
+- The `runtime` block is **not** cached. If you add more process-level
+  metrics (CPU load, event loop lag), append them to `collectRuntime()`
+  — they'll automatically bypass the cache.
+- The `ROUTES` array in `api-docs/route.ts` is hand-maintained. When
+  you add a new route, add an entry there too — the `total` counter
+  and `summary.by_group` rollups update automatically.
+- `getLocale()` reads `process.env.ZIAY_LOCALE` once per request. To
+  support per-tenant locale (a v1.1 feature listed in the checklist),
+  extend `getLocale()` to accept a `tenantId` and look up `tenant.locale`
+  — the call sites that pass `tenantId` (server components, API routes)
+  already have it.
+- The `socket_service` check uses a raw `net.Socket` connect rather
+  than an HTTP ping — the chat-service speaks socket.io on that port,
+  not HTTP, so an HTTP probe would 400. TCP connect is enough.

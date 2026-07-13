@@ -1,4 +1,4 @@
-// CommerceFlow OS — MercadoPagoAdapter
+// ZIAY — MercadoPagoAdapter
 // Saramantha §10 — gateway de pago principal para LATAM (AR, BR, MX, CO, CL, PE, UY, EC).
 //
 // Integración:

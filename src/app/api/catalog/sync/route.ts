@@ -1,4 +1,4 @@
-// CommerceFlow OS — API /api/catalog/sync
+// ZIAY — API /api/catalog/sync
 // Saramantha §8.2–§8.5, §9.2–§9.5 — sincronización del catálogo del tenant.
 //
 // POST body: { tenantId }

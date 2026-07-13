@@ -1,4 +1,4 @@
-// CommerceFlow OS — TikTokAdsAdapter
+// ZIAY — TikTokAdsAdapter
 //
 // Saramantha §7 — adaptador de TikTok Ads para importar spend, impressions,
 // clicks y conversiones por campaña y por anuncio.

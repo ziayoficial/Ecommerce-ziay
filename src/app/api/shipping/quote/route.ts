@@ -1,4 +1,4 @@
-// CommerceFlow OS — API /api/shipping/quote
+// ZIAY — API /api/shipping/quote
 // Saramantha §8.6, §6.8 — cotización de flete vía LogisticsAdapter.
 //
 // POST body: { tenantId, ciudad, pais, cantidad_unidades }

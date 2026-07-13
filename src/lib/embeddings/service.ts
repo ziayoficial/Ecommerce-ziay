@@ -1,4 +1,4 @@
-// CommerceFlow OS — Embedding service
+// ZIAY — Embedding service
 //
 // Provides text embeddings for semantic search across messages (Saramantha §3)
 // and products (catalog visual-primero search).

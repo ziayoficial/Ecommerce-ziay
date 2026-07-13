@@ -1,4 +1,4 @@
-// CommerceFlow OS — HMAC signature verification middleware
+// ZIAY — HMAC signature verification middleware
 // Used to verify incoming webhooks from Meta (WhatsApp Business API),
 // Shopify, WooCommerce, and other platforms that sign payloads with HMAC-SHA256.
 //

@@ -1,4 +1,4 @@
-// CommerceFlow OS — Wompi webhook
+// ZIAY — Wompi webhook
 // Saramantha §10 — recibe notificaciones de transacción de Wompi.
 //
 // Body example:

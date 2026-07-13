@@ -1,4 +1,4 @@
-// CommerceFlow OS — Orchestrator constants
+// ZIAY — Orchestrator constants
 // Saramantha §6 (10 agents) + §12 (orchestrator) + §15.1 (Kanban board columns)
 //
 // This file is the single source of truth for:

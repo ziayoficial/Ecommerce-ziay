@@ -1,4 +1,4 @@
-// CommerceFlow OS — Adapter registry
+// ZIAY — Adapter registry
 // Saramantha §8.1, §8.6 — resuelve el adaptador concreto en runtime según los
 // campos `Tenant.plataformaCatalogo` y `Tenant.proveedorLogistico`.
 //

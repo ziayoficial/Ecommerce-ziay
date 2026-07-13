@@ -1,4 +1,4 @@
-// CommerceFlow OS — Carrier name normalization
+// ZIAY — Carrier name normalization
 // Saramantha §15.2 + §8.6 — el mismo transportador puede llegar escrito de
 // 6 formas distintas ("Interrapidísimo", "Interrapidisimo", "interrapidisimo",
 // "Interrapidicimo", "Inter Rapidísimo", "INTERRAPIDISIMO") según de dónde

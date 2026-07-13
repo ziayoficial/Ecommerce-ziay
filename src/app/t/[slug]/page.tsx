@@ -59,7 +59,7 @@ export async function generateMetadata({
   const { slug } = await params
   const tenant = await db.tenant.findUnique({ where: { slug } })
   if (!tenant) {
-    return { title: 'Tienda no encontrada · CommerceFlow OS' }
+    return { title: 'Tienda no encontrada · ZIAY' }
   }
 
   const seo = await fetchSeoConfig(tenant.id)
@@ -333,7 +333,7 @@ export default async function TenantStorefrontPage({ params }: PageProps) {
               href={BASE_URL}
               className="font-medium underline-offset-2 hover:underline"
             >
-              CommerceFlow OS
+              ZIAY
             </a>
           </p>
         </div>

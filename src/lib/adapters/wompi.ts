@@ -1,4 +1,4 @@
-// CommerceFlow OS — WompiAdapter
+// ZIAY — WompiAdapter
 // Saramantha §10 — gateway de pago principal en Colombia (Bancolombia).
 //
 // Integración:

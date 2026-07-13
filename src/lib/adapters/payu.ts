@@ -1,4 +1,4 @@
-// CommerceFlow OS — PayUAdapter
+// ZIAY — PayUAdapter
 // Saramantha §10 — gateway de pago LATAM (AR, BR, CL, CO, MX, PE).
 // API SOAP-like sobre POST JSON, single endpoint `service.cgi`.
 //
@@ -101,7 +101,7 @@ export class PayUAdapter implements PaymentAdapter {
           },
           payer: {
             merchantBuyerId: opts.reference,
-            fullName: 'CommerceFlow Customer',
+            fullName: 'ZIAY Customer',
             emailAddress:
               process.env.PAYU_PAYER_EMAIL ?? 'noreply@commerceflow.app',
           },
@@ -111,7 +111,7 @@ export class PayUAdapter implements PaymentAdapter {
           deviceSessionId: crypto.randomUUID(),
           ipAddress: '127.0.0.1',
           cookie: 'N/A',
-          userAgent: 'CommerceFlow/1.0',
+          userAgent: 'ZIAY/1.0',
         },
         test: this.isTest,
       }

@@ -1,4 +1,4 @@
-// CommerceFlow OS — LogisticsAdapter interface
+// ZIAY — LogisticsAdapter interface
 // Saramantha doc §8.6 — desacopla al agente de logística (§6.8) y al de
 // checkout (§6.10) de cuál plataforma de envíos usa cada tenant.
 //

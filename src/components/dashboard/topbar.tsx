@@ -120,7 +120,7 @@ export function Topbar({ active, country, onCountryChange, onChangeView, onOpenS
                 <Zap className="size-5 text-primary" />
               </div>
               <SheetTitle className="text-sm font-semibold leading-tight">
-                CommerceFlow OS
+                ZIAY
                 <span className="block text-[11px] font-normal text-muted-foreground">Conversational Commerce</span>
               </SheetTitle>
             </SheetHeader>

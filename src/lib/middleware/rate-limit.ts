@@ -1,4 +1,4 @@
-// CommerceFlow OS — In-memory rate limiter middleware
+// ZIAY — In-memory rate limiter middleware
 //
 // Sliding-window rate limiter using an in-memory Map of IP → timestamps.
 // Returns a 429 NextResponse if the limit is exceeded, null otherwise.

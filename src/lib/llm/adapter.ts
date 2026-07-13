@@ -1,4 +1,4 @@
-// CommerceFlow OS — LLM Provider Adapter
+// ZIAY — LLM Provider Adapter
 //
 // Pluggable abstraction over multiple LLM providers so the agent layer
 // (src/lib/agents) and other callers can switch between ZAI (default),

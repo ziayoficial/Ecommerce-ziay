@@ -1,4 +1,4 @@
-// CommerceFlow OS — GoogleAdsAdapter
+// ZIAY — GoogleAdsAdapter
 //
 // Saramantha §7 — adaptador de Google Ads para importar spend, impressions,
 // clicks y conversions por campaña y por anuncio.

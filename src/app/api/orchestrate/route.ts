@@ -1,4 +1,4 @@
-// CommerceFlow OS — API /api/orchestrate
+// ZIAY — API /api/orchestrate
 // Saramantha §12 — orchestrator that walks the 9-step agent pipeline.
 //
 // POST body: { tenantId, action: 'full' | 'step', scenarioId?, conversationId?, customerId?, currentStep? }

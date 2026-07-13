@@ -1,4 +1,4 @@
-// CommerceFlow OS — AdPlatformAdapter interface
+// ZIAY — AdPlatformAdapter interface
 //
 // Saramantha §7 — desacopla las plataformas de pauta (Google Ads, TikTok Ads,
 // Meta Ads) del orquestador de atribución y del dashboard de Ads.

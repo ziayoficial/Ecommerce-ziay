@@ -125,7 +125,7 @@ export default function Home() {
               <div className="size-5 rounded-md bg-primary/15 ring-1 ring-primary/25 flex items-center justify-center">
                 <Zap className="size-3 text-primary" />
               </div>
-              <span className="font-medium text-foreground">CommerceFlow OS</span>
+              <span className="font-medium text-foreground">ZIAY</span>
             </div>
             <span className="hidden sm:inline">·</span>
             <span>Conversational Commerce + Ad Attribution</span>

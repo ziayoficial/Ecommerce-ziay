@@ -1,4 +1,4 @@
-// CommerceFlow OS — Stripe webhook
+// ZIAY — Stripe webhook
 // Saramantha §10 — recibe eventos de Stripe (checkout.session.completed,
 // payment_intent.succeeded, charge.refunded, etc.).
 //

@@ -36,7 +36,7 @@ export function Sidebar({ active, onChange, badges }: {
           <Zap className="size-5 text-primary" />
         </div>
         <div className="leading-tight min-w-0">
-          <div className="font-semibold text-sm truncate">CommerceFlow OS</div>
+          <div className="font-semibold text-sm truncate">ZIAY</div>
           <div className="text-[11px] text-sidebar-foreground/70 truncate">Conversational Commerce</div>
         </div>
       </div>

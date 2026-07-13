@@ -1,4 +1,4 @@
-// CommerceFlow OS — PaymentAdapter interface
+// ZIAY — PaymentAdapter interface
 // Saramantha §10 / §17 — desacopla los gateways de pago (MercadoPago, Wompi,
 // Stripe, PayU) del flujo conversacional y del orquestador de checkout.
 // Cualquier referencia a pagos en agentes y API routes debe usar esta interfaz,

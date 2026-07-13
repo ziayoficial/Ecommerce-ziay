@@ -1,4 +1,4 @@
-// CommerceFlow OS — API /api/shipping/guide
+// ZIAY — API /api/shipping/guide
 // Saramantha §8.6, §6.10 — generación de guía vía LogisticsAdapter.
 //
 // POST body: { tenantId, orderId }

@@ -1,4 +1,4 @@
-// CommerceFlow OS — Ad Platform Adapter Registry
+// ZIAY — Ad Platform Adapter Registry
 //
 // Saramantha §7 — resuelve el adaptador de pauta concreto en runtime según el
 // nombre de la plataforma y el tenant. Único punto del código que sabe qué

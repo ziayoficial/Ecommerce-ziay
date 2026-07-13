@@ -1,4 +1,4 @@
-// CommerceFlow OS — StripeAdapter
+// ZIAY — StripeAdapter
 // Saramantha §10 — gateway de pago global (US/EU/APAC). Cantidades en centavos.
 //
 // Integración:

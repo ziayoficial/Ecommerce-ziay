@@ -1,4 +1,4 @@
-// CommerceFlow OS — Structured logger (pino)
+// ZIAY — Structured logger (pino)
 //
 // Saramantha §13 — logger estructurado para toda la plataforma. Reemplaza los
 // `console.log` / `console.error` dispersos por un logger con:

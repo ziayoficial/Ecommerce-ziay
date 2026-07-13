@@ -146,7 +146,7 @@ function LoginInner() {
           <div className="size-9 rounded-xl bg-white/15 ring-1 ring-white/25 backdrop-blur flex items-center justify-center">
             <Zap className="size-5" />
           </div>
-          <span className="font-semibold text-lg tracking-tight">CommerceFlow OS</span>
+          <span className="font-semibold text-lg tracking-tight">ZIAY</span>
         </div>
 
         <div className="relative z-10 space-y-6 max-w-md">
@@ -176,7 +176,7 @@ function LoginInner() {
         </div>
 
         <div className="relative z-10 text-xs text-emerald-100/80">
-          © {new Date().getFullYear()} CommerceFlow OS · Indisutex SAS
+          © {new Date().getFullYear()} ZIAY · Indisutex SAS
         </div>
       </aside>
 
@@ -188,7 +188,7 @@ function LoginInner() {
             <div className="size-9 rounded-xl bg-primary/15 ring-1 ring-primary/25 flex items-center justify-center">
               <Zap className="size-5 text-primary" />
             </div>
-            <span className="font-semibold text-lg tracking-tight">CommerceFlow OS</span>
+            <span className="font-semibold text-lg tracking-tight">ZIAY</span>
           </div>
 
           <Card className="border-border/70 shadow-lg shadow-emerald-900/5">

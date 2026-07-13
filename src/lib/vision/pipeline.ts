@@ -1,4 +1,4 @@
-// CommerceFlow OS — Vision Pipeline
+// ZIAY — Vision Pipeline
 //
 // Uses ZAI's VLM (glm-4.6v) to:
 //   1. `identifyImage(imageUrl, tenantCtx?)` — identify a product in a customer
@@ -85,7 +85,7 @@ export async function identifyImage(
     catalogForAudit = products.map((p) => ({ sku: p.sku, name: p.name, diseno: p.diseno }))
   }
 
-  const systemPrompt = `Eres el agente de visión de CommerceFlow OS (tenant ${tenantId ?? 'desconocido'}, contexto Saramantha / Indisutex). Identificas productos del catálogo real a partir de imágenes enviadas por el cliente.
+  const systemPrompt = `Eres el agente de visión de ZIAY (tenant ${tenantId ?? 'desconocido'}, contexto Saramantha / Indisutex). Identificas productos del catálogo real a partir de imágenes enviadas por el cliente.
 
 Reglas estrictas:
 1. La franja de metadata visible en cada imagen del catálogo contiene SKU, diseño y precio de referencia.
@@ -172,7 +172,7 @@ export async function enrichProductImage(
   tenantCtx?: TenantVisionContext,
 ): Promise<ProductImageEnrichmentResult> {
   const tenantId = tenantCtx?.tenantId
-  const systemPrompt = `Eres el enriquecedor de catálogo de CommerceFlow OS (tenant ${tenantId ?? 'desconocido'}). Para la imagen del producto provista, generas:
+  const systemPrompt = `Eres el enriquecedor de catálogo de ZIAY (tenant ${tenantId ?? 'desconocido'}). Para la imagen del producto provista, generas:
 1) alt_image: descripción accesible de la imagen (100-150 caracteres), útil para lectores de pantalla y SEO.
 2) tags: 5-8 tags separados por coma, sin repetir el nombre del producto.
 3) description_seo: descripción corta (máx 160 caracteres) con palabras clave comerciales.

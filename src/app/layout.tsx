@@ -17,10 +17,10 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "CommerceFlow OS · Conversational Commerce + Ad Attribution",
+  title: "ZIAY · Conversational Commerce + Ad Attribution",
   description: "Plataforma omnicanal de venta conversacional (WhatsApp, Messenger, Instagram) con órdenes, pagos anticipado/contra entrega y atribución de pauta con CPA, ROAS y ROI.",
   keywords: ["conversational commerce", "WhatsApp Business", "Messenger", "ad attribution", "ROAS", "CPA", "Colombia", "ecommerce"],
-  authors: [{ name: "CommerceFlow OS" }],
+  authors: [{ name: "ZIAY" }],
   icons: {
     icon: "https://z-cdn.chatglm.cn/z-ai/static/logo.svg",
   },

@@ -1,4 +1,4 @@
-// CommerceFlow OS — EcommerceAdapter interface
+// ZIAY — EcommerceAdapter interface
 // Saramantha doc §8.1–§8.5 — desacopla los agentes conversacionales del catálogo real.
 // Un agente nunca sabe si está hablando con WhatsApp Catalog, WooCommerce, Shopify,
 // la Supabase del cliente, o una base Oracle nuestra. Todos llaman a esta interfaz.

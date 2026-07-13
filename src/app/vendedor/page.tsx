@@ -14,7 +14,7 @@ interface PageProps {
 }
 
 export const metadata: Metadata = {
-  title: 'Panel del Vendedor · CommerceFlow OS',
+  title: 'Panel del Vendedor · ZIAY',
   description:
     'Panel del vendedor: KPIs, conversaciones activas, ventas recientes y acciones rápidas.',
   robots: { index: false, follow: false },
@@ -347,7 +347,7 @@ export default async function SellerPage({ searchParams }: PageProps) {
       {/* ── Footer ── */}
       <footer className="mt-auto border-t bg-background">
         <div className="mx-auto max-w-6xl px-4 py-4 text-xs text-muted-foreground">
-          Panel del vendedor · CommerceFlow OS
+          Panel del vendedor · ZIAY
         </div>
       </footer>
     </div>

@@ -1,4 +1,4 @@
-// CommerceFlow OS — Security headers middleware
+// ZIAY — Security headers middleware
 //
 // Saramantha §13 — hardening HTTP. Aplica headers de seguridad estándar a
 // cualquier NextResponse:

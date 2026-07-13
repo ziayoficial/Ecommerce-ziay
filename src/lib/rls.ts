@@ -1,4 +1,4 @@
-// CommerceFlow OS — Row-Level Security (RLS) helpers
+// ZIAY — Row-Level Security (RLS) helpers
 //
 // Multi-tenant isolation at the Prisma layer. Every query that touches
 // tenant-scoped models MUST pass through `tenantWhere(tenantId)` or use
@@ -149,7 +149,7 @@ export function makeTenantPrismaExtension(tenantId: string) {
  */
 export const RLS_SQL_POLICIES = `
 -- ───────────────────────────────────────────────────────────────────
--- CommerceFlow OS — Row-Level Security policies (PostgreSQL prod)
+-- ZIAY — Row-Level Security policies (PostgreSQL prod)
 -- Apply AFTER migrating from SQLite. Requires pgcrypto for gen_random_uuid().
 -- ───────────────────────────────────────────────────────────────────
 

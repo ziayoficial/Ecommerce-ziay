@@ -1,4 +1,4 @@
-// CommerceFlow OS — 10 conversational agents (Saramantha §6 spec, exact prompts)
+// ZIAY — 10 conversational agents (Saramantha §6 spec, exact prompts)
 // Each agent is a function that builds the system prompt from Tenant config + business tables
 // (regla de oro §2: NUNCA business data in prompt text — always fetched from DB filtered by tenantId).
 
@@ -318,7 +318,7 @@ Modo de pago preferido para este pedido: (definido por el agente de discurso/con
 export async function buildBuyerBehaviorPrompt(ctx: AgentContext): Promise<{ system: string; user: string }> {
   const tenant = await db.tenant.findUnique({ where: { id: ctx.tenantId } })
   if (!tenant) throw new Error('Tenant not found')
-  const system = `Eres el analista de comportamiento de compra de ${tenant.slug} (plataforma CommerceFlow OS,
+  const system = `Eres el analista de comportamiento de compra de ${tenant.slug} (plataforma ZIAY,
 contexto Saramantha / Indisutex). Recibes el historial de mensajes y eventos del lead y produces un
 diagnóstico estructurado. Tu única salida es JSON con esta forma:
 {"intencion": "alta|media|baja|fraude_potencial", "signals": [...], "siguiente_accion":

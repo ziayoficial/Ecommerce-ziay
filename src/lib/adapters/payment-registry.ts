@@ -1,4 +1,4 @@
-// CommerceFlow OS — Payment Adapter Registry
+// ZIAY — Payment Adapter Registry
 // Saramantha §10 — resuelve el adaptador de pago concreto en runtime según
 // `Order.paymentGateway` o el config del tenant. Único punto del código que
 // sabe qué implementación concreta de PaymentAdapter corresponde a cada gateway.

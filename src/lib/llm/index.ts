@@ -1,4 +1,4 @@
-// CommerceFlow OS — LLM Provider public API
+// ZIAY — LLM Provider public API
 //
 // Re-exports everything from `./adapter` so callers do `import { ... } from '@/lib/llm'`.
 //

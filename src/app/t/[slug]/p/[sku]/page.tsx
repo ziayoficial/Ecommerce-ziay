@@ -318,7 +318,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
               href={BASE_URL}
               className="font-medium underline-offset-2 hover:underline"
             >
-              CommerceFlow OS
+              ZIAY
             </a>
           </p>
         </div>

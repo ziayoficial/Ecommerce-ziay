@@ -1,4 +1,4 @@
-# AUDITORÍA PUNTO POR PUNTO — PROYECTO_saramantha_agentes_whatsapp.md vs CommerceFlow OS
+# AUDITORÍA PUNTO POR PUNTO — PROYECTO_saramantha_agentes_whatsapp.md vs ZIAY
 
 > **Metodología:** Relección completa del documento (922 líneas, 19 secciones + índice + sección 0). Para cada punto, verificación contra el código real (`prisma/schema.prisma`, `src/lib/agents/prompts.ts`, `src/lib/adapters/*`, `src/app/api/*`, `src/components/dashboard/*`, `mini-services/chat-service/`).
 > **Leyenda:** ✅ Cumple · ⚠️ Parcial · ❌ No cumple

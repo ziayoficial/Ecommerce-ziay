@@ -1,6 +1,6 @@
-# Guía de Deploy a Producción — CommerceFlow OS
+# Guía de Deploy a Producción — ZIAY
 
-> **Objetivo:** Levantar CommerceFlow OS en producción con tres opciones — Docker Compose (recomendado), VPS manual, o Vercel + Railway/Render — cerrando los 27+ secrets de entorno, webhooks HMAC, RLS en Postgres, pgvector, y todos los adapters reales.
+> **Objetivo:** Levantar ZIAY en producción con tres opciones — Docker Compose (recomendado), VPS manual, o Vercel + Railway/Render — cerrando los 27+ secrets de entorno, webhooks HMAC, RLS en Postgres, pgvector, y todos los adapters reales.
 >
 > **Audiencia:** DevOps engineers, SRE, sysadmins con experiencia en Linux, Docker y reverse proxies.
 > **Tiempo estimado:** 30-45 min (Docker) · 60-90 min (VPS manual) · 20 min (Vercel+Railway, solo frontend).
@@ -752,7 +752,7 @@ Si no funciona, edita los workflows para usar `http://host.docker.internal:3000`
 
 ### 8.3 NocoDB no ve las tablas
 
-NocoDB usa una DB separada (`nocodb`). Para ver las tablas de CommerceFlow:
+NocoDB usa una DB separada (`nocodb`). Para ver las tablas de ZIAY:
 1. NocoDB → Settings → Data Sources.
 2. Añade la DB `commerceflow` como nueva conexión Postgres.
 

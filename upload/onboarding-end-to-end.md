@@ -1,4 +1,4 @@
-# CommerceFlow OS — Guía de Onboarding & End-to-End
+# ZIAY — Guía de Onboarding & End-to-End
 
 > **Documento operativo y técnico** para nuevos agentes, traffickers, finanzas y desarrolladores.
 > Español LATAM neutral · técnico pero accesible · v1.0
@@ -31,7 +31,7 @@
 
 ## 1. Bienvenida y contexto del producto
 
-**CommerceFlow OS** es un **Centro de Mando de Conversational Commerce + Ad Attribution**. Es una sola pantalla (una sola ruta `/` conmutada en cliente) que unifica tres mundos que normalmente viven separados en tools desconectadas:
+**ZIAY** es un **Centro de Mando de Comercio Conversacional + Atribución Inteligente**. Es una sola pantalla (una sola ruta `/` conmutada en cliente) que unifica tres mundos que normalmente viven separados en tools desconectadas:
 
 1. **Mensajería conversacional** — WhatsApp Business API (principal en Colombia), Facebook Messenger (internacional) e Instagram DM. Bandeja unificada con atribución de campaña por conversación.
 2. **Pedidos y pagos** — con soporte nativo para **pago anticipado** (carrito ecommerce), **contra entrega (COD)** e **híbrido** configurable por canal y país.
@@ -39,7 +39,7 @@
 
 ### Para quién es
 
-| Rol | Qué hace en CommerceFlow OS |
+| Rol | Qué hace en ZIAY |
 |---|---|
 | **Agente de chat** | Responde conversaciones en WhatsApp/Messenger/IG, usa IA para sugerir respuestas, cierra pedidos, valida dirección y modo de pago. |
 | **Trafficker / Media buyer** | Revisa el módulo Atribución de Pauta diario, identifica anuncios en veredicto `Apagar` o `Canibaliza`, ejecuta kill-switch, escala los ganadores. |
@@ -59,7 +59,7 @@
 | **ROI** (Return on Investment) | Como ROAS pero restando COGS (costo de mercancía). `(utilidad neta) ÷ inversión`. |
 | **COD** (Cash on Delivery) | Contra entrega. El cliente paga al recibir el producto en su puerta. |
 | **AOV** (Average Order Value) | Ticket promedio. `ingresos totales ÷ número de pedidos`. |
-| **Atribución** | Asignar el crédito de una venta al anuncio/campaña que la generó. En CommerceFlow usamos **last-click** por defecto (`fbclid`/`gclid`/`ttclid` → pedido). |
+| **Atribución** | Asignar el crédito de una venta al anuncio/campaña que la generó. En ZIAY usamos **last-click** por defecto (`fbclid`/`gclid`/`ttclid` → pedido). |
 | **Canibalización** | Cuando una plataforma de pauta reporta conversiones que en realidad llegaron por otro canal. La plataforma "se roba" el crédito. |
 | **CPL** (Costo por Lead) | Costo por conversión reportada por la plataforma (no necesariamente real). |
 | **CVR** (Conversion Rate) | Tasa de conversión de click a pedido. `pedidos ÷ clicks`. |
@@ -131,7 +131,7 @@
 
 ### Analogía práctica
 
-> 💡 **Pensamiento ágil**: imagina que cada anuncio es un **vendedor** enviado a la calle. La plataforma te dice "este vendedor cerró 10 ventas" pero cuando miras la caja, solo hay 6 pedidos con su firma. Los otros 4 los cerraron otros vendedores (o el cliente ya venía caminando solo). CommerceFlow OS es **el gerente que cruza la caja con la planilla de los vendedores y te dice: "este vendedor está inflando sus números, despídelo"**. El `click_id` es la firma del vendedor en el pedido.
+> 💡 **Pensamiento ágil**: imagina que cada anuncio es un **vendedor** enviado a la calle. La plataforma te dice "este vendedor cerró 10 ventas" pero cuando miras la caja, solo hay 6 pedidos con su firma. Los otros 4 los cerraron otros vendedores (o el cliente ya venía caminando solo). ZIAY es **el gerente que cruza la caja con la planilla de los vendedores y te dice: "este vendedor está inflando sus números, despídelo"**. El `click_id` es la firma del vendedor en el pedido.
 
 ### Componentes (stack final)
 
@@ -320,7 +320,7 @@ En **otra terminal**:
 ```bash
 cd mini-services/chat-service
 bun run dev
-# → ✅ CommerceFlow chat-service running on port 3003
+# → ✅ ZIAY chat-service running on port 3003
 ```
 
 ### 4.7 Arrancar el gateway Caddy
@@ -590,7 +590,7 @@ Cada setting se persiste como fila en la tabla `Setting` (clave-valor) vía `ups
 
 Lista visual (no editable en v1) de:
 - WhatsApp Business API · Conectado · "+57 300 111 2233 · verificado"
-- Facebook Messenger · Conectado · "Página CommerceFlow · INTL"
+- Facebook Messenger · Conectado · "Página ZIAY · INTL"
 - Instagram DM · Conectado · "@commerceflow.shop"
 - Meta Ads API · Conectado · "act_102455 · token válido"
 - Google Ads API · Conectado · "123-456-7890 · OAuth ok"
@@ -614,7 +614,7 @@ Lista de URLs que debes configurar en cada plataforma:
 
 ## 6. Configurar tu estrategia de pago (la decisión clave)
 
-> Esta es **la decisión más importante** que tomas en CommerceFlow OS. Afecta flujo de caja, rechazos, devoluciones y margen.
+> Esta es **la decisión más importante** que tomas en ZIAY. Afecta flujo de caja, rechazos, devoluciones y margen.
 
 ### 6.1 Las tres estrategias
 
@@ -849,7 +849,7 @@ SELECT * FROM AuditLog WHERE action='webhook.wa.inbound' ORDER BY createdAt DESC
 
 #### Qué importar
 
-CommerceFlow necesita para cada anuncio:
+ZIAY necesita para cada anuncio:
 - `externalId` = el `ad_id` de Meta (ej. `120201000000000`)
 - `name` = el nombre del ad
 - `campaign` = campaign_id + nombre
@@ -1041,7 +1041,7 @@ Las plataformas de pauta tienen incentivo a inflar sus conversiones:
 - **Google** usa modelos similares con `ga:campaign` y conversiones importadas.
 - Si un cliente vio tu anuncio de Meta, pero compró vía WhatsApp directo (sin click), Meta igual se atribuye el crédito.
 
-**CommerceFlow detecta esto** cuando:
+**ZIAY detecta esto** cuando:
 - `convReported > 0` (la plataforma dice "vendí")
 - `orderCount === 0` (no hay pedido real con ese `click_id`)
 - `roas < roasKill` (el ROAS real está bajo el umbral)
@@ -1768,14 +1768,14 @@ En v1 el kill-switch es por **anuncio** individual (PATCH `/api/ads/[id]`). Para
 - Apaga cada anuncio de la campaña uno a uno.
 - O implementar endpoint `POST /api/campaigns/[id]/pause` que itere y haga `PATCH /api/ads/[id]` por cada ad (TODO).
 
-### 6. ¿Por qué mi ROAS en Meta Ads Manager difiere del ROAS en CommerceFlow?
+### 6. ¿Por qué mi ROAS en Meta Ads Manager difiere del ROAS en ZIAY?
 
-Porque Meta cuenta como "venta" cualquier evento del pixel (view-through + click-through), y usa `revenue` (no `paidRevenue`). CommerceFlow usa:
+Porque Meta cuenta como "venta" cualquier evento del pixel (view-through + click-through), y usa `revenue` (no `paidRevenue`). ZIAY usa:
 - `paidRevenue` (solo cobrado, no pendiente)
 - `orderCount` real (pedidos con ese `click_id`, no eventos del pixel)
 - Solo pedidos atribuidos vía click_id (no view-through)
 
-Por eso CommerceFlow suele mostrar **ROAS más bajo pero más real** que Meta. La diferencia es la "canibalización" que Meta infla.
+Por eso ZIAY suele mostrar **ROAS más bajo pero más real** que Meta. La diferencia es la "canibalización" que Meta infla.
 
 ### 7. ¿Cómo agrego un nuevo producto al catálogo?
 
@@ -1809,7 +1809,7 @@ Vía API: `GET /api/ads?days=30` devuelve JSON con todos los rows, metrics, verd
 
 | Término | Definición |
 |---|---|
-| **CommerceFlow OS** | Plataforma de Conversational Commerce + Ad Attribution. Producto. |
+| **ZIAY** | Plataforma de Comercio Conversacional + Atribución Inteligente. Producto. |
 | **Canal** (Channel) | Vía de mensajería con cliente: WhatsApp, Messenger, Instagram, Telegram. Cada canal tiene su propia estrategia de pago. |
 | **Conversación** (Conversation) | Thread de mensajes entre un cliente y uno o más agentes. Tiene estado (open/pending/resolved/closed) y prioridad. |
 | **Pedido** (Order) | Una orden de compra con items, modo de pago, estado y atribución. |
@@ -1856,7 +1856,7 @@ Vía API: `GET /api/ads?days=30` devuelve JSON con todos los rows, metrics, verd
 | **First-click** | 100% al primer click (descubrimiento). |
 | **Lineal** | Reparto equitativo entre todos los touchpoints. |
 | **Time-decay** | Más peso a los clicks más cercanos al pedido. |
-| **View-through** | Atribuir por vista de anuncio (no soportado en CommerceFlow — solo click). |
+| **View-through** | Atribuir por vista de anuncio (no soportado en ZIAY — solo click). |
 
 ### Roles
 
@@ -2003,4 +2003,4 @@ Según el worklog original, estas son las verificaciones realizadas en la v1:
 
 **Fin del documento.** Para soporte, abre un issue en el repo o contacta al equipo de plataforma.
 
-*CommerceFlow OS · v1.0 · Bogotá · LATAM+EU · Construido con Next.js 16 · Prisma · Socket.io · LLM*
+*ZIAY · v1.0 · Bogotá · LATAM+EU · Construido con Next.js 16 · Prisma · Socket.io · LLM*

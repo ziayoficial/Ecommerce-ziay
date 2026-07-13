@@ -1,6 +1,6 @@
-# Onboarding Completo — CommerceFlow OS
+# Onboarding Completo — ZIAY
 
-> **La guía definitiva para operar, desarrollar y administrar CommerceFlow OS** — el centro de mando de commerce conversacional + atribución de pauta para LATAM, construido por y para **Indisutex SAS** (Saramantha, Sublimados Majestic, Lovely Pijamas, Sueño de Reina).
+> **La guía definitiva para operar, desarrollar y administrar ZIAY** — el centro de mando de commerce conversacional + atribución de pauta para LATAM, construido por y para **Indisutex SAS** (Saramantha, Sublimados Majestic, Lovely Pijamas, Sueño de Reina).
 >
 > **Versión 2.0** — sincronizada con `worklog.md` tras `AUTOFIX-A + REPORT-001`. Reemplaza la versión 1.0.
 > **Audiencia:** admin tenant, agente de ventas, operador logístico, trafficker, marketing, desarrolladores, dueños de marca.
@@ -30,13 +30,13 @@
 
 ## 1. Bienvenida
 
-Bienvenido al equipo de **CommerceFlow OS**. Esta es la plataforma que conecta los chats de WhatsApp, Messenger e Instagram con los anuncios de Meta, Google y TikTok — y te dice, con precisión **pedidos-por-anuncio**, cuál pauta vende de verdad y cuál solo consume presupuesto.
+Bienvenido al equipo de **ZIAY**. Esta es la plataforma que conecta los chats de WhatsApp, Messenger e Instagram con los anuncios de Meta, Google y TikTok — y te dice, con precisión **pedidos-por-anuncio**, cuál pauta vende de verdad y cuál solo consume presupuesto.
 
 ### Por qué existe
 
-Indisutex SAS opera cuatro marcas en Colombia (Saramantha, Sublimados Majestic, Lovely Pijamas, Sueño de Reina) y atiende también a clientes externos con catálogos propios. Cada marca vende por WhatsApp y hace pauta en Meta/Google/TikTok. Antes de CommerceFlow OS, no había manera de reconciliar las conversiones que reportan las plataformas (Meta cuenta un "lead" como conversión) con la caja real del cliente (el pedido se confirma 2 días después por WhatsApp). El resultado: traffickers escalando anuncios que no vendían, financistas sin visibilidad del GMV real, y operadores ahogados en 3 bandejas de chat distintas.
+Indisutex SAS opera cuatro marcas en Colombia (Saramantha, Sublimados Majestic, Lovely Pijamas, Sueño de Reina) y atiende también a clientes externos con catálogos propios. Cada marca vende por WhatsApp y hace pauta en Meta/Google/TikTok. Antes de ZIAY, no había manera de reconciliar las conversiones que reportan las plataformas (Meta cuenta un "lead" como conversión) con la caja real del cliente (el pedido se confirma 2 días después por WhatsApp). El resultado: traffickers escalando anuncios que no vendían, financistas sin visibilidad del GMV real, y operadores ahogados en 3 bandejas de chat distintas.
 
-CommerceFlow OS resuelve esto unificando todo en un dashboard multi-tenant, capturando el `fbclid` / `gclid` / `ttclid` en el primer contacto, propagándolo por el embudo conversacional, y escribiendo un `Attribution` row al cerrar el pedido.
+ZIAY resuelve esto unificando todo en un dashboard multi-tenant, capturando el `fbclid` / `gclid` / `ttclid` en el primer contacto, propagándolo por el embudo conversacional, y escribiendo un `Attribution` row al cerrar el pedido.
 
 ### Qué vas a lograr
 
@@ -119,7 +119,7 @@ Al terminar este onboarding vas a ser capaz de:
 
 ### 2.2 Explicación
 
-CommerceFlow OS es una **aplicación híbrida SSR + SPA** construida sobre Next.js 16. El dashboard principal (`/`) es una SPA que cambia de vista en cliente (14 módulos), pero las páginas públicas de tenant y producto son **SSR** para SEO. El backend expone **44 rutas de API** dentro del mismo proceso Next.js, y un **mini-service Socket.io** separado (puerto 3003) maneja el tiempo real de mensajería.
+ZIAY es una **aplicación híbrida SSR + SPA** construida sobre Next.js 16. El dashboard principal (`/`) es una SPA que cambia de vista en cliente (14 módulos), pero las páginas públicas de tenant y producto son **SSR** para SEO. El backend expone **44 rutas de API** dentro del mismo proceso Next.js, y un **mini-service Socket.io** separado (puerto 3003) maneja el tiempo real de mensajería.
 
 La base de datos es **SQLite en desarrollo** y **PostgreSQL 16 + pgvector en producción**. El schema Prisma es portable — solo cambia el `DATABASE_URL`. Hay **62 modelos** que cubren desde `Tenant` hasta `NovedadCase` y `RedeliveryRequest`.
 
@@ -141,7 +141,7 @@ Antes de tocar el teclado, estos **9 conceptos** aparecen en cada pantalla. Si l
 | 4 | **Pedido (Order)** | Orden de compra con items, total, modo de pago (`advance`, `cod`, `hybrid`), dirección y estado del embudo §15.1 (8 estados). | La orden de compra que firmó el cliente al cerrar la venta. |
 | 5 | **Novedad** | Incidencia logística (paquete dañado, no entregado, dirección errada…). Se crea un `NovedadCase` con número `NV-2026-XXXXX`, evidencias y escalación humana obligatoria. | Un ticket de soporte logístico con fotos y trazabilidad. |
 | 6 | **Redelivery** | Reintento de entrega de una guía que fue devuelta. Máximo 3 intentos. 7 motivos posibles. Siempre requiere acción humana. | El motero que vuelve a intentar la entrega porque no estaba el cliente. |
-| 7 | **Wallet** | Balance del trafficker en COP. Incluye comisiones ganadas, retiros solicitados, ledger completo. Los retiros requieren 2FA TOTP. | La cuenta de ahorros del trafficker dentro de CommerceFlow. |
+| 7 | **Wallet** | Balance del trafficker en COP. Incluye comisiones ganadas, retiros solicitados, ledger completo. Los retiros requieren 2FA TOTP. | La cuenta de ahorros del trafficker dentro de ZIAY. |
 | 8 | **Trafficker** | Affiliate que invierte presupuesto en pauta para productos del marketplace. Cobra comisión solo por ventas **confirmadas** (entregadas). Si el vendedor falla, recibe compensación automática. | Un inversor que banca la pauta y cobra si vende. |
 | 9 | **Atribución** | Conexión entre un `Order` y el `Ad` que trajo al cliente. Calculada desde el `fbclid` / `gclid` / `ttclid` capturado en el primer mensaje. Alimenta el motor de veredictos (scale / optimize / watch / pause / kill / cannibalize). | El árbitro que decide qué vendedor se lleva la comisión. |
 
@@ -221,7 +221,7 @@ Antes de tocar el teclado, estos **9 conceptos** aparecen en cada pantalla. Si l
 
 1. Abrir módulo **Atribución de Pauta** (módulo 7).
 2. Revisar la tabla por anuncio: 19 métricas + 6 veredictos.
-3. Para anuncios en `scale`: subir presupuesto en Meta/Google/TikTok directamente (CommerceFlow no ejecuta la subida, solo recomienda).
+3. Para anuncios en `scale`: subir presupuesto en Meta/Google/TikTok directamente (ZIAY no ejecuta la subida, solo recomienda).
 4. Para anuncios en `kill` o `cannibalize`: ejecutar kill-switch con botón en la fila → audit log automático.
 5. Abrir módulo **Wallet** (módulo 9):
    - Ver balance disponible.
@@ -670,7 +670,7 @@ Los traffickers acumulan comisiones en su Wallet. Para retirar, deben autenticar
 
 ## 11. Integraciones disponibles
 
-CommerceFlow OS tiene **18 adapters** en 4 categorías + 2 registries.
+ZIAY tiene **18 adapters** en 4 categorías + 2 registries.
 
 ### 11.1 Catálogo (5 adapters)
 
@@ -717,8 +717,8 @@ CommerceFlow OS tiene **18 adapters** en 4 categorías + 2 registries.
 | Wompi | Entrante | `POST /api/webhooks/wompi` |
 | Stripe | Entrante | `POST /api/webhooks/stripe` |
 | PayU | Entrante | `POST /api/webhooks/payu` |
-| n8n → CommerceFlow | Entrante | (definido por workflow) |
-| CommerceFlow → NocoDB | Saliente | `NOCODB_WEBHOOK_URL` |
+| n8n → ZIAY | Entrante | (definido por workflow) |
+| ZIAY → NocoDB | Saliente | `NOCODB_WEBHOOK_URL` |
 
 ### 11.6 Herramientas externas
 
@@ -735,7 +735,7 @@ CommerceFlow OS tiene **18 adapters** en 4 categorías + 2 registries.
 
 ## 12. Páginas públicas SSR (SEO)
 
-CommerceFlow OS tiene **5 rutas SSR** para SEO y presencia pública. Estas páginas se renderizan en el servidor y se indexan en Google.
+ZIAY tiene **5 rutas SSR** para SEO y presencia pública. Estas páginas se renderizan en el servidor y se indexan en Google.
 
 ### 12.1 Rutas
 
@@ -766,7 +766,7 @@ CommerceFlow OS tiene **5 rutas SSR** para SEO y presencia pública. Estas pági
 
 ### Generales
 
-**1. ¿CommerceFlow OS funciona sin internet?** No. Es una aplicación web que requiere conexión permanente. El chat-service Socket.io también requiere WebSocket.
+**1. ¿ZIAY funciona sin internet?** No. Es una aplicación web que requiere conexión permanente. El chat-service Socket.io también requiere WebSocket.
 
 **2. ¿Puedo usarlo en mi celular?** Sí, el dashboard es responsive desde 390px. La navegación móvil usa un menú hamburguesa. Para WhatsApp real, sigue usando la app de WhatsApp del celular.
 
@@ -816,7 +816,7 @@ CommerceFlow OS tiene **5 rutas SSR** para SEO y presencia pública. Estas pági
 
 **20. ¿Cómo cambio de SQLite a Postgres?** Cambia `DATABASE_URL` en `.env` de `file:./db/custom.db` a `postgresql://...`. Ejecuta `bunx prisma migrate deploy`. El schema es portable.
 
-**21. ¿Puedo usar CommerceFlow sin n8n?** Sí, pero pierdes los 11 workflows externos (orquestación avanzada, integraciones con tools externos). El dashboard y los 26 agentes funcionan sin n8n.
+**21. ¿Puedo usar ZIAY sin n8n?** Sí, pero pierdes los 11 workflows externos (orquestación avanzada, integraciones con tools externos). El dashboard y los 26 agentes funcionan sin n8n.
 
 **22. ¿El código es open-source?** Sí, bajo licencia MIT. Los prompts de agentes y la configuración de tenants son propiedad de Indisutex SAS.
 

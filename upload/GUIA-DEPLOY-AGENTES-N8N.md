@@ -1,7 +1,7 @@
 # Guía de Deploy de Agentes en n8n
 
 > **Task ID:** DOCS-003
-> **Sistema:** CommerceFlow OS — 26 agentes conversacionales
+> **Sistema:** ZIAY — 26 agentes conversacionales
 > **Objetivo:** Desplegar cada uno de los 26 agentes como workflows de n8n auto- hospedados, junto con los 3 pipelines de orquestación (Pre-venta, Post-venta, Inteligencia).
 > **Audiencia:** DevOps · Platform Engineers · Integradores LATAM
 
@@ -9,7 +9,7 @@
 
 ## 1. Introducción — ¿por qué n8n?
 
-CommerceFlow OS expone **26 agentes conversacionales** como endpoints REST bajo
+ZIAY expone **26 agentes conversacionales** como endpoints REST bajo
 `POST /api/agents/{agentName}`. Cada agente recibe un `tenantId` + contexto
 conversacional y devuelve una respuesta generada por LLM (z-ai-web-dev-sdk).
 
@@ -21,7 +21,7 @@ conversacional y devuelve una respuesta generada por LLM (z-ai-web-dev-sdk).
    de compradores colombianos/mexicanos/europeos. RGPD / LOPD friendly.
 3. **Webhooks nativos** — cada workflow expone una URL `https://n8n.tu.com/webhook/...`
    que puede ser invocada desde WhatsApp Cloud API, Meta Webhooks, n8n Cloud, o
-   desde el propio dashboard CommerceFlow.
+   desde el propio dashboard ZIAY.
 4. **Encadenamiento** — el nodo `Execute Workflow` permite invocar un workflow
    desde otro, replicando exactamente el patrón del orquestador interno.
 
@@ -38,13 +38,13 @@ El resultado: una red de 26 workflows (uno por agente) + 3 workflows orquestador
 |---|---|---|
 | n8n | 1.50+ | self-hosted via docker-compose |
 | Docker | 24+ | docker-compose incluido en el repo |
-| CommerceFlow OS | cycle 2+ | API REST corriendo en `:3000` |
+| ZIAY | cycle 2+ | API REST corriendo en `:3000` |
 | PostgreSQL | 14+ | n8n puede usar SQLite en dev, PG en prod |
 | Redis | 6+ | opcional, para n8n queue mode |
 
 ### 2.2 El `docker-compose.yml` del repo ya incluye n8n
 
-El archivo `docker-compose.yml` de CommerceFlow OS incluye n8n en el puerto
+El archivo `docker-compose.yml` de ZIAY incluye n8n en el puerto
 **5678**. Levantar el stack completo:
 
 ```bash
@@ -76,7 +76,7 @@ curl -sI http://localhost:5678 | head -3
 En `.env`:
 
 ```bash
-# CommerceFlow API
+# ZIAY API
 COMMERCEFLOW_BASE_URL=http://commerceflow-web:3000
 COMMERCEFLOW_API_KEY=cf_prod_xxx     # shared secret con n8n
 
@@ -90,7 +90,7 @@ N8N_BASIC_AUTH_USER=admin
 N8N_BASIC_AUTH_PASSWORD=cambia-esto
 N8N_ENCRYPTION_KEY=base64:...        # generar con: openssl rand -base64 32
 
-# Postgres para n8n (separado del de CommerceFlow)
+# Postgres para n8n (separado del de ZIAY)
 POSTGRES_USER=n8n
 POSTGRES_PASSWORD=n8n-pass
 POSTGRES_DB=n8n
@@ -102,7 +102,7 @@ N8N_DATABASE_POSTGRESDB_PORT=5432
 ### 2.4 Health check mutuo
 
 Antes de empezar a crear workflows, validar que n8n puede alcanzar la API de
-CommerceFlow:
+ZIAY:
 
 ```bash
 # desde dentro del contenedor n8n
@@ -152,7 +152,7 @@ del docker-compose y que ambos servicios estén en el mismo `networks:` block.
                             │ HTTP (Docker network)
                             ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│              CommerceFlow OS API (puerto 3000)                  │
+│              ZIAY API (puerto 3000)                  │
 │                                                                  │
 │  POST /api/agents/{agentName}                                   │
 │  body: { tenantId, conversationId, customerId, ...ctx }         │
@@ -173,7 +173,7 @@ del docker-compose y que ambos servicios estén en el mismo `networks:` block.
 3. El workflow `orchestrator` encadena con `Execute Workflow` los 10 sub-workflows
    (agentes) del pipeline A en orden.
 4. Cada sub-workflow hace un `HTTP Request` a `POST /api/agents/{agentName}` en
-   CommerceFlow, que devuelve la respuesta del agente.
+   ZIAY, que devuelve la respuesta del agente.
 5. El workflow `orchestrator` consolida las respuestas y devuelve al WhatsApp via
    HTTP Request al Graph API (o al adaptador de canal).
 
@@ -211,7 +211,7 @@ del docker-compose y que ambos servicios estén en el mismo `networks:` block.
 | 26 | `logistics_notifier` | soporte | `/api/agents/logistics_notifier` | `/webhook/commerceflow/logistics_notifier` |
 
 > Nota: el agente `orchestrate` (meta-pipeline) vive en el orquestador interno de
-> CommerceFlow pero puede ser invocado desde n8n via `POST /api/agents/orchestrate`
+> ZIAY pero puede ser invocado desde n8n via `POST /api/agents/orchestrate`
 > con el parámetro `pipeline: 'pre_sale' | 'post_sale' | 'intelligence'`.
 
 ---
@@ -228,7 +228,7 @@ Cada uno de los 26 workflows sigue el mismo patrón de 4 nodos:
                                             │
                                             ▼
                                    ┌──────────────┐
-                                   │  CommerceFlow│
+                                   │  ZIAY│
                                    │  /api/agents/│
                                    │  {agentName} │
                                    └──────────────┘
@@ -243,7 +243,7 @@ Cada uno de los 26 workflows sigue el mismo patrón de 4 nodos:
 
 ### 5.2 Nodo 2 — Code (normalización)
 
-Convierte el body del webhook al formato que espera la API de CommerceFlow:
+Convierte el body del webhook al formato que espera la API de ZIAY:
 
 ```javascript
 // n8n Code node — JavaScript
@@ -290,7 +290,7 @@ return [{
 
 ### 5.4 Nodo 4 — Respond to Webhook
 
-Devuelve la respuesta de CommerceFlow al caller original (WhatsApp, dashboard,
+Devuelve la respuesta de ZIAY al caller original (WhatsApp, dashboard,
 otro workflow):
 
 ```javascript
@@ -963,12 +963,12 @@ secret** (`x-api-key`) en lugar de JWT porque:
 
 - Es simple de configurar en webhooks de Meta/WA/MercadoPago.
 - Permite rotación rápida sin invalidar sesiones.
-- Es compatible con el `tenantGuard` de CommerceFlow.
+- Es compatible con el `tenantGuard` de ZIAY.
 
 ### 11.1 Configurar Header Auth en n8n
 
 1. En n8n UI: **Credentials → New → Header Auth**
-2. Name: `CommerceFlow API Key`
+2. Name: `ZIAY API Key`
 3. Name: `x-api-key` · Value: `{{ $env.COMMERCEFLOW_API_KEY }}`
 4. Guardar y asignar a cada nodo Webhook en "Authentication".
 
@@ -1006,7 +1006,7 @@ Para rotar el secret sin downtime:
 
 ### 12.1 Retry a nivel de HTTP Request
 
-Cada nodo HTTP Request hacia CommerceFlow tiene:
+Cada nodo HTTP Request hacia ZIAY tiene:
 
 - `retryOnFail: true`
 - `maxTries: 3`
@@ -1123,7 +1123,7 @@ n8n expone métricas Prometheus en `/metrics` (habilitar con
 
 ---
 
-## 14. Integración con CommerceFlow OS
+## 14. Integración con ZIAY
 
 ### 14.1 Flujo bidireccional
 
@@ -1135,9 +1135,9 @@ n8n webhook /webhook/whatsapp-incoming
        │
        ▼ (2) Execute WF orchestrator (Pipeline A)
        │
-       ▼ (3) Para cada agente: HTTP Request → CommerceFlow /api/agents/{agent}
+       ▼ (3) Para cada agente: HTTP Request → ZIAY /api/agents/{agent}
        │
-       ▼ (4) CommerceFlow responde con { reply, meta }
+       ▼ (4) ZIAY responde con { reply, meta }
        │
        ▼ (5) n8n consolida + envía reply
        │
@@ -1146,9 +1146,9 @@ n8n webhook /webhook/whatsapp-incoming
        ▼ (7) Cliente recibe el reply en su WhatsApp
 ```
 
-### 14.2 Ejemplo — invocar desde dashboard CommerceFlow
+### 14.2 Ejemplo — invocar desde dashboard ZIAY
 
-El dashboard de CommerceFlow puede invocar n8n directamente (en lugar del
+El dashboard de ZIAY puede invocar n8n directamente (en lugar del
 orquestador interno) para aprovechar la visualización de n8n:
 
 ```typescript
@@ -1172,9 +1172,9 @@ async function runPipelineViaN8n(pipeline: 'pre_sale' | 'post_sale' | 'intellige
 }
 ```
 
-### 14.3 Variable de entorno en CommerceFlow para usar n8n
+### 14.3 Variable de entorno en ZIAY para usar n8n
 
-En `.env` de CommerceFlow:
+En `.env` de ZIAY:
 
 ```bash
 # si se quiere usar n8n como orquestador externo

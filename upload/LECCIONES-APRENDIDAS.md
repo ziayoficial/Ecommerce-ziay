@@ -1,6 +1,6 @@
-# Lecciones Aprendidas · CommerceFlow OS
+# Lecciones Aprendidas · ZIAY
 
-> Documento vivo de aprendizajes técnicos, metodológicos y de producto durante la construcción, auditoría y iteración de CommerceFlow OS. Actualizado tras cada ciclo de trabajo.
+> Documento vivo de aprendizajes técnicos, metodológicos y de producto durante la construcción, auditoría y iteración de ZIAY. Actualizado tras cada ciclo de trabajo.
 
 ---
 
@@ -317,4 +317,4 @@ const orders = await db.order.findMany({ where: { tenantId } });
 
 ---
 
-*Documento mantenido por el equipo de CommerceFlow OS. Última actualización: 2026-07-11.*
+*Documento mantenido por el equipo de ZIAY. Última actualización: 2026-07-11.*

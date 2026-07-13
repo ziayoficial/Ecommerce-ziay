@@ -1,6 +1,6 @@
-# CommerceFlow OS — Documento Maestro de Arquitectura
+# ZIAY — Documento Maestro de Arquitectura
 
-> **Versión:** 1.0 · **Fecha:** Julio 2026 · **Autor:** Equipo de Ingeniería CommerceFlow OS
+> **Versión:** 1.0 · **Fecha:** Julio 2026 · **Autor:** Equipo de Ingeniería ZIAY
 > **Alcance:** Diseño, stack, modelado, seguridad, escalado, vulnerabilidades, iteración autónoma de correcciones y estrategia de despliegue.
 > **Audiencia:** CTOs, arquitectos, ingenieros senior, traffickers digitales y líderes de producto.
 
@@ -8,7 +8,7 @@
 
 ## 0. Resumen ejecutivo
 
-**CommerceFlow OS** es una plataforma de **comercio conversacional + atribución de pauta** que unifica tres frentes críticos para un ecommerce LATAM que escala a nivel internacional:
+**ZIAY** es una plataforma de **comercio conversacional + atribución de pauta** que unifica tres frentes críticos para un ecommerce LATAM que escala a nivel internacional:
 
 1. **Mensajería omnicanal** — WhatsApp Business API (canal dominante en Colombia y México), Facebook Messenger (canal más activo en mercados internacionales como UE/USA) e Instagram DM, en una sola bandeja unificada con contexto de cliente y atribución de campaña.
 2. **Pedidos y pagos configurables** — soporta **pago anticipado** (vía carrito ecommerce con descuento), **contra entrega** (COD) y **estrategia híbrida** configurable por canal y país.
@@ -30,7 +30,7 @@ En LATAM (y especialmente Colombia), el comercio conversacional por WhatsApp no 
 - **Pauta ciega** — se invierte en Meta/Google/TikTok sin saber qué `ad_id` realmente genera venta. Las plataformas sobre-reportan conversiones (canibalización de crédito).
 - **Contra entrega sin control** — rechazos del 12-18%, flujo de caja negativo, sin saber qué canal/país concentra el riesgo.
 
-CommerceFlow OS resuelve los tres en una sola plataforma, con la atribución como diferenciador técnico principal.
+ZIAY resuelve los tres en una sola plataforma, con la atribución como diferenciador técnico principal.
 
 ### 1.2 Decisión de canales por mercado
 
@@ -200,7 +200,7 @@ Donde `cannibalizing = spend > 0 && roas < roasKill && orderCount === 0 && convR
 
 ### 5.3 ¿Por qué esto es mejor que el reporte nativo de Meta/Google?
 
-> **Pensamiento ágil:** Meta quiere que pares de gastar. Su reporte de conversiones tiende a **sobre-atribuir** (cuenta view-through, cuenta cualquier touch). CommerceFlow compara `convReported` vs `orderCount` real (pedidos en tu DB) y expone el gap. Si Meta dice "10 conversiones" y tu DB tiene 0 pedidos de ese anuncio, ese anuncio **canibaliza** crédito de ventas que vinieron por otro canal. El sistema lo marca y lo apaga.
+> **Pensamiento ágil:** Meta quiere que pares de gastar. Su reporte de conversiones tiende a **sobre-atribuir** (cuenta view-through, cuenta cualquier touch). ZIAY compara `convReported` vs `orderCount` real (pedidos en tu DB) y expone el gap. Si Meta dice "10 conversiones" y tu DB tiene 0 pedidos de ese anuncio, ese anuncio **canibaliza** crédito de ventas que vinieron por otro canal. El sistema lo marca y lo apaga.
 
 ---
 
@@ -428,11 +428,11 @@ El modular-monolith se divide en 3 servicios extraíbles sin refactor mayor:
 
 ## 12. Conclusión
 
-CommerceFlow OS resuelve los tres dolores operativos del ecommerce conversacional LATAM (mensajería caótica, pauta ciega, COD sin control) con un stack robusto, portable y escalable. La atribución a nivel de anuncio con detección de canibalización es el diferenciador técnico que justifica la inversión: **saber qué anuncio vende y cuál quema, en tiempo real, es el ROI del producto**.
+ZIAY resuelve los tres dolores operativos del ecommerce conversacional LATAM (mensajería caótica, pauta ciega, COD sin control) con un stack robusto, portable y escalable. La atribución a nivel de anuncio con detección de canibalización es el diferenciador técnico que justifica la inversión: **saber qué anuncio vende y cuál quema, en tiempo real, es el ROI del producto**.
 
 El sistema fue iterado autónomamente (viabilidad → vulnerabilidades → correcciones) y es production-ready para nivel Growth, con camino claro a Scale. El despliegue se hace en 10 pasos, con blue-green y rollback plan.
 
-> **Para el trafficker:** deja de mirar el reporte de Meta. Mira CommerceFlow.
+> **Para el trafficker:** deja de mirar el reporte de Meta. Mira ZIAY.
 > **Para el agente:** deja de escribir a mano. Deja que la IA sugiera, tú confirmas.
 > **Para el CEO:** deja de adivinar. CPA, ROAS, ROI en una pantalla, por anuncio.
 
@@ -495,7 +495,7 @@ my-project/
 
 ---
 
-*CommerceFlow OS · Construido para escalar de Bogotá a Berlín.*
+*ZIAY · Construido para escalar de Bogotá a Berlín.*
 
 ---
 
@@ -600,7 +600,7 @@ Tabla `Carrier` con `nombreCanonico` + `variantes` (comma-separated). El `Logist
 
 ## E.5 Conclusión de la evolución
 
-CommerceFlow OS pasó de ser una capa de operación (dashboard + motor de atribución + multi-canal) a ser una **plataforma completa** que combina:
+ZIAY pasó de ser una capa de operación (dashboard + motor de atribución + multi-canal) a ser una **plataforma completa** que combina:
 
 - **Capa de operación** (original): dashboard omnicanal, motor CPA/ROAS/ROI, estrategia de pago configurable, kill-switch de pauta, IA smart reply.
 - **Capa de ejecución de agentes** (Saramantha §6): 10 agentes especializados con prompts exactos, multi-tenant con `tenantId` en cada modelo, adaptadores de catálogo (4 rutas) y logística (3 proveedores), monetización por comisión escalonada sobre GMV con reconocimiento en 2 momentos.

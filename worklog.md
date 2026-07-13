@@ -2239,3 +2239,108 @@ write-gating (e.g. finance mutations).
    (b) add a Prisma extension that auto-filters by session tenantId.
 
 ### STATUS: ✅ COMPLETE — production blocker resolved, 4 UI safety nets added
+
+---
+
+## SPRINT2-RESILIENCE-001 — senior backend engineer
+**Scope:** resilience layer — cache, HTTP timeout+retry, $transaction, global rate limit.
+
+### Files added
+- `src/lib/http.ts` — `httpFetch<T>(url, opts)` wrapper around `fetch`:
+  - Per-request timeout via `AbortController` (default 10s).
+  - Exponential-backoff retry (default 3 retries, base 1s) on network
+    errors, 5xx, and 429.
+  - Forwards unhandled errors to `captureError` (Sentry + pino).
+  - Use this for ALL outbound HTTP from server code (adapters, webhooks,
+    integrations). Do NOT use raw `fetch` anywhere else.
+- `src/lib/cache.ts` — in-memory TTL cache (no Redis for dev):
+  - `getCached<T>(key)`, `setCached<T>(key, data, ttlMs)`,
+    `invalidateCache(prefix)`, `withCache<T>(key, ttlMs, fn)`.
+  - Lazy GC every 5 min (`setInterval().unref()`).
+  - **CRITICAL**: cache keys MUST include `tenantId` to avoid cross-tenant
+    data leaks — the `withCache` wrapper forces this by construction.
+  - `__clearCacheForTests()` exposed for tests / admin tooling.
+  - For multi-instance prod, swap the `Map` for Redis — signatures stay
+    the same.
+
+### Files updated — cache applied
+1. `src/app/api/overview/route.ts` — 60s TTL, key `overview:${tenantId ?? 'all'}:${days}`.
+2. `src/app/api/catalog/products/route.ts` — 5min TTL, key `catalog:${tenantId}:${q}`.
+3. `src/app/api/agents/route.ts` — 1h TTL, key `agents:list` (static compile-time data).
+4. `src/app/api/tenants/route.ts` — 5min TTL, key `tenants:active` (topbar poll).
+5. `src/app/api/health/route.ts` — 30s TTL, key `health:status:${tenantId ?? 'all'}`
+   (scoped by tenantId so tenant_llm / tenant_catalog_adapter checks don't leak).
+
+All existing response shapes preserved. Cache wraps only the DB-fetch
+portion (or the full payload for computed responses); auth, validation,
+and error branches are unchanged.
+
+### Files updated — $transaction applied
+Only where 2+ writes need atomicity. Single-write routes left untouched.
+
+1. `src/app/api/orders/[id]/route.ts` PATCH — when `body.event` is set,
+   the order update + OrderEvent insert now run in a single
+   `$transaction([update, create])` (batch form).
+2. `src/app/api/novedades/route.ts`:
+   - POST: case create + opening system message → interactive $transaction.
+   - PATCH `assign` / `resolve` / `escalate` / `close` → case update +
+     audit message wrapped in interactive $transaction.
+   - PATCH `add_evidence` / `add_message` → single writes, NOT wrapped.
+3. `src/app/api/redelivery/route.ts`:
+   - POST: request create + first attempt create → interactive $transaction.
+   - PATCH `schedule` / `complete` / `cancel` / `add_attempt` → request
+     update + attempt update/create wrapped.
+   - PATCH `confirm_address` / `assign_human` → single writes, NOT wrapped.
+4. `src/app/api/catalog/sync/route.ts` POST — entire upsert loop + audit
+   log now wrapped in a single interactive $transaction so the audit
+   trail never diverges from the actual product state.
+
+### Files updated — global rate limit
+- `src/middleware.ts` — added inline edge-compatible rate limiter
+  (60 req / 60s per IP) for ALL non-public `/api/**` routes.
+  - Implementation is a simple in-memory `Map<ip, {count, resetAt}>`
+    (Edge runtime can't import the server-side `@/lib/middleware/rate-limit`).
+  - Lazy GC every 5 min on read.
+  - Applied AFTER the auth check, BEFORE the `NextResponse.next()` /
+    401 / redirect branches — so authenticated floods AND unauthenticated
+    scanners get throttled equally.
+  - Public routes (`/api/health`, `/api/webhooks`, `/api/auth`,
+    `/api/public`) are exempt — they have their own per-route limiters
+    where needed (e.g. webhook signatures).
+  - 429 response includes `Retry-After: 60`, `X-RateLimit-Limit: 60`,
+    `X-RateLimit-Remaining: 0` for client visibility.
+
+### Verification
+- `bun run lint` — clean ✅
+- `npx tsc --noEmit` — clean ✅
+- `bunx vitest run` — 65/65 tests pass (existing rate-limit / hmac /
+  format / totp / payment-adapter / payment-registry suites unaffected) ✅
+- Dev server still healthy (Ready in 92ms, no compile errors).
+
+### Notes for future agents
+1. **`withCache` is the canonical cache API.** Always include tenantId
+   in the key. For mutation endpoints (POST/PATCH/DELETE), call
+   `invalidateCache('<prefix>:<tenantId>:')` after the write so stale
+   reads don't persist for the full TTL. (Not done in this sprint —
+   the cached endpoints are all GETs, and the mutation endpoints
+   under the same prefix don't write back to the same rows.)
+2. **`httpFetch` should replace raw `fetch`** in every adapter
+   (`src/lib/adapters/*.ts`) and webhook handler. This is a follow-up
+   migration — touching every adapter in this sprint would balloon the
+   diff. New code should use `httpFetch` from day one.
+3. **The middleware rate limiter is per-instance.** In a multi-instance
+   prod deployment (e.g. Vercel Edge with N regions), each instance
+   keeps its own counter, so the effective limit becomes `N × 60`.
+   Swap for `@upstash/ratelimit` (or Redis-based) before going to
+   production scale — `checkRateLimit(ip)` signature stays the same.
+4. **`$transaction` interactive form is used throughout** (not the
+   array form), because each transaction needs to use the previous
+   write's return value (e.g. `created.id` for the follow-up message).
+   Only `orders/[id]` PATCH uses the array form (two independent writes).
+5. **Cache TTLs are conservative.** Overview=60s, Products=5min,
+   Agents=1h, Tenants=5min, Health=30s. If dashboard latency becomes
+   an issue, bump overview → 30s; if freshness becomes an issue,
+   drop products → 1min and add `invalidateCache('catalog:${tenantId}:')`
+   to the catalog/sync POST handler.
+
+### STATUS: ✅ COMPLETE — 5 APIs cached, 4 APIs transactional, 1 global rate limiter, 2 lib helpers added

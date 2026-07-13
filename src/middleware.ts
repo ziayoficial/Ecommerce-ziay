@@ -25,6 +25,13 @@ const AUTH_SECRET: string = (() => {
 //   /_next/**, /favicon.ico, /logo.svg, /sitemap.xml, /robots.txt
 //
 // EVERYTHING ELSE requires a valid NextAuth JWT.
+//
+// RATE LIMITING: every non-public /api/** route is rate-limited per IP
+// (60 req / 60s) using a simple in-memory counter. The middleware runs
+// in the Edge runtime so we can't import @/lib/middleware/rate-limit
+// (it pulls in server-only modules); we inline a tiny implementation
+// here instead. Per-route limiters in the route handlers (e.g. webhook
+// signatures) still run independently and can apply tighter limits.
 // ───────────────────────────────────────────────────────────────────────────
 
 const PUBLIC_PATTERNS: Array<RegExp | string> = [
@@ -57,6 +64,75 @@ function isPublic(path: string): boolean {
   return false
 }
 
+// ───────────────────────────────────────────────────────────────────────────
+// Edge-compatible in-memory rate limiter.
+//
+// 60 requests / 60s per IP for protected API routes. Per-IP entries are
+// GC'd lazily on read (when `resetAt` is stale the entry is rebuilt).
+//
+// Multi-instance note: this Map is per Edge runtime instance. For a real
+// multi-instance deployment, swap this for a Redis-backed limiter (Upstash
+// / @upstash/ratelimit) — the function signature (`checkRateLimit(ip)`)
+// stays the same.
+// ───────────────────────────────────────────────────────────────────────────
+
+interface RateLimitEntry {
+  count: number
+  resetAt: number
+}
+
+const RATE_LIMIT_MAP = new Map<string, RateLimitEntry>()
+const RATE_LIMIT_MAX = 60 // 60 req per minute per IP for protected APIs
+const RATE_LIMIT_WINDOW = 60_000
+
+/**
+ * Returns `true` if the request is allowed, `false` if rate-limited.
+ * Side-effects: mutates the in-memory counter for the IP.
+ */
+function checkRateLimit(ip: string): boolean {
+  const now = Date.now()
+  const entry = RATE_LIMIT_MAP.get(ip)
+  if (!entry || entry.resetAt < now) {
+    // New window for this IP.
+    RATE_LIMIT_MAP.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW })
+    return true
+  }
+  entry.count++
+  return entry.count <= RATE_LIMIT_MAX
+}
+
+/**
+ * Opportunistic GC: every ~5 minutes drop stale entries so the Map
+ * doesn't grow unbounded for long-running Edge instances.
+ */
+let lastGcAt = 0
+function gcStaleRateLimitEntries() {
+  const now = Date.now()
+  if (now - lastGcAt < 5 * 60 * 1000) return
+  lastGcAt = now
+  for (const [ip, entry] of RATE_LIMIT_MAP) {
+    if (entry.resetAt < now) RATE_LIMIT_MAP.delete(ip)
+  }
+}
+
+/**
+ * Extract the client IP from a NextRequest. Honors X-Forwarded-For and
+ * X-Real-IP headers (typical behind Caddy / Vercel / Cloudflare).
+ */
+function getClientIp(req: NextRequest): string {
+  const xff = req.headers.get('x-forwarded-for')
+  if (xff) {
+    const first = xff.split(',')[0]?.trim()
+    if (first) return first
+  }
+  const xReal = req.headers.get('x-real-ip')
+  if (xReal) return xReal.trim()
+  // `req.ip` exists at runtime on some deployment targets (Vercel).
+  // @ts-expect-error — `ip` is not in the NextRequest type but exists at runtime
+  if (typeof req.ip === 'string' && req.ip) return req.ip
+  return 'unknown'
+}
+
 export async function middleware(req: NextRequest) {
   const path = req.nextUrl.pathname
 
@@ -67,6 +143,30 @@ export async function middleware(req: NextRequest) {
 
   // Check for NextAuth JWT token.
   const token = await getToken({ req, secret: AUTH_SECRET })
+
+  // Rate limit ALL non-public API routes (per-IP, 60 req / 60s). Applied
+  // after the auth check (per SPRINT2-RESILIENCE-001 spec) and before any
+  // NextResponse.next() so both authenticated floods and unauthenticated
+  // scanners get throttled equally.
+  if (path.startsWith('/api/')) {
+    gcStaleRateLimitEntries()
+    const ip = getClientIp(req)
+    if (!checkRateLimit(ip)) {
+      return addSecurityHeaders(
+        NextResponse.json(
+          { error: 'Too Many Requests', retry_after: 60 },
+          {
+            status: 429,
+            headers: {
+              'Retry-After': '60',
+              'X-RateLimit-Limit': String(RATE_LIMIT_MAX),
+              'X-RateLimit-Remaining': '0',
+            },
+          },
+        ),
+      )
+    }
+  }
 
   if (token) {
     return addSecurityHeaders(NextResponse.next())

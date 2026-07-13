@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-helpers'
 import { db } from '@/lib/db'
 
-// Update order status / payment status
+// Update order status / payment status.
+//
+// If `body.event` is provided, the order update + OrderEvent insert are
+// wrapped in a single $transaction so the audit trail never diverges from
+// the order state (e.g. an event recorded for a status that never landed).
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -18,9 +22,15 @@ export async function PATCH(
   if (body.paymentGateway) data.paymentGateway = body.paymentGateway
   if (body.paymentRef) data.paymentRef = body.paymentRef
 
-  const updated = await db.order.update({ where: { id }, data })
   if (body.event) {
-    await db.orderEvent.create({ data: { orderId: id, type: body.event, note: body.note } })
+    // Two writes that must be atomic: order update + event insert.
+    const [updated] = await db.$transaction([
+      db.order.update({ where: { id }, data }),
+      db.orderEvent.create({ data: { orderId: id, type: body.event, note: body.note } }),
+    ])
+    return NextResponse.json({ order: updated })
   }
+
+  const updated = await db.order.update({ where: { id }, data })
   return NextResponse.json({ order: updated })
 }

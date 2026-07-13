@@ -1,9 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { withCache } from '@/lib/cache'
 
-// GET /api/health — reports status of all integrations
+// GET /api/health — reports status of all integrations.
+// Cached for 30 seconds — the endpoint is polled frequently by the UI and
+// runs ~15 DB / env checks per call. A 30s TTL smooths out load without
+// masking real outages for long. Cache key is scoped by tenantId so the
+// tenant-specific checks (`tenant_llm`, `tenant_catalog_adapter`, …) don't
+// leak across tenants.
 export async function GET(req: NextRequest) {
   const tenantId = req.nextUrl.searchParams.get('tenantId') || undefined
+
+  const payload = await withCache(
+    `health:status:${tenantId ?? 'all'}`,
+    30_000,
+    () => runHealthChecks(tenantId),
+  )
+  return NextResponse.json(payload)
+}
+
+async function runHealthChecks(tenantId: string | undefined) {
   const checks: { name: string; status: 'ok' | 'warning' | 'error' | 'not_configured'; detail: string }[] = []
 
   try {
@@ -72,5 +88,5 @@ export async function GET(req: NextRequest) {
   }
   const overall = summary.error > 0 ? 'error' : summary.warning > 0 ? 'warning' : 'ok'
 
-  return NextResponse.json({ status: overall, summary, checks, timestamp: new Date().toISOString() })
+  return { status: overall, summary, checks, timestamp: new Date().toISOString() }
 }

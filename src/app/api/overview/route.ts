@@ -1,14 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAuth } from '@/lib/auth-helpers'
+import { withCache } from '@/lib/cache'
 
-// Overview KPIs: revenue, orders, conversations, ad spend, ROAS, CPA, channel split
+// Overview KPIs: revenue, orders, conversations, ad spend, ROAS, CPA, channel split.
+// Cached for 60s per (tenantId, days) — heavy multi-table aggregation that
+// doesn't need to be re-run on every page reload. Cache key includes the
+// tenantId to avoid cross-tenant data leaks.
 export async function GET(req: NextRequest) {
   const { error } = await requireAuth()
   if (error) return error
 
   const days = Number(req.nextUrl.searchParams.get('days') || '14')
   const tenantId = req.nextUrl.searchParams.get('tenantId') || undefined
+
+  const payload = await withCache(
+    `overview:${tenantId ?? 'all'}:${days}`,
+    60_000,
+    () => computeOverview(days, tenantId),
+  )
+  return NextResponse.json(payload)
+}
+
+async function computeOverview(days: number, tenantId: string | undefined) {
   const since = new Date()
   since.setDate(since.getDate() - days)
 
@@ -64,7 +78,7 @@ export async function GET(req: NextRequest) {
   }
   const series = Array.from(dayMap.entries()).map(([date, v]) => ({ date, ...v }))
 
-  return NextResponse.json({
+  return {
     range: { days, since: since.toISOString() },
     kpis: {
       revenue,
@@ -85,5 +99,5 @@ export async function GET(req: NextRequest) {
     },
     channelSplit,
     series,
-  })
+  }
 }

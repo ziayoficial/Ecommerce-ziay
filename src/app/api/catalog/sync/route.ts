@@ -48,45 +48,53 @@ export async function POST(req: NextRequest) {
     const fuente = fuenteMap[tenant.plataformaCatalogo] ?? 'whatsapp_catalog'
 
     // Upsert por [tenantId, sku] (restricción única definida en el schema).
-    let syncedCount = 0
-    for (const p of productos) {
-      await db.product.upsert({
-        where: { tenantId_sku: { tenantId, sku: p.sku } },
-        create: {
+    //
+    // Atomic: all product upserts + the audit-log entry run in a single
+    // $transaction so the audit log never records a sync that didn't fully
+    // land (or vice versa, products committed without an audit trail).
+    const result = await db.$transaction(async (tx) => {
+      let syncedCount = 0
+      for (const p of productos) {
+        await tx.product.upsert({
+          where: { tenantId_sku: { tenantId, sku: p.sku } },
+          create: {
+            tenantId,
+            sku: p.sku,
+            name: p.name,
+            price: p.precio,
+            imageUrl: p.imagen_url || null,
+            stock: p.stock,
+            diseno: p.diseno ?? null,
+            categoria: p.categoria ?? null,
+            fuenteSincronizacion: fuente,
+          },
+          update: {
+            name: p.name,
+            price: p.precio,
+            imageUrl: p.imagen_url || null,
+            stock: p.stock,
+            diseno: p.diseno ?? null,
+            categoria: p.categoria ?? null,
+            fuenteSincronizacion: fuente,
+          },
+        })
+        syncedCount++
+      }
+
+      await tx.auditLog.create({
+        data: {
           tenantId,
-          sku: p.sku,
-          name: p.name,
-          price: p.precio,
-          imageUrl: p.imagen_url || null,
-          stock: p.stock,
-          diseno: p.diseno ?? null,
-          categoria: p.categoria ?? null,
-          fuenteSincronizacion: fuente,
-        },
-        update: {
-          name: p.name,
-          price: p.precio,
-          imageUrl: p.imagen_url || null,
-          stock: p.stock,
-          diseno: p.diseno ?? null,
-          categoria: p.categoria ?? null,
-          fuenteSincronizacion: fuente,
+          action: 'catalog_sync',
+          entity: 'product',
+          meta: JSON.stringify({
+            plataforma: tenant.plataformaCatalogo,
+            fuente,
+            synced: syncedCount,
+          }),
         },
       })
-      syncedCount++
-    }
 
-    await db.auditLog.create({
-      data: {
-        tenantId,
-        action: 'catalog_sync',
-        entity: 'product',
-        meta: JSON.stringify({
-          plataforma: tenant.plataformaCatalogo,
-          fuente,
-          synced: syncedCount,
-        }),
-      },
+      return syncedCount
     })
 
     return NextResponse.json({
@@ -95,7 +103,7 @@ export async function POST(req: NextRequest) {
       tenantSlug: tenant.slug,
       plataforma: tenant.plataformaCatalogo,
       fuenteSincronizacion: fuente,
-      synced: syncedCount,
+      synced: result,
     })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error'

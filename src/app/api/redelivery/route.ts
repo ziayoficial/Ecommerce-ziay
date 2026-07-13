@@ -93,31 +93,37 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  const created = await db.redeliveryRequest.create({
-    data: {
-      tenantId,
-      guideNumber: String(guideNumber),
-      customerPhone: String(customerPhone),
-      customerName: String(customerName),
-      originalAddress: String(originalAddress),
-      newAddress: newAddress ? String(newAddress) : null,
-      reason: String(reason),
-      status: 'pending',
-      attemptNumber: 1,
-    },
+  // Atomic: create the request + schedule the first attempt together so we
+  // never end up with a request that has zero attempts (or an orphan attempt).
+  const { request, attempt } = await db.$transaction(async (tx) => {
+    const created = await tx.redeliveryRequest.create({
+      data: {
+        tenantId,
+        guideNumber: String(guideNumber),
+        customerPhone: String(customerPhone),
+        customerName: String(customerName),
+        originalAddress: String(originalAddress),
+        newAddress: newAddress ? String(newAddress) : null,
+        reason: String(reason),
+        status: 'pending',
+        attemptNumber: 1,
+      },
+    })
+
+    // Schedule the first attempt as pending.
+    const firstAttempt = await tx.redeliveryAttempt.create({
+      data: {
+        redeliveryId: created.id,
+        attemptNumber: 1,
+        status: 'pending',
+        attemptedAt: new Date(),
+      },
+    })
+
+    return { request: created, attempt: firstAttempt }
   })
 
-  // Schedule the first attempt as pending.
-  const firstAttempt = await db.redeliveryAttempt.create({
-    data: {
-      redeliveryId: created.id,
-      attemptNumber: 1,
-      status: 'pending',
-      attemptedAt: new Date(),
-    },
-  })
-
-  return NextResponse.json({ request: created, attempt: firstAttempt }, { status: 201 })
+  return NextResponse.json({ request, attempt }, { status: 201 })
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -174,19 +180,23 @@ export async function PATCH(req: NextRequest) {
     case 'schedule': {
       const { scheduledAt, agentNote } = body
       const when = scheduledAt ? new Date(scheduledAt) : new Date(Date.now() + 24 * 60 * 60 * 1000)
-      const updated = await db.redeliveryRequest.update({
-        where: { id: redeliveryId },
-        data: { status: 'scheduled', scheduledAt: when },
-      })
-      // Mark the latest attempt as scheduled via agentNote (no `scheduled` status
-      // in the enum — we use a note to record scheduling; the attempt itself
-      // stays pending until it's actually attempted).
-      if (latestAttempt) {
-        await db.redeliveryAttempt.update({
-          where: { id: latestAttempt.id },
-          data: { agentNote: agentNote ? String(agentNote) : `Programado para ${when.toISOString()}` },
+      // Atomic: update the request + record the scheduling note on the latest attempt.
+      const updated = await db.$transaction(async (tx) => {
+        const r = await tx.redeliveryRequest.update({
+          where: { id: redeliveryId },
+          data: { status: 'scheduled', scheduledAt: when },
         })
-      }
+        // Mark the latest attempt as scheduled via agentNote (no `scheduled` status
+        // in the enum — we use a note to record scheduling; the attempt itself
+        // stays pending until it's actually attempted).
+        if (latestAttempt) {
+          await tx.redeliveryAttempt.update({
+            where: { id: latestAttempt.id },
+            data: { agentNote: agentNote ? String(agentNote) : `Programado para ${when.toISOString()}` },
+          })
+        }
+        return r
+      })
       return NextResponse.json({ request: updated })
     }
 
@@ -207,49 +217,61 @@ export async function PATCH(req: NextRequest) {
 
     case 'complete': {
       const { carrierResponse } = body
-      const updated = await db.redeliveryRequest.update({
-        where: { id: redeliveryId },
-        data: { status: 'completed', completedAt: new Date() },
-      })
-      if (latestAttempt) {
-        await db.redeliveryAttempt.update({
-          where: { id: latestAttempt.id },
-          data: { status: 'success', carrierResponse: carrierResponse ? String(carrierResponse) : null },
+      // Atomic: mark request as completed + mark latest attempt as success.
+      const updated = await db.$transaction(async (tx) => {
+        const r = await tx.redeliveryRequest.update({
+          where: { id: redeliveryId },
+          data: { status: 'completed', completedAt: new Date() },
         })
-      }
+        if (latestAttempt) {
+          await tx.redeliveryAttempt.update({
+            where: { id: latestAttempt.id },
+            data: { status: 'success', carrierResponse: carrierResponse ? String(carrierResponse) : null },
+          })
+        }
+        return r
+      })
       return NextResponse.json({ request: updated })
     }
 
     case 'cancel': {
       const { reason: cancelReason } = body
-      const updated = await db.redeliveryRequest.update({
-        where: { id: redeliveryId },
-        data: { status: 'cancelled' },
-      })
-      if (latestAttempt) {
-        await db.redeliveryAttempt.update({
-          where: { id: latestAttempt.id },
-          data: { status: 'failed', agentNote: cancelReason ? String(cancelReason) : 'Cancelled by agent' },
+      // Atomic: mark request as cancelled + mark latest attempt as failed.
+      const updated = await db.$transaction(async (tx) => {
+        const r = await tx.redeliveryRequest.update({
+          where: { id: redeliveryId },
+          data: { status: 'cancelled' },
         })
-      }
+        if (latestAttempt) {
+          await tx.redeliveryAttempt.update({
+            where: { id: latestAttempt.id },
+            data: { status: 'failed', agentNote: cancelReason ? String(cancelReason) : 'Cancelled by agent' },
+          })
+        }
+        return r
+      })
       return NextResponse.json({ request: updated })
     }
 
     case 'add_attempt': {
       const next = (existing.attemptNumber || 1) + 1
-      const attempt = await db.redeliveryAttempt.create({
-        data: {
-          redeliveryId: redeliveryId,
-          attemptNumber: next,
-          status: 'pending',
-          attemptedAt: new Date(),
-        },
+      // Atomic: create the new attempt + bump the request's attemptNumber.
+      const { request, attempt } = await db.$transaction(async (tx) => {
+        const a = await tx.redeliveryAttempt.create({
+          data: {
+            redeliveryId: redeliveryId,
+            attemptNumber: next,
+            status: 'pending',
+            attemptedAt: new Date(),
+          },
+        })
+        const r = await tx.redeliveryRequest.update({
+          where: { id: redeliveryId },
+          data: { attemptNumber: next, status: 'pending' },
+        })
+        return { request: r, attempt: a }
       })
-      const updated = await db.redeliveryRequest.update({
-        where: { id: redeliveryId },
-        data: { attemptNumber: next, status: 'pending' },
-      })
-      return NextResponse.json({ request: updated, attempt })
+      return NextResponse.json({ request, attempt })
     }
 
     default:

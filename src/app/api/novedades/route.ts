@@ -162,30 +162,36 @@ export async function POST(req: NextRequest) {
 
   const authorName = (session?.user as any)?.name || (session?.user as any)?.email || 'system'
 
-  const newCase = await db.novedadCase.create({
-    data: {
-      tenantId,
-      caseNumber,
-      orderId: orderId || null,
-      phone: String(phone),
-      customerName: String(customerName),
-      guideNumber: guideNumber ? String(guideNumber) : null,
-      carrierName: carrierName ? String(carrierName) : null,
-      type,
-      priority: priority || 'normal',
-      description: String(description),
-      status: 'open',
-    },
-  })
+  // Atomic: create the case + stamp the initial system message together so
+  // we never end up with a case that has no opening message (or vice versa).
+  const newCase = await db.$transaction(async (tx) => {
+    const created = await tx.novedadCase.create({
+      data: {
+        tenantId,
+        caseNumber,
+        orderId: orderId || null,
+        phone: String(phone),
+        customerName: String(customerName),
+        guideNumber: guideNumber ? String(guideNumber) : null,
+        carrierName: carrierName ? String(carrierName) : null,
+        type,
+        priority: priority || 'normal',
+        description: String(description),
+        status: 'open',
+      },
+    })
 
-  // Stamp an initial system message so the chat thread isn't empty.
-  await db.novedadMessage.create({
-    data: {
-      caseId: newCase.id,
-      authorName,
-      authorRole: 'system',
-      body: `Caso ${caseNumber} creado para ${customerName}.`,
-    },
+    // Stamp an initial system message so the chat thread isn't empty.
+    await tx.novedadMessage.create({
+      data: {
+        caseId: created.id,
+        authorName,
+        authorRole: 'system',
+        body: `Caso ${caseNumber} creado para ${customerName}.`,
+      },
+    })
+
+    return created
   })
 
   return NextResponse.json({ case: newCase }, { status: 201 })
@@ -230,20 +236,24 @@ export async function PATCH(req: NextRequest) {
       if (!assignedTo) {
         return NextResponse.json({ error: 'assignedTo required' }, { status: 400 })
       }
-      const updated = await db.novedadCase.update({
-        where: { id: caseId },
-        data: {
-          assignedTo: String(assignedTo),
-          status: existing.status === 'open' ? 'assigned' : existing.status,
-        },
-      })
-      await db.novedadMessage.create({
-        data: {
-          caseId,
-          authorName,
-          authorRole: 'agent',
-          body: `Caso asignado a ${assignedTo}.`,
-        },
+      // Atomic: case update + audit message.
+      const updated = await db.$transaction(async (tx) => {
+        const c = await tx.novedadCase.update({
+          where: { id: caseId },
+          data: {
+            assignedTo: String(assignedTo),
+            status: existing.status === 'open' ? 'assigned' : existing.status,
+          },
+        })
+        await tx.novedadMessage.create({
+          data: {
+            caseId,
+            authorName,
+            authorRole: 'agent',
+            body: `Caso asignado a ${assignedTo}.`,
+          },
+        })
+        return c
       })
       return NextResponse.json({ case: updated })
     }
@@ -253,21 +263,24 @@ export async function PATCH(req: NextRequest) {
       if (!resolution) {
         return NextResponse.json({ error: 'resolution required' }, { status: 400 })
       }
-      const updated = await db.novedadCase.update({
-        where: { id: caseId },
-        data: {
-          status: 'resolved',
-          resolution: String(resolution),
-          resolvedAt: new Date(),
-        },
-      })
-      await db.novedadMessage.create({
-        data: {
-          caseId,
-          authorName,
-          authorRole: 'agent',
-          body: `Caso resuelto: ${resolution}`,
-        },
+      const updated = await db.$transaction(async (tx) => {
+        const c = await tx.novedadCase.update({
+          where: { id: caseId },
+          data: {
+            status: 'resolved',
+            resolution: String(resolution),
+            resolvedAt: new Date(),
+          },
+        })
+        await tx.novedadMessage.create({
+          data: {
+            caseId,
+            authorName,
+            authorRole: 'agent',
+            body: `Caso resuelto: ${resolution}`,
+          },
+        })
+        return c
       })
       return NextResponse.json({ case: updated })
     }
@@ -306,33 +319,39 @@ export async function PATCH(req: NextRequest) {
     }
 
     case 'escalate': {
-      const updated = await db.novedadCase.update({
-        where: { id: caseId },
-        data: { status: 'escalated', priority: 'high' },
-      })
-      await db.novedadMessage.create({
-        data: {
-          caseId,
-          authorName,
-          authorRole: 'agent',
-          body: `Caso escalado a prioridad alta.`,
-        },
+      const updated = await db.$transaction(async (tx) => {
+        const c = await tx.novedadCase.update({
+          where: { id: caseId },
+          data: { status: 'escalated', priority: 'high' },
+        })
+        await tx.novedadMessage.create({
+          data: {
+            caseId,
+            authorName,
+            authorRole: 'agent',
+            body: `Caso escalado a prioridad alta.`,
+          },
+        })
+        return c
       })
       return NextResponse.json({ case: updated })
     }
 
     case 'close': {
-      const updated = await db.novedadCase.update({
-        where: { id: caseId },
-        data: { status: 'closed' },
-      })
-      await db.novedadMessage.create({
-        data: {
-          caseId,
-          authorName,
-          authorRole: 'agent',
-          body: `Caso cerrado.`,
-        },
+      const updated = await db.$transaction(async (tx) => {
+        const c = await tx.novedadCase.update({
+          where: { id: caseId },
+          data: { status: 'closed' },
+        })
+        await tx.novedadMessage.create({
+          data: {
+            caseId,
+            authorName,
+            authorRole: 'agent',
+            body: `Caso cerrado.`,
+          },
+        })
+        return c
       })
       return NextResponse.json({ case: updated })
     }

@@ -2,6 +2,21 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getToken } from 'next-auth/jwt'
 
 // ───────────────────────────────────────────────────────────────────────────
+// NextAuth JWT secret — resolved inline (NOT imported from @/lib/auth) because
+// middleware runs in the Edge runtime, which cannot load bcryptjs / Prisma.
+// Mirrors the logic in src/lib/auth.ts: throw in production, dev fallback.
+// ───────────────────────────────────────────────────────────────────────────
+const AUTH_SECRET: string = (() => {
+  const s = process.env.NEXTAUTH_SECRET
+  if (!s && process.env.NODE_ENV === 'production') {
+    throw new Error(
+      'NEXTAUTH_SECRET must be set in production. Generate with: openssl rand -base64 32',
+    )
+  }
+  return s || 'ziay-dev-secret-fallback-only-for-development'
+})()
+
+// ───────────────────────────────────────────────────────────────────────────
 // Route protection middleware (ZIAY).
 //
 // PUBLIC ROUTES (no token required):
@@ -51,7 +66,7 @@ export async function middleware(req: NextRequest) {
   }
 
   // Check for NextAuth JWT token.
-  const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET || 'ziay-dev-secret-key-2026-change-in-production' })
+  const token = await getToken({ req, secret: AUTH_SECRET })
 
   if (token) {
     return addSecurityHeaders(NextResponse.next())

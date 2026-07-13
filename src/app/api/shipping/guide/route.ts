@@ -8,11 +8,14 @@
 // a `shipped` y crea un `OrderEvent` de tipo `shipped`.
 
 import { NextRequest, NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/auth-helpers'
 import { getLogisticsAdapter } from '@/lib/adapters/registry'
 import { normalizeCarrierName } from '@/lib/carriers'
 import { db } from '@/lib/db'
 
 export async function POST(req: NextRequest) {
+  const { error } = await requireAuth()
+  if (error) return error
   try {
     const body = await req.json()
     const { tenantId, orderId } = body as { tenantId?: string; orderId?: string }

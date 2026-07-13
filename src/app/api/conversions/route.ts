@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireTenantAccess } from '@/lib/auth-helpers'
+import { captureError } from '@/lib/capture-error'
 
 // Conversions — server-side pixel firing (Meta CAPI, Google MP, Tiktok Events API).
 //
@@ -51,7 +52,8 @@ export async function POST(req: NextRequest) {
   let body: any
   try {
     body = await req.json()
-  } catch {
+  } catch (err) {
+    captureError(err, { action: 'conversions:parse' })
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
@@ -116,8 +118,14 @@ export async function POST(req: NextRequest) {
           response: result.response,
         },
       })
-    } catch {
-      // Even the DB write failed — surface it.
+    } catch (err) {
+      // Even the DB write failed — surface it to Sentry + local log.
+      captureError(err, {
+        action: 'conversions:persist',
+        tenantId,
+        pixelConfigId: pixel.id,
+        eventType,
+      })
     }
     results.push({
       platform: pixel.platform,
@@ -160,6 +168,11 @@ async function firePlatform(
       response: `Unknown platform: ${pixel.platform}`,
     }
   } catch (e) {
+    captureError(e, {
+      action: 'conversions:firePlatform',
+      platform: pixel.platform,
+      pixelConfigId: pixel.pixelId,
+    })
     return { status: 'failed', response: (e as Error).message }
   }
 }

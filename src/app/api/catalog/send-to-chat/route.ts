@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/auth-helpers'
 import { db } from '@/lib/db'
 
 // POST /api/catalog/send-to-chat
 // Sends a product (with image) to a conversation as an outbound message.
 // Bridges the catalog visual experience with the chat.
 export async function POST(req: NextRequest) {
+  const { error } = await requireAuth()
+  if (error) return error
   const { tenantId, conversationId, sku } = await req.json()
   if (!tenantId || !conversationId || !sku) {
     return NextResponse.json({ error: 'tenantId, conversationId, sku required' }, { status: 400 })

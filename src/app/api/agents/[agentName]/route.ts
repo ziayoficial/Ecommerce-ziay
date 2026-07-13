@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/auth-helpers'
 import ZAI from 'z-ai-web-dev-sdk'
 import { db } from '@/lib/db'
 import { buildAgentPrompt, AGENT_NAMES, AGENT_LABELS, AgentName } from '@/lib/agents/prompts'
@@ -10,6 +11,8 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ agentName: string }> }
 ) {
+  const { error } = await requireAuth()
+  if (error) return error
   const { agentName } = await params
   if (!AGENT_NAMES.includes(agentName as AgentName)) {
     return NextResponse.json({ error: `Unknown agent. Valid: ${AGENT_NAMES.join(', ')}` }, { status: 400 })
@@ -100,6 +103,8 @@ export async function POST(
 
 // GET — list available agents with their labels
 export async function GET() {
+  const { error } = await requireAuth()
+  if (error) return error
   return NextResponse.json({
     agents: AGENT_NAMES.map(name => ({ name, label: AGENT_LABELS[name] })),
   })

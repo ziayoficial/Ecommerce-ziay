@@ -11,10 +11,13 @@
 // final en la tabla `Product` (upsert por [tenantId, sku]).
 
 import { NextRequest, NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/auth-helpers'
 import { getEcommerceAdapter } from '@/lib/adapters/registry'
 import { db } from '@/lib/db'
 
 export async function POST(req: NextRequest) {
+  const { error } = await requireAuth()
+  if (error) return error
   try {
     const body = await req.json()
     const { tenantId } = body as { tenantId?: string }

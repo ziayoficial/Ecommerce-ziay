@@ -8,10 +8,13 @@
 // para trazabilidad.
 
 import { NextRequest, NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/auth-helpers'
 import { getLogisticsAdapter } from '@/lib/adapters/registry'
 import { db } from '@/lib/db'
 
 export async function POST(req: NextRequest) {
+  const { error } = await requireAuth()
+  if (error) return error
   try {
     const body = await req.json()
     const { tenantId, ciudad, pais, cantidad_unidades } = body as {

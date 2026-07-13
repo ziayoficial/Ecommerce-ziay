@@ -17,6 +17,21 @@ import * as bcrypt from 'bcryptjs'
 // `getServerSession` can both read them.
 // ───────────────────────────────────────────────────────────────────────────
 
+// ── JWT secret ────────────────────────────────────────────────────────────
+// Production REQUIRES an explicit NEXTAUTH_SECRET — using a known fallback in
+// prod would let anyone forge JWTs. We fail fast at boot instead. In dev we
+// allow a deterministic fallback so a fresh checkout can run `bun run dev`
+// without first generating a secret.
+const __secret = process.env.NEXTAUTH_SECRET
+if (!__secret && process.env.NODE_ENV === 'production') {
+  throw new Error(
+    'NEXTAUTH_SECRET must be set in production. Generate with: openssl rand -base64 32',
+  )
+}
+/** Shared NextAuth JWT secret. Used by auth.ts and middleware.ts. */
+export const AUTH_SECRET: string =
+  __secret || 'ziay-dev-secret-fallback-only-for-development'
+
 export const authOptions: NextAuthOptions = {
   providers: [
     CredentialsProvider({
@@ -79,7 +94,7 @@ export const authOptions: NextAuthOptions = {
       return session
     },
   },
-  secret: process.env.NEXTAUTH_SECRET || 'ziay-dev-secret-key-2026-change-in-production',
+  secret: AUTH_SECRET,
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth(authOptions)

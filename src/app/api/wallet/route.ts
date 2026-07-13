@@ -21,6 +21,7 @@ import { db } from '@/lib/db'
 import { requireAuth } from '@/lib/auth-helpers'
 import { generateTOTPSecret, verifyTOTP, hashBackupCodes } from '@/lib/totp'
 import { rateLimit } from '@/lib/middleware/rate-limit'
+import { captureError } from '@/lib/capture-error'
 
 // ───────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -191,7 +192,8 @@ export async function POST(req: NextRequest) {
   let body: any
   try {
     body = await req.json()
-  } catch {
+  } catch (err) {
+    captureError(err, { action: 'wallet:parse' })
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
   const action = body?.action as string | undefined

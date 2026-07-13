@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/auth-helpers'
 import { db } from '@/lib/db'
 
 // GET /api/channels?tenantId=... — list channels for a tenant
 export async function GET(req: NextRequest) {
+  const { error } = await requireAuth()
+  if (error) return error
   const tenantId = req.nextUrl.searchParams.get('tenantId')
   const channels = await db.channel.findMany({
     where: tenantId ? { tenantId } : {},
@@ -25,6 +28,8 @@ export async function GET(req: NextRequest) {
 
 // POST /api/channels — create a new channel (e.g., add a new WhatsApp line)
 export async function POST(req: NextRequest) {
+  const { error } = await requireAuth()
+  if (error) return error
   const body = await req.json()
   const { tenantId, type, name, displayName } = body
   if (!tenantId || !type || !name || !displayName) {
@@ -79,6 +84,8 @@ export async function POST(req: NextRequest) {
 
 // PATCH /api/channels — update a channel (e.g., update credentials)
 export async function PATCH(req: NextRequest) {
+  const { error } = await requireAuth()
+  if (error) return error
   const body = await req.json()
   const { channelId, ...fields } = body
   if (!channelId) return NextResponse.json({ error: 'channelId required' }, { status: 400 })
@@ -106,6 +113,8 @@ export async function PATCH(req: NextRequest) {
 
 // DELETE /api/channels — delete (deactivate) a channel
 export async function DELETE(req: NextRequest) {
+  const { error } = await requireAuth()
+  if (error) return error
   const channelId = req.nextUrl.searchParams.get('channelId')
   if (!channelId) return NextResponse.json({ error: 'channelId required' }, { status: 400 })
 

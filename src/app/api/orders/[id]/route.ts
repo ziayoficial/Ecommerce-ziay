@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/auth-helpers'
 import { db } from '@/lib/db'
 
 // Update order status / payment status
@@ -6,6 +7,8 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { error } = await requireAuth()
+  if (error) return error
   const { id } = await params
   const body = await req.json()
   const data: Record<string, unknown> = {}

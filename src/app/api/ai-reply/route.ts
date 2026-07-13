@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/auth-helpers'
 import { db } from '@/lib/db'
 import ZAI from 'z-ai-web-dev-sdk'
 
@@ -6,6 +7,8 @@ import ZAI from 'z-ai-web-dev-sdk'
 // Generates context-aware sales replies using the LLM skill.
 // Uses conversation history + channel payment strategy + catalog context.
 export async function POST(req: NextRequest) {
+  const { error } = await requireAuth()
+  if (error) return error
   const { conversationId, tone = 'friendly' } = await req.json()
   if (!conversationId) return NextResponse.json({ error: 'conversationId required' }, { status: 400 })
 

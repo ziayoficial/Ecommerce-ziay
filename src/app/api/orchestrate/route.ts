@@ -16,11 +16,13 @@
 // }
 
 import { NextRequest, NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/auth-helpers'
 import { db } from '@/lib/db'
 import { AGENT_LABELS, AgentName, buildAgentPrompt } from '@/lib/agents/prompts'
 import {
   ORCHESTRATOR_STEPS, ORCHESTRATOR_SCENARIOS, OrchestratorStepId, OrchestratorScenario,
 } from '@/lib/orchestrator/constants'
+import { captureError } from '@/lib/capture-error'
 import ZAI from 'z-ai-web-dev-sdk'
 
 async function callAgent(agentName: AgentName, ctx: {
@@ -77,6 +79,8 @@ const FALLBACKS: Record<AgentName, string> = {
 }
 
 export async function POST(req: NextRequest) {
+  const { error } = await requireAuth()
+  if (error) return error
   try {
     const body = await req.json()
     const { tenantId, action, scenarioId, conversationId, customerId, currentStep } = body as {
@@ -200,6 +204,7 @@ export async function POST(req: NextRequest) {
       timeline,
     })
   } catch (err) {
+    captureError(err, { action: 'orchestrate' })
     const message = err instanceof Error ? err.message : 'unknown error'
     return NextResponse.json({ ok: false, error: message }, { status: 500 })
   }

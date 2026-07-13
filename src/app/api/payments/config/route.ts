@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/auth-helpers'
 import { db } from '@/lib/db'
 
 // Get payment strategy config per channel
 export async function GET() {
+  const { error } = await requireAuth()
+  if (error) return error
   const channels = await db.channel.findMany({
     orderBy: { type: 'asc' },
   })
@@ -25,6 +28,8 @@ export async function GET() {
 
 // Update a channel's payment strategy
 export async function PATCH(req: NextRequest) {
+  const { error } = await requireAuth()
+  if (error) return error
   const body = await req.json()
   const { channelId, ...fields } = body
   if (!channelId) return NextResponse.json({ error: 'channelId required' }, { status: 400 })

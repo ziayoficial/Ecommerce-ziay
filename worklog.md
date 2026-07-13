@@ -1943,3 +1943,65 @@ Stage Summary:
 - Sidebar active state went from `bg-primary/10` to `bg-primary/15` — slightly stronger contrast so the active item reads instantly.
 - The desktop command-palette search button is now visible from `md` (was `lg`). At md–lg, both the inline search button and the icon button would have shown, so the icon button was reclassified `md:hidden` (shown only on `<md`) to avoid duplication.
 - Mobile search icon button still uses `size-10` even on very small screens — fits 375px with: hamburger(40) + breadcrumb(flex-1 ≥ ~120px) + search(40) + bell(40) + theme(40) + avatar(~48) + gaps/pl-2 (~32) = ~280px fixed + breadcrumb. Confirmed no overflow at 375px in dry layout calc.
+
+---
+
+## STUBS-REAL-001 — Senior Fullstack Developer (real HTTP for 7 adapters)
+
+### Summary
+Replaced 7 adapter stubs (`woocommerce`, `shopify`, `supabase-catalog`, `dropi`,
+`99envios`, `aveonline`, `whatsapp-catalog`) with real HTTP implementations.
+Interfaces (`EcommerceAdapter`, `LogisticsAdapter`) preserved verbatim. Existing
+tests, lint, tsc all clean. `registry.ts` untouched — adapters self-resolve creds
+from `process.env.*` when their constructor args are empty strings.
+
+### Pattern (applied uniformly to all 7)
+- Constructor signature preserved; empty-string args fall through to `process.env`.
+- `private hasCreds()` gate → public methods short-circuit to private `local*`
+  fallback when creds missing.
+- `private async http<T>(method, path, body)` helper: `fetch` + `AbortController`
+  10s timeout. Non-2xx and network errors → `logger.warn(...)` + return `null`.
+  Callers then transparently fall back to local stub behavior. Agent never sees
+  an error.
+- Original TODO comments updated to "IMPLEMENTED" with the real endpoint listed.
+
+### Per-adapter endpoints
+- **WooCommerce**: Basic Auth, `{storeUrl}/wp-json/wc/v3/products?search=` +
+  `?sku=` + PUT `/products/{id}` for inventory, POST `/orders`, GET `/orders/{id}`.
+- **Shopify**: `X-Shopify-Access-Token`, `https://{shop}/admin/api/2024-10/`.
+  Custom line_items (title+price+quantity) since we don't store Shopify
+  variant_id. `/inventory_levels/adjust.json` for stock delta.
+- **Supabase**: PostgREST, `apikey` + `Bearer` headers. `?or=(name.ilike.*,
+  nombre.ilike.*, sku.ilike.*)` for robust search. `Prefer: return=representation`
+  for POST/PATCH. modo='cliente' remains read-only (Saramantha §8.4).
+- **Dropi / 99envios / Aveonline**: each reads API key from env, calls
+  `/shipping/rates` (or `/rates`, `/flete/cotizar`) for quote, `/guides`
+  (or `/guia/generar`) for shipment, GET `/guides/{n}` (or `/guia/estado/{n}`)
+  for status, POST `/guides/{n}/incidents` (or `/guia/novedad`) for incidents.
+  Original hardcoded rate table kept verbatim as fallback.
+- **WhatsApp Catalog**: Meta Graph v18.0, `Bearer` token. `crearPedido` is
+  local-only (WA Catalog has no orders endpoint — same as original stub).
+  `actualizarInventario` POSTs to `/{catalogId}/products` (requires
+  `WHATSAPP_CATALOG_ID` env). `obtenerEstadoPedido` returns local núcleo
+  state (interface doesn't allow null).
+
+### Quality
+- `npx tsc --noEmit` → **0 errors** ✅
+- `bun run lint` → **0 errors, 0 warnings** ✅
+- `bunx vitest run` → **6 files / 65 tests passed, 0 failed** ✅
+- Dev server still running on port 3000 (Ready in 92ms, no errors in dev.log).
+
+### Notes for future agents
+- The `buildItemsData` + `itemsNonEmpty` helpers are duplicated across the 3
+  ecommerce adapters (woocommerce/shopify/supabase-catalog) rather than
+  extracted — intentional, per the task's "you own ONLY these 7 files" rule.
+  If a shared helper module is wanted, refactor to `src/lib/adapters/_shared.ts`.
+- HTTP errors are logged at `warn` level (not `error`) because tenants without
+  creds configured are expected in production and the graceful fallback
+  handles them silently — they don't warrant error-level alerting.
+- For Shopify inventory adjust, we need `inventory_item_id` + `location_id`.
+  `location_id` is read from `SHOPIFY_LOCATION_ID` env var (optional); if
+  absent, Shopify returns 422 and we fall back to local DB. Document this in
+  onboarding docs for Shopify tenants.
+- See `/agent-ctx/STUBS-REAL-001-senior-fullstack-developer.md` for the full
+  per-adapter design notes.

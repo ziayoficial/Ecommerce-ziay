@@ -3,6 +3,20 @@
 // Portable: SQLite (dev) -> PostgreSQL/MySQL + pgvector (prod).
 // NOTE: SQLite has no native enums/arrays. We use String + constants in code.
 
+// ───────────────────────────────────────────────────────────────────
+// DATABASE PROVIDER
+// ───────────────────────────────────────────────────────────────────
+// Development (default): SQLite
+//   datasource { provider = "sqlite" }
+//
+// Production: PostgreSQL
+//   datasource { provider = "postgresql" }
+//   1. Change provider to "postgresql"
+//   2. Set DATABASE_URL=postgresql://user:pass@host:5432/ziay
+//   3. Run: bun run db:migrate deploy
+//   4. SQLite → Postgres data migration: use pgloader or prisma data proxy
+// ───────────────────────────────────────────────────────────────────
+
 generator client {
   provider = "prisma-client-js"
 }

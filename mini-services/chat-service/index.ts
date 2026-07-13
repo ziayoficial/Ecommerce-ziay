@@ -2,6 +2,7 @@
 // Port: 3003 (Caddy forwards via ?XTransformPort=3003, path=/)
 import { createServer } from 'http'
 import { Server } from 'socket.io'
+import { setupGracefulShutdown } from './graceful-shutdown'
 
 const httpServer = createServer()
 const io = new Server(httpServer, {
@@ -84,5 +85,7 @@ httpServer.listen(PORT, () => {
   console.log(`✅ CommerceFlow chat-service running on port ${PORT}`)
 })
 
-process.on('SIGTERM', () => httpServer.close(() => process.exit(0)))
-process.on('SIGINT', () => httpServer.close(() => process.exit(0)))
+// Graceful shutdown (SPRINT4-INFRA-001) — closes socket.io + HTTP server
+// cleanly on SIGTERM / SIGINT so connected clients can reconnect to another
+// instance immediately. Replaces the previous inline signal handlers.
+setupGracefulShutdown({ httpServer, io })

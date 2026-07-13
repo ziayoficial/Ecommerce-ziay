@@ -2480,3 +2480,97 @@ sub-components via props. Sub-components contain NO new data fetching
   log lines; no changes
 
 ### STATUS: ✅ COMPLETE — 3 files refactored into 35+ focused modules, 6 API routes logged, all tests green.
+
+---
+
+## SPRINT4-INFRA-001 — Senior DevOps + Backend Engineer (production scale)
+
+### Goal
+Prepare the platform for production scale: PostgreSQL migration support,
+optional Redis (cache/queue/socket), webhook idempotency, graceful shutdown.
+
+### Scope (10 files; 3 NEW, 7 UPDATE)
+- `prisma/schema.prisma` — added Postgres migration comment block (provider
+  unchanged — still `sqlite` for dev).
+- `src/lib/db.ts` — added Postgres connection-pooling comment block.
+- `src/lib/redis.ts` — NEW, optional Redis client (env-gated by `REDIS_URL`).
+  Falls back to in-memory cache (`src/lib/cache.ts`) silently when not
+  configured. Dynamic `import('ioredis')` so the app never crashes if the
+  package isn't installed in dev.
+- `src/lib/middleware/idempotency.ts` — NEW, in-memory dedup Map with 5-min
+  TTL. Used by all 6 webhook routes to skip duplicate retries.
+- `src/lib/graceful-shutdown.ts` — NEW, `setupGracefulShutdown(server?)`
+  wired to SIGTERM/SIGINT/uncaughtException. Logs via `@/lib/logger` (pino).
+- `src/app/api/webhooks/{whatsapp,meta,mercadopago,wompi,stripe,payu}/route.ts`
+  — added `generateWebhookId(rawBody, signature)` + `isDuplicateWebhook(id)`
+  call immediately after HMAC verification. Returns
+  `{ received: true, status: 'duplicate' }` on duplicate (HTTP 200) so
+  platform retries don't continue.
+- `mini-services/chat-service/graceful-shutdown.ts` — NEW, self-contained
+  graceful shutdown for the chat-service (the chat-service is a separate bun
+  project and can't import from `@/lib/*` at runtime in the Docker mount).
+- `mini-services/chat-service/index.ts` — replaced inline SIGTERM/SIGINT
+  handlers with `setupGracefulShutdown({ httpServer, io })` call. Closes
+  socket.io cleanly first so clients reconnect to another instance fast.
+- `src/app/api/health/route.ts` — added `redis` check: `ok` if REDIS_URL is
+  set AND ping succeeds, `error` if set but ping fails, `not_configured`
+  otherwise. Cached under existing 30s `withCache` wrapper.
+- `src/app/api/health/ready/route.ts` — readiness probe now also pings Redis
+  if `REDIS_URL` is set. Returns 503 with `{ reason: 'redis' }` if ping fails.
+  Redis is OPTIONAL — readiness still passes when `REDIS_URL` is unset.
+- `docker-compose.yml` — already had `REDIS_URL: "redis://redis:6379"` in
+  both `app` and `chat-service` services (from SPRINT1-INFRA-001). Confirmed
+  no change needed.
+- `.env.example` — NEW (didn't exist before despite prior agent's note).
+  Documents all 50+ env vars the codebase reads, with `REDIS_URL=` placed
+  prominently in its own section under the Core block.
+
+### Quality gates
+- `npx tsc --noEmit` → **0 errors** ✅
+- `bun run lint` → **0 errors, 0 warnings** ✅
+- `bunx vitest run` → **6 files / 65 tests passed** ✅
+- Dev server still running on port 3000 (`Ready in 7.4s`), no compile errors.
+
+### Design decisions
+1. **Redis is OPTIONAL end-to-end.** `getRedis()` returns `null` when
+   `REDIS_URL` is unset or `ioredis` isn't installed. Every helper (`redisGet`
+   / `redisSet` / `redisDel` / `isRedisAvailable`) is a silent no-op in that
+   case. Existing in-memory cache (`src/lib/cache.ts`) keeps working
+   unchanged. No call site needs to change.
+2. **`ioredis` is dynamically imported via a non-literal module specifier**
+   (`const moduleName = 'ioredis' as string; await import(moduleName)`) so
+   TypeScript's `tsc --noEmit` does NOT try to resolve its type declarations.
+   This means `ioredis` can be added in prod (`bun add ioredis`) or omitted
+   in dev, without breaking the type-check.
+3. **Idempotency key = `body + signature` hash (djb2, 32-bit).** The
+   signature is included deliberately: two senders with the same body
+   (legitimate) but different signatures should NOT be deduplicated. The
+   5-minute TTL covers Stripe's immediate + 30s + 2m + 5m retry burst; the
+   later 10m+ retries are absorbed by `applyPaymentUpdate`'s own upsert
+   idempotency on `(tenantId, externalReference, gateway)`.
+4. **Chat-service graceful shutdown is a separate file** (`mini-services/
+   chat-service/graceful-shutdown.ts`) rather than reusing
+   `src/lib/graceful-shutdown.ts`. Reason: the chat-service is mounted at
+   `/app` in docker-compose, so relative imports back to `../../src/...`
+   would not resolve at runtime. It also doesn't have pino / prisma in its
+   `node_modules`, so it uses `console.log` instead. Behaviour mirrors the
+   main app's shutdown: closes socket.io first (clean client disconnects),
+   then HTTP server, with a 5s force-exit safety net for `bun --hot` reload.
+5. **Readiness probe is "soft" on Redis.** If `REDIS_URL` is unset, the probe
+   still returns 200 (Redis is optional). If `REDIS_URL` is set but ping
+   fails, the probe returns 503 with `reason: 'redis'` — the orchestrator
+   should wait for Redis to come up before routing traffic.
+
+### Notes for future agents
+- To enable Redis in prod: `bun add ioredis`, set `REDIS_URL`, restart. No
+  code changes needed. Health endpoint will flip from `not_configured` to `ok`.
+- To migrate SQLite → PostgreSQL: see the comment block at the top of
+  `prisma/schema.prisma`. The existing `0_init` migration SQL is
+  SQLite-dialect and will NOT apply to PostgreSQL as-is — use `pgloader`
+  or `prisma migrate diff` to re-baseline.
+- The idempotency Map is process-local. For multi-instance production,
+  swap the in-memory Map for `redisSet('idem:'+id, 1, 300)` — the function
+  signature stays the same. The TTL is already 5 min, matching the Redis TTL.
+- `isGracefulShuttingDown()` is exported from both shutdown modules — long-
+  running handlers can poll it and bail early instead of starting work that
+  won't get to finish.

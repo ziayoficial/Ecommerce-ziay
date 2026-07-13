@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { verifyMetaSignature } from '@/lib/middleware/hmac'
+import { isDuplicateWebhook, generateWebhookId } from '@/lib/middleware/idempotency'
 
 // Meta (Messenger + Instagram + WhatsApp) ad platform webhook + lead/attributions.
 export async function GET(req: NextRequest) {
@@ -38,6 +39,14 @@ export async function POST(req: NextRequest) {
       data: { action: 'webhook.meta.invalid_sig', entity: 'Webhook', meta: rawBody.slice(0, 1000) },
     })
     return NextResponse.json({ error: 'invalid signature' }, { status: 403 })
+  }
+
+  // ── Idempotency (SPRINT4-INFRA-001) ────────────────────────────────────
+  // Meta retries webhooks if our ACK is delayed. Skip the body if we've
+  // already processed this exact (body + signature) within the 5-minute TTL.
+  const webhookId = generateWebhookId(rawBody, signature)
+  if (isDuplicateWebhook(webhookId)) {
+    return NextResponse.json({ received: true, status: 'duplicate' })
   }
 
   let body: unknown = {}

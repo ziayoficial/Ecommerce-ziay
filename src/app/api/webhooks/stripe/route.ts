@@ -22,6 +22,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { StripeAdapter } from '@/lib/adapters/stripe'
 import { applyPaymentUpdate, safeAudit } from '@/lib/adapters/payment-webhook-utils'
+import { isDuplicateWebhook, generateWebhookId } from '@/lib/middleware/idempotency'
 
 export async function POST(req: NextRequest) {
   const rawBody = await req.text()
@@ -31,6 +32,15 @@ export async function POST(req: NextRequest) {
   if (!adapter.webhookVerify(rawBody, signature)) {
     await safeAudit('webhook.stripe.invalid_sig', 'Webhook', rawBody.slice(0, 1000))
     return NextResponse.json({ received: true, status: 'invalid_signature' })
+  }
+
+  // ── Idempotency (SPRINT4-INFRA-001) ────────────────────────────────────
+  // Stripe retries webhooks (immediate, 30s, 2m, 5m, 10m, 30m, 1h, 2h, 6h, 12h,
+  // 24h) if our ACK is delayed. Skip processing if we've already handled this
+  // exact (body + signature) within the 5-min TTL.
+  const webhookId = generateWebhookId(rawBody, signature)
+  if (isDuplicateWebhook(webhookId)) {
+    return NextResponse.json({ received: true, status: 'duplicate' })
   }
 
   let body: Record<string, unknown> = {}

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { verifyMetaSignature } from '@/lib/middleware/hmac'
+import { isDuplicateWebhook, generateWebhookId } from '@/lib/middleware/idempotency'
 
 // WhatsApp Cloud API webhook (Meta).
 // GET = verification, POST = inbound messages.
@@ -39,6 +40,15 @@ export async function POST(req: NextRequest) {
       data: { action: 'webhook.wa.invalid_sig', entity: 'Webhook', meta: rawBody.slice(0, 1000) },
     })
     return NextResponse.json({ error: 'invalid signature' }, { status: 403 })
+  }
+
+  // ── Idempotency (SPRINT4-INFRA-001) ────────────────────────────────────
+  // Meta can retry this webhook up to ~24h if our ACK is delayed. Skip the
+  // body if we've already processed this exact (body + signature) within the
+  // 5-minute TTL window — see src/lib/middleware/idempotency.ts.
+  const webhookId = generateWebhookId(rawBody, signature)
+  if (isDuplicateWebhook(webhookId)) {
+    return NextResponse.json({ received: true, status: 'duplicate' })
   }
 
   let body: unknown = {}

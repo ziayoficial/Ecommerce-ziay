@@ -24,6 +24,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { PayUAdapter } from '@/lib/adapters/payu'
 import { applyPaymentUpdate, safeAudit } from '@/lib/adapters/payment-webhook-utils'
+import { isDuplicateWebhook, generateWebhookId } from '@/lib/middleware/idempotency'
 
 /** Map de códigos `state_pol` de PayU a strings canónicos. */
 const PAYU_STATE_POL_MAP: Record<string, string> = {
@@ -53,6 +54,16 @@ export async function POST(req: NextRequest) {
   if (!adapter.webhookVerify(rawBody, signature)) {
     await safeAudit('webhook.payu.invalid_sig', 'Webhook', rawBody.slice(0, 1000))
     return NextResponse.json({ received: true, status: 'invalid_signature' })
+  }
+
+  // ── Idempotency (SPRINT4-INFRA-001) ────────────────────────────────────
+  // PayU retries webhooks if our ACK is delayed. Skip processing if we've
+  // already handled this exact (body + signature) within the 5-min TTL.
+  // The signature is resolved above (header OR body `sign` field) so the
+  // idempotency key is stable regardless of which path the signature came from.
+  const webhookId = generateWebhookId(rawBody, signature)
+  if (isDuplicateWebhook(webhookId)) {
+    return NextResponse.json({ received: true, status: 'duplicate' })
   }
 
   try {

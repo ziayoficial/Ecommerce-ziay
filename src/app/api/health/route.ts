@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { withCache } from '@/lib/cache'
+import { isRedisAvailable } from '@/lib/redis'
 
 // GET /api/health — reports status of all integrations.
 // Cached for 30 seconds — the endpoint is polled frequently by the UI and
@@ -33,6 +34,21 @@ async function runHealthChecks(tenantId: string | undefined) {
     const count = await db.tenant.count({ where: { activo: true } })
     checks.push({ name: 'tenants', status: count > 0 ? 'ok' : 'warning', detail: `${count} active tenants` })
   } catch { checks.push({ name: 'tenants', status: 'error', detail: 'cannot query' }) }
+
+  // ── Redis (SPRINT4-INFRA-001) ─────────────────────────────────────────
+  // Reports `ok` if REDIS_URL is set AND PING succeeds, `error` if REDIS_URL
+  // is set but PING fails (e.g. Redis is down), `not_configured` if no
+  // REDIS_URL — the app still works, just with in-memory cache only.
+  const redisAvailable = await isRedisAvailable()
+  if (process.env.REDIS_URL) {
+    checks.push({
+      name: 'redis',
+      status: redisAvailable ? 'ok' : 'error',
+      detail: redisAvailable ? 'Connected' : 'REDIS_URL set but ping failed',
+    })
+  } else {
+    checks.push({ name: 'redis', status: 'not_configured', detail: 'Set REDIS_URL to enable shared cache' })
+  }
 
   const llmProviders = [
     { id: 'zai', env: null, alwaysOn: true },

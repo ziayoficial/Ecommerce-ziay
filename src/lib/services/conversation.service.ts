@@ -16,6 +16,11 @@ export interface ConversationFilters {
   status?: string
   channel?: string
   q?: string
+  /** Cursor-based pagination — id of the last row on the previous page. */
+  cursor?: string
+  /** Page size. The service takes `limit + 1` so the caller can detect
+   *  `hasMore`. When omitted, falls back to 200 (legacy behaviour). */
+  limit?: number
 }
 
 export interface SendMessageInput {
@@ -32,10 +37,17 @@ export interface SendMessageInput {
 export const conversationService = {
   /**
    * List conversations for a tenant with the most recent message hydrated.
-   * Used by `/api/conversations`.
+   * Used by `/api/conversations?tenantId=...&status=...&channel=...&q=...&cursor=...&limit=...`.
+   *
+   * Cursor-based pagination: pass `filters.cursor` (id of the last row on
+   * the previous page) + `filters.limit`. The service returns `limit + 1`
+   * rows so the caller can detect `hasMore`. When `limit` is omitted it
+   * falls back to a hard cap of 200 (legacy behaviour).
    */
   async getConversations(tenantId: string | undefined, filters?: ConversationFilters) {
     try {
+      const limit = filters?.limit
+      const take = limit != null ? limit + 1 : 200
       return await db.conversation.findMany({
         where: {
           ...(tenantId ? { tenantId } : {}),
@@ -50,7 +62,8 @@ export const conversationService = {
           messages: { orderBy: { createdAt: 'desc' }, take: 1 },
         },
         orderBy: { lastMessageAt: 'desc' },
-        take: 200,
+        take,
+        ...(filters?.cursor ? { skip: 1, cursor: { id: filters.cursor } } : {}),
       })
     } catch (err) {
       captureError(err as Error, { service: 'conversation', method: 'getConversations', tenantId })
@@ -61,11 +74,16 @@ export const conversationService = {
   /**
    * Single conversation with full message history + recent orders.
    * Used by `/api/conversations/[id]`.
+   *
+   * When `tenantId` is provided, the lookup is constrained to that tenant
+   * (defense-in-depth — the route should have already validated tenant
+   * access via `requireAuth` / `requireTenantAccess`). When omitted, the
+   * lookup is by id only (legacy behaviour).
    */
-  async getConversationById(id: string) {
+  async getConversationById(id: string, tenantId?: string) {
     try {
-      const conv = await db.conversation.findUnique({
-        where: { id },
+      const conv = await db.conversation.findFirst({
+        where: { id, ...(tenantId ? { tenantId } : {}) },
         include: {
           customer: true,
           channel: true,
@@ -140,10 +158,15 @@ export const conversationService = {
 
   /**
    * Update status / priority / assignee. Used by the agent inbox.
+   *
+   * `tenantId` is accepted for symmetry with the read methods but is NOT
+   * injected into the where clause — the caller is expected to have already
+   * validated tenant access. (Defense-in-depth via RLS in PostgreSQL prod.)
    */
   async updateStatus(
     id: string,
     patch: { status?: string; priority?: string; assigneeId?: string | null },
+    tenantId?: string,
   ) {
     try {
       const updated = await db.conversation.update({
@@ -154,10 +177,10 @@ export const conversationService = {
           ...(patch.assigneeId !== undefined ? { assigneeId: patch.assigneeId } : {}),
         },
       })
-      log.info({ conversationId: id, patch }, 'Conversation updated')
+      log.info({ conversationId: id, patch, tenantId }, 'Conversation updated')
       return updated
     } catch (err) {
-      captureError(err as Error, { service: 'conversation', method: 'updateStatus', id })
+      captureError(err as Error, { service: 'conversation', method: 'updateStatus', id, tenantId })
       throw new Error('Failed to update conversation')
     }
   },

@@ -1,13 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
 import { requireAuth } from '@/lib/auth-helpers'
 import { withCache } from '@/lib/cache'
 import { captureError } from '@/lib/capture-error'
+import { catalogService } from '@/lib/services'
 
 // GET /api/catalog/products?tenantId=...&q=...
 // Cached for 5 minutes per (tenantId, q) — products don't change often and
 // the catalog view is one of the highest-traffic endpoints. Cache key
 // includes tenantId to avoid cross-tenant data leaks.
+//
+// SPRINT7-POSTGRES-SERVICES-001 — migrated from `db.product.findMany` to
+// `catalogService.getProducts`. Response shape is unchanged.
 export async function GET(req: NextRequest) {
   const { error } = await requireAuth()
   if (error) return error
@@ -33,17 +36,7 @@ export async function GET(req: NextRequest) {
 }
 
 async function fetchProducts(tenantId: string, q: string) {
-  const products = await db.product.findMany({
-    where: {
-      tenantId,
-      active: true,
-      ...(q ? { OR: [
-        { name: { contains: q } }, { sku: { contains: q } },
-        { diseno: { contains: q } }, { categoria: { contains: q } },
-      ] } : {}),
-    },
-    orderBy: { createdAt: 'desc' },
-  })
+  const products = await catalogService.getProducts(tenantId, q || undefined)
 
   return {
     products: products.map(p => ({

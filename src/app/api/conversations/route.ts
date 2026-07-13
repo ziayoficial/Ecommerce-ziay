@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAuth } from '@/lib/auth-helpers'
 import { captureError } from '@/lib/capture-error'
+import { conversationService } from '@/lib/services'
 
 // GET /api/conversations?tenantId=X&status=Y&channel=Z&q=...&cursor=ID&limit=N
 //
@@ -11,6 +12,13 @@ import { captureError } from '@/lib/capture-error'
 // Backward compatible: when no `cursor` is given the first page is returned.
 // Existing callers that only read `conversations` keep working — they just
 // see the first page instead of every row.
+//
+// SPRINT7-POSTGRES-SERVICES-001 — GET migrated from `db.conversation.findMany`
+// to `conversationService.getConversations`. The POST handler still uses
+// `db.*` directly (out of scope for this task — it does a `db.message.create`
+// + `db.conversation.update` that is logically a `sendMessage`, but the
+// signature doesn't match `conversationService.sendMessage` exactly and
+// migrating it would change response shape). Response shape is unchanged.
 export async function GET(req: NextRequest) {
   const { error } = await requireAuth()
   if (error) return error
@@ -26,22 +34,12 @@ export async function GET(req: NextRequest) {
       ? Math.min(parsedLimit, 100)
       : 20
 
-    const result = await db.conversation.findMany({
-      where: {
-        ...(tenantId ? { tenantId } : {}),
-        ...(status && status !== 'all' ? { status } : {}),
-        ...(channel && channel !== 'all' ? { channelId: channel } : {}),
-        ...(q ? { customer: { name: { contains: q } } } : {}),
-      },
-      include: {
-        customer: true,
-        channel: true,
-        assignee: true,
-        messages: { orderBy: { createdAt: 'desc' }, take: 1 },
-      },
-      orderBy: { lastMessageAt: 'desc' },
-      take: limit + 1,
-      ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
+    const result = await conversationService.getConversations(tenantId, {
+      status,
+      channel,
+      q,
+      cursor,
+      limit,
     })
 
     const hasNext = result.length > limit

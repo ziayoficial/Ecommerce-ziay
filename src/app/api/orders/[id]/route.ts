@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-helpers'
-import { db } from '@/lib/db'
+import { orderService } from '@/lib/services'
 import { captureError } from '@/lib/capture-error'
 
 // Update order status / payment status.
@@ -8,6 +8,10 @@ import { captureError } from '@/lib/capture-error'
 // If `body.event` is provided, the order update + OrderEvent insert are
 // wrapped in a single $transaction so the audit trail never diverges from
 // the order state (e.g. an event recorded for a status that never landed).
+//
+// SPRINT7-POSTGRES-SERVICES-001 — migrated from inline `db.$transaction` /
+// `db.order.update` to `orderService.updateOrder(...)`. The service wraps
+// the same atomic transaction internally; response shape is unchanged.
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -24,16 +28,9 @@ export async function PATCH(
     if (body.paymentGateway) data.paymentGateway = body.paymentGateway
     if (body.paymentRef) data.paymentRef = body.paymentRef
 
-    if (body.event) {
-      // Two writes that must be atomic: order update + event insert.
-      const [updated] = await db.$transaction([
-        db.order.update({ where: { id }, data }),
-        db.orderEvent.create({ data: { orderId: id, type: body.event, note: body.note } }),
-      ])
-      return NextResponse.json({ order: updated })
-    }
-
-    const updated = await db.order.update({ where: { id }, data })
+    const updated = await orderService.updateOrder(id, data, body.event
+      ? { type: body.event, note: body.note }
+      : undefined)
     return NextResponse.json({ order: updated })
   } catch (err) {
     captureError(err as Error, { path: '/api/orders/[id]', method: 'PATCH' })

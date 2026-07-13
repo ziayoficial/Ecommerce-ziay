@@ -17,6 +17,11 @@ export interface NovedadCaseFilters {
   type?: string
   carrier?: string
   q?: string
+  /** Cursor-based pagination — id of the last row on the previous page. */
+  cursor?: string
+  /** Page size. The service takes `limit + 1` so the caller can detect
+   *  `hasMore`. When omitted, falls back to 200 (legacy behaviour). */
+  limit?: number
 }
 
 export interface CreateCaseInput {
@@ -36,7 +41,17 @@ export interface CreateCaseInput {
 export const novedadesService = {
   /**
    * List cases for a tenant + status/type breakdown for the stats bar.
-   * `take: 200` cap matches the existing API behaviour.
+   *
+   * Cursor-based pagination: pass `filters.cursor` (id of the last row on
+   * the previous page) + `filters.limit`. The service returns `limit + 1`
+   * rows so the caller can detect `hasMore`. When `limit` is omitted it
+   * falls back to a hard cap of 200 (legacy behaviour).
+   *
+   * The `stats` block is NOT paginated — it's a global group-by over every
+   * case for the tenant, so the badges in the UI stay accurate regardless
+   * of which page is loaded.
+   *
+   * Returns `{ cases, stats }`.
    */
   async getCases(tenantId: string, filters?: NovedadCaseFilters) {
     try {
@@ -53,11 +68,17 @@ export const novedadesService = {
         ]
       }
 
+      const limit = filters?.limit
+      const take = limit != null ? limit + 1 : 200
+
       const [cases, stats] = await Promise.all([
         db.novedadCase.findMany({
           where,
           orderBy: { createdAt: 'desc' },
-          take: 200,
+          take,
+          // `skip: 1` with cursor: Prisma includes the cursor row by
+          // default — we want the row *after* it.
+          ...(filters?.cursor ? { skip: 1, cursor: { id: filters.cursor } } : {}),
           include: {
             evidence: { take: 1, orderBy: { createdAt: 'desc' } },
             _count: { select: { evidence: true, messages: true } },

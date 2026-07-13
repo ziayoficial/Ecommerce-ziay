@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
 import { requireAuth } from '@/lib/auth-helpers'
 import { captureError } from '@/lib/capture-error'
+import { orderService } from '@/lib/services'
 
 // GET /api/orders?tenantId=X&status=Y&mode=Z&q=...&cursor=ID&limit=N
 //
@@ -12,6 +12,10 @@ import { captureError } from '@/lib/capture-error'
 // The response still includes the `orders` array — existing callers that
 // don't read `nextCursor` / `hasMore` keep working (they just see the first
 // page).
+//
+// SPRINT7-POSTGRES-SERVICES-001 — migrated from `db.order.findMany(...)` to
+// `orderService.getOrders(...)`. Response shape is unchanged; only the
+// internal DB access seam moved into the service layer.
 export async function GET(req: NextRequest) {
   const { error } = await requireAuth()
   if (error) return error
@@ -28,19 +32,13 @@ export async function GET(req: NextRequest) {
       ? Math.min(parsedLimit, 100)
       : 20
 
-    const result = await db.order.findMany({
-      where: {
-        ...(tenantId ? { tenantId } : {}),
-        ...(status && status !== 'all' ? { status } : {}),
-        ...(mode && mode !== 'all' ? { paymentMode: mode } : {}),
-        ...(q ? { number: { contains: q } } : {}),
-      },
-      include: { customer: true, items: true, sourceAd: { include: { campaign: true } } },
-      orderBy: { createdAt: 'desc' },
-      take: limit + 1, // take 1 extra to detect a next page
-      // `skip: 1` is required with cursor: Prisma includes the cursor row by
-      // default — we want the row *after* it.
-      ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
+    // The service takes `limit + 1` so we can detect a next page.
+    const result = await orderService.getOrders(tenantId, {
+      status,
+      mode,
+      q,
+      cursor,
+      limit,
     })
 
     const hasNext = result.length > limit

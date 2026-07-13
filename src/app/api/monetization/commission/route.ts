@@ -2,9 +2,16 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAuth } from '@/lib/auth-helpers'
 import { captureError } from '@/lib/capture-error'
+import { monetizationService } from '@/lib/services'
 
 // GET /api/monetization/commission?tenantId=...
 // Returns list of commission entries (recognized + pending)
+//
+// SPRINT7-POSTGRES-SERVICES-001 — GET migrated from `db.commissionEntry.findMany`
+// + inline totals reduce to `monetizationService.getCommissions`. The POST
+// handler (commission recognition upsert) is left inline — its two-moment
+// recognition logic doesn't have a 1:1 service method yet. Response shape
+// is unchanged.
 export async function GET(req: NextRequest) {
   const { error } = await requireAuth()
   if (error) return error
@@ -13,19 +20,7 @@ export async function GET(req: NextRequest) {
     const tenantId = req.nextUrl.searchParams.get('tenantId')
     if (!tenantId) return NextResponse.json({ error: 'tenantId required' }, { status: 400 })
 
-    const entries = await db.commissionEntry.findMany({
-      where: { tenantId },
-      include: { order: { select: { number: true, status: true, total: true, createdAt: true } } },
-      orderBy: { createdAt: 'desc' },
-      take: 100,
-    })
-
-    const totals = entries.reduce((acc, e) => {
-      acc.gmv += e.gmv
-      acc.comisionTotal += e.comisionTotal
-      acc.reconocida += e.reconocidaMonto
-      return acc
-    }, { gmv: 0, comisionTotal: 0, reconocida: 0 })
+    const { entries, totals } = await monetizationService.getCommissions(tenantId)
 
     return NextResponse.json({
       entries: entries.map(e => ({
@@ -42,12 +37,7 @@ export async function GET(req: NextRequest) {
         reconocidaAt: e.reconocidaAt,
         createdAt: e.createdAt,
       })),
-      totals: {
-        gmv: Math.round(totals.gmv),
-        comisionTotal: Math.round(totals.comisionTotal),
-        reconocida: Math.round(totals.reconocida),
-        pendiente: Math.round(totals.comisionTotal - totals.reconocida),
-      },
+      totals,
     })
   } catch (err) {
     captureError(err as Error, { path: '/api/monetization/commission', method: 'GET' })

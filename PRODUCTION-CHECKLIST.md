@@ -88,6 +88,112 @@
 
 ---
 
+## 🐘 PostgreSQL Migration (dev SQLite → prod PostgreSQL)
+
+> Step-by-step runbook for taking ZIAY from the bundled SQLite dev DB to a
+> production PostgreSQL instance. Tracked under SPRINT7-POSTGRES-SERVICES-001.
+> Companion files: `prisma/schema.prisma` (top comment), `prisma/migrations/
+> 1_postgres_indexes/migration.sql` (RLS + index re-statement), `src/lib/db.ts`
+> (pooling notes), `.env.example` (`DATABASE_URL` block).
+
+1. **Install PostgreSQL 16** on the production host (or provision a managed
+   instance — RDS / Cloud SQL / Neon / Supabase all work). Confirm with:
+   ```bash
+   psql --version          # expect psql (PostgreSQL) 16.x
+   sudo systemctl status postgresql
+   ```
+
+2. **Create the database + app user** (run as the postgres superuser):
+   ```bash
+   sudo -u postgres psql
+   ```
+   ```sql
+   CREATE DATABASE ziay;
+   CREATE USER ziay_app WITH ENCRYPTED PASSWORD 'CHANGE_ME';
+   GRANT ALL PRIVILEGES ON DATABASE ziay TO ziay_app;
+   \c ziay
+   GRANT ALL ON SCHEMA public TO ziay_app;
+   -- Optional but recommended: enable pgvector up front for future RAG work.
+   CREATE EXTENSION IF NOT EXISTS vector;
+   \q
+   ```
+
+3. **Switch the Prisma provider to `postgresql`** in `prisma/schema.prisma`:
+   ```prisma
+   datasource db {
+     provider = "postgresql"   // was "sqlite"
+     url      = env("DATABASE_URL")
+   }
+   ```
+   The full SQLite→PG comment block at the top of the schema file lists the
+   same steps for future reference.
+
+4. **Set `DATABASE_URL`** in your production `.env` (or secret manager):
+   ```bash
+   DATABASE_URL=postgresql://ziay_app:CHANGE_ME@localhost:5432/ziay?schema=public&connection_limit=20&pool_timeout=10
+   ```
+   For PgBouncer / serverless, append `&pgbouncer=true` and drop
+   `connection_limit` to ~10.
+
+5. **Apply migrations** — `0_init` creates the tables, `1_postgres_indexes`
+   re-states every `@@index` / `@@unique` (idempotent) and enables Row-Level
+   Security on the 10 most critical tenant-scoped tables:
+   ```bash
+   bun run db:migrate        # prisma migrate deploy
+   ```
+   Verify in `_prisma_migrations` that both `0_init` and
+   `1_postgres_indexes` are recorded as applied.
+
+6. **Seed the database** with demo tenants + catalog:
+   ```bash
+   bunx prisma db seed
+   ```
+
+7. **Verify the migration landed correctly**:
+   ```bash
+   psql -d ziay -c "SELECT COUNT(*) FROM \"Tenant\";"
+   psql -d ziay -c "SELECT COUNT(*) FROM \"Product\";"
+   psql -d ziay -c "SELECT relname, relrowsecurity FROM pg_class WHERE relrowsecurity = true;"
+   # The last query should list ~10 tables with RLS enabled.
+   ```
+
+8. **(Optional) Migrate existing SQLite data** if you have dev/seed data you
+   need to preserve. Two options:
+   - **pgloader** (recommended for one-shot moves):
+     ```lisp
+     # migrate.load
+     LOAD DATABASE
+       FROM sqlite:///home/z/my-project/db/custom.db
+       INTO postgresql:///ziay
+     WITH include drop, create tables, create indexes, reset sequences,
+          downcase identifiers
+     ALTER schema 'public' OWNER TO 'ziay_app'
+     ;
+     ```
+     Run with `pgloader migrate.load`.
+   - **Prisma data proxy** snapshot — export each model to JSON from SQLite,
+     then `prisma db seed`-style re-insert into PostgreSQL. Slower but no
+     extra binary dependency.
+
+9. **Smoke test the API against the new DB** before flipping DNS:
+   ```bash
+   curl -s http://localhost:3000/api/health | jq .status          # "ok"
+   curl -s 'http://localhost:3000/api/overview?tenantId=ten-saramantha' | jq .
+   curl -s 'http://localhost:3000/api/orders?tenantId=ten-saramantha&limit=5' | jq '.orders | length'
+   ```
+
+10. **Take a baseline snapshot** and configure nightly `pg_dump` backups:
+    ```bash
+    pg_dump -Fc -d ziay -f /var/backups/ziay/$(date +%Y%m%d).dump
+    # crontab: 0 3 * * * /usr/bin/pg_dump -Fc -d ziay -f /var/backups/ziay/$(date +\%Y\%m\%d).dump
+    ```
+
+> Rollback: keep the SQLite `custom.db` file alongside until the PostgreSQL
+> instance has run cleanly for 7 days. To revert, flip `provider` back to
+> `sqlite`, restore `DATABASE_URL=file:...`, and `bun run db:push`.
+
+---
+
 ## 🟢 Nice to have (v1.1+)
 
 - [ ] Set up Grafana + Prometheus for full metrics dashboards

@@ -1,20 +1,21 @@
 import { PrismaClient } from '@prisma/client'
 
 // ───────────────────────────────────────────────────────────────────────────
-// Production PostgreSQL connection pooling (SPRINT4-INFRA-001)
+// Prisma client singleton — works for both SQLite (dev) and PostgreSQL (prod).
+// SPRINT7-POSTGRES-SERVICES-001
 // ───────────────────────────────────────────────────────────────────────────
-// In production with PostgreSQL, enable connection pooling via DATABASE_URL.
-// Prisma automatically uses connection pooling through the connection string —
-// no code changes are needed here.
+// In production with PostgreSQL, Prisma uses connection pooling via the
+// `DATABASE_URL` connection string — NO code changes are required here.
 //
-// Example URL with pooling params:
-//   postgresql://user:pass@host:5432/db?schema=public&connection_limit=20&pool_timeout=10
+// Example prod URL with pooling params:
+//   postgresql://user:pass@host:5432/ziay?schema=public&connection_limit=20&pool_timeout=10
 //
 // For serverless / PgBouncer setups, append `&pgbouncer=true` so Prisma uses
-// the PgBouncer transaction-mode pool. The full recommended prod URL:
-//   postgresql://user:pass@host:5432/db?schema=public&connection_limit=20&pool_timeout=10&pgbouncer=true
+// the PgBouncer transaction-mode pool. Full recommended prod URL:
+//   postgresql://user:pass@host:5432/ziay?schema=public&connection_limit=10&pool_timeout=10&pgbouncer=true
 //
-// In dev (SQLite) this entire block is a no-op — SQLite is single-connection.
+// In dev (SQLite) the pooling params are ignored — SQLite is single-connection
+// and `file:./db/custom.db` is all that's needed.
 // ───────────────────────────────────────────────────────────────────────────
 
 const globalForPrisma = globalThis as unknown as {
@@ -24,7 +25,10 @@ const globalForPrisma = globalThis as unknown as {
 export const db =
   globalForPrisma.prisma ??
   new PrismaClient({
-    log: process.env.NODE_ENV === 'production' ? ['error'] : ['error', 'warn'],
+    log:
+      process.env.NODE_ENV === 'development'
+        ? ['query', 'warn', 'error']
+        : ['error'],
   })
 
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = db

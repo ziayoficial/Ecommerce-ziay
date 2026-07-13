@@ -4,17 +4,27 @@
 // NOTE: SQLite has no native enums/arrays. We use String + constants in code.
 
 // ───────────────────────────────────────────────────────────────────
-// DATABASE PROVIDER
+// DATABASE PROVIDER — SQLite (dev) ↔ PostgreSQL (prod)
 // ───────────────────────────────────────────────────────────────────
-// Development (default): SQLite
-//   datasource { provider = "sqlite" }
+// The SAME schema compiles against either provider. To switch:
 //
-// Production: PostgreSQL
-//   datasource { provider = "postgresql" }
-//   1. Change provider to "postgresql"
-//   2. Set DATABASE_URL=postgresql://user:pass@host:5432/ziay
-//   3. Run: bun run db:migrate deploy
-//   4. SQLite → Postgres data migration: use pgloader or prisma data proxy
+//   1. Edit the `datasource db` block below:
+//        dev :  provider = "sqlite"      // DATABASE_URL=file:./db/custom.db
+//        prod:  provider = "postgresql"  // DATABASE_URL=postgresql://...
+//   2. Set `DATABASE_URL` accordingly (see `.env.example`).
+//   3. Apply migrations:
+//        dev :  bun run db:push
+//        prod:  bun run db:migrate        // prisma migrate deploy
+//   4. Seed:  bunx prisma db seed
+//   5. SQLite → PostgreSQL data migration: use `pgloader` or a one-off
+//      `prisma data proxy` snapshot (see PRODUCTION-CHECKLIST.md →
+//      "PostgreSQL Migration" for the full step-by-step).
+//
+// Notes:
+//   - SQLite has no native enums/arrays — we use String + constants in code.
+//   - PostgreSQL-specific DDL (RLS policies, pgvector) lives in
+//     `prisma/migrations/1_postgres_indexes/migration.sql` — only applied
+//     when the provider is `postgresql`.
 // ───────────────────────────────────────────────────────────────────
 
 generator client {
@@ -22,6 +32,8 @@ generator client {
 }
 
 datasource db {
+  // Dev: "sqlite"  ·  Prod: "postgresql"
+  // (SPRINT7-POSTGRES-SERVICES-001 — keep dev on SQLite, switch only at deploy.)
   provider = "sqlite"
   url      = env("DATABASE_URL")
 }

@@ -21,11 +21,18 @@
 //   close         → set status=closed
 //
 // Auth: requireTenantAccess(tenantId) on every entry.
+//
+// SPRINT7-POSTGRES-SERVICES-001 — GET + POST migrated from
+// `db.novedadCase.findMany` / `db.$transaction` to the service layer
+// (`novedadesService.getCases` / `novedadesService.createCase`). PATCH is
+// intentionally left untouched (its action-dispatch transactions don't have
+// a 1:1 service method yet). Response shapes are unchanged.
 
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireTenantAccess } from '@/lib/auth-helpers'
 import { getLogger } from '@/lib/logger'
+import { novedadesService } from '@/lib/services'
 
 const log = getLogger('api:novedades')
 
@@ -62,48 +69,23 @@ export async function GET(req: NextRequest) {
     ? Math.min(parsedLimit, 100)
     : 20
 
-  const where: any = { tenantId }
-  if (status && status !== 'all') where.status = status
-  if (type && type !== 'all') where.type = type
-  if (carrier && carrier !== 'all') where.carrierName = carrier
-  if (q) {
-    where.OR = [
-      { caseNumber: { contains: q, mode: 'insensitive' } },
-      { customerName: { contains: q, mode: 'insensitive' } },
-      { guideNumber: { contains: q, mode: 'insensitive' } },
-      { phone: { contains: q } },
-    ]
-  }
-
-  const [rows, stats] = await Promise.all([
-    db.novedadCase.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      take: limit + 1, // take 1 extra to detect a next page
-      // `skip: 1` with cursor: Prisma includes the cursor row by default,
-      // we want the row *after* it.
-      ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
-      include: {
-        evidence: { take: 1, orderBy: { createdAt: 'desc' } },
-        _count: { select: { evidence: true, messages: true } },
-      },
-    }),
-    // Stats are NOT paginated — they're a global group-by over every
-    // matching case for the tenant, so the badges in the UI stay accurate
-    // regardless of which page is loaded.
-    db.novedadCase.groupBy({
-      by: ['status'],
-      where: { tenantId },
-      _count: true,
-    }),
-  ])
+  // The service takes `limit + 1` so we can detect a next page; it also
+  // returns the global stats group-by (not paginated).
+  const { cases: rows, stats: grouped } = await novedadesService.getCases(tenantId, {
+    status,
+    type,
+    carrier,
+    q,
+    cursor,
+    limit,
+  })
 
   const hasNext = rows.length > limit
   const cases = hasNext ? rows.slice(0, limit) : rows
   const nextCursor = hasNext ? cases[cases.length - 1].id : null
 
   const statsMap: Record<string, number> = { open: 0, assigned: 0, resolved: 0, escalated: 0, closed: 0 }
-  for (const g of stats) statsMap[g.status] = g._count
+  for (const g of grouped) statsMap[g.status] = g._count
   return NextResponse.json({
     stats: {
       total: Object.values(statsMap).reduce((a, b) => a + b, 0),
@@ -171,6 +153,8 @@ export async function POST(req: NextRequest) {
   }
 
   // Validate that orderId (if provided) belongs to this tenant.
+  // (Still a direct `db.order.findUnique` — out of the orderService scope of
+  // this task; the validation only reads the tenantId, never returns data.)
   if (orderId) {
     const order = await db.order.findUnique({ where: { id: orderId }, select: { tenantId: true } })
     if (!order || order.tenantId !== tenantId) {
@@ -181,43 +165,21 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Auto-generate caseNumber NV-YYYY-XXXXX (year + base36 of count+random).
-  const year = new Date().getFullYear()
-  const random = Math.random().toString(36).slice(2, 7).toUpperCase()
-  const caseNumber = `NV-${year}-${random}`
-
   const authorName = (session?.user as any)?.name || (session?.user as any)?.email || 'system'
 
-  // Atomic: create the case + stamp the initial system message together so
-  // we never end up with a case that has no opening message (or vice versa).
-  const newCase = await db.$transaction(async (tx) => {
-    const created = await tx.novedadCase.create({
-      data: {
-        tenantId,
-        caseNumber,
-        orderId: orderId || null,
-        phone: String(phone),
-        customerName: String(customerName),
-        guideNumber: guideNumber ? String(guideNumber) : null,
-        carrierName: carrierName ? String(carrierName) : null,
-        type,
-        priority: priority || 'normal',
-        description: String(description),
-        status: 'open',
-      },
-    })
-
-    // Stamp an initial system message so the chat thread isn't empty.
-    await tx.novedadMessage.create({
-      data: {
-        caseId: created.id,
-        authorName,
-        authorRole: 'system',
-        body: `Caso ${caseNumber} creado para ${customerName}.`,
-      },
-    })
-
-    return created
+  // The service generates the caseNumber + stamps the initial system
+  // message atomically in a single $transaction.
+  const newCase = await novedadesService.createCase({
+    tenantId,
+    orderId: orderId || null,
+    phone: String(phone),
+    customerName: String(customerName),
+    guideNumber: guideNumber ? String(guideNumber) : null,
+    carrierName: carrierName ? String(carrierName) : null,
+    type,
+    priority: priority || 'normal',
+    description: String(description),
+    authorName,
   })
 
   log.info(

@@ -2982,3 +2982,187 @@ copiadas a `public/presentaciones/` para servirse públicamente.
 - **Patrón de reposicionamiento replicable:** la estructura "4 ejes × 3
   capas × mapping tabla" puede aplicarse a futuros docs/presentaciones
   para mantener consistencia de brand.
+
+---
+
+## SPRINT7-POSTGRES-SERVICES-001 — senior-backend-architect
+**Date:** 2025-XX-XX · **Agent:** senior-backend-architect · **Task ID:** SPRINT7-POSTGRES-SERVICES-001
+
+### Objective
+Two-part task: (1) make ZIAY PostgreSQL-deploy-ready (schema + env + docs +
+migrations), and (2) migrate 10 API routes from calling Prisma directly to
+using the service layer (`src/lib/services/`).
+
+### PART 1 — PostgreSQL migration setup
+
+**Files touched (6):**
+
+1. **`prisma/schema.prisma`** (comments only — provider stays `sqlite` for dev)
+   - Rewrote the top comment block as a single, unambiguous SQLite ↔
+     PostgreSQL switch guide. The `datasource db` block now carries an
+     inline `// Dev: "sqlite"  ·  Prod: "postgresql"` hint plus a task
+     tag pointing back to SPRINT7-POSTGRES-SERVICES-001.
+   - `prisma validate` → ✅ The schema at prisma/schema.prisma is valid 🚀
+
+2. **`prisma/migrations/0_init/migration.sql`** (REGENERATED, 1125 lines)
+   - Ran `bunx prisma migrate diff --from-empty --to-schema-datamodel
+     prisma/schema.prisma --script` to overwrite. Same SQLite-flavoured
+     DDL Prisma emits today — kept as the dev baseline.
+   - Identical line count to the previous version (1125 vs 1125); the
+     diff is essentially just a re-stamp of the same content.
+
+3. **`prisma/migrations/1_postgres_indexes/migration.sql`** (NEW, 183 lines)
+   - PostgreSQL-only supplementary migration. Three sections:
+     - **Idempotent index re-statement** — every `@@index` /
+       `@@unique` from the schema as `CREATE [UNIQUE] INDEX IF NOT
+       EXISTS`. 71 statements. Safe to re-run after partial restores.
+     - **RLS policies** — copied verbatim from `src/lib/rls.ts` →
+       `RLS_SQL_POLICIES`. 10 tables: Order, OrderItem, OrderEvent,
+       Customer, Conversation, Message, Product, Shipment,
+       CommissionEntry, Campaign. Includes the
+       `app_current_tenant_id()` helper function.
+     - **pgvector** — left as a commented-out
+       `CREATE EXTENSION IF NOT EXISTS vector;` plus an example
+       ivfflat index, ready for when semantic-search columns land.
+   - File header documents apply order + dev-safety note (PostgreSQL
+     syntax — never run against SQLite manually; Prisma skips it when
+     provider is `sqlite`).
+
+4. **`src/lib/db.ts`** (UPDATE — added `'query'` to dev log + clearer
+   pooling comment)
+   - New shape:
+     ```ts
+     new PrismaClient({
+       log: process.env.NODE_ENV === 'development'
+         ? ['query', 'warn', 'error']
+         : ['error'],
+     })
+     ```
+     The `'query'` log in dev helps debug service-layer migrations
+     (you can see exactly which SQL the new services emit).
+   - Comment block now explains both the plain PostgreSQL URL and the
+     PgBouncer variant.
+
+5. **`.env.example`** (UPDATE — Database section rewritten)
+   - Three clearly-commented variants: dev SQLite, prod PostgreSQL,
+     and PgBouncer/serverless. Cross-links to the schema comment and
+     the new PRODUCTION-CHECKLIST "PostgreSQL Migration" section.
+
+6. **`PRODUCTION-CHECKLIST.md`** (UPDATE — new "🐘 PostgreSQL Migration"
+   section, 10 numbered steps)
+   - Install PostgreSQL 16 → create DB + app user → switch Prisma
+     provider → set `DATABASE_URL` → `bun run db:migrate` →
+     `bunx prisma db seed` → verify with `psql` → optional pgloader
+     migration from SQLite → smoke-test curl commands → baseline
+     `pg_dump` + nightly cron.
+   - Includes rollback procedure (flip provider back to `sqlite`,
+     restore `DATABASE_URL=file:...`, `bun run db:push`).
+
+### PART 2 — Migrate 10 API routes to the service layer
+
+**Strategy:** for each route, I (a) read the existing API, (b) read the
+matching service file, (c) replaced ONLY the `db.*` call(s) explicitly
+named in the task — keeping auth, rate-limiting, try/catch, cache, and
+response shape byte-for-byte identical. Where the service method
+signature didn't accept what the route needed (cursor pagination),
+I extended the service method rather than mutating the route.
+
+**Service-layer updates (3 files):**
+
+| File | Change |
+| --- | --- |
+| `src/lib/services/order.service.ts` | `OrderFilters` now has `cursor?` + `limit?`. `getOrders` takes `limit + 1` rows when `limit` is set (so caller can compute `hasMore`). `updateOrder` now accepts an optional `tenantId` (for capture context, not used in `where`). |
+| `src/lib/services/conversation.service.ts` | `ConversationFilters` now has `cursor?` + `limit?`. `getConversations` does the same `limit + 1` trick. `getConversationById(id, tenantId?)` switched from `findUnique` → `findFirst` so it can constrain by `tenantId` when given. `updateStatus(id, patch, tenantId?)` accepts optional `tenantId` for log/capture context. |
+| `src/lib/services/novedades.service.ts` | `NovedadCaseFilters` now has `cursor?` + `limit?`. `getCases` returns `limit + 1` rows. The stats group-by is NOT paginated (kept identical to legacy API behaviour). |
+
+The other 4 service files (`catalog.service.ts`, `ads.service.ts`,
+`monetization.service.ts`, `logistics.service.ts`) already had the right
+signatures — no edits needed.
+
+**API route migrations (10 files):**
+
+| # | Route | Service method | Notes |
+| --- | --- | --- | --- |
+| 2a | `src/app/api/orders/route.ts` (GET) | `orderService.getOrders` | Replaced inline `db.order.findMany`. Pagination math (`hasMore`, `nextCursor`) preserved. |
+| 2b | `src/app/api/orders/[id]/route.ts` (PATCH) | `orderService.updateOrder` | Replaced `db.$transaction([db.order.update, db.orderEvent.create])` with single service call. Service wraps the same transaction internally. |
+| 2c | `src/app/api/conversations/route.ts` (GET) | `conversationService.getConversations` | POST handler left inline (signature mismatch with `sendMessage` — would change response shape). |
+| 2d | `src/app/api/conversations/[id]/route.ts` (GET + PATCH) | `conversationService.getConversationById` + `updateStatus` | GET now returns 404 when service returns null (was returning 404 from `findUnique` null-check). |
+| 2e | `src/app/api/catalog/products/route.ts` (GET) | `catalogService.getProducts` | `withCache` wrapper preserved. |
+| 2f | `src/app/api/novedades/route.ts` (GET + POST) | `novedadesService.getCases` + `createCase` | PATCH action-dispatch (assign/resolve/escalate/etc.) left inline — its transactions don't have 1:1 service methods yet. The `orderId` validation (`db.order.findUnique`) was kept inline as a pure read with no service equivalent. |
+| 2g | `src/app/api/ads/route.ts` (GET) | `adsService.getAds` | `db.setting.findMany` (threshold lookup) kept inline — no service equivalent. All downstream metric math (CPA, ROAS, cannibalization) untouched. |
+| 2h | `src/app/api/monetization/gmv/route.ts` (GET) | `monetizationService.getGMV` | Route now just handles 400/404/500 and JSONs the service payload. The service returns the exact same shape the route used to build inline. |
+| 2i | `src/app/api/monetization/commission/route.ts` (GET only) | `monetizationService.getCommissions` | POST (commission recognition upsert) left inline — its two-moment recognition logic doesn't have a 1:1 service method yet. |
+| 2j | `src/app/api/logistics-intelligence/route.ts` (GET) | `logisticsService.getDashboardData` | Replaced 4 parallel `findMany` calls + manual `buyerBehavior` hydration with one service call. The service already returns the exact same shape. |
+
+**Response-shape preservation:** every JSON returned by these 10 routes
+is byte-identical to before. The only thing that moved is which seam
+talks to Prisma.
+
+### Verification
+
+- `bunx prisma validate` → ✅ The schema at prisma/schema.prisma is valid 🚀
+- `bun run lint` → ✅ exit 0 (no warnings, no errors)
+- `npx tsc --noEmit` → ✅ exit 0 (no type errors)
+- `bunx vitest run` → ✅ 6 test files, 65 tests, all passing
+
+### Notes for future agents
+
+- **Out-of-scope items intentionally left inline (documented in route
+  comments):**
+  - `/api/conversations` POST (sends a message — uses `db.message.create`
+    + `db.conversation.update`; the existing `conversationService.sendMessage`
+    signature requires `tenantId` in a way that would change the response
+    body). Migrating this would require either widening
+    `sendMessage`'s signature or adding a new method.
+  - `/api/novedades` PATCH action dispatch (assign / resolve / escalate /
+    close / add_evidence / add_message) — these run multi-write
+    transactions that combine a case update + an audit message. The
+    service has individual `updateCase`, `addEvidence`, `addMessage`
+    methods but no atomic combined "update + audit" method. Adding
+    those is a follow-up task.
+  - `/api/monetization/commission` POST (commission recognition upsert
+    with the two-moment 50%/100% recognition logic from Saramantha
+    §17.7) — no equivalent in `monetizationService` yet.
+  - `/api/ads` `db.setting.findMany` for global CPA/ROAS thresholds —
+    no service for `Setting` reads exists yet (Settings is a tiny
+    key/value table, not worth a service on its own).
+  - `/api/novedades` POST `db.order.findUnique` for orderId-tenant
+    validation — pure read, only used to compare `tenantId`.
+
+- **Backward-compat safety nets built into the updated services:**
+  - `orderService.getOrders`, `conversationService.getConversations`,
+    `novedadesService.getCases` all fall back to `take: 200` when
+    `filters.limit` is omitted — so any caller that hasn't been
+    migrated yet still gets the legacy behaviour.
+  - `conversationService.getConversationById(id)` and
+    `updateStatus(id, patch)` keep working without `tenantId` (it's
+    optional) — so existing callers don't break.
+
+- **`0_init/migration.sql` is SQLite-flavoured.** When you actually flip
+  the provider to `postgresql` and run `bun run db:migrate`, Prisma will
+  re-emit `0_init` in PostgreSQL dialect (it tracks the provider per
+  migration via `migration_lock.toml`). You'll need to delete the old
+  `0_init/migration.sql` first OR add a new `migration_lock.toml`
+  entry. The cleanest path is documented in the new PRODUCTION-CHECKLIST
+  "PostgreSQL Migration" section.
+
+- **`1_postgres_indexes/migration.sql` is idempotent** (every CREATE
+  INDEX uses `IF NOT EXISTS`, the RLS policies use `CREATE OR REPLACE
+  FUNCTION` + `CREATE POLICY` which is idempotent in PG 14+). Safe to
+  re-run after a partial restore.
+
+- **pgvector line is commented out** in `1_postgres_indexes`. Uncomment
+  when the schema gains `Bytes?` / `Unsupported("vector")` columns —
+  the example ivfflat index is right below it.
+
+- **The dev.log currently shows a stale `bun run start` error**
+  (`Cannot find module '.next/standalone/server.js'`). That's an old
+  production-start attempt before the project was built — NOT caused
+  by these changes. `bun run dev` will overwrite the log on next run.
+
+- **Files I did NOT touch** (in case a future agent looks for them):
+  - `src/lib/services/marketplace.service.ts` — exists, not in scope.
+  - `src/lib/services/overview.service.ts` — exists, not in scope.
+  - `src/lib/rls.ts` — already had `RLS_SQL_POLICIES`, only read it.
+  - `prisma/migrations/migration_lock.toml` — left as `provider = "sqlite"`
+    (dev). It will need to be flipped to `"postgresql"` at deploy time.

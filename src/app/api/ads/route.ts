@@ -2,9 +2,15 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAuth } from '@/lib/auth-helpers'
 import { captureError } from '@/lib/capture-error'
+import { adsService } from '@/lib/services'
 
 // Ad-level performance: per-ad sales qty, revenue, spend, CPA, ROAS, ROI,
 // cannibalization detection + kill recommendation.
+//
+// SPRINT7-POSTGRES-SERVICES-001 — migrated the ad findMany from
+// `db.ad.findMany(...)` to `adsService.getAds(...)`. The settings lookup
+// (`db.setting.findMany`) is kept inline — it's a global key/value read
+// with no service equivalent yet. Response shape is unchanged.
 export async function GET(req: NextRequest) {
   const { error } = await requireAuth()
   if (error) return error
@@ -16,20 +22,7 @@ export async function GET(req: NextRequest) {
     const since = new Date()
     since.setDate(since.getDate() - days)
 
-    const ads = await db.ad.findMany({
-      where: {
-        ...(platform && platform !== 'all' ? { campaign: { platformId: `ap-${platform}` } } : {}),
-        ...(tenantId ? { campaign: { tenantId } } : {}),
-      },
-      include: {
-        campaign: { include: { platform: true } },
-        spend: { where: { date: { gte: since } } },
-        orders: {
-          where: { createdAt: { gte: since } },
-          include: { items: true },
-        },
-      },
-    })
+    const ads = await adsService.getAds({ tenantId, days, platform })
 
     // Global CPA target + ROAS kill threshold from settings
     const settings = await db.setting.findMany()

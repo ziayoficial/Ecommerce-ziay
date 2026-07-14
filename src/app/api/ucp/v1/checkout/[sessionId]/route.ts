@@ -10,6 +10,11 @@ import {
   computeIntentCartHash,
 } from '@/lib/crypto/signing'
 import { requireIdentityVerification } from '@/lib/compliance/kyc-gate'
+import {
+  enforceMandateBounds,
+  checkEscalationRules,
+  normalizeUcpCartToItems,
+} from '@/lib/governance/mandate-enforcement'
 
 const log = getLogger('api/ucp/v1/checkout/[sessionId]')
 
@@ -108,6 +113,11 @@ const PatchSchema = z.object({
   sourceAdId: z.string().optional(),
   sourceCampaign: z.string().optional(),
   sourcePlatform: z.string().optional(),
+  // SPRINT-GOVERNANCE-001 — contexto para checkEscalationRules.
+  // Estos flags alimentan las reglas de escalamiento a humano (pilar #2).
+  isFirstPurchase: z.boolean().optional().default(false),
+  paymentMethodChanged: z.boolean().optional().default(false),
+  failedPaymentCount: z.number().int().nonnegative().optional().default(0),
 })
 
 export async function PATCH(
@@ -248,6 +258,85 @@ export async function PATCH(
           { error: 'Firma del Intent o Cart Mandate inválida' },
           { status: 400 },
         )
+      }
+
+      // ── SPRINT-GOVERNANCE-001 — Pilar #1: enforceMandateBounds ─────────
+      // Antes de avanzar a `ready_for_complete`, verificar que el carrito
+      // respeta los límites del Intent Mandate (monto total + límites por
+      // categoría). El mandato se carga desde su `id` (ya validado arriba
+      // como `intent`). El carrito viene en `session.cart` (JSON).
+      const ucpCart = session.cart ? JSON.parse(session.cart) : { items: [] }
+      const cartItems = normalizeUcpCartToItems(ucpCart)
+      const enforcement = await enforceMandateBounds(intent.id, cartItems)
+      if (!enforcement.allowed) {
+        return NextResponse.json(
+          {
+            error: 'Carrito excede los límites del Intent Mandate',
+            violations: enforcement.violations,
+          },
+          { status: 403 },
+        )
+      }
+
+      // ── SPRINT-GOVERNANCE-001 — Pilar #2: checkEscalationRules ────────
+      // Reglas de escalamiento a humano. Si una regla dispara `block` →
+      // 403. Si dispara `escalate` → forzar estado `requires_escalation`
+      // con continuationUrl apuntando a la cola de aprobación humana.
+      //
+      // La categoría dominante del carrito (la de mayor valor total) se
+      // usa para las reglas `category_<cat>`. Si el carrito está vacío,
+      // pasamos `'uncategorized'` (no dispara ninguna regla específica).
+      const totalsForEsc = ucpCart.totals ?? {}
+      const orderValue: number =
+        typeof totalsForEsc.total === 'number'
+          ? totalsForEsc.total
+          : cartItems.reduce((sum, it) => sum + it.total, 0)
+      const perCat: Record<string, number> = {}
+      for (const it of cartItems) {
+        perCat[it.category] = (perCat[it.category] ?? 0) + it.total
+      }
+      const dominantCategory =
+        Object.entries(perCat).sort((a, b) => b[1] - a[1])[0]?.[0] ??
+        'uncategorized'
+
+      const escalation = checkEscalationRules({
+        orderValue,
+        category: dominantCategory,
+        isFirstPurchase: body.isFirstPurchase ?? false,
+        paymentMethodChanged: body.paymentMethodChanged ?? false,
+        failedPaymentCount: body.failedPaymentCount ?? 0,
+      })
+      if (escalation.shouldBlock) {
+        return NextResponse.json(
+          {
+            error: 'Carrito bloqueado por reglas de gobernanza',
+            reasons: escalation.reasons,
+          },
+          { status: 403 },
+        )
+      }
+      if (escalation.shouldEscalate) {
+        const escalationUrl = `/governance/escalations?sessionId=${encodeURIComponent(sessionId)}`
+        const escalated = await db.ucpCheckoutSession.update({
+          where: { sessionId },
+          data: {
+            state: 'requires_escalation',
+            continuationUrl: escalationUrl,
+            intentMandateId: intent.id,
+            cartMandateId: cart.id,
+          },
+        })
+        log.info(
+          { sessionId, state: escalated.state, reasons: escalation.reasons },
+          'UCP state → requires_escalation (governance rules)',
+        )
+        return NextResponse.json({
+          sessionId,
+          state: escalated.state,
+          continuationUrl: escalated.continuationUrl,
+          escalated: true,
+          reasons: escalation.reasons,
+        })
       }
 
       // Si el pago es a crédito/cuotas, validar KYC (Ley 2573).

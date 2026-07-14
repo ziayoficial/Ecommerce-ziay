@@ -2,19 +2,27 @@
 // Lightweight i18n — no external dependencies (no next-intl)
 // SPRINT5-FINAL-001 · Part 1
 //
-// Currently only Spanish (es-CO) is fully translated. To add a language,
-// extend `translations` below — no other code changes required.
+// Spanish (es-CO, es-MX), English (en-US), and Brazilian Portuguese (pt-BR)
+// are translated. To add a language, extend `translations` below — no other
+// code changes required.
 //
 // Usage:
 //   import { t, getLocale } from '@/lib/i18n'
 //   const label = t('nav.catalog')              // uses default locale
 //   const label = t('nav.catalog', 'en-US')     // override locale inline
+//   const label = t('nav.catalog', 'pt-BR')     // Brazilian Portuguese
 //
 // The locale is read once per request from the `ZIAY_LOCALE` env var.
 // Default is `es-CO` (Colombian Spanish, ZIAY's home market).
+//
+// SPRINT-MULTICOUNTRY-001 — added `pt-BR` (LATAM expansion, study §18).
+// Note: `getAvailableLocales()` still returns the 3 original locales so the
+// language picker doesn't surface pt-BR until the front-end sprint wires
+// the picker UI. The `t(key, 'pt-BR')` override + `ZIAY_LOCALE=pt-BR` env
+// are fully functional today.
 // ───────────────────────────────────────────────────────────────────────────
 
-export type Locale = 'es-CO' | 'es-MX' | 'en-US'
+export type Locale = 'es-CO' | 'es-MX' | 'en-US' | 'pt-BR'
 
 const translations: Record<Locale, Record<string, string>> = {
   'es-CO': {
@@ -54,6 +62,14 @@ const translations: Record<Locale, Record<string, string>> = {
     'common.empty_desc': 'No hay datos para mostrar',
     'common.error_title': 'Error',
     'common.error_desc': 'No se pudo cargar la información',
+    // ── SPRINT-MULTICOUNTRY-001 — LATAM expansion (study §18) ──
+    'common.currency_format': 'Formato de moeda',
+    'common.tax': 'Impuesto',
+    'common.payment_method': 'Método de pago',
+    'common.pse': 'PSE (transferencia bancaria)',
+    'common.pix': 'PIX',
+    'common.oxxo': 'OXXO (efectivo)',
+    'common.scan_qr': 'Escanea el código QR',
     'login.title': 'ZIAY',
     'login.subtitle': 'Comercio Conversacional + Atribución Inteligente',
     'login.email': 'Correo',
@@ -103,6 +119,14 @@ const translations: Record<Locale, Record<string, string>> = {
     'common.empty_desc': 'No hay datos para mostrar',
     'common.error_title': 'Error',
     'common.error_desc': 'No se pudo cargar la información',
+    // ── SPRINT-MULTICOUNTRY-001 — LATAM expansion (study §18) ──
+    'common.currency_format': 'Formato de moeda',
+    'common.tax': 'Impuesto',
+    'common.payment_method': 'Método de pago',
+    'common.pse': 'PSE (transferencia bancaria)',
+    'common.pix': 'PIX',
+    'common.oxxo': 'OXXO (efectivo)',
+    'common.scan_qr': 'Escanea el código QR',
     'login.title': 'ZIAY',
     'login.subtitle': 'Comercio Conversacional + Atribución Inteligente',
     'login.email': 'Correo',
@@ -150,6 +174,14 @@ const translations: Record<Locale, Record<string, string>> = {
     'common.empty_desc': 'No data to display',
     'common.error_title': 'Error',
     'common.error_desc': 'Could not load information',
+    // ── SPRINT-MULTICOUNTRY-001 — LATAM expansion (study §18) ──
+    'common.currency_format': 'Currency format',
+    'common.tax': 'Tax',
+    'common.payment_method': 'Payment method',
+    'common.pse': 'PSE (bank transfer)',
+    'common.pix': 'PIX',
+    'common.oxxo': 'OXXO (cash)',
+    'common.scan_qr': 'Scan the QR code',
     'login.title': 'ZIAY',
     'login.subtitle': 'Conversational Commerce + Intelligent Attribution',
     'login.email': 'Email',
@@ -159,6 +191,61 @@ const translations: Record<Locale, Record<string, string>> = {
     'error.title': 'Something went wrong',
     'error.retry': 'Try again',
     'notfound.title': 'Page not found',
+  },
+  'pt-BR': {
+    'app.name': 'ZIAY',
+    'app.tagline': 'Comércio Conversacional + Atribuição Inteligente',
+    'nav.overview': 'Resumo',
+    'nav.messenger': 'Mensagens',
+    'nav.catalog': 'Catálogo Visual',
+    'nav.orders': 'Pedidos & Pagamentos',
+    'nav.kanban': 'Kanban operacional',
+    'nav.orchestrator': 'Orquestrador',
+    'nav.ads': 'Atribuição de Anúncio',
+    'nav.monetization': 'Monetização',
+    'nav.wallet': 'Carteira',
+    'nav.logistics': 'Inteligência Logística',
+    'nav.marketplace': 'Marketplace',
+    'nav.novedades': 'Novidades',
+    'nav.integrations': 'Integrações',
+    'nav.settings': 'Configurações',
+    'common.save': 'Salvar',
+    'common.cancel': 'Cancelar',
+    'common.delete': 'Excluir',
+    'common.retry': 'Tentar novamente',
+    'common.loading': 'Carregando...',
+    'common.error': 'Erro',
+    'common.search': 'Buscar',
+    'common.refresh': 'Atualizar',
+    'common.confirm': 'Confirmar',
+    'common.close': 'Fechar',
+    'common.back': 'Voltar',
+    'common.create': 'Criar',
+    'common.edit': 'Editar',
+    'common.filter': 'Filtrar',
+    'common.accept': 'Aceitar',
+    'common.last_updated': 'Atualizado há {time}',
+    'common.empty_title': 'Sem resultados',
+    'common.empty_desc': 'Não há dados para exibir',
+    'common.error_title': 'Erro',
+    'common.error_desc': 'Não foi possível carregar as informações',
+    // ── SPRINT-MULTICOUNTRY-001 — LATAM expansion (study §18) ──
+    'common.currency_format': 'Formato de moeda',
+    'common.tax': 'Imposto',
+    'common.payment_method': 'Forma de pagamento',
+    'common.pse': 'PSE (transferência bancária)',
+    'common.pix': 'PIX',
+    'common.oxxo': 'OXXO (dinheiro)',
+    'common.scan_qr': 'Escaneie o código QR',
+    'login.title': 'ZIAY',
+    'login.subtitle': 'Comércio Conversacional + Atribuição Inteligente',
+    'login.email': 'E-mail',
+    'login.password': 'Senha',
+    'login.submit': 'Entrar',
+    'login.error': 'E-mail ou senha incorretos',
+    'error.title': 'Algo deu errado',
+    'error.retry': 'Tentar novamente',
+    'notfound.title': 'Página não encontrada',
   },
 }
 
@@ -185,7 +272,27 @@ export function t(key: string, locale?: Locale): string {
   return translations[loc]?.[key] || translations['es-CO']?.[key] || key
 }
 
-/** Return all configured locales (for a language picker, if ever needed). */
+/**
+ * Return the configured locales that should appear in the language picker.
+ *
+ * NOTE: pt-BR is functional today via `t(key, 'pt-BR')` and the
+ * `ZIAY_LOCALE=pt-BR` env var, but is NOT surfaced in the picker yet —
+ * the front-end sprint will wire the picker UI in a follow-up. See
+ * SPRINT-MULTICOUNTRY-001 worklog.
+ *
+ * Returned shape: a fresh array on each call (no shared mutable state).
+ */
 export function getAvailableLocales(): Locale[] {
+  return ['es-CO', 'es-MX', 'en-US']
+}
+
+/**
+ * Return ALL configured locales, including the ones not yet surfaced in the
+ * picker (pt-BR). Used by the multi-country API endpoints to enumerate
+ * valid locale inputs.
+ *
+ * Returned shape: a fresh array on each call (no shared mutable state).
+ */
+export function getAllConfiguredLocales(): Locale[] {
   return Object.keys(translations) as Locale[]
 }

@@ -70,6 +70,12 @@ model Tenant {
   feeBaseMensual        Float    @default(0) // COP
   comisionPctInicial    Float    @default(4.5) // % over GMV (tramo 1)
   activo                Boolean  @default(true)
+  // ── SPRINT-MULTICOUNTRY-001 — LATAM expansion (study §18) ──
+  // ISO 3166-1 alpha-2 country code — drives currency, tax, and local payment
+  // method availability (PSE/CO, PIX/BR, OXXO+SPEI/MX). Default CO (home market).
+  countryCode           String   @default("CO")
+  // ISO 4217 currency code — COP/MXN/BRL/USD/PEN/CLP/ARS. Default COP.
+  currency              String   @default("COP")
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 
@@ -96,6 +102,10 @@ model Tenant {
   ucpCheckoutSessions    UcpCheckoutSession[]
   identityVerifications  IdentityVerification[]
   consentRecords         ConsentRecord[]
+  // ── SPRINT-FINANCE-META-001 — Channel cost tracking (study §14.1) ──
+  channelCosts           ChannelCost[]
+  // ── Governance — SPRINT-GOVERNANCE-001 ──
+  decisionLogs           DecisionLog[]
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -319,6 +329,10 @@ model Product {
   // Saramantha §2: image with visible metadata stripe
   imagenMetadataVisible Boolean @default(true)
   fuenteSincronizacion  String? // whatsapp_catalog | woocommerce | shopify | supabase_cliente | supabase_nuestro | oracle_nuestro
+  // ── SPRINT-MULTICOUNTRY-001 — LATAM expansion (study §18) ──
+  // ISO 4217 currency code for the `price` field. Defaults to COP (home market).
+  // A tenant's products can be priced in the tenant's `currency`.
+  currency              String   @default("COP")
   // embeddings (Bytes in SQLite; in PG use vector type via Unsupported)
   embeddingTexto Bytes?
   embeddingVisual Bytes?
@@ -357,6 +371,14 @@ model Order {
   codFee       Float    @default(0)
   total        Float
   currency     String   @default("COP")
+  // ── SPRINT-MULTICOUNTRY-001 — LATAM expansion (study §18) ──
+  // ISO 3166-1 alpha-2 country code for this order's buyer (nullable for
+  // legacy orders placed before the multi-country rollout). Drives the tax
+  // computation — `taxBreakdown` JSON is the authoritative output of
+  // `calculateTax()` for the order's items + shipping + countryCode.
+  countryCode  String?
+  taxAmount    Float    @default(0) // total tax (VAT/IGV/ICMS) charged on this order
+  taxBreakdown String?  // JSON — full TaxBreakdown (subtotal, taxRate, exemptItems, ...)
   country      String?
   city         String?
   address      String?
@@ -747,6 +769,14 @@ model AuditLog {
   entityId  String?
   meta      String?
   createdAt DateTime @default(now())
+
+  // Verifiable Intent compatibility — Documento §11:
+  // "Registro auditable compatible con Verifiable Intent".
+  // Cada fila puede ser firmada como W3C VC con la keypair del tenant.
+  // SPRINT-PROTOCOLS-TRINITY-001.
+  proofHash        String?  // SHA-256 del payload firmado (canonical JSON del credentialSubject)
+  proofSignature   String?  // ed25519 signature (base64url) — proof.proofValue del VC
+  credentialSchema String?  // URI del W3C VC schema (ej: https://ziay.co/schemas/audit-log-v1.json)
 
   tenant Tenant? @relation(fields: [tenantId], references: [id])
   user   User?   @relation(fields: [userId], references: [id])
@@ -1451,4 +1481,79 @@ model ConsentRecord {
   @@index([tenantId, dataSubjectId, purpose])
   @@index([dataSubjectType, granted])
   @@index([granted, revokedAt])
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// SPRINT-FINANCE-META-001 — Channel cost tracking (study §14.1)
+// "Costo operativo del canal (mensajería, agente de IA, logística)"
+//
+// One row per (tenant, channel, date). The date is stored as a DateTime at
+// 00:00:00.000 local — SQLite has no native DATE type (and the schema stays
+// portable to PostgreSQL where `@db.Date` could be re-added later). Use
+// `recordDailyChannelCosts()` to upsert a day's row from operational data.
+// ───────────────────────────────────────────────────────────────────────────
+model ChannelCost {
+  id            String   @id @default(cuid())
+  tenantId      String
+  channel       String   // "whatsapp" | "messenger" | "instagram" | "tiktok"
+  date          DateTime // day bucket — stored at 00:00:00.000 local
+  // Cost breakdown (study §14.1 — "costo operativo del canal")
+  messageCost   Float    @default(0) // Meta message fees
+  aiTokenCost   Float    @default(0) // LLM API costs
+  adSpend       Float    @default(0) // ad spend attributed
+  supportCost   Float    @default(0) // human agent time
+  logisticsCost Float    @default(0) // shipping/logistics
+  paymentFee    Float    @default(0) // payment gateway fees
+  // Revenue
+  revenue       Float    @default(0) // gross revenue from this channel
+  ordersCount   Int      @default(0)
+  // Computed (denormalized for fast dashboard reads)
+  netContribution Float? // revenue - all costs
+  marginPct       Float? // netContribution / revenue * 100
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  tenant        Tenant   @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, channel, date])
+  @@index([tenantId, channel, date])
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// 18. GOVERNANCE — DecisionLog (SPRINT-GOVERNANCE-001)
+// Documento "Comercio Agéntico" §11 pilar #4: "Trazabilidad de decisiones".
+// Cada llamada al agente genera una entrada aquí con input/output/reasoning
+// + resultado de enforcement + responsabilidad determinada + revisión humana.
+// ───────────────────────────────────────────────────────────────────────────
+
+/// Full agent decision trace — document §11: "Trazabilidad de decisiones"
+model DecisionLog {
+  id            String   @id @default(cuid())
+  tenantId      String
+  agentName     String   // e.g. "cart_builder", "checkout"
+  conversationId String?
+  orderId       String?
+  mandateId     String?  // AP2 mandate involved
+  // Decision context
+  input         String   // JSON: what the agent was asked
+  output        String   // JSON: what the agent decided
+  reasoning     String?  // JSON: chain-of-thought (if available)
+  confidence    Float?   // 0.0 - 1.0
+  // Enforcement outcome
+  enforcementResult String? // JSON: { allowed, violations, escalated, blocked }
+  liabilityParty    String? // "merchant_liability" | "agent_provider_liability" | etc
+  // Human review
+  humanReviewed     Boolean @default(false)
+  humanDecision     String? // "approved" | "rejected" | "modified"
+  humanReviewerId   String?
+  humanReviewedAt   DateTime?
+  createdAt         DateTime @default(now())
+
+  tenant        Tenant   @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, agentName, createdAt])
+  @@index([conversationId])
+  @@index([orderId])
+  @@index([mandateId])
+  @@index([humanReviewed, createdAt])
 }

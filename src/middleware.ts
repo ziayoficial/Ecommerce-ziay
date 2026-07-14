@@ -48,6 +48,23 @@ const PUBLIC_PATTERNS: Array<RegExp | string> = [
   // external AI agents (Gemini, ChatGPT) can discover the tenant without
   // credentials. SPRINT-AGENTIC-PROTOCOLS-001.
   '/.well-known/ucp',
+  // ACP merchant manifest — Documento §9.1. ChatGPT/Copilot discovery.
+  // SPRINT-PROTOCOLS-TRINITY-001.
+  '/.well-known/acp',
+  // A2A agent-card — Documento §10.1. Inter-agent discovery.
+  // SPRINT-PROTOCOLS-TRINITY-001.
+  '/.well-known/agent-card',
+  // MCP transport — Documento §10.1. JSON-RPC 2.0 endpoint. The endpoint
+  // must be reachable by MCP clients (Claude, ChatGPT); auth (NextAuth
+  // session cookie) is validated INSIDE the route handler. Without this
+  // entry the middleware would 401 every JSON-RPC call before the route
+  // body executes. SPRINT-PROTOCOLS-TRINITY-001.
+  '/api/mcp',
+  // ACP v1 API — bearer-authenticated by AP2 Intent Mandate ID (validated
+  // inside each route handler). External ChatGPT/Copilot agents are NOT
+  // logged in via NextAuth, so the middleware must let these routes through.
+  // SPRINT-PROTOCOLS-TRINITY-001.
+  '/api/acp/v1',
   '/_next',
   '/favicon.ico',
   '/logo.svg',

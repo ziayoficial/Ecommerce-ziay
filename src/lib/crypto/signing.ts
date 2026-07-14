@@ -30,6 +30,12 @@ export interface W3CVerifiableCredential {
   issuer: { id: string } // DID
   issuanceDate: string // ISO 8601
   credentialSubject: Record<string, unknown>
+  // Optional W3C VC schema reference — used by Verifiable Intent (AuditLog VC).
+  // SPRINT-PROTOCOLS-TRINITY-001 §11.
+  credentialSchema?: {
+    id: string
+    type: string // e.g. 'JsonSchemaValidator2018'
+  }
   proof?: {
     type: 'Ed25519Signature2020'
     created: string

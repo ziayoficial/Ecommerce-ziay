@@ -4,6 +4,48 @@ import { rateLimit } from '@/lib/middleware/rate-limit'
 import ZAI from 'z-ai-web-dev-sdk'
 import { db } from '@/lib/db'
 import { buildAgentPrompt, AGENT_NAMES, AGENT_LABELS, AgentName } from '@/lib/agents/prompts'
+import { getLogger } from '@/lib/logger'
+
+const log = getLogger('api/agents/[agentName]')
+
+// SPRINT-GOVERNANCE-001 — pilar #4 "Trazabilidad de decisiones".
+// Persiste una entrada DecisionLog por cada llamada al agente (éxito o
+// fallback). Best-effort: si la persistencia falla, el agente sigue
+// respondiendo — la llamada principal no debe romper por el log.
+async function persistDecisionLog(params: {
+  tenantId: string
+  agentName: string
+  conversationId?: string
+  ctx: unknown
+  result: { reply: string; confidence: number; error?: string }
+}) {
+  try {
+    await db.decisionLog.create({
+      data: {
+        tenantId: params.tenantId,
+        agentName: params.agentName,
+        conversationId: params.conversationId ?? null,
+        input: JSON.stringify(params.ctx),
+        output: JSON.stringify({
+          reply: params.result.reply,
+          confidence: params.result.confidence,
+          error: params.result.error ?? null,
+        }),
+        // El SDK actual no expone reasoning por separado — lo dejamos en null
+        // para futuras integraciones con modelos con chain-of-thought visible.
+        reasoning: null,
+        confidence: params.result.confidence,
+      },
+    })
+  } catch (err) {
+    // Non-blocking: el log de decisión es secundario a la respuesta del
+    // agente. Se captura para observabilidad pero no se propaga.
+    log.warn(
+      { err, agentName: params.agentName, tenantId: params.tenantId },
+      'No se pudo persistir DecisionLog (non-blocking)',
+    )
+  }
+}
 
 // POST /api/agents/[agentName]
 // Body: AgentContext (tenantId required; conversationId/customerId/perfil/items/query/etc optional)
@@ -85,6 +127,15 @@ export async function POST(
       } catch { /* non-JSON reply, skip persist */ }
     }
 
+    // SPRINT-GOVERNANCE-001 — pilar #4: persistir la decisión del agente.
+    await persistDecisionLog({
+      tenantId: ctx.tenantId,
+      agentName,
+      conversationId: ctx.conversationId,
+      ctx,
+      result: { reply, confidence: 0.9 },
+    })
+
     return NextResponse.json({ reply, agent: agentName, confidence: 0.9 })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'unknown error'
@@ -119,7 +170,19 @@ export async function POST(
       traffic_orchestrator: 'Analizando redistribución de presupuesto…',
       address_analysis: 'Analizando calidad de la dirección…',
     }
-    return NextResponse.json({ reply: fallbacks[agentName as AgentName], agent: agentName, confidence: 0.3, error: message })
+    const fallbackReply = fallbacks[agentName as AgentName]
+
+    // SPRINT-GOVERNANCE-001 — pilar #4: persistir incluso los fallbacks
+    // (la trazabilidad cubre los casos de error del agente).
+    await persistDecisionLog({
+      tenantId: ctx.tenantId,
+      agentName,
+      conversationId: ctx.conversationId,
+      ctx,
+      result: { reply: fallbackReply, confidence: 0.3, error: message },
+    })
+
+    return NextResponse.json({ reply: fallbackReply, agent: agentName, confidence: 0.3, error: message })
   }
 }
 

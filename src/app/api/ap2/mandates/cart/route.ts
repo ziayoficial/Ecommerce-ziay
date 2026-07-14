@@ -12,6 +12,10 @@ import {
   getTenantPublicKey,
   computeHash,
 } from '@/lib/crypto/signing'
+import {
+  enforceMandateBounds,
+  normalizeUcpCartToItems,
+} from '@/lib/governance/mandate-enforcement'
 
 const log = getLogger('api/ap2/mandates/cart')
 
@@ -145,7 +149,38 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // 3) Validar que el carrito respeta los límites del Intent.
+    // 3) SPRINT-GOVERNANCE-001 — Pilar #1: enforceMandateBounds.
+    // Llamada centralizada al módulo de gobernanza. Verifica monto total y
+    // límites por categoría en un solo lugar (single source of truth).
+    // Si el carrito excede los límites del Intent → 403 con las violaciones.
+    //
+    // Los checks inline (4) permanecen como defense-in-depth: si por algún
+    // bug el módulo central no atrapa una violación, los checks inline
+    // todavía la rechazan con 400.
+    const governanceCartItems = normalizeUcpCartToItems({
+      items: body.cart.items.map((it) => ({
+        sku: it.sku,
+        name: it.name,
+        quantity: it.quantity,
+        unitPrice: it.unitPrice,
+        tax: it.tax,
+        category: it.category,
+      })),
+      totals: body.cart.totals,
+    })
+    const enforcement = await enforceMandateBounds(intent.id, governanceCartItems)
+    if (!enforcement.allowed) {
+      return NextResponse.json(
+        {
+          error: 'Carrito excede los límites del Intent Mandate',
+          violations: enforcement.violations,
+        },
+        { status: 403 },
+      )
+    }
+
+    // 4) Validar que el carrito respeta los límites del Intent.
+    // (Defense-in-depth — el módulo de gobernanza ya verificó arriba.)
     const total = body.cart.totals.total
     if (intent.maxAmount != null && total > intent.maxAmount) {
       return NextResponse.json(

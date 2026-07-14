@@ -1,0 +1,597 @@
+# Comercio Agéntico: Estudio Completo, Lienzo de Negocio y Memo de Inversión
+
+**Colombia → LATAM → Global**
+**Julio 2026**
+
+---
+
+## Índice
+
+1. Resumen ejecutivo
+2. Océanos azules para monetizar
+3. Lienzo del modelo de negocio (para no técnicos)
+4. Tendencias clave
+5. Insights accionables
+6. Ejes principales del modelo de negocio
+7. Flujo end-to-end
+8. Qué faltaba investigar (y por qué era crítico)
+9. Protocolos y reglas de operación del comercio agéntico
+10. Detalle técnico de integración AP2 / UCP
+11. Gobernanza, confianza y seguridad
+12. Marco regulatorio colombiano
+13. Canales y ecosistemas
+14. Modelo financiero unitario por canal
+15. Tamaño de mercado (TAM/SAM/SOM)
+16. Arquitectura objetivo
+17. MVP y roadmap
+18. Expansión Colombia → LATAM → Global
+19. Riesgos, supuestos y mitigaciones
+20. Checklist operativo final
+21. Conclusión
+
+---
+
+## 1. Resumen ejecutivo
+
+El comercio agéntico no es solo una tendencia de inteligencia artificial: es una nueva capa de infraestructura para descubrir, evaluar, autorizar y ejecutar compras con menos fricción y más control. La oportunidad más sólida no está en "otro asistente conversacional", sino en la capa habilitadora que vuelve el comercio legible para agentes, segura para el usuario y rentable para el negocio.
+
+Este comercio ya dejó de ser una idea futurista: existe una pila de protocolos concretos —AP2, UCP y ACP— con fechas, socios y gobernanza definida, que determina cómo un agente descubre un producto, arma un carrito, paga y deja evidencia de que el humano autorizó la operación.
+
+En Colombia y LATAM la tesis tiene sentido por tres razones: crecimiento real del e-commerce (COP 39,4 billones y 186,4 millones de transacciones en el primer trimestre de 2026), alta fricción operativa, y maduración rápida de canales conversacionales y sociales (WhatsApp, Instagram, TikTok). El negocio más defendible es B2B2C o B2B de infraestructura habilitadora, no un marketplace genérico.
+
+Las señales de mercado apuntan a que el comercio agéntico ya dejó de ser una idea futurista: Google lo destaca como tendencia clave del retail en Latinoamérica en 2026, y Juniper Research proyecta un salto fuerte de usuarios de menos de 300 millones en 2026 a 1.300 millones en 2031.
+
+---
+
+## 2. Océanos azules para monetizar
+
+En vez de competir solo en "más ecommerce", el espacio nuevo está en resolver lo que los agentes de IA necesitan para comprar, comparar y pagar sin fricción. Eso abre oportunidades menos saturadas que la tienda online tradicional, especialmente donde aún faltan infraestructura, datos legibles para IA y confianza en pagos automatizados.
+
+- **Catálogos "legibles para IA":** ayudar a marcas y retailers a estructurar inventarios, precios, atributos y disponibilidad para que agentes puedan entenderlos y actuar sobre ellos.
+- **Pagos y checkout para agentes:** capas de tokenización, validación, permisos y conciliación pensadas para compras autónomas.
+- **Motor de recomendaciones B2B:** agentes que compran insumos recurrentes, repuestos o reposición automática para empresas medianas.
+- **Monitoreo de precio y stock:** alertas y ejecución automática cuando aparece una oferta o quiebre de inventario.
+- **Servicios de confianza y control:** políticas, límites, auditoría y trazabilidad para que la compra automática no genere miedo.
+
+---
+
+## 3. Lienzo del modelo de negocio (para no técnicos)
+
+Este lienzo está pensado para que lo entienda un equipo no técnico.
+
+| Bloque | Explicación simple | Propuesta para comercio agéntico |
+|---|---|---|
+| **Clientes** | Quién paga por la solución | Retailers, marcas, marketplaces, fintechs y empresas que compran insumos repetitivos |
+| **Problema** | Qué dolor se resuelve | Catálogos desordenados, baja conversión, fraude, fricción en compra y pagos, poca visibilidad para agentes |
+| **Propuesta de valor** | Por qué nos eligen | "Hacemos que tu oferta sea comprable por agentes de IA y convertimos esa capacidad en ventas" |
+| **Solución** | Qué vendemos | Software de datos, integración de pagos, reglas de compra, analítica y automatización |
+| **Canales** | Cómo llegamos al cliente | Venta consultiva, alianzas con plataformas ecommerce, integradores, agencias y fintechs |
+| **Relación con clientes** | Cómo operamos con ellos | Onboarding, implementación, soporte continuo, optimización mensual |
+| **Ingresos** | Cómo ganamos dinero | Suscripción, comisión por transacción, fee de implementación, servicios premium |
+| **Recursos clave** | Qué necesitamos | Equipo de producto, datos, integraciones, compliance, alianzas de pagos |
+| **Actividades clave** | Qué hacemos todos los días | Integrar, normalizar datos, asegurar pagos, medir resultados y mejorar conversiones |
+| **Socios clave** | Con quién nos apalancamos | Pasarelas de pago y protocolos (AP2, UCP, ACP), ERPs, plataformas ecommerce, proveedores de IA, logística |
+| **Costos** | En qué se va el dinero | Desarrollo, nube, seguridad, soporte, ventas y cumplimiento |
+
+El valor real del modelo es que convierte una necesidad técnica en una promesa de negocio: si un cliente hace su catálogo y su proceso de pago "entendible" para agentes, vende más y con menos fricción. El lienzo Lean es especialmente útil porque obliga a probar rápido supuestos de clientes, propuesta de valor, canales, costos e ingresos en una sola página.
+
+> **Nota de actualización:** el bloque "Socios clave" ya no puede decir genéricamente "pasarelas de pago". Debe decir explícitamente con qué protocolo(s) se integra la operación (AP2 para el mandato de confianza, UCP para catálogo, ACP si se vende vía agentes de OpenAI/Copilot), porque la estrategia ganadora hoy es multiprotocolo, no apostar a uno solo. Mastercard, por ejemplo, confirmó participar en los cuatro protocolos (AP2, UCP, ACP, y los rieles x402/MPP).
+
+---
+
+## 4. Tendencias clave
+
+Las tres tendencias más claras para monetizar hoy son comercio agéntico, social commerce y commerce media, con el comercio agéntico como la más estratégica para abrir nuevos mercados. Además, los pagos agénticos están creciendo, pero el mercado no puede depender solo de tarjetas: también necesitan soporte para métodos locales y otros rieles de pago.
+
+- **IA como copiloto de compra:** el usuario ya usa IA para entender opciones y decidir mejor.
+- **Compra sin fricción:** menos redirecciones, menos pasos y más automatización.
+- **Datos limpios y estructurados:** si una marca no está lista para que la IA la lea, desaparece del radar.
+- **Pagos seguros para agentes:** tokenización, autorización y trazabilidad serán diferenciales.
+- **Confianza como moneda principal:** sin confianza, el usuario no delega la compra.
+
+---
+
+## 5. Insights accionables
+
+Hay una lectura muy clara: el mercado no está pidiendo solo "otra tienda", sino infraestructura para que la IA compre mejor que una persona. Eso favorece modelos B2B y B2B2C con barreras de entrada más altas que el ecommerce clásico.
+
+1. **El primer dinero está en habilitar, no en vender productos finales.** Vender "shovels" (herramientas, integraciones, compliance y analítica para que otros vendan más) suele ser mejor que vender oro.
+2. **El mayor dolor es la confianza operativa.** La compra autónoma solo escala si el negocio puede controlar permisos, límites, auditoría y reversibilidad.
+3. **El mayor riesgo es quedarse en la interfaz.** El valor no está en "chatear con una IA", sino en conectar catálogo, inventario, pago y logística.
+4. **El mejor océano azul está en verticales con recurrencia.** Reposición de insumos, repuestos, consumo corporativo, belleza, farmacia y alimentos tienden a tener mejor frecuencia de compra.
+5. **LatAm es una oportunidad por madurez desigual.** Hay adopción digital fuerte, pero todavía mucha fricción operativa; eso deja espacio para soluciones de alto impacto.
+
+**Próximo paso práctico sugerido:** atacar esto en tres frentes — validar 3 nichos, montar un piloto de 90 días, y medir conversión, ahorro de tiempo y ticket promedio.
+
+---
+
+## 6. Ejes principales del modelo de negocio
+
+Los ejes principales del modelo de negocio son: **descubrimiento, evaluación, compra/pago y posventa/operación**; en comercio agéntico, el cambio clave es que esas etapas ya no las hace solo la persona, sino también un agente de IA en nombre del cliente o de la empresa. En simple: el negocio gana dinero si logra que el agente "entienda", "confíe" y "ejecute" la compra sin fricción.
+
+1. **Oferta entendible por máquinas.** El producto o servicio debe estar descrito con datos limpios: precio, stock, atributos, reglas, restricciones y condiciones de entrega. Sin esto, el agente no puede comparar bien ni actuar.
+2. **Confianza y control.** Hace falta que el usuario o la empresa autorice qué puede hacer el agente, con límites, trazabilidad y validación de riesgos. Este eje es clave porque el comercio agéntico solo escala si la gente se siente segura delegando decisiones.
+3. **Ejecución de compra.** Aquí entra el checkout, el pago, la confirmación y la conciliación, idealmente con menos pasos y más automatización. En este punto se monetiza con comisiones, software, suscripción o servicios de integración.
+4. **Integración operativa.** Después de comprar, el sistema debe conectar inventario, logística, facturación y servicio al cliente. Si esto falla, la promesa de automatización se rompe.
+
+---
+
+## 7. Flujo end-to-end
+
+El flujo end-to-end se puede ver así:
+
+1. **Intención:** la persona o empresa define una necesidad: comprar, reponer, comparar o ahorrar tiempo.
+2. **Búsqueda y descubrimiento:** el agente explora opciones, lee catálogos y filtra alternativas según criterios definidos.
+3. **Evaluación:** compara precio, calidad, disponibilidad, tiempos, reputación y reglas de compra.
+4. **Decisión:** selecciona la mejor opción dentro de los límites autorizados.
+5. **Pago y cierre:** ejecuta la transacción con mecanismos seguros y verificables.
+6. **Cumplimiento:** la orden se despacha, se factura y se rastrea.
+7. **Aprendizaje:** el sistema registra resultados para mejorar compras futuras y personalización.
+
+### Cómo se monetiza
+
+El negocio puede monetizar en varios puntos del flujo: suscripción por uso de la plataforma, fee de implementación, comisión por transacción, analítica premium, y servicios de integración o confianza. La mejor oportunidad suele estar en vender la "infraestructura" para que otros hagan comercio agéntico, no solo en vender productos finales.
+
+### Analogía simple para no técnicos
+
+Piensa en el modelo como un camarero digital: primero entiende lo que quieres, luego mira el menú, compara opciones, pide con tu permiso, paga y hace seguimiento hasta que llegue el pedido. El negocio existe porque hace que esa secuencia sea segura, rápida y rentable para empresas y clientes.
+
+---
+
+## 8. Qué faltaba investigar (y por qué era crítico)
+
+Antes de profundizar, el análisis inicial detectó cuatro capas críticas pendientes de investigación:
+
+1. **Protocolos y estándares.** No basta decir "agentes compran"; hay que entender cómo se identifican, autorizan y conectan entre sí y con comercios.
+2. **Casos de uso por vertical.** No es igual comprar moda, insumos industriales, viajes o reposición recurrente; cada vertical tiene distinta recurrencia, ticket y sensibilidad al riesgo.
+3. **Economía unitaria.** Faltó estimar CAC, conversión, comisión, margen, costo de integración y retención para saber dónde realmente se puede monetizar.
+4. **Gobernanza y seguridad.** Hace falta entender bien permisos, límites de gasto, auditoría, responsabilidad, reversibilidad y prevención de fraude.
+
+**Pregunta central para cualquier empresa que quiera entrar a este espacio:** qué hará el agente, con qué permiso lo hará y cómo se cobrará por hacerlo. Sin esas respuestas, el proyecto se queda en una demo bonita y no en un negocio escalable.
+
+**Lectura ejecutiva:** el comercio agéntico no es un canal más, es una nueva capa de interacción entre oferta y demanda. Quien mejor entienda esa capa —datos, confianza, ejecución y pagos— tendrá una ventaja fuerte para monetizar.
+
+Las secciones siguientes (9 en adelante) documentan los resultados de investigar a fondo exactamente estas cuatro capas.
+
+---
+
+## 9. Protocolos y reglas de operación del comercio agéntico
+
+Hasta antes de esta investigación, "comercio agéntico" sonaba a tendencia difusa. Hoy no lo es: existe una pila de protocolos concretos, con fechas, socios y gobernanza definida, que decide cómo un agente descubre, arma un carrito, paga y deja evidencia de que el humano autorizó todo.
+
+### 9.1 Capa de pagos y confianza — el corazón del modelo
+
+- **AP2 (Agent Payments Protocol),** de Google, anunciado en **septiembre de 2025** con más de **60 socios** (Mastercard, PayPal, Coinbase, American Express, Salesforce, Adyen). Es un protocolo abierto que permite que agentes de IA autentiquen, validen y transmitan la autorización de un usuario para pagar, funcionando como extensión de los protocolos A2A y MCP. Su pieza central son tres "mandatos" firmados criptográficamente: **Intent** (qué quiere comprar el usuario y bajo qué límites), **Cart** (qué armó el agente) y **Payment** (qué se cobra realmente). Ese encadenamiento crea un registro verificable de lo que el usuario autorizó, lo que el agente seleccionó y lo que se cobró.
+
+  El **28 de abril de 2026**, Google donó AP2 a la **FIDO Alliance** junto con Mastercard, que aportó su marco **Verifiable Intent**, transfiriendo la gobernanza a un organismo independiente para mantener el protocolo neutral y liderado por la industria. Esto es clave para la tesis de inversión: ya no es "el protocolo de Google", es un estándar de industria en proceso de neutralizarse, lo que reduce el riesgo de apostarle a la tecnología de un solo proveedor.
+
+- **UCP (Universal Commerce Protocol):** anunciado el **11 de enero de 2026** en el NRF (la feria más grande de retail en EE.UU.), codesarrollado por **Google, Shopify, Etsy, Wayfair, Target y Walmart**, con más de **20 socios** incluyendo Adyen, Amex, Mastercard, Stripe y Visa. Es la capa de datos y catálogo — exactamente la "oferta legible por máquinas" que se identificó como necesidad, solo que ahora ya tiene forma de estándar publicado.
+
+- **ACP (Agentic Commerce Protocol),** de OpenAI y Stripe: su primer despliegue grande fue **Instant Checkout en ChatGPT en febrero de 2026** con vendedores de Etsy en EE.UU., pero OpenAI redujo la compra dentro del chat a inicios de marzo de 2026, migrando a un modelo basado en apps. **Lección de negocio:** el checkout "dentro del chat" todavía no es el ganador definitivo; el protocolo sobrevive como estándar abierto, pero el caso de uso más rentable hoy es descubrimiento asistido, no cierre 100% autónomo.
+
+- **x402 y MPP:** rieles para pagos máquina-a-máquina y stablecoins — relevantes si el modelo apunta a B2B recurrente con micropagos entre sistemas, no solo consumidor final.
+
+**Por qué esto importa:** el bloque "Socios clave" del lienzo ya no puede decir genéricamente "pasarelas de pago". Debe decir explícitamente con qué protocolo(s) se va a integrar (AP2 para el mandato de confianza, UCP para catálogo, ACP si se va a vender vía agentes de OpenAI/Copilot), porque hoy la estrategia ganadora es multiprotocolo, no apostar a uno solo. Los propios actores del mercado —Mastercard confirmó participar en los cuatro— lo confirman.
+
+### 9.2 Gobernanza: ya no es un vacío, hay un organismo a cargo
+
+La FIDO Alliance (la misma que estandarizó passkeys) formó grupos de trabajo específicos para autenticación de agentes y comercio agéntico, tomando como base AP2 y Verifiable Intent. Esto responde directamente la pregunta que quedaba abierta — "¿cómo sabe el comercio que el agente actúa con autorización real?" — con una respuesta técnica concreta: mandatos firmados, revocables, con estados abierto/cerrado según el carrito avance.
+
+### 9.3 Mapa resumen: de "capas abstractas" a protocolos con nombre
+
+| Capa del modelo | Protocolo real que la resuelve | Quién la respalda |
+|---|---|---|
+| Catálogo y descubrimiento | UCP (Universal Commerce Protocol) | Google, Shopify, Etsy, Wayfair, Target, Walmart + 20 socios (Adyen, Amex, Mastercard, Stripe, Visa) |
+| Intención y autorización | AP2 (Agent Payments Protocol) — mandato Intent | Google, ahora gobernado por FIDO Alliance |
+| Carrito y ejecución | UCP (capacidad Checkout) + ACP si el canal es ChatGPT/Copilot | Stripe + OpenAI (ACP) |
+| Pago y evidencia | AP2 — mandatos Cart y Payment, formato W3C Verifiable Credentials | Mastercard, PayPal, Coinbase, Amex, Adyen |
+| Confianza/gobernanza | Verifiable Intent (Mastercard) + FIDO Alliance como organismo neutral | FIDO Alliance (donado abril 2026) |
+| Pagos B2B máquina-a-máquina | x402 (Coinbase) / MPP (Stripe) | Relevante si el vertical B2B usa micropagos entre sistemas |
+
+---
+
+## 10. Detalle técnico de integración AP2 / UCP
+
+**La idea en una frase:** UCP es la capa de datos y transacción (qué vendes, cuánto cuesta, cómo se arma el carrito y se cierra la compra). AP2 es la capa de confianza y pago (quién autorizó qué, y con qué límites). Un agente de compra usa las dos al mismo tiempo: negocia el carrito con UCP y, para pagar, exige un mandato firmado bajo AP2. Ambos protocolos son totalmente compatibles entre sí y con A2A y MCP.
+
+### 10.1 UCP — cómo un comercio se vuelve "legible" para un agente
+
+**El perfil público: `/.well-known/ucp`**
+
+Todo empieza con un archivo JSON que el comercio publica en su propio dominio, sin autenticación, en una ruta fija. Ese archivo debe ser públicamente accesible y no requerir ninguna autenticación. Ahí el comercio declara tres cosas: qué versión del protocolo habla, qué "capacidades" soporta (checkout, catálogo, identidad, cumplimiento) y a qué endpoint debe llamar el agente para cada una.
+
+Ejemplo simplificado de cómo se ve ese archivo:
+
+```json
+{
+  "ucp": {
+    "version": "2026-04-08",
+    "services": {
+      "dev.ucp.shopping": [
+        {
+          "transport": "rest",
+          "endpoint": "https://tuempresa.com/ucp/v1",
+          "schema": "https://ucp.dev/2026-04-08/services/shopping/rest.openapi.json"
+        }
+      ]
+    },
+    "capabilities": {
+      "dev.ucp.shopping.checkout": [ { "version": "2026-04-08" } ],
+      "dev.ucp.common.identity_linking": [ { "version": "2026-04-08" } ]
+    },
+    "payment_handlers": {
+      "com.google.pay": [ { "config": { "allowed_card_networks": ["VISA", "MASTERCARD"] } } ]
+    }
+  }
+}
+```
+
+Este mismo servicio puede exponerse por **cuatro transportes distintos al mismo tiempo**: REST tradicional, MCP (para que un LLM lo llame como herramienta), A2A (agente-a-agente vía `agent-card.json`), o embebido (para checkout con interfaz incrustada). Esto importa para la decisión de arquitectura: no hay que elegir un solo camino de integración; el mismo backend puede atender a ChatGPT, Gemini y un agente propio con configuraciones distintas del mismo perfil.
+
+**Las "capacidades", el vocabulario del protocolo**
+
+Las capacidades son los "verbos" del protocolo, y las cuatro canónicas en la versión de lanzamiento son **Checkout, Identity Linking, Order y Payment Token Exchange**. Cada capacidad se puede extender de forma independiente sin romper el núcleo — por ejemplo, una extensión de "fulfillment" añade lógica de envío sin tocar el checkout base. Esto significa que un equipo no tiene que construir "todo el protocolo" de una sola vez; se puede empezar solo con Checkout y sumar capacidades después.
+
+**El flujo de negociación (discovery → intersección → ejecución)**
+
+1. El agente llega al perfil del comercio en `/.well-known/ucp`.
+2. El agente también tiene su propio perfil, declarando qué soporta.
+3. El comercio calcula la intersección entre lo que ambos soportan — qué capacidades comparten, qué métodos de pago se solapan, qué extensiones entienden los dos — y responde con el resultado negociado.
+4. Esa negociación ocurre por transacción, no una sola vez: cada compra puede negociar un resultado distinto según el carrito, la ubicación del comprador o el monto.
+
+**La máquina de estados del checkout**
+
+Un checkout avanza por tres estados:
+
+- **"incomplete"**: falta información, el agente debe intentar resolverla vía API.
+- **"requires_escalation"**: se necesita que el comprador intervenga; si el agente no puede resolverlo, entrega el control a un humano mediante una URL de continuación.
+- **"ready_for_complete"**: todo está listo para cerrarse de forma programática.
+
+Esto responde directamente al riesgo de que todo el proceso deba ser autónomo: el sistema no obliga a que todo sea 100% autónomo; está diseñado para escalar a un humano cuando hace falta, sin perder el progreso de la conversación.
+
+**Pagos: cómo UCP separa "con qué pagas" de "quién procesa el pago"**
+
+El comercio anuncia los manejadores de pago disponibles en su perfil (por ejemplo, "usa este proveedor de credenciales con esta llave pública"). El agente ejecuta la lógica del manejador directamente con el proveedor de pago, sin que el comercio vea los datos sensibles; y finalmente el comercio recibe solo la credencial ya tokenizada para capturar los fondos. Esto es exactamente el punto donde UCP se conecta con AP2.
+
+### 10.2 AP2 — cómo se firma la autorización de pago
+
+**Los tres mandatos**, formateados como W3C Verifiable Credentials:
+
+1. **Intent Mandate:** lo que el usuario autorizó — por ejemplo "comprar zapatillas para correr, talla 10, menos de $150, blancas o grises, entregar en mi dirección guardada" — firmado por el usuario dentro de su cliente compatible con AP2. El agente no puede exceder ese alcance sin volver a preguntar.
+2. **Cart Mandate:** lo produce el comercio o su agente, y vincula un SKU específico, precio, impuestos, envío y total al Intent. El agente comprador verifica el Cart contra el Intent antes de enviarlo a pago.
+3. **Payment Mandate:** finaliza el tramo entre el agente y la red de pago, llevando el monto autorizado, la referencia del instrumento de fondeo y un hash que vincula el Intent y el Cart ya verificados — esto es lo que Mastercard o Coinbase realmente ven y autorizan.
+
+Ese encadenamiento crea, en palabras del propio anuncio de Google, un rastro de auditoría no repudiable que responde a las preguntas críticas de autorización y autenticidad, dando una base clara para la rendición de cuentas.
+
+**Dos modos de uso: humano presente vs. delegado**
+
+- **Humano presente:** el usuario aprueba en el momento (compra normal asistida por IA).
+- **Tarea delegada (humano ausente):** el usuario firma de antemano un Intent Mandate detallado — por ejemplo "compra las entradas del concierto apenas salgan a la venta" — con reglas de precio, tiempo y condiciones, y ese mandato sirve como prueba verificable y preautorizada para que el agente genere el Cart Mandate automáticamente cuando se cumplan las condiciones. Esto es la mecánica técnica concreta detrás de la "autonomía creciente".
+
+**Gobernanza: ya no depende de un solo proveedor**
+
+En abril de 2026 Google transfirió AP2 a la FIDO Alliance junto con el marco Verifiable Intent de Mastercard, para que la capa de confianza no dependa de un solo actor. Al implementar AP2, en realidad se está implementando un estándar de industria en transición hacia gobernanza abierta, no una API propietaria de Google.
+
+### 10.3 Cómo se combinan en una compra real (ejemplo completo)
+
+Un comprador en EE.UU. le pide a Gemini "encuéntrame un bolso azul marino por menos de $250". El agente busca en el catálogo UCP y devuelve opciones de varias marcas; el comprador elige una. El agente abre una llamada de Checkout con esa tienda, incluyendo la dirección de envío guardada y una solicitud de Google Pay como manejador de pago. UCP intercambia los detalles de la transacción; AP2 aporta el mandato de consentimiento del usuario que autoriza el pago; el comercio verifica ambas firmas, ejecuta el cobro y devuelve la confirmación del pedido — y el comercio sigue siendo el **"merchant of record"**, así que el comprador puede devolver el producto por el canal normal de esa tienda.
+
+Ni UCP ni AP2 le quitan al comercio la relación con el cliente ni la responsabilidad de la venta. Google y Shopify lo repiten explícitamente porque es el principal miedo de un retailer al adoptar esto.
+
+### 10.4 Pasos prácticos de implementación (checklist técnico ordenado)
+
+**Prerrequisitos:**
+
+- Catálogo con atributos limpios, precios, stock e imágenes normalizadas (sin esto, ningún protocolo ayuda).
+- Cuenta activa de Merchant Center con productos elegibles para checkout, si se va a aparecer en AI Mode de Google o Gemini.
+- Un proveedor de pagos que ya soporte manejadores UCP y mandatos AP2 (Stripe y Adyen son socios adoptantes activos, lo que reduce el costo de esa parte).
+
+**Pasos de integración:**
+
+1. Publicar el manifiesto en `https://tudominio.com/.well-known/ucp` con al menos la capacidad Checkout.
+2. Exponer el endpoint REST (o binding MCP/A2A si se prefiere que agentes tipo Claude/ChatGPT lo llamen como herramienta).
+3. Declarar los manejadores de pago que se aceptan (Google Pay, Shop Pay, pasarela regional).
+4. Implementar la máquina de estados de checkout (incomplete → requires_escalation → ready_for_complete), incluyendo la URL de continuación para escalar a humano.
+5. Del lado de pagos, habilitar la verificación de mandatos AP2 en el procesador (Stripe y Adyen ya exponen configuración para esto en su dashboard).
+6. Configurar webhooks para sincronizar estado del pedido, envío y devoluciones.
+7. Probar la negociación de perfiles con al menos un agente real (Gemini, o un agente propio) antes de salir a producción.
+
+**Tiempos reales reportados por integradores:** los comerciantes de Shopify con la app nativa pueden desplegar UCP en menos de 48 horas; plataformas de comercio electrónico personalizadas necesitan entre 2 y 4 semanas, dependiendo de qué tan lista esté su infraestructura de datos. La integración en general se considera de dificultad moderada: en Shopify se activa por feature flag dentro de Agentic Storefronts; en un stack propio, basta con leer la especificación en GitHub, exponer el manifiesto y al menos implementar la capacidad de Checkout.
+
+**Detalles de rendimiento a vigilar:** conviene apuntar a tiempos de respuesta menores a 200ms para descubrimiento de producto y menores a 500ms para completar el checkout, porque los agentes de IA penalizan endpoints lentos despriorizando la tienda en sus algoritmos de recomendación. También hace falta una estrategia de límite de tasa (rate limiting) que distinga tráfico legítimo de agentes de posibles abusos.
+
+### 10.5 Dónde entra esto en el modelo de negocio
+
+Si la apuesta es "habilitar, no vender producto final", esta es exactamente la capa que se vende: ayudar a un retailer a publicar su perfil UCP, limpiar su catálogo para que la negociación de capacidades no falle, e integrar su pasarela para que acepte mandatos AP2. Eso es un servicio concreto, medible, con un costo de implementación estimable (semanas, no meses) y un ciclo de venta claro: primero uno, después extensiones, después multiprotocolo (sumar ACP para ChatGPT si conviene).
+
+---
+
+## 11. Gobernanza, confianza y seguridad
+
+Este bloque es central, no accesorio. El modelo debe incluir:
+
+- Límites de gasto por categoría, no solo por monto total.
+- Permisos por categoría.
+- Revocación inmediata de mandatos.
+- Auditoría completa.
+- Trazabilidad de decisiones.
+- Reglas de escalamiento a humano.
+- Responsabilidad definida ante errores o compras fuera de alcance.
+
+La seguridad no puede tratarse como una capa al final. Debe estar en el diseño desde el inicio. En comercio agéntico, la confianza es parte del producto.
+
+### Checklist de confianza (ampliado)
+
+- Mandatos revocables en cualquier momento.
+- Límites de gasto por categoría, no solo por monto total.
+- Registro auditable compatible con Verifiable Intent.
+- Definición clara de responsabilidad si el agente compra fuera de los límites autorizados.
+
+---
+
+## 12. Marco regulatorio colombiano
+
+Este es el bloque de riesgo legal real de la tesis, y el que un comité de inversión preguntará primero.
+
+### 12.1 Ley 2573 de 2026 (suplantación de identidad)
+
+Promulgada el **19 de mayo de 2026**, con régimen general entrando en vigor en **noviembre de 2026**. Aplica a entidades financieras y crediticias, operadores de telecomunicaciones, y establecimientos comerciales, incluido cualquier plataforma de e-commerce que participe en originación de crédito o ventas a plazo. La vigilancia se reparte entre la **Superintendencia Financiera (SFC)**, la **SIC** (habeas data y comercios) y el **MinTIC**.
+
+La consecuencia más dura no es la multa: si la empresa no puede demostrar la solidez de su verificación de identidad ante un reclamo de suplantación, la ley aplica **carga dinámica de la prueba** — el cliente queda exonerado automáticamente y la empresa asume el 100% de la pérdida.
+
+**Por qué esto es crítico para el modelo de comercio agéntico:** un agente de IA comprando en nombre de un usuario es, desde la óptica de esta ley, exactamente el escenario que se busca regular — una transacción autorizada por alguien que no está presencialmente verificando su identidad en el momento. Si el producto incluye compra a crédito, cuotas o financiamiento (algo común en retail B2B2C en Colombia), se necesita evidencia técnica de verificación de identidad y registros de auditoría desde el diseño, no como un añadido posterior. Los mandatos AP2 firmados (Intent, Cart, Payment) son, de hecho, un candidato natural para servir como esa evidencia auditable — pero debe validarse con un abogado especializado, no asumirse.
+
+### 12.2 Ley 1581 de 2012 y su reforma en curso
+
+Es la ley de protección de datos vigente, vigilada por la SIC, con un proyecto de reforma radicado en **agosto de 2025** para acercarla al estándar GDPR — incluyendo fortalecer sanciones (hasta **5% de ingresos anuales** bajo un proyecto legislativo relacionado) y nuevas directrices específicas sobre IA, biometría y consentimiento en fintech.
+
+Para el negocio, esto significa que el catálogo de datos de clientes que va a alimentar a los agentes de compra (preferencias, historial, medios de pago guardados) debe tener base legal de tratamiento clara y mecanismos de revocación — el mismo principio de "revocación inmediata" del checklist de gobernanza, pero ahora con una autoridad y un marco legal nombrados.
+
+### 12.3 Checklist de cumplimiento derivado
+
+1. El flujo de compra por agente puede demostrar verificación de identidad trazable si el pago involucra crédito o cuotas.
+2. El tratamiento de datos de cliente tiene base legal y mecanismo de revocación conforme a Ley 1581.
+3. Está mapeado ante cuál supervisor (SIC, SFC o MinTIC) responde cada parte de la operación.
+
+---
+
+## 13. Canales y ecosistemas
+
+La mejor forma de pensar los canales no es como medios separados, sino como **dos ecosistemas de infraestructura**: Meta (que unificó WhatsApp, Instagram y Messenger bajo un solo agente comercial) y TikTok/ByteDance (que construye su propio stack de IA para vendedores), más el protocolo de pagos que se use por debajo (AP2/UCP/ACP).
+
+### 13.1 WhatsApp
+
+Sigue siendo el canal más fuerte para cierre y posventa en LatAm, pero con cambios operativos importantes en 2026:
+
+- El **3 de junio de 2026**, en el evento Conversations en Londres, Meta presentó oficialmente su **agente comercial (Meta Business Agent)**, disponible globalmente en WhatsApp, Messenger e Instagram. Recomienda productos del catálogo, agenda citas, califica leads y escala a un humano cuando hace falta — sin código, integrado directo en la app de WhatsApp Business.
+- El arranque es gratis, pero Meta ya anunció que próximamente habrá modelos de suscripción de pago, y quien construye sobre esta infraestructura cede datos de conversación y patrones de venta a la plataforma. Es una decisión estratégica real, no solo técnica.
+- Meta endureció las reglas: los chats de IA sin un objetivo comercial concreto ya no están permitidos; el bot debe realizar tareas de negocio específicas, no conversación abierta.
+- **Dato de conversión regional:** 64% de los clientes en LatAm prefieren ver el catálogo dentro del chat antes que abrir un sitio externo, según el reporte de comercio conversacional de Meta.
+
+### 13.2 Instagram
+
+- Meta está preparando herramientas de IA agéntica en Instagram para competir directamente con TikTok Shop, permitiendo comprar al instante desde un Reel.
+- Meta ya probó resúmenes de reseñas generados por IA tras hacer clic en un anuncio, y sumó afiliados como Mercado Libre en LatAm y Amazon/Shopee en otras regiones para creadores.
+
+### 13.3 TikTok
+
+- TikTok Shop opera en **México y Brasil**, y avanza sobre el resto de Latinoamérica, invirtiendo el orden clásico del embudo: la compra nace de un momento de atención (video, creador, live) y no de una búsqueda.
+- Para vendedores, TikTok lanzó su propio **"Asistente del Vendedor"** con IA para gestión de GMV, tareas urgentes y escalamiento a soporte humano, en un contexto donde la plataforma generó cerca de **19 mil millones de dólares en GMV global** solo en el tercer trimestre de 2025 — la señal de escala es real, no especulativa.
+- **Aviso importante para Colombia:** TikTok Shop en LatAm hoy solo opera en México y Brasil, no en Colombia — así que este canal, tal como existe hoy, no es aplicable directamente al mercado de entrada; sirve como referencia para expansión regional futura. Para Colombia, TikTok es hoy un canal de descubrimiento y generación de demanda (contenido, creators, tráfico hacia WhatsApp o Instagram para el cierre), no un marketplace transaccional propio todavía.
+
+### 13.4 Messenger
+
+Sigue funcionando más como canal de soporte y remarketing automatizado que de descubrimiento, ahora también con el mismo Meta Business Agent corriendo encima. No tiene comisión de transacción propia — funciona como capa de soporte y remarketing sobre la misma infraestructura de Meta Ads. Su costo económico es, en la práctica, el mismo de Meta Ads + el mismo costo de mensajería que WhatsApp.
+
+### 13.5 Conclusión de canal
+
+Los cuatro canales convergen hacia una misma capa (Meta unificó WhatsApp + Messenger + Instagram bajo un solo agente comercial), mientras TikTok construye su propio stack de IA para vendedores. No hay que pensar en "4 canales separados"; hay que pensar en **dos ecosistemas de infraestructura** (Meta y TikTok/ByteDance) sobre los que se decide construir o integrarse, más el protocolo de pagos que se use por debajo (AP2/UCP/ACP).
+
+### 13.6 Checklist de canal (actualizado)
+
+- **WhatsApp:** catálogo navegable + agente de IA con tarea concreta definida (no chat abierto) + decisión explícita sobre usar Meta Business Agent vs. una capa propia sobre Cloud API.
+- **Instagram:** catálogo sincronizado + preparación para compra directa desde Reels.
+- **TikTok:** estrategia de creador/live shopping, no solo catálogo estático.
+- **Messenger:** automatización de soporte y remarketing, integrado al mismo agente que WhatsApp/Instagram si se usa el stack de Meta.
+
+---
+
+## 14. Modelo financiero unitario por canal
+
+### 14.1 El marco: qué variables componen la unidad económica de un canal
+
+Para cualquier canal, la pregunta financiera es siempre la misma cadena:
+
+**Costo de adquisición (CPL/CAC) → tasa de conversión de lead a venta → ticket promedio (AOV) → margen bruto → comisión/fee de la plataforma → costo operativo del canal (mensajería, agente de IA, logística) → margen de contribución neto por unidad.**
+
+Si el margen de contribución neto es positivo y mayor que el costo fijo asignado, el canal "funciona". Si no, se están comprando ventas con pérdida disfrazada de crecimiento — el error más común que reportan los propios operadores de estos canales en 2026.
+
+### 14.2 Datos reales por canal (julio 2026)
+
+**WhatsApp**
+
+- *Adquisición (Click-to-WhatsApp Ads):* en Colombia el CPM de Meta ronda los $2 USD, uno de los más bajos de la región, frente a ~$16 en EE.UU. El CPL estimado en Colombia va de ~$6.6 USD (restaurantes) a ~$31.8 USD (servicios legales), con e-commerce y belleza en el rango bajo. Los anuncios Click-to-WhatsApp reportan hasta 94% más conversión y 92% menos CPL frente a un formulario tradicional, según un estudio de Forrester encargado por Meta — cifra a tomar con cautela por ser un dato patrocinado por el interesado, pero la dirección (chat convierte mejor que formulario) es consistente con múltiples fuentes independientes.
+- *Costo operativo del mensaje:* hasta el **1 de octubre de 2026**, responder a un cliente es gratis; después de esa fecha Meta empieza a cobrar por cada mensaje de servicio. Como referencia, un negocio que responde 10.000 mensajes al mes pagaría cerca de US$85 en mensajes de servicio (~US$0,0085 por mensaje) en un mercado como México — un costo marginal casi irrelevante frente al CPL de adquisición.
+- *Costo del agente de IA:* si se usa el Meta Business Agent nativo, Meta empezó a cobrarlo por token desde el **1 de agosto de 2026**, con facturación mensual — todavía no hay tarifa pública consolidada, es un dato a confirmar caso por caso. Si se usa un proveedor externo (BSP), el costo típico ronda los $99–$309 USD/mes según volumen y funciones, más el fee de Meta por mensaje.
+- *Conversión reportada:* agentes de IA en WhatsApp resuelven entre 60–92% de las conversaciones sin intervención humana, y algunos casos documentados en LatAm reportan incrementos de hasta 25% en ventas al implementar agentes conversacionales.
+
+**Instagram (dentro de Meta Ads)**
+
+Comparte el mismo motor de subasta que WhatsApp/Facebook. En Colombia el CPC típico en retail ronda $0.25 USD, con Reels Ads teniendo un CPM 10–20% menor que el feed estático. El CPA aceptable en e-commerce LatAm se ubica entre $5–$15 USD; por debajo del punto donde el algoritmo alcanza las ~50 conversiones semanales necesarias para salir de "fase de aprendizaje", el costo por resultado se dispara. Monetización adicional: Meta ya suma afiliados como Mercado Libre para creadores en LatAm, lo que abre un canal de comisión por venta referida, no solo pauta pagada.
+
+**TikTok Shop**
+
+Aviso importante: TikTok Shop en LatAm hoy solo opera en México y Brasil, no en Colombia — así que este canal, tal como existe hoy, no es aplicable directamente al mercado de entrada; sirve como referencia para expansión regional futura. Donde sí opera, la estructura de comisión es esta (datos globales/EU-US, 2026):
+
+- Comisión base (referral fee): 6% en EE.UU., 9% en el "EU5" (España, Alemania, Francia, Italia, Irlanda) — subió desde 5% en enero de 2026.
+- Comisión de afiliado/creador: promedio 13% (rango 5%–49% según categoría y estrategia), pagada aparte de la comisión de plataforma.
+- Fulfillment by TikTok (FBT), si se usa: desde $3.58 USD por unidad en el nivel más bajo de peso.
+- El take rate "real" neto que reportan vendedores activos en EE.UU. promedia ~18.4% de la venta, con un rango de 5% a 49% dependiendo casi enteramente de la estrategia de creadores, no de la comisión base.
+- Regla operativa citada por analistas del canal: el canal necesita ~60% de margen bruto para funcionar el primer año; presupuesta 38–52% del GMV en costos no-COGS del canal, comprimiendo a 28–35% en el año dos.
+
+**Messenger**
+
+No tiene comisión de transacción propia — funciona como capa de soporte y remarketing sobre la misma infraestructura de Meta Ads, ahora integrada también al Meta Business Agent. Su costo económico es, en la práctica, el mismo de Meta Ads + el mismo costo de mensajería que WhatsApp.
+
+### 14.3 Modelo unitario ilustrativo (producto de $40 USD)
+
+| Variable | WhatsApp (Colombia) | Instagram/Meta Ads (Colombia) | TikTok Shop (referencia MX/BR) |
+|---|---|---|---|
+| CPL / costo de adquisición | ~$7–$20 USD (según industria) | ~$5–$15 USD | No aplica (venta orgánica + pauta propia) |
+| Tasa de conversión lead→venta | Alta con agente <1 min de respuesta; cae >50% si no hay respuesta en 15–30 min | Depende del embudo posterior al clic | Alta cuando se concentra en pocos creadores top |
+| Comisión de plataforma | 0% (no hay marketplace) | 0% directo (más comisión de afiliado si se usa ese modelo) | 6–9% + comisión de creador (13% prom.) |
+| Costo operativo/mensaje | ~$0.0085–$0.16 USD por mensaje según categoría, desde oct. 2026 | Igual que WhatsApp si se usa el mismo agente | Incluido en la comisión |
+| Margen bruto mínimo requerido | Bajo (canal de cierre, no de comisión) | Bajo | ~60% el primer año |
+
+**Lectura honesta de esta tabla:** WhatsApp e Instagram no cobran comisión por venta — su costo vive en la adquisición del lead y en el mensaje; TikTok Shop sí cobra comisión de marketplace, así que solo es rentable con productos de margen alto (belleza, moda con buen markup), no con productos de margen ajustado.
+
+### 14.4 Palancas de mejora por canal (lo que realmente mueve la aguja)
+
+- **WhatsApp:** el número que más importa no es el costo por mensaje, es el costo por lead calificado y el tiempo de primera respuesta — un chat gratis con alguien que nunca iba a comprar es más caro que un mensaje pago que sí convierte. Cerrar el loop de atribución con Conversions API (CAPI) es la mejora de mayor impacto reportada en 2026.
+- **Instagram:** el creativo explica 50–70% del rendimiento de la campaña; video tipo UGC baja el CPA 30–50% frente a imagen estática.
+- **TikTok Shop:** la concentración en 5–10 creadores suele generar más del 80% del GMV mensual — "reclutar 1.000 afiliados" es una distracción frente a negociar bien con pocos creadores de alto desempeño.
+
+### 14.5 Qué falta para que esto sea un modelo financiero real (no solo un benchmark)
+
+Esta es una estimación informada con las mejores fuentes públicas disponibles, no una medición directa de campañas propias. Para convertirlo en un modelo financiero unitario propio y defendible ante inversionistas se necesita: CPL propio medido en un piloto de 4–6 semanas, tasa de conversión real lead→venta con el producto específico, margen bruto real por SKU, y costo de servicio (agente de IA + soporte humano) medido en volumen real, no estimado.
+
+---
+
+## 15. Tamaño de mercado (TAM/SAM/SOM)
+
+El mercado no debe medirse como "comercio agéntico" de forma abstracta, sino por capas y por vertical. El mejor enfoque es **bottom-up**: número de cuentas objetivo × ticket medio × tasa de adopción × margen esperado. Eso hace que el mercado sea defendible ante inversionistas porque no depende de promesas generales, sino de supuestos operativos verificables.
+
+| Nivel | Definición | Estado del dato |
+|---|---|---|
+| **TAM** | Universo completo de transacciones digitales colombianas susceptibles de pasar por un agente en los próximos 24-36 meses. Base 2026: e-commerce colombiano en **COP 39,4 billones** en ventas y **186,4 millones de transacciones** en Q1 2026, con crecimiento de **14,5%** en valor y **22,2%** en volumen. | Verificable |
+| **SAM** | La porción de ese universo en las verticales de mayor recurrencia ya identificadas (reposición, B2B insumos, belleza, farmacia). | Requiere un ejercicio de segmentación propio |
+| **SOM** | Número de comercios objetivo × ticket medio × tasa de adopción esperada en 12-24 meses. | Solo se puede poner con datos de piloto propio |
+
+A nivel global, Juniper Research proyecta un crecimiento de usuarios de comercio agéntico de menos de 300 millones en 2026 a 1.300 millones en 2031, lo que confirma la dirección de la tendencia — aunque el TAM colombiano es el ancla verificable de esta tesis, mientras que el SAM y el SOM siguen siendo hipótesis hasta correr el piloto.
+
+---
+
+## 16. Arquitectura objetivo
+
+La arquitectura debe ser modular y separada por capas:
+
+1. **Datos:** catálogo, stock, precio, atributos, políticas.
+2. **Orquestación:** reglas, flujos, validaciones y decisiones (negociación UCP).
+3. **Pago:** autorización, tokenización, conciliación (mandatos AP2).
+4. **Confianza:** identidad, permisos, revocación, auditoría.
+5. **Observabilidad:** métricas, alertas, trazabilidad y seguridad.
+6. **Canales:** WhatsApp, Instagram, TikTok y Messenger conectados a la misma lógica central.
+
+Eso permite crecer sin reescribir toda la operación cada vez que se suma un canal o país.
+
+---
+
+## 17. MVP y roadmap
+
+El MVP no debe intentar resolver todo el comercio. Debe validar una sola tarea de alto valor. La secuencia ideal es:
+
+1. Validar un caso de uso concreto.
+2. Probar conversación y conversión.
+3. Integrar autorización y pago.
+4. Conectar fulfillment y posventa.
+5. Escalar por vertical y por canal.
+6. Expandir por país cuando la tasa de éxito sea repetible.
+
+El objetivo del MVP no es verse grande, sino demostrar que el sistema convierte y se puede operar con control.
+
+---
+
+## 18. Expansión Colombia → LATAM → Global
+
+Colombia sirve como laboratorio por madurez digital y oportunidad de mejora operativa. LATAM es la siguiente capa lógica porque comparte fricciones, canales y patrones de compra. Global solo tiene sentido cuando la arquitectura ya soporta seguridad, trazabilidad, estandarización y adaptabilidad regulatoria.
+
+La expansión correcta no es solo geográfica. Es replicable por vertical, canal y tipo de operación.
+
+---
+
+## 19. Riesgos, supuestos y mitigaciones
+
+### Riesgos
+
+- Fraude y suplantación de identidad.
+- Compras fuera del alcance autorizado.
+- Errores de ejecución del agente.
+- Baja adopción por parte del usuario final.
+- Fricción regulatoria (Ley 2573, Ley 1581).
+- Unit economics débiles si no se controla el CAC por canal.
+- Dependencia de la hoja de ruta de monetización de Meta y de la adopción de protocolos por parte de terceros.
+
+### Supuestos críticos
+
+- El usuario delegará parte de la decisión de compra a un agente bajo límites definidos.
+- El canal elegido efectivamente convierte al costo de adquisición estimado.
+- El catálogo del comercio puede normalizarse a un costo razonable.
+- El costo de adquisición se mantiene menor que el valor generado por transacción.
+
+### Mitigaciones
+
+- Límites de autorización y validación humana en etapas tempranas.
+- Métricas por canal y trazabilidad total desde el diseño.
+- Despliegue gradual por vertical, con piloto antes de escalar.
+- Asesoría legal específica para cumplimiento de Ley 2573 y Ley 1581 antes de habilitar crédito o cuotas.
+
+---
+
+## 20. Checklist operativo final
+
+### Checklist comercial
+
+- Propuesta de valor clara.
+- Vertical definido.
+- Ticket y margen conocidos.
+- Conversión medible.
+- Posventa diseñada.
+
+### Checklist técnico
+
+- Catálogo estructurado.
+- Checkout confiable.
+- Integración con inventario.
+- Trazabilidad completa.
+- Seguridad por diseño.
+
+### Checklist de protocolo
+
+- ¿El catálogo está publicado en formato compatible con UCP?
+- ¿La pasarela soporta mandatos AP2 (o al menos puede recibirlos vía Stripe/Adyen)?
+- ¿Está definido si se va a vender vía ACP (ChatGPT/Copilot), vía Google (UCP/Universal Cart) o vía Meta (agente comercial propio)? — cada uno tiene reglas distintas de quién es el "merchant of record".
+- ¿Existe un plan de traducción entre redes de tarjetas (Visa, Mastercard) si el mandato viene de un agente y no de un humano presente?
+
+### Checklist de gobernanza
+
+- Mandatos revocables en cualquier momento.
+- Límites de gasto por categoría, no solo por monto total.
+- Registro auditable compatible con Verifiable Intent.
+- Definición clara de responsabilidad si el agente compra fuera de los límites autorizados.
+
+### Checklist de canal
+
+- **WhatsApp:** catálogo navegable + agente de IA con tarea concreta definida (no chat abierto) + decisión explícita sobre usar Meta Business Agent vs. una capa propia sobre Cloud API.
+- **Instagram:** catálogo sincronizado + preparación para compra directa desde Reels.
+- **TikTok:** estrategia de creador/live shopping, no solo catálogo estático.
+- **Messenger:** automatización de soporte y remarketing, integrado al mismo agente que WhatsApp/Instagram si se usa el stack de Meta.
+
+### Checklist de cumplimiento (Colombia)
+
+- El flujo de compra por agente puede demostrar verificación de identidad trazable si el pago involucra crédito o cuotas (Ley 2573).
+- El tratamiento de datos de cliente tiene base legal y mecanismo de revocación conforme a Ley 1581.
+- Está mapeado ante cuál supervisor (SIC, SFC o MinTIC) responde cada parte de la operación.
+
+---
+
+## 21. Conclusión
+
+La tesis más fuerte no es "IA para vender", sino infraestructura para que el comercio humano y el agéntico convivan con control, seguridad y rentabilidad. Esta versión es más sólida que las anteriores porque se apoya en hechos verificables con fecha y fuente (lanzamientos de protocolos, anuncios de Meta y TikTok, cifras de GMV, marco regulatorio colombiano), no solo en proyecciones de mercado de terceros.
+
+Persisten zonas de hipótesis: qué protocolo ganará adopción dominante en LatAm específicamente, cuánto tardará Meta en monetizar su agente comercial, y qué vertical rendirá mejor para el caso concreto de cada negocio. Esas partes solo se resuelven con pilotos propios.
+
+Si el modelo se ejecuta bien, puede empezar en Colombia, escalar a LATAM y luego expandirse globalmente con una arquitectura preparada para volumen, presión operativa y múltiples ecosistemas de canal.
+
+---
+
+*Documento consolidado a partir de la investigación completa sobre comercio agéntico: lienzo de negocio, ejes end-to-end, protocolos (AP2/UCP/ACP), gobernanza (FIDO Alliance), canales (WhatsApp/Instagram/TikTok/Messenger), modelo financiero unitario por canal, marco regulatorio colombiano (Ley 2573 de 2026 y Ley 1581 de 2012), tamaño de mercado y checklist operativo final. Julio 2026.*

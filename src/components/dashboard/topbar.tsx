@@ -64,10 +64,14 @@ export function Topbar({ active, country, onCountryChange, onChangeView, onOpenS
   const [notifCount, setNotifCount] = useState(0)
   const item = NAV_ITEMS.find(n => n.id === active)
   const { tenants, activeTenant, setTenants, setActive } = useTenantStore()
+  // The logged-in user's own tenantId — used to default the tenant switcher so
+  // that RBAC-bound API calls (/api/marketplace, /api/novedades, …) don't 403
+  // with "tenant mismatch" when the user belongs to a non-first tenant.
+  const userTenantId = session?.user?.tenantId ?? undefined
 
   useEffect(() => {
-    fetch('/api/tenants').then(r => r.json()).then(d => setTenants(d.tenants || []))
-  }, [setTenants])
+    fetch('/api/tenants').then(r => r.json()).then(d => setTenants(d.tenants || [], userTenantId))
+  }, [setTenants, userTenantId])
 
   // Lightweight unread-notification count (Messenger priority + Novedades).
   // Best-effort: failures don't break the topbar.
@@ -296,15 +300,15 @@ export function Topbar({ active, country, onCountryChange, onChangeView, onOpenS
                       {initials(user.name)}
                     </AvatarFallback>
                   </Avatar>
-                  <div className="hidden md:block text-xs leading-tight text-left">
-                    <div className="font-medium line-clamp-1 max-w-[160px]">
+                  <div className="hidden md:block text-xs leading-tight text-left min-w-0">
+                    <div className="font-medium line-clamp-1 max-w-[120px] md:max-w-[160px] lg:max-w-[200px]">
                       {user.name || user.email}
                     </div>
-                    <div className="text-muted-foreground flex items-center gap-1">
-                      <span className={`inline-flex items-center rounded-full px-1.5 py-px text-[10px] font-semibold ring-1 ${roleMeta.className}`}>
+                    <div className="text-muted-foreground flex items-center gap-1 min-w-0">
+                      <span className={`inline-flex items-center rounded-full px-1.5 py-px text-[10px] font-semibold ring-1 shrink-0 ${roleMeta.className}`}>
                         {roleMeta.label}
                       </span>
-                      <span className="line-clamp-1 max-w-[80px] hidden lg:inline">· {tenantName}</span>
+                      <span className="line-clamp-1 max-w-[80px] sm:max-w-[120px] lg:max-w-[160px] hidden lg:inline min-w-0">· {tenantName}</span>
                     </div>
                   </div>
                   <ChevronDown className="hidden md:block size-3.5 text-muted-foreground" />

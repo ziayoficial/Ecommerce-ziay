@@ -1,7 +1,7 @@
 // ZIAY — Wallet transactions tab (table + period summary row).
 // Split out from wallet-view.tsx in SPRINT8-VIEWS-SPLIT-001.
 
-import { ArrowDownCircle, ArrowUpCircle } from 'lucide-react'
+import { ArrowDownCircle, ArrowUpCircle, Wallet } from 'lucide-react'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -33,8 +33,14 @@ export function WalletTransactions({ data }: { data: WalletData }) {
       </CardHeader>
       <CardContent className="p-0">
         {data.transactions.length === 0 ? (
-          <div className="p-12 text-center text-sm text-muted-foreground">
-            No hay transacciones todavía.
+          <div className="flex flex-col items-center justify-center text-center py-12 px-4">
+            <div className="mb-4 rounded-full bg-muted p-3">
+              <Wallet className="size-6 text-muted-foreground" />
+            </div>
+            <p className="text-sm font-medium text-foreground">No hay transacciones todavía</p>
+            <p className="mt-1 text-xs text-foreground/70 max-w-sm">
+              Las entradas de comisión aparecerán aquí cuando se despachen pedidos por agente_whatsapp.
+            </p>
           </div>
         ) : (
           <div className="overflow-x-auto scroll-thin">

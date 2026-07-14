@@ -35,9 +35,10 @@ export function Sidebar({ active, onChange, badges }: {
         <div className="size-9 rounded-xl bg-primary/20 ring-1 ring-primary/30 flex items-center justify-center">
           <Zap className="size-5 text-primary" />
         </div>
-        <div className="leading-tight min-w-0">
+        <div className="leading-tight min-w-0 flex-1">
           <div className="font-semibold text-sm truncate">ZIAY</div>
-          <div className="text-[11px] text-sidebar-foreground/70 truncate">Comercio Conversacional</div>
+          {/* subtitle: text-[11px] + truncate is intentional per audit (sidebar is w-64, 168px available — "Comercio Conversacional" fits at ~131px) */}
+          <div className="text-[11px] text-sidebar-foreground/70 whitespace-nowrap overflow-hidden text-ellipsis">Comercio Conversacional</div>
         </div>
       </div>
 

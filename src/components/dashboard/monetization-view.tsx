@@ -122,9 +122,9 @@ export function MonetizationView() {
     <section aria-label="Monetización" className="space-y-6 animate-fade-in-up">
       {/* Header: last-updated + refresh */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="text-[10px] sm:text-xs text-muted-foreground truncate">
+        <div className="text-[10px] sm:text-xs text-foreground/70 truncate">
           {lastUpdated ? (
-            <span>Actualizado hace <strong className="text-foreground tabular-nums">{timeAgo(lastUpdated.toISOString())}</strong></span>
+            <span>Actualizado hace <strong className="text-foreground tabular-nums font-medium">{timeAgo(lastUpdated.toISOString())}</strong></span>
           ) : (
             <span>Datos de muestra</span>
           )}
@@ -140,36 +140,36 @@ export function MonetizationView() {
         <Card>
           <CardContent className="p-4 flex items-center gap-3">
             <div className="size-10 rounded-xl bg-primary/10 text-primary ring-1 ring-primary/20 flex items-center justify-center"><DollarSign className="size-5" /></div>
-            <div>
-              <div className="text-lg font-bold tabular-nums">{formatCurrency(data.gmv, 'COP', { compact: true })}</div>
-              <div className="text-xs text-muted-foreground">GMV ({data.periodo})</div>
+            <div className="min-w-0">
+              <div className="text-lg font-bold tabular-nums truncate">{formatCurrency(data.gmv, 'COP', { compact: true })}</div>
+              <div className="text-xs text-muted-foreground whitespace-normal break-words">GMV ({data.periodo})</div>
             </div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 flex items-center gap-3">
             <div className="size-10 rounded-xl bg-emerald-500/10 text-emerald-600 ring-1 ring-emerald-500/20 flex items-center justify-center"><TrendingUp className="size-5" /></div>
-            <div>
-              <div className="text-lg font-bold tabular-nums">{formatCurrency(data.comisionReconocida, 'COP', { compact: true })}</div>
-              <div className="text-xs text-muted-foreground">Comisión reconocida</div>
+            <div className="min-w-0">
+              <div className="text-lg font-bold tabular-nums truncate">{formatCurrency(data.comisionReconocida, 'COP', { compact: true })}</div>
+              <div className="text-xs text-muted-foreground whitespace-normal break-words">Comisión reconocida</div>
             </div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 flex items-center gap-3">
             <div className="size-10 rounded-xl bg-amber-500/10 text-amber-600 ring-1 ring-amber-500/20 flex items-center justify-center"><Clock className="size-5" /></div>
-            <div>
-              <div className="text-lg font-bold tabular-nums">{formatCurrency(data.comisionPendiente, 'COP', { compact: true })}</div>
-              <div className="text-xs text-muted-foreground">Pendiente de reconocimiento</div>
+            <div className="min-w-0">
+              <div className="text-lg font-bold tabular-nums truncate">{formatCurrency(data.comisionPendiente, 'COP', { compact: true })}</div>
+              <div className="text-xs text-muted-foreground whitespace-normal break-words">Pendiente de reconocimiento</div>
             </div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 flex items-center gap-3">
             <div className="size-10 rounded-xl bg-violet-500/10 text-violet-600 ring-1 ring-violet-500/20 flex items-center justify-center"><Receipt className="size-5" /></div>
-            <div>
-              <div className="text-lg font-bold tabular-nums">{formatCurrency(data.totalEstimado, 'COP', { compact: true })}</div>
-              <div className="text-xs text-muted-foreground">Total estimado (fee + comisión)</div>
+            <div className="min-w-0">
+              <div className="text-lg font-bold tabular-nums truncate">{formatCurrency(data.totalEstimado, 'COP', { compact: true })}</div>
+              <div className="text-xs text-muted-foreground whitespace-normal break-words">Total estimado (fee + comisión)</div>
             </div>
           </CardContent>
         </Card>
@@ -180,7 +180,7 @@ export function MonetizationView() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Tramo de comisión</CardTitle>
-            <CardDescription>Comisión escalonada decreciente sobre GMV (Saramantha §17.3)</CardDescription>
+            <CardDescription className="whitespace-normal break-words">Comisión escalonada decreciente sobre GMV (Saramantha §17.3)</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {[
@@ -210,7 +210,7 @@ export function MonetizationView() {
         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2"><AlertTriangle className="size-4 text-amber-500" /> Embudo de pedidos (cuello de botella §15.1)</CardTitle>
-            <CardDescription>Reconocimiento de comisión en 2 momentos — 50% en "Datos completados", 100% en "Despachado"</CardDescription>
+            <CardDescription className="whitespace-normal break-words">Reconocimiento de comisión en 2 momentos — 50% en "Datos completados", 100% en "Despachado"</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
@@ -252,11 +252,11 @@ export function MonetizationView() {
         <CardContent className="p-0">
           {entries.length === 0 ? (
             <div className="flex flex-col items-center justify-center text-center py-12 px-4">
-              <div className="size-12 rounded-2xl bg-muted ring-1 ring-border flex items-center justify-center mb-3">
+              <div className="mb-4 rounded-full bg-muted p-3">
                 <Receipt className="size-6 text-muted-foreground" />
               </div>
-              <p className="text-sm font-medium">Sin comisiones reconocidas todavía</p>
-              <p className="text-xs text-muted-foreground max-w-sm mt-1">
+              <p className="text-sm font-medium text-foreground">Sin comisiones reconocidas todavía</p>
+              <p className="text-xs text-foreground/70 max-w-sm mt-1">
                 Cuando los pedidos por agente_whatsapp se despachen, las comisiones reconocidas aparecerán aquí automáticamente.
               </p>
               <Button variant="outline" size="sm" className="mt-4 gap-1.5" onClick={() => load(true)} disabled={refreshing}>

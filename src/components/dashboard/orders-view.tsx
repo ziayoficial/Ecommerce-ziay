@@ -328,9 +328,17 @@ export function OrdersView() {
         </Card>
       </Collapsible>
 
-      {/* Bulk actions bar — visible only when at least one order is selected */}
+      {/* Bulk actions bar — visible only when at least one order is selected.
+          On mobile it floats at the bottom (fixed); on md+ it sits inline above the table. */}
       {selectedCount > 0 && (
-        <div className="flex items-center justify-between gap-3 p-3 rounded-lg border bg-primary/5 animate-fade-in-up flex-wrap" role="region" aria-label="Acciones masivas">
+        <div
+          role="region"
+          aria-label="Acciones masivas"
+          className="fixed md:static bottom-4 left-4 right-4 z-30 md:z-auto
+                     flex items-center justify-between gap-3 p-3 rounded-lg border
+                     bg-background md:bg-primary/5 shadow-lg md:shadow-none
+                     animate-fade-in-up flex-wrap"
+        >
           <div className="text-xs font-medium">{selectedCount} pedidos seleccionados</div>
           <div className="flex items-center gap-2 flex-wrap">
             <Select onValueChange={(v) => bulkUpdateStatus(v)} defaultValue="">
@@ -382,7 +390,7 @@ export function OrdersView() {
                     <TableHead className="w-28">Pago</TableHead>
                     <TableHead className="w-32">Total</TableHead>
                     <TableHead className="w-32">Estado</TableHead>
-                    <TableHead className="w-32">Atribución</TableHead>
+                    <TableHead className="min-w-[160px]">Atribución</TableHead>
                     <TableHead className="w-40 text-right">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -438,10 +446,10 @@ export function OrdersView() {
                             </UITooltip>
                           </TooltipProvider>
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="min-w-[160px]">
                           <div className="flex flex-col gap-1">
-                            <span className={cn('text-[10px] px-1.5 py-0.5 rounded inline-block w-fit', pm.cls)}>{pm.label}</span>
-                            {o.sourceAd && <span className="text-[10px] text-muted-foreground truncate max-w-28" title={o.sourceAd.externalId}>{o.sourceAd.name}</span>}
+                            <span className={cn('text-[10px] px-1.5 py-0.5 rounded inline-block w-fit whitespace-nowrap', pm.cls)}>{pm.label}</span>
+                            {o.sourceAd && <span className="text-[10px] text-muted-foreground truncate max-w-[180px]" title={o.sourceAd.externalId}>{o.sourceAd.name}</span>}
                           </div>
                         </TableCell>
                         <TableCell className="text-right">

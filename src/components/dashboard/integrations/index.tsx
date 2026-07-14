@@ -223,13 +223,13 @@ export function IntegrationsView() {
                         <span className="font-medium text-sm">{route.label}</span>
                         {isActive && <Badge variant="default" className="text-[9px] h-4 px-1 gap-0.5"><Zap className="size-2.5" /> activo</Badge>}
                       </div>
-                      <div className="text-[10px] text-muted-foreground mt-0.5">{route.spec}</div>
+                      <div className="text-[10px] text-muted-foreground mt-0.5 whitespace-normal break-words">{route.spec}</div>
                     </div>
                     <Icon className={cn('size-4 shrink-0', meta.iconCls)} />
                   </div>
-                  <div className="flex items-center gap-1.5 text-[10px]">
-                    <span className={cn('size-1.5 rounded-full', meta.dot)} />
-                    <span className="text-muted-foreground">{meta.label}</span>
+                  <div className="flex items-start gap-1.5 text-[10px] min-w-0">
+                    <span className={cn('size-1.5 rounded-full shrink-0 mt-1', meta.dot)} />
+                    <span className="text-muted-foreground whitespace-normal break-words min-w-0">{meta.label}</span>
                   </div>
                 </div>
               )
@@ -247,7 +247,7 @@ export function IntegrationsView() {
           <CardDescription>Saramantha §9.6, §8.6 · el adaptador concreto se resuelve desde <code className="text-[11px]">tenant.proveedorLogistico</code></CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {LOGISTICS_ROUTES.map(route => {
               const status = adapterStatus(route.id)
               const meta = statusMeta(status)
@@ -268,13 +268,13 @@ export function IntegrationsView() {
                         <span className="font-medium text-sm">{route.label}</span>
                         {isActive && <Badge variant="default" className="text-[9px] h-4 px-1 gap-0.5 bg-emerald-600 text-white"><Zap className="size-2.5" /> activo</Badge>}
                       </div>
-                      <div className="text-[10px] text-muted-foreground mt-0.5">{route.spec}</div>
+                      <div className="text-[10px] text-muted-foreground mt-0.5 whitespace-normal break-words">{route.spec}</div>
                     </div>
                     <Icon className={cn('size-4 shrink-0', meta.iconCls)} />
                   </div>
-                  <div className="flex items-center gap-1.5 text-[10px]">
-                    <span className={cn('size-1.5 rounded-full', meta.dot)} />
-                    <span className="text-muted-foreground">{meta.label}</span>
+                  <div className="flex items-start gap-1.5 text-[10px] min-w-0">
+                    <span className={cn('size-1.5 rounded-full shrink-0 mt-1', meta.dot)} />
+                    <span className="text-muted-foreground whitespace-normal break-words min-w-0">{meta.label}</span>
                   </div>
                 </div>
               )

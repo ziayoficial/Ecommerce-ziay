@@ -11,7 +11,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
-import { ChevronRight, Package, Plus, Search } from 'lucide-react'
+import { ChevronRight, Inbox, Package, Plus, Search } from 'lucide-react'
 
 import { timeAgo } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -96,10 +96,15 @@ export function NovedadesList({
       <CardContent className="p-0">
         <ScrollArea className="h-[60vh]">
           {cases.length === 0 ? (
-            <div className="p-8 text-center text-sm text-muted-foreground">
-              <Package className="size-8 mx-auto mb-2 text-muted-foreground/50" aria-hidden />
-              <p>Sin casos para estos filtros.</p>
-              <Button size="sm" onClick={onCreateOpen} className="mt-3 gap-1.5">
+            <div className="flex flex-col items-center justify-center text-center py-12 px-4">
+              <div className="mb-4 rounded-full bg-muted p-3">
+                <Inbox className="size-6 text-muted-foreground" aria-hidden />
+              </div>
+              <p className="text-sm font-medium text-foreground">Sin casos para estos filtros</p>
+              <p className="mt-1 text-xs text-foreground/70 max-w-sm">
+                Prueba cambiando los filtros de estado, tipo o carrier, o crea un caso nuevo manualmente.
+              </p>
+              <Button size="sm" onClick={onCreateOpen} className="mt-4 gap-1.5">
                 <Plus className="size-4" /> Crear caso
               </Button>
             </div>

@@ -225,7 +225,7 @@ export function OrchestratorView() {
               <span className="text-base leading-none mt-0.5">{scenario.emoji}</span>
               <div className="flex-1 min-w-0">
                 <div className="font-medium">{scenario.label}</div>
-                <p className="text-xs text-muted-foreground mt-0.5">{scenario.description}</p>
+                <p className="text-xs text-muted-foreground mt-0.5 whitespace-normal break-words">{scenario.description}</p>
                 <div className="mt-2 text-xs">
                   <span className="text-muted-foreground">Mensaje semilla:</span>
                   <code className="ml-1.5 text-[11px] bg-background px-1.5 py-0.5 rounded border">{scenario.seedMessage}</code>
@@ -275,18 +275,18 @@ export function OrchestratorView() {
           <CardDescription>Cada paso invoca un agente (§6) y muestra su respuesta en el timeline de abajo</CardDescription>
         </CardHeader>
         <CardContent className="overflow-x-auto">
-          <div className="flex items-stretch gap-2 min-w-max pb-1">
+          <div className="flex flex-col sm:flex-row items-stretch gap-3 sm:gap-2 overflow-x-auto sm:overflow-x-visible sm:min-w-max pb-1">
             {ORCHESTRATOR_STEPS.map((step, i) => {
               const accent = ORCHESTRATOR_ACCENT[step.accent]
               const isCompleted = completedSteps.has(step.id)
               const isCurrent = currentStep === step.id && !isCompleted
               const isLast = i === ORCHESTRATOR_STEPS.length - 1
               return (
-                <div key={step.id} className="flex items-stretch gap-2">
+                <div key={step.id} className="flex flex-col sm:flex-row items-stretch gap-2">
                   <div
                     aria-current={isCurrent ? 'step' : undefined}
                     className={cn(
-                      'rounded-xl border p-2.5 w-[150px] shrink-0 transition-all',
+                      'rounded-xl border p-2.5 w-full sm:w-[180px] shrink-0 transition-all',
                       isCompleted && 'border-emerald-500/40 bg-emerald-500/5',
                       isCurrent && 'border-primary ring-2 ring-primary/20 bg-primary/5',
                       !isCompleted && !isCurrent && 'border-border bg-card'
@@ -301,11 +301,11 @@ export function OrchestratorView() {
                     <div className={cn('text-xs font-semibold mt-1.5 leading-tight', isCurrent && 'text-primary')}>
                       {step.label}
                     </div>
-                    <div className="text-[10px] text-muted-foreground mt-0.5 line-clamp-2">{step.description}</div>
+                    <div className="text-[10px] text-muted-foreground mt-0.5 line-clamp-3 whitespace-normal break-words">{step.description}</div>
                   </div>
                   {!isLast && (
                     <div className={cn(
-                      'flex items-center justify-center w-4 shrink-0',
+                      'hidden sm:flex items-center justify-center w-4 shrink-0',
                       isCompleted ? 'text-emerald-500' : 'text-muted-foreground/30'
                     )}>
                       <ChevronRight className="size-4" />

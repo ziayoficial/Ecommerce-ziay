@@ -219,9 +219,9 @@ export function OverviewView() {
     <div className="space-y-6 animate-fade-in-up">
       {/* ── Header: last-updated + refresh ── */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="text-[10px] sm:text-xs text-muted-foreground truncate">
+        <div className="text-[10px] sm:text-xs text-foreground/70 truncate">
           {lastUpdated ? (
-            <span>Actualizado hace <strong className="text-foreground tabular-nums">{timeAgo(lastUpdated.toISOString())}</strong></span>
+            <span>Actualizado hace <strong className="text-foreground tabular-nums font-medium">{timeAgo(lastUpdated.toISOString())}</strong></span>
           ) : (
             <span>Datos de muestra</span>
           )}
@@ -314,7 +314,7 @@ export function OverviewView() {
                         <span className="size-2.5 rounded-sm" style={{ background: channelColor(c.type) }} />
                         {c.name}
                       </span>
-                      <span className="tabular-nums text-muted-foreground">{formatCurrency(c.value, 'COP', { compact: true })} · {c.orders} pedidos</span>
+                      <span className="tabular-nums"><span className="text-foreground/60 font-medium">{formatCurrency(c.value, 'COP', { compact: true })}</span> <span className="text-foreground/60 font-medium">· {c.orders} pedidos</span></span>
                     </div>
                     <div className="h-2 rounded-full bg-muted overflow-hidden">
                       <div className="h-full rounded-full transition-all" style={{ width: `${(c.value / max) * 100}%`, background: channelColor(c.type) }} />

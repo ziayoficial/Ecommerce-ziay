@@ -169,9 +169,9 @@ export function CatalogVisualView() {
     <section aria-label="Catálogo visual" className="space-y-4 animate-fade-in-up">
       {/* Header: last-updated + refresh */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="text-[10px] sm:text-xs text-muted-foreground truncate">
+        <div className="text-[10px] sm:text-xs text-foreground/70 truncate">
           {lastUpdated ? (
-            <span>Actualizado hace <strong className="text-foreground tabular-nums">{timeAgo(lastUpdated.toISOString())}</strong></span>
+            <span>Actualizado hace <strong className="text-foreground tabular-nums font-medium">{timeAgo(lastUpdated.toISOString())}</strong></span>
           ) : (
             <span>Datos de muestra</span>
           )}

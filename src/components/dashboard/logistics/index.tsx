@@ -17,7 +17,7 @@ import { useTenantId } from '@/hooks/use-tenant'
 import { toast } from 'sonner'
 import {
   ShieldCheck, ShieldAlert, RotateCcw, Truck, Sparkles, Send,
-  AlertTriangle, RefreshCw, AlertCircle, Inbox,
+  AlertTriangle, RefreshCw, AlertCircle,
 } from 'lucide-react'
 import { type LogisticsData } from './logistics-shared'
 import { CustomerScoresTab, CarrierScoresTab } from './logistics-scores'
@@ -123,10 +123,10 @@ export function LogisticsIntelligenceView() {
     return (
       <section aria-label="Inteligencia logística" className="flex flex-col items-center justify-center text-center py-16 px-4 animate-fade-in-up">
         <div className="size-20 rounded-2xl bg-primary/10 ring-1 ring-primary/20 flex items-center justify-center mb-5">
-          <Inbox className="size-9 text-primary" />
+          <Truck className="size-9 text-primary" />
         </div>
         <h2 className="text-lg font-semibold">Aún no hay datos logísticos</h2>
-        <p className="text-sm text-muted-foreground max-w-md mt-2">
+        <p className="text-sm text-foreground/70 max-w-md mt-2">
           Cuando registres pedidos con guías de transportadoras, verás aquí los scores de clientes,
           rankings de carriers, guías estancadas y alertas de comportamiento.
         </p>

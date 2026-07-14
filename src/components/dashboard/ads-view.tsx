@@ -305,7 +305,7 @@ export function AdsView() {
                 <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar ad ID o nombre..." className="pl-8 h-9 w-52" />
               </div>
               <Select value={platform} onValueChange={setPlatform}>
-                <SelectTrigger className="h-9 w-36"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-9 min-w-[180px] w-44"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todas las plataformas</SelectItem>
                   <SelectItem value="meta">Meta Ads</SelectItem>
@@ -345,13 +345,13 @@ export function AdsView() {
                   const pm = platformMeta(r.platform.name)
                   return (
                     <TableRow key={r.id} className={cn('hover:bg-muted/40', r.cannibalizing && 'bg-violet-500/5', r.verdict === 'kill' && 'bg-rose-500/5')}>
-                      <TableCell>
+                      <TableCell className="min-w-[220px]">
                         <div className="flex items-center gap-2">
                           {r.cannibalizing && <Flame className="size-3.5 text-violet-600 shrink-0" />}
                           <div className="min-w-0">
-                            <div className="font-medium text-sm truncate max-w-52">{r.name}</div>
-                            <div className="text-[10px] text-muted-foreground font-mono truncate max-w-52" title={r.externalId}>{r.externalId}</div>
-                            <div className="text-[10px] text-muted-foreground truncate max-w-52">{r.campaign.name}</div>
+                            <div className="font-medium text-sm truncate max-w-[280px]" title={r.name}>{r.name}</div>
+                            <div className="text-[10px] text-muted-foreground font-mono truncate max-w-[280px]" title={r.externalId}>{r.externalId}</div>
+                            <div className="text-[10px] text-muted-foreground truncate max-w-[280px]" title={r.campaign.name}>{r.campaign.name}</div>
                           </div>
                         </div>
                       </TableCell>
@@ -414,7 +414,7 @@ export function AdsView() {
                         <TooltipProvider>
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <span tabIndex={0} role="button" className={cn('inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full ring-1 cursor-help focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring', vm.cls)}>
+                              <span tabIndex={0} role="button" className={cn('inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full ring-1 cursor-help whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring', vm.cls)}>
                                 <VIcon className="size-3" /> {vm.label}
                               </span>
                             </TooltipTrigger>
@@ -425,27 +425,27 @@ export function AdsView() {
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">
                           {(r.verdict === 'kill' || r.verdict === 'cannibalize') && (
-                            <Button size="sm" variant="destructive" className="h-7 text-xs gap-1" onClick={() => doAction(r.id, 'kill', r.cannibalizing ? 'Canibaliza atribución' : 'Sin ventas')}>
+                            <Button size="sm" variant="destructive" className="h-7 text-xs gap-1 whitespace-nowrap" onClick={() => doAction(r.id, 'kill', r.cannibalizing ? 'Canibaliza atribución' : 'Sin ventas')}>
                               <Skull className="size-3" /> Apagar
                             </Button>
                           )}
                           {r.verdict === 'pause' && (
-                            <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => doAction(r.id, 'pause')}>
+                            <Button size="sm" variant="outline" className="h-7 text-xs gap-1 whitespace-nowrap" onClick={() => doAction(r.id, 'pause')}>
                               <Pause className="size-3" /> Pausar
                             </Button>
                           )}
                           {r.verdict === 'scale' && (
-                            <Button size="sm" className="h-7 text-xs gap-1" onClick={() => doAction(r.id, 'scale')}>
+                            <Button size="sm" className="h-7 text-xs gap-1 whitespace-nowrap" onClick={() => doAction(r.id, 'scale')}>
                               <Rocket className="size-3" /> Escalar
                             </Button>
                           )}
                           {(r.verdict === 'optimize' || r.verdict === 'watch') && (
-                            <Button size="sm" variant="ghost" className="h-7 text-xs gap-1" onClick={() => toast.info('Marcado para vigilar')}>
+                            <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 whitespace-nowrap" onClick={() => toast.info('Marcado para vigilar')}>
                               <Eye className="size-3" /> Vigilar
                             </Button>
                           )}
                           {r.status === 'paused' && (
-                            <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => doAction(r.id, 'resume')}>
+                            <Button size="sm" variant="outline" className="h-7 text-xs gap-1 whitespace-nowrap" onClick={() => doAction(r.id, 'resume')}>
                               <Play className="size-3" /> Reanudar
                             </Button>
                           )}

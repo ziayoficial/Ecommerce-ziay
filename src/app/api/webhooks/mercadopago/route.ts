@@ -18,24 +18,47 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { MercadoPagoAdapter } from '@/lib/adapters/mercadopago'
 import { applyPaymentUpdate, safeAudit } from '@/lib/adapters/payment-webhook-utils'
-import { isDuplicateWebhook, generateWebhookId } from '@/lib/middleware/idempotency'
+import { isDuplicateWebhook, isDuplicateWebhookDB, generateWebhookId } from '@/lib/middleware/idempotency'
 
 export async function POST(req: NextRequest) {
   const rawBody = await req.text()
   const signature = req.headers.get('x-signature') ?? ''
   const adapter = new MercadoPagoAdapter()
 
+  // Adapter throws in production when the webhook secret is missing (R3).
+  // Surface that as a 500 so the gateway retries and the operator is
+  // alerted — silently ACKing 200 would mask the misconfiguration.
+  let sigValid: boolean
+  try {
+    sigValid = adapter.webhookVerify(rawBody, signature)
+  } catch (err) {
+    await safeAudit(
+      'webhook.mercadopago.config_error',
+      'Webhook',
+      err instanceof Error ? err.message : 'unknown error',
+    )
+    return NextResponse.json(
+      { error: 'Webhook verification configuration error' },
+      { status: 500 },
+    )
+  }
+
   // Always ACK 200 — but only process when the signature verifies.
-  if (!adapter.webhookVerify(rawBody, signature)) {
+  if (!sigValid) {
     await safeAudit('webhook.mercadopago.invalid_sig', 'Webhook', rawBody.slice(0, 1000))
     return NextResponse.json({ received: true, status: 'invalid_signature' })
   }
 
-  // ── Idempotency (SPRINT4-INFRA-001) ────────────────────────────────────
-  // MercadoPago retries webhooks if our ACK is delayed. Skip processing if
-  // we've already handled this exact (body + signature) within the 5-min TTL.
+  // ── Idempotency (SPRINT4-INFRA-001 + FIX-REALTIME-WEBHOOKS-001) ───────
+  // Two layers: in-memory Map (fast path) + DB-backed AuditLog query
+  // (durable, multi-instance). The DB check uses the webhookId as
+  // `entityId` so it's indexed and cheap.
   const webhookId = generateWebhookId(rawBody, signature)
   if (isDuplicateWebhook(webhookId)) {
+    return NextResponse.json({ received: true, status: 'duplicate' })
+  }
+  if (await isDuplicateWebhookDB('webhook.mercadopago.', webhookId)) {
+    isDuplicateWebhook(webhookId) // warm the in-memory cache
     return NextResponse.json({ received: true, status: 'duplicate' })
   }
 
@@ -65,12 +88,13 @@ export async function POST(req: NextRequest) {
         success: result.success,
       })
     }
-    await safeAudit('webhook.mercadopago.inbound', 'Webhook', rawBody.slice(0, 1000))
+    await safeAudit('webhook.mercadopago.inbound', 'Webhook', rawBody.slice(0, 1000), webhookId)
   } catch (err) {
     await safeAudit(
       'webhook.mercadopago.error',
       'Webhook',
       err instanceof Error ? err.message : 'unknown error',
+      webhookId,
     )
   }
 

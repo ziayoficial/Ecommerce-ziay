@@ -245,7 +245,7 @@ export async function POST(req: NextRequest) {
   const limited = rateLimit(req, { max: 10, windowMs: 60_000, namespace: 'api:wallet:post' })
   if (limited) return limited
 
-  const { error, trafficker } = await resolveTrafficker(req)
+  const { session, error, trafficker } = await resolveTrafficker(req)
   if (error) return error
   if (!trafficker) return NextResponse.json({ error: 'No trafficker' }, { status: 400 })
 
@@ -392,6 +392,17 @@ export async function POST(req: NextRequest) {
 
       // ── Process (complete) a withdrawal — admin/finance operation ────────
       case 'process_withdrawal': {
+        // FIX-SECURITY-AUTH-001 (#14) — role gate. The handler comment said
+        // "admin/finance operation" but the code allowed any caller (including
+        // the trafficker themselves, via `resolveTrafficker` falling through
+        // to "first trafficker" for non-trafficker sessions) to mark their
+        // own withdrawal as completed — bypassing the admin-approval gate.
+        if (session?.user?.role !== 'admin' && session?.user?.role !== 'finance') {
+          return NextResponse.json(
+            { error: 'Forbidden: admin/finance only' },
+            { status: 403 },
+          )
+        }
         const { withdrawalId, externalReference } = body
         const w = await walletService.getWithdrawalRequest(withdrawalId)
         if (!w || w.traffickerId !== trafficker.id) {

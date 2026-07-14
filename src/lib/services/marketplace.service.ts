@@ -95,12 +95,16 @@ export const marketplaceService = {
 
   /**
    * Listings published by THIS tenant (active + inactive).
+   *
+   * FIX-PERFORMANCE-001 — was unbounded. Capped at 200 rows so a tenant
+   * that has published thousands of listings doesn't pull the whole table.
    */
   async getMyListings(tenantId: string) {
     try {
       return await db.marketplaceListing.findMany({
         where: { tenantId },
         orderBy: { createdAt: 'desc' },
+        take: 200,
       })
     } catch (err) {
       captureError(err as Error, { service: 'marketplace', method: 'getMyListings', tenantId })

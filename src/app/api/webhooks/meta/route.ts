@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { verifyMetaSignature } from '@/lib/middleware/hmac'
-import { isDuplicateWebhook, generateWebhookId } from '@/lib/middleware/idempotency'
+import { isDuplicateWebhook, isDuplicateWebhookDB, generateWebhookId } from '@/lib/middleware/idempotency'
 
 // Meta (Messenger + Instagram + WhatsApp) ad platform webhook + lead/attributions.
 export async function GET(req: NextRequest) {
@@ -28,7 +28,15 @@ export async function POST(req: NextRequest) {
 
   let sigValid: boolean
   if (!appSecret) {
-    // Dev-mode fallback.
+    // Dev-mode fallback: throw in production (forged webhooks would be
+    // silently accepted), warn + allow in dev. FIX-REALTIME-WEBHOOKS-001 · R3.
+    if (process.env.NODE_ENV === 'production') {
+      await db.auditLog.create({
+        data: { action: 'webhook.meta.no_secret', entity: 'Webhook', meta: 'META_APP_SECRET missing in production' },
+      })
+      return NextResponse.json({ error: 'Webhook secret not configured' }, { status: 500 })
+    }
+    console.warn('[webhooks/meta] META_APP_SECRET not set — skipping verification in dev mode')
     sigValid = signature.length > 0
   } else {
     sigValid = verifyMetaSignature(rawBody, signature, appSecret)
@@ -41,11 +49,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'invalid signature' }, { status: 403 })
   }
 
-  // ── Idempotency (SPRINT4-INFRA-001) ────────────────────────────────────
-  // Meta retries webhooks if our ACK is delayed. Skip the body if we've
-  // already processed this exact (body + signature) within the 5-minute TTL.
+  // ── Idempotency (SPRINT4-INFRA-001 + FIX-REALTIME-WEBHOOKS-001) ───────
+  // Two layers: in-memory Map (fast path) + DB-backed AuditLog query
+  // (durable, multi-instance). Meta retries webhooks if our ACK is delayed.
+  // The DB check uses the webhookId as `entityId` so it's indexed and cheap.
   const webhookId = generateWebhookId(rawBody, signature)
   if (isDuplicateWebhook(webhookId)) {
+    return NextResponse.json({ received: true, status: 'duplicate' })
+  }
+  if (await isDuplicateWebhookDB('webhook.meta.', webhookId)) {
+    isDuplicateWebhook(webhookId) // warm the in-memory cache
     return NextResponse.json({ received: true, status: 'duplicate' })
   }
 
@@ -57,7 +70,12 @@ export async function POST(req: NextRequest) {
   }
 
   await db.auditLog.create({
-    data: { action: 'webhook.meta.inbound', entity: 'Webhook', meta: JSON.stringify(body).slice(0, 1000) },
+    data: {
+      action: 'webhook.meta.inbound',
+      entity: 'Webhook',
+      meta: JSON.stringify(body).slice(0, 1000),
+      entityId: webhookId,
+    },
   })
   return NextResponse.json({ received: true })
 }

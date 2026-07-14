@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAuth } from '@/lib/auth-helpers'
+import { requireTenantAccess } from '@/lib/auth-helpers'
 import { captureError } from '@/lib/capture-error'
 import { monetizationService } from '@/lib/services'
 
@@ -11,13 +11,16 @@ import { monetizationService } from '@/lib/services'
 // queries to `monetizationService.getGMV(tenantId)`. The service returns
 // the exact same response shape; the route still owns HTTP concerns
 // (auth, 400/404 handling, error capture). Response shape is unchanged.
+//
+// FIX-SECURITY-AUTH-001 (#27) — requireTenantAccess(tenantId). Any authed
+// user used to be able to read any tenant's financial GMV.
 export async function GET(req: NextRequest) {
-  const { error } = await requireAuth()
-  if (error) return error
-
   try {
     const tenantId = req.nextUrl.searchParams.get('tenantId')
     if (!tenantId) return NextResponse.json({ error: 'tenantId required' }, { status: 400 })
+
+    const { error } = await requireTenantAccess(tenantId)
+    if (error) return error
 
     const payload = await monetizationService.getGMV(tenantId)
     if (!payload) return NextResponse.json({ error: 'tenant not found' }, { status: 404 })

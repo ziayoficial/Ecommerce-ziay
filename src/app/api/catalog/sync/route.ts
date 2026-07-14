@@ -24,15 +24,17 @@
 // Per rule #2 (1-2 simple db calls OK to leave), the two reads don't
 // warrant a service method on their own.
 // TODO: migrate to service layer when the queue handler is inlined.
+//
+// FIX-SECURITY-AUTH-001 (#25) — requireTenantAccess(tenantId). Any authed
+// user used to be able to trigger catalog sync against any tenant (costs
+// the tenant's external API quota, can be used for DoS).
 
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAuth } from '@/lib/auth-helpers'
+import { requireTenantAccess } from '@/lib/auth-helpers'
 import { db } from '@/lib/db'
 import { enqueue, isInlineMode } from '@/lib/queue'
 
 export async function POST(req: NextRequest) {
-  const { error } = await requireAuth()
-  if (error) return error
   try {
     const body = await req.json()
     const { tenantId } = body as { tenantId?: string }
@@ -40,6 +42,10 @@ export async function POST(req: NextRequest) {
     if (!tenantId) {
       return NextResponse.json({ error: 'tenantId is required' }, { status: 400 })
     }
+
+    // FIX-SECURITY-AUTH-001 (#25) — tenant gate before any work.
+    const { error } = await requireTenantAccess(tenantId)
+    if (error) return error
 
     const tenant = await db.tenant.findUnique({
       where: { id: tenantId },

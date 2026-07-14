@@ -129,35 +129,43 @@ export const monetizationService = {
   /**
    * List commission entries for a tenant + totals (gmv, comision, reconocida).
    * Used by `/api/monetization/commission`.
+   *
+   * FIX-PERFORMANCE-001 — previously did a single `take: 100` findMany +
+   * JS reduce, which silently truncated `totals.gmv`/`comisionTotal`/
+   * `reconocida` to the latest 100 entries when a tenant had more.
+   * Now we run the bounded list (recent 50 for the table) in parallel
+   * with an `aggregate` so totals cover ALL rows for the tenant.
    */
   async getCommissions(tenantId: string) {
     try {
-      const entries = await db.commissionEntry.findMany({
-        where: { tenantId },
-        include: {
-          order: {
-            select: { number: true, status: true, total: true, createdAt: true },
+      const [entries, sumAgg] = await Promise.all([
+        db.commissionEntry.findMany({
+          where: { tenantId },
+          include: {
+            order: {
+              select: { number: true, status: true, total: true, createdAt: true },
+            },
           },
-        },
-        orderBy: { createdAt: 'desc' },
-        take: 100,
-      })
-      const totals = entries.reduce(
-        (acc, e) => {
-          acc.gmv += e.gmv
-          acc.comisionTotal += e.comisionTotal
-          acc.reconocida += e.reconocidaMonto
-          return acc
-        },
-        { gmv: 0, comisionTotal: 0, reconocida: 0 },
-      )
+          orderBy: { createdAt: 'desc' },
+          take: 50,
+        }),
+        db.commissionEntry.aggregate({
+          where: { tenantId },
+          _sum: { gmv: true, comisionTotal: true, reconocidaMonto: true },
+        }),
+      ])
+
+      const gmv = sumAgg._sum.gmv ?? 0
+      const comisionTotal = sumAgg._sum.comisionTotal ?? 0
+      const reconocida = sumAgg._sum.reconocidaMonto ?? 0
+
       return {
         entries,
         totals: {
-          gmv: Math.round(totals.gmv),
-          comisionTotal: Math.round(totals.comisionTotal),
-          reconocida: Math.round(totals.reconocida),
-          pendiente: Math.round(totals.comisionTotal - totals.reconocida),
+          gmv: Math.round(gmv),
+          comisionTotal: Math.round(comisionTotal),
+          reconocida: Math.round(reconocida),
+          pendiente: Math.round(comisionTotal - reconocida),
         },
       }
     } catch (err) {

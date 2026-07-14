@@ -41,7 +41,13 @@ export async function GET(req: NextRequest) {
 
   const runtime = await collectRuntime()
 
-  return NextResponse.json({ status, summary, checks, runtime, timestamp })
+  // FIX-REALTIME-WEBHOOKS-001 · O3 — return 503 when the overall status is
+  // `error` (e.g. DB down). Load balancers and uptime monitors key off the
+  // HTTP status code; a 200 with `status: 'error'` in the body was masking
+  // outages. `warning` (slow DB, low disk) still returns 200 — the app is
+  // serving traffic, just degraded.
+  const httpStatus = status === 'error' ? 503 : 200
+  return NextResponse.json({ status, summary, checks, runtime, timestamp }, { status: httpStatus })
 }
 
 async function runHealthChecks(tenantId: string | undefined) {

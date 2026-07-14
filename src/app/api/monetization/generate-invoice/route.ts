@@ -12,16 +12,16 @@
 // resolution + invoice upsert + audit-log write to
 // `monetizationService.generateInvoice`. Response shape unchanged; the
 // service returns `{ invoice, details }` verbatim.
+//
+// FIX-SECURITY-AUTH-001 (#20) — requireTenantAccess(tenantId). Any authed
+// user used to be able to pollute another tenant's Invoice table.
 
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAuth } from '@/lib/auth-helpers'
+import { requireTenantAccess } from '@/lib/auth-helpers'
 import { captureError } from '@/lib/capture-error'
 import { monetizationService } from '@/lib/services'
 
 export async function POST(req: NextRequest) {
-  const { error } = await requireAuth()
-  if (error) return error
-
   try {
     const body = await req.json()
     const { tenantId, periodo } = body as { tenantId?: string; periodo?: string }
@@ -29,6 +29,10 @@ export async function POST(req: NextRequest) {
     if (!tenantId) {
       return NextResponse.json({ error: 'tenantId required' }, { status: 400 })
     }
+
+    // FIX-SECURITY-AUTH-001 (#20) — tenant gate before the invoice upsert.
+    const { error } = await requireTenantAccess(tenantId)
+    if (error) return error
 
     const { invoice, details } = await monetizationService.generateInvoice(tenantId, periodo)
 

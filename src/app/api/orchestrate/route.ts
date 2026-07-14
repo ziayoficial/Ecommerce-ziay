@@ -22,9 +22,15 @@
 //   timeline: [{ step, agent, label, emoji, reply, error? }],   // for action='full'
 //   reply?,                         // for action='step'
 // }
+//
+// FIX-SECURITY-AUTH-001 (#29) — requireTenantAccess(tenantId). Any authed
+// user used to be able to run the orchestrator against any tenant
+// (LLM cost + the profile-detection side-effect writes to
+// `Conversation.perfilConversacion` on any tenant's conversation).
 
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAuth } from '@/lib/auth-helpers'
+import { requireTenantAccess } from '@/lib/auth-helpers'
+import { rateLimit } from '@/lib/middleware/rate-limit'
 import { db } from '@/lib/db'
 import { AGENT_LABELS, AgentName, buildAgentPrompt, FALLBACKS } from '@/lib/agents/prompts'
 import {
@@ -60,8 +66,12 @@ async function callAgent(agentName: AgentName, ctx: {
 }
 
 export async function POST(req: NextRequest) {
-  const { error } = await requireAuth()
-  if (error) return error
+  // FIX-REALTIME-WEBHOOKS-001 · P2 — per-route rate limit (5 req/min/IP).
+  // action='full' runs 9 LLM calls per request — a single user could burn
+  // the LLM budget fast. The global 60/min/IP middleware is too generous.
+  const limited = rateLimit(req, { max: 5, windowMs: 60_000, namespace: 'api:orchestrate' })
+  if (limited) return limited
+
   try {
     const body = await req.json()
     const { tenantId, action, scenarioId, conversationId, customerId, currentStep } = body as {
@@ -77,6 +87,10 @@ export async function POST(req: NextRequest) {
     if (action !== 'full' && action !== 'step') {
       return NextResponse.json({ ok: false, error: "action must be 'full' or 'step'" }, { status: 400 })
     }
+
+    // FIX-SECURITY-AUTH-001 (#29) — tenant gate before any LLM call.
+    const { error } = await requireTenantAccess(tenantId)
+    if (error) return error
 
     const tenant = await db.tenant.findUnique({ where: { id: tenantId } })
     if (!tenant) return NextResponse.json({ ok: false, error: `Tenant not found: ${tenantId}` }, { status: 404 })

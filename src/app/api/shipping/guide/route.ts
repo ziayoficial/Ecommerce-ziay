@@ -11,9 +11,13 @@
 // persistence cascade (Shipment + Order + OrderEvent + AuditLog) to
 // `logisticsService`. The carrier adapter calls still live in the route
 // (they're HTTP-bound, not DB-bound). Response shape unchanged.
+//
+// FIX-SECURITY-AUTH-001 (#26) — requireTenantAccess(tenantId). Any authed
+// user used to be able to generate a shipping guide against any tenant's
+// order (cross-tenant Shipment create + Order.status mutation).
 
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAuth } from '@/lib/auth-helpers'
+import { requireTenantAccess } from '@/lib/auth-helpers'
 import { getLogisticsAdapter } from '@/lib/adapters/registry'
 import { normalizeCarrierName } from '@/lib/carriers'
 import { captureError } from '@/lib/capture-error'
@@ -21,8 +25,6 @@ import { db } from '@/lib/db'
 import { logisticsService } from '@/lib/services'
 
 export async function POST(req: NextRequest) {
-  const { error } = await requireAuth()
-  if (error) return error
   try {
     const body = await req.json()
     const { tenantId, orderId } = body as { tenantId?: string; orderId?: string }
@@ -33,6 +35,10 @@ export async function POST(req: NextRequest) {
     if (!orderId) {
       return NextResponse.json({ error: 'orderId is required' }, { status: 400 })
     }
+
+    // FIX-SECURITY-AUTH-001 (#26) — tenant gate before any external API call.
+    const { error } = await requireTenantAccess(tenantId)
+    if (error) return error
 
     // Cargar el pedido y sus items para saber cantidad de unidades y contacto.
     const order = await logisticsService.getOrderForShipment(tenantId, orderId)

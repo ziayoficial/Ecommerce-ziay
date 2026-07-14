@@ -136,9 +136,29 @@ function getClientIp(req: NextRequest): string {
 export async function middleware(req: NextRequest) {
   const path = req.nextUrl.pathname
 
+  // ────────────────────────────────────────────────────────────────────
+  // SEO noindex: `/` and `/login` are client-rendered auth-only routes
+  // (no SSR content for crawlers). Both are `'use client'` pages that
+  // cannot export `metadata.robots`, so we enforce `noindex, follow` via
+  // the X-Robots-Tag response header here. `follow` is preserved so
+  // crawlers can still discover internal links to the public storefronts
+  // + /directorio from the homepage. The header is applied to EVERY
+  // response for these paths (next, redirect, 401) so crawlers see it
+  // even when redirected to /login.
+  // ────────────────────────────────────────────────────────────────────
+  const NOINDEX_PATHS = new Set<string>(['/', '/login'])
+  const wantsNoindex =
+    NOINDEX_PATHS.has(path) ||
+    path === '/login' ||
+    path.startsWith('/login/')
+
   // Public routes pass straight through.
   if (isPublic(path)) {
-    return addSecurityHeaders(NextResponse.next())
+    const res = addSecurityHeaders(NextResponse.next())
+    if (wantsNoindex) {
+      res.headers.set('X-Robots-Tag', 'noindex, follow')
+    }
+    return res
   }
 
   // Check for NextAuth JWT token.
@@ -169,7 +189,11 @@ export async function middleware(req: NextRequest) {
   }
 
   if (token) {
-    return addSecurityHeaders(NextResponse.next())
+    const res = addSecurityHeaders(NextResponse.next())
+    if (wantsNoindex) {
+      res.headers.set('X-Robots-Tag', 'noindex, follow')
+    }
+    return res
   }
 
   // No token → redirect to login (for pages) or 401 JSON (for APIs).
@@ -179,7 +203,11 @@ export async function middleware(req: NextRequest) {
 
   const loginUrl = new URL('/login', req.url)
   loginUrl.searchParams.set('callbackUrl', path)
-  return addSecurityHeaders(NextResponse.redirect(loginUrl))
+  const redirectRes = addSecurityHeaders(NextResponse.redirect(loginUrl))
+  if (wantsNoindex) {
+    redirectRes.headers.set('X-Robots-Tag', 'noindex, follow')
+  }
+  return redirectRes
 }
 
 function addSecurityHeaders(response: NextResponse) {

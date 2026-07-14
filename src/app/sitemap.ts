@@ -11,24 +11,52 @@ const BASE_URL =
   process.env.NEXT_PUBLIC_APP_URL ||
   'http://localhost:3000'
 
-export const dynamic = 'force-dynamic'
-// Re-validate at most once per hour.
+// ───────────────────────────────────────────────────────────────────────────
+// ISR: revalidate at most once per hour. (Removing `force-dynamic` — the
+// previous combination of `force-dynamic` + `revalidate` was contradictory:
+// `force-dynamic` wins and `revalidate` was silently ignored.)
+// ───────────────────────────────────────────────────────────────────────────
 export const revalidate = 3600
 
+// Stable lastmod for static entries (homepage + /directorio). Using `now`
+// would dilute the lastmod signal Google uses to schedule recrawls — every
+// sitemap fetch would show these as just-modified. We use the latest tenant
+// `updatedAt` (the homepage's content is effectively derived from the active
+// tenant set), falling back to a build-time constant when the DB is
+// unreachable. Set NEXT_BUILD_TIME at deploy time for a deterministic
+// baseline across instances.
+const SITE_BUILD_TIME = new Date(
+  process.env.NEXT_BUILD_TIME || '2025-01-01T00:00:00.000Z',
+)
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const now = new Date()
+  // Resolve the most-recent tenant updatedAt so the homepage + /directorio
+  // entries don't churn every fetch. Defaults to a stable build-time stamp.
+  let latestTenantUpdate: Date = SITE_BUILD_TIME
+  try {
+    const latest = await db.tenant.findFirst({
+      where: { activo: true },
+      orderBy: { updatedAt: 'desc' },
+      select: { updatedAt: true },
+    })
+    if (latest?.updatedAt) {
+      latestTenantUpdate = latest.updatedAt
+    }
+  } catch {
+    // DB unavailable — fall back to build-time constant.
+  }
 
   // Base static entries.
   const entries: MetadataRoute.Sitemap = [
     {
       url: BASE_URL,
-      lastModified: now,
+      lastModified: latestTenantUpdate,
       changeFrequency: 'daily',
       priority: 1.0,
     },
     {
       url: `${BASE_URL}/directorio`,
-      lastModified: now,
+      lastModified: latestTenantUpdate,
       changeFrequency: 'daily',
       priority: 0.9,
     },

@@ -22,24 +22,47 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { StripeAdapter } from '@/lib/adapters/stripe'
 import { applyPaymentUpdate, safeAudit } from '@/lib/adapters/payment-webhook-utils'
-import { isDuplicateWebhook, generateWebhookId } from '@/lib/middleware/idempotency'
+import { isDuplicateWebhook, isDuplicateWebhookDB, generateWebhookId } from '@/lib/middleware/idempotency'
 
 export async function POST(req: NextRequest) {
   const rawBody = await req.text()
   const signature = req.headers.get('stripe-signature') ?? ''
   const adapter = new StripeAdapter()
 
-  if (!adapter.webhookVerify(rawBody, signature)) {
+  // Adapter throws in production when the webhook secret is missing (R3).
+  // Surface that as a 500 so the gateway retries and the operator is
+  // alerted — silently ACKing 200 would mask the misconfiguration.
+  let sigValid: boolean
+  try {
+    sigValid = adapter.webhookVerify(rawBody, signature)
+  } catch (err) {
+    await safeAudit(
+      'webhook.stripe.config_error',
+      'Webhook',
+      err instanceof Error ? err.message : 'unknown error',
+    )
+    return NextResponse.json(
+      { error: 'Webhook verification configuration error' },
+      { status: 500 },
+    )
+  }
+
+  if (!sigValid) {
     await safeAudit('webhook.stripe.invalid_sig', 'Webhook', rawBody.slice(0, 1000))
     return NextResponse.json({ received: true, status: 'invalid_signature' })
   }
 
-  // ── Idempotency (SPRINT4-INFRA-001) ────────────────────────────────────
-  // Stripe retries webhooks (immediate, 30s, 2m, 5m, 10m, 30m, 1h, 2h, 6h, 12h,
-  // 24h) if our ACK is delayed. Skip processing if we've already handled this
-  // exact (body + signature) within the 5-min TTL.
+  // ── Idempotency (SPRINT4-INFRA-001 + FIX-REALTIME-WEBHOOKS-001) ───────
+  // Two layers: in-memory Map (fast path, single-instance) + DB-backed
+  // AuditLog query (durable, multi-instance). The DB check uses the
+  // webhookId as `entityId` so it's indexed and cheap.
   const webhookId = generateWebhookId(rawBody, signature)
   if (isDuplicateWebhook(webhookId)) {
+    return NextResponse.json({ received: true, status: 'duplicate' })
+  }
+  if (await isDuplicateWebhookDB('webhook.stripe.', webhookId)) {
+    // Record in memory so the next in-process retry is also fast-pathed.
+    isDuplicateWebhook(webhookId)
     return NextResponse.json({ received: true, status: 'duplicate' })
   }
 
@@ -72,12 +95,13 @@ export async function POST(req: NextRequest) {
         success,
       })
     }
-    await safeAudit('webhook.stripe.inbound', 'Webhook', rawBody.slice(0, 1000))
+    await safeAudit('webhook.stripe.inbound', 'Webhook', rawBody.slice(0, 1000), webhookId)
   } catch (err) {
     await safeAudit(
       'webhook.stripe.error',
       'Webhook',
       err instanceof Error ? err.message : 'unknown error',
+      webhookId,
     )
   }
 

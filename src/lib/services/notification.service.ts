@@ -29,29 +29,48 @@ export const notificationService = {
    * List notifications for a tenant + status filter, capped at 200.
    * Also returns global stats (all-status counts) so the UI badges stay
    * accurate regardless of the active filter.
+   *
+   * FIX-PERFORMANCE-001 — previously ran a SECOND unbounded `findMany({
+   * where: { tenantId } })` just to `.filter()` count by status in JS,
+   * loading every notification row into memory to compute 5 counts.
+   * Replaced with a single `groupBy({ by: ['status'] })` so the DB does
+   * the counting; `total` is the sum of per-status counts.
    */
   async getNotifications(tenantId: string, status?: string) {
     try {
       const where: { tenantId: string; status?: string } = { tenantId }
       if (status) where.status = status
 
-      const [notifications, all] = await Promise.all([
+      const [notifications, statusGroups] = await Promise.all([
         db.customerNotification.findMany({
           where,
           orderBy: { createdAt: 'desc' },
           take: 200,
         }),
-        db.customerNotification.findMany({ where: { tenantId } }),
+        db.customerNotification.groupBy({
+          by: ['status'],
+          where: { tenantId },
+          _count: { _all: true },
+        }),
       ])
 
-      const stats = {
-        total: all.length,
-        pending: all.filter((n) => n.status === 'pending').length,
-        sent: all.filter((n) => n.status === 'sent').length,
-        delivered: all.filter((n) => n.status === 'delivered').length,
-        failed: all.filter((n) => n.status === 'failed').length,
+      const countBy = (s: string) =>
+        statusGroups.find((g) => g.status === s)?._count._all ?? 0
+      const pending = countBy('pending')
+      const sent = countBy('sent')
+      const delivered = countBy('delivered')
+      const failed = countBy('failed')
+
+      return {
+        notifications,
+        stats: {
+          total: pending + sent + delivered + failed,
+          pending,
+          sent,
+          delivered,
+          failed,
+        },
       }
-      return { notifications, stats }
     } catch (err) {
       captureError(err as Error, {
         service: 'notifications',

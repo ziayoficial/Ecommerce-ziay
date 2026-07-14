@@ -1,12 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireAuth } from '@/lib/auth-helpers'
+import { verifyTOTP } from '@/lib/totp'
 import { rateLimit } from '@/lib/middleware/rate-limit'
 import { captureError } from '@/lib/capture-error'
 import { getLogger } from '@/lib/logger'
 import { walletService, traffickerService } from '@/lib/services'
+import type { Session } from 'next-auth'
 
 const log = getLogger('api/trafficker')
+
+/**
+ * Verify that the caller may operate on this trafficker's data.
+ * Allowed: the trafficker themselves (email match) OR a platform
+ * admin/finance operator. Returns a NextResponse error to `return` when
+ * forbidden, or `null` when access is granted.
+ */
+function authorizeTraffickerAccess(
+  session: Session | null,
+  traffickerEmail: string,
+): NextResponse | null {
+  const callerEmail = session?.user?.email
+  const callerRole = session?.user?.role
+  const isSelf =
+    !!callerEmail &&
+    traffickerEmail.toLowerCase() === callerEmail.toLowerCase()
+  const isPrivileged = callerRole === 'admin' || callerRole === 'finance'
+  if (!isSelf && !isPrivileged) {
+    return NextResponse.json(
+      { error: 'Forbidden: not your profile' },
+      { status: 403 },
+    )
+  }
+  return null
+}
 
 // ───────────────────────────────────────────────────────────────────────────
 // Body schemas (per-action discriminated union)
@@ -76,7 +103,7 @@ const TraffickerBodySchema = z.discriminatedUnion('action', [
 // (include campaigns/transactions/compensations) + the sales stats
 // aggregation to `walletService`. Response shape unchanged.
 export async function GET(req: NextRequest) {
-  const { error } = await requireAuth()
+  const { session, error } = await requireAuth()
   if (error) return error
 
   const traffickerId = req.nextUrl.searchParams.get('traffickerId')
@@ -96,6 +123,12 @@ export async function GET(req: NextRequest) {
         { status: 404 },
       )
     }
+
+    // FIX-SECURITY-AUTH-001 (#13) — ownership check. Any authed user used to
+    // be able to read any trafficker's wallet balance / campaigns / sales.
+    // Now restricted to self (email match) or admin/finance.
+    const forbidden = authorizeTraffickerAccess(session, trafficker.email)
+    if (forbidden) return forbidden
 
     // Aggregate sales stats
     const { sales, stats: salesStats } = await traffickerService.getSalesStats(traffickerId)
@@ -147,7 +180,7 @@ export async function POST(req: NextRequest) {
   })
   if (limited) return limited
 
-  const { error } = await requireAuth()
+  const { session, error } = await requireAuth()
   if (error) return error
 
   let raw: unknown
@@ -180,7 +213,7 @@ export async function POST(req: NextRequest) {
       case 'fail_sale':
         return await failSale(body)
       case 'withdraw':
-        return await withdraw(body)
+        return await withdraw(body, session)
       default:
         return NextResponse.json(
           { error: `Unknown action: ${action}` },
@@ -318,7 +351,7 @@ async function failSale(body: z.infer<typeof FailSaleSchema>) {
   return NextResponse.json(result)
 }
 
-async function withdraw(body: z.infer<typeof WithdrawSchema>) {
+async function withdraw(body: z.infer<typeof WithdrawSchema>, session: Session | null) {
   const { traffickerId, amount, walletAccountId, totpCode } = body
   const trafficker = await traffickerService.getTraffickerById(traffickerId)
   if (!trafficker) {
@@ -327,6 +360,14 @@ async function withdraw(body: z.infer<typeof WithdrawSchema>) {
       { status: 404 },
     )
   }
+
+  // FIX-SECURITY-AUTH-001 (#13) — ownership check. The withdraw action is
+  // financial: any authed user used to be able to withdraw on any trafficker's
+  // behalf by passing an arbitrary non-empty `totpCode`. Now restricted to
+  // self (email match) or admin/finance.
+  const forbidden = authorizeTraffickerAccess(session, trafficker.email)
+  if (forbidden) return forbidden
+
   const amt = Number(amount)
   if (!Number.isFinite(amt) || amt <= 0) {
     return NextResponse.json(
@@ -352,9 +393,36 @@ async function withdraw(body: z.infer<typeof WithdrawSchema>) {
     )
   }
 
-  // Create a pending WithdrawalRequest + an outbound transaction in pending state.
-  // TOTP verification happens via the existing 2FA endpoint before funds move.
-  const totpVerified = !!totpCode // caller may pre-verify; otherwise stays pending_2fa
+  // FIX-SECURITY-AUTH-001 (#5, P0 financial theft) — REAL TOTP verification.
+  // Previously `totpVerified = !!totpCode` accepted any non-empty string as
+  // a valid 2FA code, allowing an attacker to withdraw funds without the
+  // authenticator. Now we look up the trafficker's TwoFactorConfig and call
+  // `verifyTOTP(totpCode, cfg.secret)` — only a code that decrypts + matches
+  // the TOTP window flips `totpVerified=true`.
+  //
+  // If 2FA is not enabled, the withdrawal stays in `pending_2fa` state so
+  // an admin/finance operator must explicitly process it via
+  // `/api/wallet action=process_withdrawal` (which now requires admin/finance
+  // role — see /api/wallet/route.ts).
+  const cfg = await walletService.getTwoFactorConfig(traffickerId)
+  const totpRequired = cfg?.enabled ?? false
+  let totpVerified = false
+  if (totpRequired) {
+    if (!totpCode) {
+      return NextResponse.json(
+        { error: 'Código 2FA requerido' },
+        { status: 400 },
+      )
+    }
+    if (!verifyTOTP(String(totpCode), cfg!.secret)) {
+      return NextResponse.json(
+        { error: 'Código 2FA inválido' },
+        { status: 400 },
+      )
+    }
+    totpVerified = true
+  }
+
   const fee = 0 // platform covers withdrawal fees for now
   const netAmount = amt - fee
 

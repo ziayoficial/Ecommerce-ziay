@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-helpers'
+import { db } from '@/lib/db'
 import { captureError } from '@/lib/capture-error'
 import { adsService } from '@/lib/services'
 
@@ -9,14 +10,36 @@ import { adsService } from '@/lib/services'
 // (2 db calls) to `adsService.updateAd`. The service stamps the audit
 // log entry internally (best-effort — non-fatal on failure). Response
 // shape unchanged.
+//
+// FIX-SECURITY-AUTH-001 (#15) — fetch the ad (with campaign → tenant),
+// verify `campaign.tenantId === session.user.tenantId` before update.
+// Any authed user used to be able to pause/kill/resume any ad of any
+// tenant. Ad has no direct tenantId column — it's scoped via Campaign.
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { error } = await requireAuth()
-  if (error) return error
+  const { session, error: authErr } = await requireAuth()
+  if (authErr) return authErr
   try {
     const { id } = await params
+
+    // Fetch the ad including its campaign's tenantId for the tenant guard.
+    const existing = await db.ad.findUnique({
+      where: { id },
+      select: { id: true, campaign: { select: { tenantId: true } } },
+    })
+    if (!existing) {
+      return NextResponse.json({ error: 'Ad not found' }, { status: 404 })
+    }
+    const userTenantId = session?.user?.tenantId ?? null
+    if (userTenantId && userTenantId !== existing.campaign.tenantId) {
+      return NextResponse.json(
+        { error: 'Forbidden: tenant mismatch' },
+        { status: 403 },
+      )
+    }
+
     const body = await req.json()
     const action = body.action as 'pause' | 'kill' | 'resume' | 'scale' | undefined
     if (!action) return NextResponse.json({ error: 'action required' }, { status: 400 })

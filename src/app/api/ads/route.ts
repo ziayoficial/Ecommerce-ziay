@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { requireAuth } from '@/lib/auth-helpers'
+import { resolveTenantId } from '@/lib/auth-helpers'
 import { captureError } from '@/lib/capture-error'
 import { adsService } from '@/lib/services'
 
@@ -11,22 +11,33 @@ import { adsService } from '@/lib/services'
 // `db.ad.findMany(...)` to `adsService.getAds(...)`. The settings lookup
 // (`db.setting.findMany`) is kept inline — it's a global key/value read
 // with no service equivalent yet. Response shape is unchanged.
+//
+// FIX-SECURITY-AUTH-001 (#31) — tenantId is resolved + verified against the
+// caller's session. Tenant users are pinned to their own tenantId
+// (cross-tenant attempts return 403); platform admins can pass any
+// tenantId or omit it for the legacy "all tenants" view.
 export async function GET(req: NextRequest) {
-  const { error } = await requireAuth()
+  const tenantIdParam = req.nextUrl.searchParams.get('tenantId') || undefined
+  const { error, tenantId } = await resolveTenantId(tenantIdParam)
   if (error) return error
 
   try {
     const days = Number(req.nextUrl.searchParams.get('days') || '14')
     const platform = req.nextUrl.searchParams.get('platform') || undefined
-    const tenantId = req.nextUrl.searchParams.get('tenantId') || undefined
     const since = new Date()
     since.setDate(since.getDate() - days)
 
     const ads = await adsService.getAds({ tenantId, days, platform })
 
-    // Global CPA target + ROAS kill threshold from settings
+    // FIX-SECURITY-AUTH-001 (#1, #3) — never leak `cred::*` settings through
+    // this route. The `cfg` object only reads two non-cred keys
+    // (`roas_kill_threshold`, `cpa_target`); drop everything else.
     const settings = await db.setting.findMany()
-    const cfg = Object.fromEntries(settings.map(s => [s.key, s.value]))
+    const cfg = Object.fromEntries(
+      settings
+        .filter(s => !s.key.startsWith('cred::'))
+        .map(s => [s.key, s.value]),
+    )
     const roasKill = Number(cfg.roas_kill_threshold || 0.8)
     const cpaTarget = Number(cfg.cpa_target || 35000)
 

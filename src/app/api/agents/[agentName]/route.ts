@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAuth } from '@/lib/auth-helpers'
+import { requireTenantAccess, requireAuth } from '@/lib/auth-helpers'
+import { rateLimit } from '@/lib/middleware/rate-limit'
 import ZAI from 'z-ai-web-dev-sdk'
 import { db } from '@/lib/db'
 import { buildAgentPrompt, AGENT_NAMES, AGENT_LABELS, AgentName } from '@/lib/agents/prompts'
@@ -14,18 +15,32 @@ import { buildAgentPrompt, AGENT_NAMES, AGENT_LABELS, AgentName } from '@/lib/ag
 // simple db calls OK to leave), the migration cost outweighs the benefit
 // — neither write benefits from a transaction or shared error surface.
 // TODO: migrate to service layer if more agent side-effects accumulate.
+//
+// FIX-SECURITY-AUTH-001 (#30) — requireTenantAccess(ctx.tenantId). Any
+// authed user used to be able to run any agent against any tenant (LLM
+// cost + the `vision` agent side-effect writes to `ImageIdentification`
+// on any tenant; the `profile` agent side-effect writes to
+// `Conversation.perfilConversacion` on any tenant).
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ agentName: string }> }
 ) {
-  const { error } = await requireAuth()
-  if (error) return error
+  // FIX-REALTIME-WEBHOOKS-001 · P2 — per-route rate limit (10 req/min/IP).
+  // Each call hits the LLM API ($0.01–0.10/call); the global 60/min/IP
+  // middleware is too generous for an LLM endpoint.
+  const limited = rateLimit(req, { max: 10, windowMs: 60_000, namespace: 'api:agents' })
+  if (limited) return limited
+
   const { agentName } = await params
   if (!AGENT_NAMES.includes(agentName as AgentName)) {
     return NextResponse.json({ error: `Unknown agent. Valid: ${AGENT_NAMES.join(', ')}` }, { status: 400 })
   }
   const ctx = await req.json()
   if (!ctx.tenantId) return NextResponse.json({ error: 'tenantId required' }, { status: 400 })
+
+  // FIX-SECURITY-AUTH-001 (#30) — tenant gate before the LLM call.
+  const { error } = await requireTenantAccess(ctx.tenantId)
+  if (error) return error
 
   // Persist image identification result for vision agent (after the call)
   // (Done below if agentName === 'vision')

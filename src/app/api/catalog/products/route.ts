@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAuth } from '@/lib/auth-helpers'
+import { requireTenantAccess } from '@/lib/auth-helpers'
 import { withCache } from '@/lib/cache'
 import { captureError } from '@/lib/capture-error'
 import { catalogService } from '@/lib/services'
@@ -11,14 +11,19 @@ import { catalogService } from '@/lib/services'
 //
 // SPRINT7-POSTGRES-SERVICES-001 — migrated from `db.product.findMany` to
 // `catalogService.getProducts`. Response shape is unchanged.
+//
+// FIX-SECURITY-AUTH-001 (#24) — tenantId is verified against the caller's
+// session via requireTenantAccess. Any authed user used to be able to read
+// any tenant's product catalog.
 export async function GET(req: NextRequest) {
-  const { error } = await requireAuth()
-  if (error) return error
-
   try {
     const tenantId = req.nextUrl.searchParams.get('tenantId')
-    const q = req.nextUrl.searchParams.get('q') || ''
     if (!tenantId) return NextResponse.json({ error: 'tenantId required' }, { status: 400 })
+
+    const { error } = await requireTenantAccess(tenantId)
+    if (error) return error
+
+    const q = req.nextUrl.searchParams.get('q') || ''
 
     const payload = await withCache(
       `catalog:${tenantId}:${q}`,

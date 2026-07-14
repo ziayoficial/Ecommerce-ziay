@@ -55,6 +55,46 @@ export async function requireTenantAccess(tenantId: string) {
   return { session, error: null as null | typeof undefined }
 }
 
+/**
+ * Resolve the effective tenantId for routes that accept an OPTIONAL `tenantId`
+ * query/body param (e.g. `/api/overview?tenantId=...`, `/api/orders?tenantId=...`).
+ *
+ * Behaviour:
+ *   - tenant users → always scoped to their own tenantId; passing a different
+ *     tenantId in the param returns 403 (cross-tenant attempt).
+ *   - platform admins (no tenantId on session) → the param value is honoured,
+ *     or `undefined` when omitted (caller may iterate all tenants — legacy
+ *     "global" view that only platform admins can reach).
+ *
+ * Returns `{ session, tenantId, error }`. On error, `tenantId` is `undefined`
+ * and the caller must `return error` immediately. On success, `tenantId` may
+ * still be `undefined` (platform admin, no param) — callers should treat that
+ * as "all tenants" and pass it through to their service layer.
+ */
+export async function resolveTenantId(
+  tenantIdParam: string | undefined | null,
+) {
+  const { session, error } = await requireAuth()
+  if (error) return { session: null, tenantId: undefined, error }
+  const userTenantId = session?.user?.tenantId ?? null
+  if (userTenantId) {
+    if (tenantIdParam && tenantIdParam !== userTenantId) {
+      return {
+        session,
+        tenantId: undefined,
+        error: NextResponse.json({ error: 'Forbidden: tenant mismatch' }, { status: 403 }),
+      }
+    }
+    return { session, tenantId: userTenantId, error: null as null | typeof undefined }
+  }
+  // Platform admin — honour the param or fall through to "all tenants".
+  return {
+    session,
+    tenantId: tenantIdParam || undefined,
+    error: null as null | typeof undefined,
+  }
+}
+
 export async function requireRole(roles: string[]) {
   const { session, error } = await requireAuth()
   if (error) return { session: null, error }

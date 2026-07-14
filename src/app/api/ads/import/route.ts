@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { requireAuth } from '@/lib/auth-helpers'
+import { requireTenantAccess } from '@/lib/auth-helpers'
 import { rateLimit } from '@/lib/middleware/rate-limit'
 import { getAdPlatformAdapter } from '@/lib/adapters/ads-registry'
 import { captureError } from '@/lib/capture-error'
@@ -25,7 +25,9 @@ const AdsImportSchema = z.object({
 //   { tenantId: string, platform: 'google' | 'tiktok',
 //     dateStart: 'YYYY-MM-DD', dateEnd: 'YYYY-MM-DD' }
 //
-// Auth: requireAuth()
+// Auth: requireTenantAccess(tenantId) — FIX-SECURITY-AUTH-001 (#32). Any
+// authed user used to be able to trigger ad-spend import against any tenant
+// (costs the tenant's external API quota, can be used for DoS).
 //
 // Notas:
 //   - Las credenciales se leen desde env (ver ads-registry.ts). Si faltan,
@@ -53,9 +55,6 @@ export async function POST(req: NextRequest) {
   })
   if (limited) return limited
 
-  const { session, error } = await requireAuth()
-  if (error) return error
-
   let raw: unknown
   try {
     raw = await req.json()
@@ -71,6 +70,10 @@ export async function POST(req: NextRequest) {
     )
   }
   const { tenantId, platform, dateStart, dateEnd } = parseResult.data
+
+  // FIX-SECURITY-AUTH-001 (#32) — tenant gate before any external API call.
+  const { session, error } = await requireTenantAccess(tenantId)
+  if (error) return error
 
   const adapter = getAdPlatformAdapter(String(platform), String(tenantId))
   if (!adapter) {

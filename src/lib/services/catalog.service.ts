@@ -31,6 +31,10 @@ export const catalogService = {
   /**
    * Search products for a tenant. `q` matches name, sku, diseno, categoria.
    * Used by `/api/catalog/products`.
+   *
+   * FIX-PERFORMANCE-001 — was unbounded (no `take`) and selected every
+   * column. Now capped at 200 rows + `select` limited to the fields the
+   * catalog-visual + integrations views actually render.
    */
   async getProducts(tenantId: string, q?: string) {
     try {
@@ -50,6 +54,22 @@ export const catalogService = {
             : {}),
         },
         orderBy: { createdAt: 'desc' },
+        take: 200,
+        select: {
+          id: true,
+          sku: true,
+          name: true,
+          description: true,
+          price: true,
+          cost: true,
+          imageUrl: true,
+          stock: true,
+          diseno: true,
+          categoria: true,
+          imagenMetadataVisible: true,
+          fuenteSincronizacion: true,
+          tenantId: true,
+        },
       })
     } catch (err) {
       captureError(err as Error, { service: 'catalog', method: 'getProducts', tenantId })
@@ -155,14 +175,19 @@ export const catalogService = {
    */
   async getEnrichments(tenantId: string) {
     try {
+      // FIX-PERFORMANCE-001 — both findMany were unbounded. Capped at 200
+      // rows each (matches getProducts ceiling) so a tenant with thousands
+      // of enriched SKUs doesn't pull the whole table into memory.
       const [enrichments, enrichedSkus] = await Promise.all([
         db.productEnrichment.findMany({
           where: { tenantId },
           orderBy: { updatedAt: 'desc' },
+          take: 200,
         }),
         db.productEnrichment.findMany({
           where: { tenantId },
           select: { sku: true },
+          take: 200,
         }),
       ])
       return { enrichments, enrichedSkus }

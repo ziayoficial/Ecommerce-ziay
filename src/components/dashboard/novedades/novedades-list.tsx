@@ -3,6 +3,7 @@
 
 'use client'
 
+import Image from 'next/image'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -126,7 +127,7 @@ export function NovedadesList({
                     )}
                   >
                     {c.thumbnail ? (
-                      <img src={c.thumbnail} alt={`Miniatura del caso ${c.caseNumber}`} className="size-12 rounded-lg object-cover shrink-0" />
+                      <Image src={c.thumbnail} alt={`Miniatura del caso ${c.caseNumber}`} width={48} height={48} unoptimized className="size-12 rounded-lg object-cover shrink-0" />
                     ) : (
                       <div className="size-12 rounded-lg bg-muted flex items-center justify-center shrink-0" aria-hidden>
                         <Package className="size-5 text-muted-foreground" />

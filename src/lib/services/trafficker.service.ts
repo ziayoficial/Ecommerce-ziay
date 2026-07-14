@@ -143,24 +143,46 @@ export const traffickerService = {
    * Sales stats for a trafficker: totals + per-status counts + sum of
    * amounts + sum of commissions. Mirrors the previous inline `salesStats`
    * shape verbatim.
+   *
+   * FIX-PERFORMANCE-001 — previously did a single `take: 100` findMany +
+   * JS reduce, which silently truncated `totalAmount`/`totalCommission`/
+   * per-status counts to the latest 100 sales when a trafficker had more.
+   * Now we run the bounded list (recent 50 for the table) in parallel
+   * with a `groupBy` + `aggregate` so totals cover ALL rows.
    */
   async getSalesStats(traffickerId: string) {
     try {
-      const sales = await db.traffickerSale.findMany({
-        where: { traffickerId },
-        orderBy: { createdAt: 'desc' },
-        take: 100,
-      })
+      const [sales, statusGroups, sumAgg] = await Promise.all([
+        db.traffickerSale.findMany({
+          where: { traffickerId },
+          orderBy: { createdAt: 'desc' },
+          take: 50,
+        }),
+        db.traffickerSale.groupBy({
+          by: ['status'],
+          where: { traffickerId },
+          _count: { _all: true },
+        }),
+        db.traffickerSale.aggregate({
+          where: { traffickerId },
+          _sum: { amount: true, commission: true },
+          _count: true,
+        }),
+      ])
+
+      const countBy = (status: string) =>
+        statusGroups.find((g) => g.status === status)?._count._all ?? 0
+
       return {
         sales,
         stats: {
-          total: sales.length,
-          pending: sales.filter((s) => s.status === 'pending').length,
-          confirmed: sales.filter((s) => s.status === 'confirmed').length,
-          failed: sales.filter((s) => s.status === 'failed').length,
-          compensated: sales.filter((s) => s.status === 'compensated').length,
-          totalAmount: sales.reduce((sum, s) => sum + s.amount, 0),
-          totalCommission: sales.reduce((sum, s) => sum + s.commission, 0),
+          total: sumAgg._count,
+          pending: countBy('pending'),
+          confirmed: countBy('confirmed'),
+          failed: countBy('failed'),
+          compensated: countBy('compensated'),
+          totalAmount: sumAgg._sum.amount ?? 0,
+          totalCommission: sumAgg._sum.commission ?? 0,
         },
       }
     } catch (err) {

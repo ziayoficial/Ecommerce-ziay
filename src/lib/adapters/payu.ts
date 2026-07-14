@@ -280,9 +280,17 @@ export class PayUAdapter implements PaymentAdapter {
    * @see https://developers.payulatam.com/latam/en/docs/integrations/api-integration/notifications.html
    */
   webhookVerify(rawBody: string, signature: string): boolean {
-    // Dev-mode fallback: if no creds configured, accept any non-empty signature.
+    // Dev-mode fallback: if no creds configured, throw in production (forged
+    // webhooks would be silently accepted) and allow in dev with a warning.
+    // FIX-REALTIME-WEBHOOKS-001 · R3.
     if (!this.apiKey || !this.merchantId) {
-      return typeof signature === 'string' && signature.length > 0
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error('PayU credentials not configured in production')
+      }
+      console.warn(
+        '[payu] credentials not configured — skipping verification in dev mode',
+      )
+      return true
     }
     if (!signature) return false
     try {

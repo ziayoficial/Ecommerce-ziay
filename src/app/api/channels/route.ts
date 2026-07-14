@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAuth } from '@/lib/auth-helpers'
+import { requireAuth, requireTenantAccess } from '@/lib/auth-helpers'
 import { db } from '@/lib/db'
 import { captureError } from '@/lib/capture-error'
 
@@ -12,13 +12,22 @@ import { captureError } from '@/lib/capture-error'
 // share read paths or transactions, and the only other caller touching
 // `Channel` is `/api/payments/config` (which writes a single field).
 // TODO: migrate to service layer when channel verification flows land.
+//
+// FIX-SECURITY-AUTH-001 (#12) — every entry point now enforces tenant
+// access. Previously `requireAuth()` only, allowing cross-tenant channel
+// CRUD including credential mutation (`whatsappToken`, `pageAccessToken`,
+// `appSecret`).
 export async function GET(req: NextRequest) {
-  const { error } = await requireAuth()
+  const tenantId = req.nextUrl.searchParams.get('tenantId')
+  if (!tenantId) {
+    return NextResponse.json({ error: 'tenantId is required' }, { status: 400 })
+  }
+  const { error } = await requireTenantAccess(tenantId)
   if (error) return error
+
   try {
-    const tenantId = req.nextUrl.searchParams.get('tenantId')
     const channels = await db.channel.findMany({
-      where: tenantId ? { tenantId } : {},
+      where: { tenantId },
       orderBy: { type: 'asc' },
     })
     // Mask tokens — return hasToken flags instead of actual values
@@ -45,14 +54,16 @@ export async function GET(req: NextRequest) {
 
 // POST /api/channels — create a new channel (e.g., add a new WhatsApp line)
 export async function POST(req: NextRequest) {
-  const { error } = await requireAuth()
-  if (error) return error
   try {
     const body = await req.json()
     const { tenantId, type, name, displayName } = body
     if (!tenantId || !type || !name || !displayName) {
       return NextResponse.json({ error: 'tenantId, type, name, displayName required' }, { status: 400 })
     }
+
+    // FIX-SECURITY-AUTH-001 (#12) — tenant gate before the channel create.
+    const { error } = await requireTenantAccess(tenantId)
+    if (error) return error
 
     const validTypes = ['whatsapp', 'messenger', 'instagram', 'telegram']
     if (!validTypes.includes(type)) {
@@ -109,12 +120,27 @@ export async function POST(req: NextRequest) {
 
 // PATCH /api/channels — update a channel (e.g., update credentials)
 export async function PATCH(req: NextRequest) {
-  const { error } = await requireAuth()
-  if (error) return error
+  const { session, error: authErr } = await requireAuth()
+  if (authErr) return authErr
   try {
     const body = await req.json()
     const { channelId, ...fields } = body
     if (!channelId) return NextResponse.json({ error: 'channelId required' }, { status: 400 })
+
+    // FIX-SECURITY-AUTH-001 (#12) — fetch the channel, verify tenant
+    // ownership before update. Any authed user used to be able to mutate
+    // any channel's credentials by id.
+    const existing = await db.channel.findUnique({ where: { id: channelId } })
+    if (!existing) {
+      return NextResponse.json({ error: 'channel not found' }, { status: 404 })
+    }
+    const userTenantId = session?.user?.tenantId ?? null
+    if (userTenantId && userTenantId !== existing.tenantId) {
+      return NextResponse.json(
+        { error: 'Forbidden: tenant mismatch' },
+        { status: 403 },
+      )
+    }
 
     // Build update data — only update provided fields
     const updateData: Record<string, unknown> = {}
@@ -146,14 +172,23 @@ export async function PATCH(req: NextRequest) {
 
 // DELETE /api/channels — delete (deactivate) a channel
 export async function DELETE(req: NextRequest) {
-  const { error } = await requireAuth()
-  if (error) return error
+  const { session, error: authErr } = await requireAuth()
+  if (authErr) return authErr
   try {
     const channelId = req.nextUrl.searchParams.get('channelId')
     if (!channelId) return NextResponse.json({ error: 'channelId required' }, { status: 400 })
 
     const channel = await db.channel.findUnique({ where: { id: channelId } })
     if (!channel) return NextResponse.json({ error: 'channel not found' }, { status: 404 })
+
+    // FIX-SECURITY-AUTH-001 (#12) — tenant ownership check before delete.
+    const userTenantId = session?.user?.tenantId ?? null
+    if (userTenantId && userTenantId !== channel.tenantId) {
+      return NextResponse.json(
+        { error: 'Forbidden: tenant mismatch' },
+        { status: 403 },
+      )
+    }
 
     // Soft delete — deactivate instead of hard delete to preserve conversation history
     await db.channel.update({ where: { id: channelId }, data: { active: false } })

@@ -12,15 +12,16 @@
 // (1-2 simple db calls OK to leave), a one-row audit-log insert doesn't
 // warrant a service method.
 // TODO: migrate to service layer if quote caching/persistence is added.
+//
+// FIX-SECURITY-AUTH-001 (#26) — requireTenantAccess(tenantId). Any authed
+// user used to be able to burn any tenant's external logistics API quota.
 
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAuth } from '@/lib/auth-helpers'
+import { requireTenantAccess } from '@/lib/auth-helpers'
 import { getLogisticsAdapter } from '@/lib/adapters/registry'
 import { db } from '@/lib/db'
 
 export async function POST(req: NextRequest) {
-  const { error } = await requireAuth()
-  if (error) return error
   try {
     const body = await req.json()
     const { tenantId, ciudad, pais, cantidad_unidades } = body as {
@@ -36,6 +37,10 @@ export async function POST(req: NextRequest) {
     if (!ciudad) {
       return NextResponse.json({ error: 'ciudad is required' }, { status: 400 })
     }
+
+    // FIX-SECURITY-AUTH-001 (#26) — tenant gate before the external adapter call.
+    const { error } = await requireTenantAccess(tenantId)
+    if (error) return error
 
     const cantidad = Math.max(1, Number(cantidad_unidades ?? 1))
     const paisNorm = (pais ?? 'CO').toUpperCase()

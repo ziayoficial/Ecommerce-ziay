@@ -1,26 +1,79 @@
 'use client'
 import { useCallback, useEffect, useState } from 'react'
+import dynamic from 'next/dynamic'
 import { Sidebar, ViewId, NAV_ITEMS } from '@/components/dashboard/sidebar'
 import { Topbar } from '@/components/dashboard/topbar'
+// OverviewView stays eager — it's the default view rendered on first paint.
+// The other 13 views are lazy-loaded via next/dynamic so recharts (~400KB),
+// @dnd-kit, socket.io-client, qrcode.react, input-otp, @mdxeditor, etc. only
+// ship in the chunks that actually need them. (FIX-PERFORMANCE-001)
 import { OverviewView } from '@/components/dashboard/overview-view'
-import { MessengerView } from '@/components/dashboard/messenger-view'
-import { CatalogVisualView } from '@/components/dashboard/catalog-visual-view'
-import { OrdersView } from '@/components/dashboard/orders-view'
-import { KanbanView } from '@/components/dashboard/kanban-view'
-import { OrchestratorView } from '@/components/dashboard/orchestrator-view'
-import { AdsView } from '@/components/dashboard/ads-view'
-import { MonetizationView } from '@/components/dashboard/monetization-view'
-import { WalletView } from '@/components/dashboard/wallet-view'
-import { LogisticsIntelligenceView } from '@/components/dashboard/logistics-intelligence-view'
-import { MarketplaceView } from '@/components/dashboard/marketplace-view'
-import { NovedadesView } from '@/components/dashboard/novedades-view'
-import { IntegrationsView } from '@/components/dashboard/integrations-view'
-import { SettingsView } from '@/components/dashboard/settings-view'
 import {
   CommandDialog, CommandInput, CommandList, CommandEmpty,
   CommandGroup, CommandItem, CommandSeparator, CommandShortcut,
 } from '@/components/ui/command'
-import { Zap, Github, BookOpen, LayoutDashboard, Search } from 'lucide-react'
+import { Zap, Github, BookOpen, LayoutDashboard, Search, Loader2 } from 'lucide-react'
+
+// Shared loading fallback for every lazy view — small, on-brand, no JS.
+const viewLoading = () => (
+  <div className="flex items-center justify-center py-16" role="status" aria-live="polite">
+    <Loader2 className="size-6 animate-spin text-muted-foreground" />
+    <span className="sr-only">Cargando…</span>
+  </div>
+)
+
+const MessengerView = dynamic(
+  () => import('@/components/dashboard/messenger-view').then(m => ({ default: m.MessengerView })),
+  { loading: viewLoading },
+)
+const CatalogVisualView = dynamic(
+  () => import('@/components/dashboard/catalog-visual-view').then(m => ({ default: m.CatalogVisualView })),
+  { loading: viewLoading },
+)
+const OrdersView = dynamic(
+  () => import('@/components/dashboard/orders-view').then(m => ({ default: m.OrdersView })),
+  { loading: viewLoading },
+)
+const KanbanView = dynamic(
+  () => import('@/components/dashboard/kanban-view').then(m => ({ default: m.KanbanView })),
+  { loading: viewLoading },
+)
+const OrchestratorView = dynamic(
+  () => import('@/components/dashboard/orchestrator-view').then(m => ({ default: m.OrchestratorView })),
+  { loading: viewLoading },
+)
+const AdsView = dynamic(
+  () => import('@/components/dashboard/ads-view').then(m => ({ default: m.AdsView })),
+  { loading: viewLoading },
+)
+const MonetizationView = dynamic(
+  () => import('@/components/dashboard/monetization-view').then(m => ({ default: m.MonetizationView })),
+  { loading: viewLoading },
+)
+const WalletView = dynamic(
+  () => import('@/components/dashboard/wallet-view').then(m => ({ default: m.WalletView })),
+  { loading: viewLoading },
+)
+const LogisticsIntelligenceView = dynamic(
+  () => import('@/components/dashboard/logistics-intelligence-view').then(m => ({ default: m.LogisticsIntelligenceView })),
+  { loading: viewLoading },
+)
+const MarketplaceView = dynamic(
+  () => import('@/components/dashboard/marketplace-view').then(m => ({ default: m.MarketplaceView })),
+  { loading: viewLoading },
+)
+const NovedadesView = dynamic(
+  () => import('@/components/dashboard/novedades-view').then(m => ({ default: m.NovedadesView })),
+  { loading: viewLoading },
+)
+const IntegrationsView = dynamic(
+  () => import('@/components/dashboard/integrations-view').then(m => ({ default: m.IntegrationsView })),
+  { loading: viewLoading },
+)
+const SettingsView = dynamic(
+  () => import('@/components/dashboard/settings-view').then(m => ({ default: m.SettingsView })),
+  { loading: viewLoading },
+)
 
 export default function Home() {
   const [view, setView] = useState<ViewId>('overview')

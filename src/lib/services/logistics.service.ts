@@ -16,12 +16,16 @@ export const logisticsService = {
   /**
    * Customer-score leaderboard for the tenant. Used to flag devolvedores
    * (returners) vs. confiables (reliable buyers).
+   *
+   * FIX-PERFORMANCE-001 — was unbounded. Capped at 200 rows so a tenant
+   * with a huge customer base doesn't pull the whole table into memory.
    */
   async getScores(tenantId: string) {
     try {
       return await db.customerScore.findMany({
         where: { tenantId },
         orderBy: { score: 'desc' },
+        take: 200,
       })
     } catch (err) {
       captureError(err as Error, { service: 'logistics', method: 'getScores', tenantId })
@@ -81,12 +85,15 @@ export const logisticsService = {
   /**
    * Carrier scores — used by the carrier-performance panel. Returns
    * all carriers for the tenant sorted by score.
+   *
+   * FIX-PERFORMANCE-001 — was unbounded. Capped at 200 rows.
    */
   async getCarrierScores(tenantId: string) {
     try {
       return await db.carrierScore.findMany({
         where: { tenantId },
         orderBy: { score: 'desc' },
+        take: 200,
       })
     } catch (err) {
       captureError(err as Error, { service: 'logistics', method: 'getCarrierScores', tenantId })

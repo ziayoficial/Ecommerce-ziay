@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAuth } from '@/lib/auth-helpers'
+import { requireTenantAccess } from '@/lib/auth-helpers'
+import { rateLimit } from '@/lib/middleware/rate-limit'
 import { db } from '@/lib/db'
 import ZAI from 'z-ai-web-dev-sdk'
 
@@ -18,9 +19,18 @@ import ZAI from 'z-ai-web-dev-sdk'
 // only when those services gain LLM-context-shaped methods.
 // TODO: migrate to service layer when conversationService gains a
 // "context-only" read method (no side-effects).
+//
+// FIX-SECURITY-AUTH-001 (#11) — fetch the conversation, verify tenant
+// ownership before the LLM call. Any authed user used to be able to feed
+// any tenant's customer PII + message history into the LLM (cross-tenant
+// PII exfiltration via the LLM response).
 export async function POST(req: NextRequest) {
-  const { error } = await requireAuth()
-  if (error) return error
+  // FIX-REALTIME-WEBHOOKS-001 · P2 — per-route rate limit (10 req/min/IP).
+  // Each call hits the LLM API ($0.01–0.10/call); the global 60/min/IP
+  // middleware is too generous for an LLM endpoint.
+  const limited = rateLimit(req, { max: 10, windowMs: 60_000, namespace: 'api:ai-reply' })
+  if (limited) return limited
+
   const { conversationId, tone = 'friendly' } = await req.json()
   if (!conversationId) return NextResponse.json({ error: 'conversationId required' }, { status: 400 })
 
@@ -34,8 +44,12 @@ export async function POST(req: NextRequest) {
   })
   if (!conv) return NextResponse.json({ error: 'conversation not found' }, { status: 404 })
 
+  // FIX-SECURITY-AUTH-001 (#11) — tenant gate before the LLM gets fed PII.
+  const { error } = await requireTenantAccess(conv.tenantId)
+  if (error) return error
+
   // Build context for the model
-  const products = await db.product.findMany({ where: { active: true }, take: 8 })
+  const products = await db.product.findMany({ where: { active: true, tenantId: conv.tenantId }, take: 8 })
   const catalog = products.map(p => `- ${p.name} ($${p.price.toLocaleString('es-CO')} COP, sku ${p.sku})`).join('\n')
 
   const strategyText = (() => {

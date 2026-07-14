@@ -17,6 +17,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Image from 'next/image'
 import { toast } from 'sonner'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -333,7 +334,7 @@ export function IntegrationsView() {
                       <div className="rounded-lg border overflow-hidden hover:shadow-md hover:border-primary/30 transition-all cursor-default bg-card">
                         <div className="aspect-square bg-muted relative overflow-hidden">
                           {p.imageUrl ? (
-                            <img src={p.imageUrl} alt={p.name} className="size-full object-cover" loading="lazy" />
+                            <Image src={p.imageUrl} alt={p.name} fill unoptimized sizes="200px" className="size-full object-cover" />
                           ) : (
                             <div className="size-full flex items-center justify-center text-muted-foreground/60">
                               <Package className="size-8" />

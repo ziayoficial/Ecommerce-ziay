@@ -12,14 +12,20 @@ const log = getLogger('payment-webhook-utils')
  * Best-effort audit log write. Webhooks must ALWAYS ACK with 200 to stop
  * gateway retries, even when the local DB is read-only or unreachable.
  * Errors are logged to stderr and swallowed.
+ *
+ * FIX-REALTIME-WEBHOOKS-001 — added optional `entityId` parameter so
+ * webhooks can store their `webhookId` (from `generateWebhookId`) for
+ * cross-instance dedup queries via `isDuplicateWebhookDB`. Existing 3-arg
+ * callers continue to work — `entityId` defaults to `undefined`.
  */
 export async function safeAudit(
   action: string,
   entity: string,
   meta: string,
+  entityId?: string,
 ): Promise<void> {
   try {
-    await db.auditLog.create({ data: { action, entity, meta } })
+    await db.auditLog.create({ data: { action, entity, meta, entityId } })
   } catch (err) {
     log.error({ action, err: err instanceof Error ? err.message : String(err) }, 'auditLog persistence failed')
   }

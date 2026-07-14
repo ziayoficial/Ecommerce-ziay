@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { requireAuth } from '@/lib/auth-helpers'
+import { resolveTenantId, requireTenantAccess } from '@/lib/auth-helpers'
 import { captureError } from '@/lib/capture-error'
 import { conversationService } from '@/lib/services'
 
@@ -19,15 +19,20 @@ import { conversationService } from '@/lib/services'
 // + `db.conversation.update` that is logically a `sendMessage`, but the
 // signature doesn't match `conversationService.sendMessage` exactly and
 // migrating it would change response shape). Response shape is unchanged.
+//
+// FIX-SECURITY-AUTH-001 (#10) — tenantId is resolved + verified against the
+// caller's session. Tenant users are pinned to their own tenantId
+// (cross-tenant attempts return 403); platform admins can pass any tenantId
+// or omit it for the legacy "all tenants" view.
 export async function GET(req: NextRequest) {
-  const { error } = await requireAuth()
+  const tenantIdParam = req.nextUrl.searchParams.get('tenantId') || undefined
+  const { error, tenantId } = await resolveTenantId(tenantIdParam)
   if (error) return error
 
   try {
     const status = req.nextUrl.searchParams.get('status') || undefined
     const channel = req.nextUrl.searchParams.get('channel') || undefined
     const q = req.nextUrl.searchParams.get('q') || undefined
-    const tenantId = req.nextUrl.searchParams.get('tenantId') || undefined
     const cursor = req.nextUrl.searchParams.get('cursor') || undefined
     const parsedLimit = parseInt(req.nextUrl.searchParams.get('limit') || '20', 10)
     const limit = Number.isFinite(parsedLimit) && parsedLimit > 0
@@ -71,18 +76,35 @@ export async function GET(req: NextRequest) {
   }
 }
 
+// FIX-SECURITY-AUTH-001 (#4, #42) — POST: previously `requireAuth()` only,
+// with a hardcoded `body.tenantId || 'ten-saramantha'` fallback that let any
+// authed user write messages into any conversation of any tenant. Now:
+//   - Fetch the conversation by id (no tenant filter — we need its tenantId).
+//   - requireTenantAccess(conv.tenantId) — 403 for cross-tenant callers
+//     unless they're platform admins.
+//   - Use conv.tenantId for the message row (kills the hardcoded fallback).
 export async function POST(req: NextRequest) {
-  const { error } = await requireAuth()
-  if (error) return error
-
   try {
     const body = await req.json()
     const { conversationId, body: text, direction = 'outbound' } = body
     if (!conversationId || !text) {
       return NextResponse.json({ error: 'conversationId and body required' }, { status: 400 })
     }
+
+    // Fetch the conversation to learn its tenantId — never trust the body.
+    const conv = await db.conversation.findUnique({
+      where: { id: conversationId },
+      select: { tenantId: true },
+    })
+    if (!conv) {
+      return NextResponse.json({ error: 'conversation not found' }, { status: 404 })
+    }
+
+    const { error } = await requireTenantAccess(conv.tenantId)
+    if (error) return error
+
     const msg = await db.message.create({
-      data: { tenantId: body.tenantId || 'ten-saramantha', conversationId, direction, body: text, type: 'text', status: 'sent' },
+      data: { tenantId: conv.tenantId, conversationId, direction, body: text, type: 'text', status: 'sent' },
     })
     await db.conversation.update({
       where: { id: conversationId },

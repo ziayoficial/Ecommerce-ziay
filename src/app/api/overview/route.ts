@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAuth } from '@/lib/auth-helpers'
+import { resolveTenantId } from '@/lib/auth-helpers'
 import { withCache } from '@/lib/cache'
 import { captureError } from '@/lib/capture-error'
 import { overviewService } from '@/lib/services'
@@ -14,13 +14,18 @@ import { overviewService } from '@/lib/services'
 // `overviewService.getKPIs`. Response shape unchanged; the service returns
 // the exact `{ range, kpis, channelSplit, series }` payload the route was
 // already producing.
+//
+// FIX-SECURITY-AUTH-001 (#28) — tenantId is resolved + verified against
+// the caller's session. Tenant users are pinned to their own tenantId
+// (cross-tenant attempts return 403); platform admins can pass any
+// tenantId or omit it for the legacy "all tenants" view.
 export async function GET(req: NextRequest) {
-  const { error } = await requireAuth()
+  const tenantIdParam = req.nextUrl.searchParams.get('tenantId') || undefined
+  const { error, tenantId } = await resolveTenantId(tenantIdParam)
   if (error) return error
 
   try {
     const days = Number(req.nextUrl.searchParams.get('days') || '14')
-    const tenantId = req.nextUrl.searchParams.get('tenantId') || undefined
 
     const payload = await withCache(
       `overview:${tenantId ?? 'all'}:${days}`,

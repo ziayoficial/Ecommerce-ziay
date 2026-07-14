@@ -195,9 +195,17 @@ export class WompiAdapter implements PaymentAdapter {
    * @see https://docs.wompi.co/docs/en/co/apks-de-seguridad
    */
   webhookVerify(rawBody: string, signature: string): boolean {
-    // Dev-mode fallback: if no secret configured, accept any non-empty signature.
+    // Dev-mode fallback: if no secret configured, throw in production (forged
+    // webhooks would be silently accepted) and allow in dev with a warning.
+    // FIX-REALTIME-WEBHOOKS-001 · R3.
     if (!this.eventSecret) {
-      return typeof signature === 'string' && signature.length > 0
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error('Wompi event secret not configured in production')
+      }
+      console.warn(
+        '[wompi] event secret not configured — skipping verification in dev mode',
+      )
+      return true
     }
     if (!signature) return false
     const expected = createHmac('sha256', this.eventSecret).update(rawBody).digest('hex')

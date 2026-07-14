@@ -1,23 +1,64 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-helpers'
+import { db } from '@/lib/db'
 import { captureError } from '@/lib/capture-error'
 import { conversationService } from '@/lib/services'
 
 // SPRINT7-POSTGRES-SERVICES-001 — migrated from `db.conversation.findUnique`
 // → `conversationService.getConversationById` and `db.conversation.update`
 // → `conversationService.updateStatus`. Response shapes are unchanged.
+//
+// FIX-SECURITY-AUTH-001 (#7) — fetch the conversation first, verify the
+// caller's tenantId matches (or caller is a platform admin with no
+// tenantId) before returning/updating. Mirrors `/api/novedades/[id]`
+// `getCaseOrFail()`.
+
+async function getConversationOrFail(id: string) {
+  const { session, error } = await requireAuth()
+  if (error) return { session: null, error, conv: null }
+
+  // Fetch by id only (no tenant filter) so we can return 403 (rather than
+  // 404) when a cross-tenant caller reaches for a row that does exist.
+  // `conversationService.getConversationById` clears the unread badge as
+  // a side-effect, so we use a direct db.conversation.findUnique here to
+  // avoid that side-effect firing before the tenant guard.
+  const conv = await db.conversation.findUnique({
+    where: { id },
+    select: { id: true, tenantId: true },
+  })
+  if (!conv) {
+    return {
+      session,
+      error: NextResponse.json({ error: 'not found' }, { status: 404 }),
+      conv: null,
+    }
+  }
+  const userTenantId = session?.user?.tenantId ?? null
+  if (userTenantId && userTenantId !== conv.tenantId) {
+    return {
+      session,
+      error: NextResponse.json({ error: 'Forbidden: tenant mismatch' }, { status: 403 }),
+      conv: null,
+    }
+  }
+  return { session, error: null, conv }
+}
+
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { error } = await requireAuth()
+  const { id } = await params
+  const { error, conv } = await getConversationOrFail(id)
   if (error) return error
-  try {
-    const { id } = await params
-    const conv = await conversationService.getConversationById(id)
-    if (!conv) return NextResponse.json({ error: 'not found' }, { status: 404 })
+  if (!conv) return NextResponse.json({ error: 'No conversation' }, { status: 404 })
 
-    return NextResponse.json({ conversation: conv })
+  try {
+    // Now safe to call the service method (which clears unread as side-effect).
+    const fullConv = await conversationService.getConversationById(id)
+    if (!fullConv) return NextResponse.json({ error: 'not found' }, { status: 404 })
+
+    return NextResponse.json({ conversation: fullConv })
   } catch (err) {
     captureError(err as Error, { path: '/api/conversations/[id]', method: 'GET' })
     return NextResponse.json(
@@ -31,10 +72,12 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { error } = await requireAuth()
+  const { id } = await params
+  const { error, conv } = await getConversationOrFail(id)
   if (error) return error
+  if (!conv) return NextResponse.json({ error: 'No conversation' }, { status: 404 })
+
   try {
-    const { id } = await params
     const body = await req.json()
     const updated = await conversationService.updateStatus(id, {
       ...(body.status ? { status: body.status } : {}),

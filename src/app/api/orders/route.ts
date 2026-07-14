@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAuth } from '@/lib/auth-helpers'
+import { resolveTenantId } from '@/lib/auth-helpers'
 import { captureError } from '@/lib/capture-error'
 import { orderService } from '@/lib/services'
 
@@ -16,15 +16,20 @@ import { orderService } from '@/lib/services'
 // SPRINT7-POSTGRES-SERVICES-001 — migrated from `db.order.findMany(...)` to
 // `orderService.getOrders(...)`. Response shape is unchanged; only the
 // internal DB access seam moved into the service layer.
+//
+// FIX-SECURITY-AUTH-001 (#9) — tenantId is resolved + verified against the
+// caller's session. Tenant users are pinned to their own tenantId
+// (cross-tenant attempts return 403); platform admins can pass any
+// tenantId or omit it for the legacy "all tenants" view.
 export async function GET(req: NextRequest) {
-  const { error } = await requireAuth()
+  const tenantIdParam = req.nextUrl.searchParams.get('tenantId') || undefined
+  const { error, tenantId } = await resolveTenantId(tenantIdParam)
   if (error) return error
 
   try {
     const status = req.nextUrl.searchParams.get('status') || undefined
     const mode = req.nextUrl.searchParams.get('mode') || undefined
     const q = req.nextUrl.searchParams.get('q') || undefined
-    const tenantId = req.nextUrl.searchParams.get('tenantId') || undefined
     const cursor = req.nextUrl.searchParams.get('cursor') || undefined
     // Default page size 20, hard ceiling 100 to prevent unbounded queries.
     const parsedLimit = parseInt(req.nextUrl.searchParams.get('limit') || '20', 10)

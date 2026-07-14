@@ -36,13 +36,19 @@ import { logger } from '@/lib/logger'
 /**
  * Wraps an API route handler with error capture + structured logging.
  * Usage: export const POST = withErrorHandling(async (req) => { ... })
+ *
+ * SPRINT-ADOPT-ERRORHANDLER-001 — extended to forward the optional 2nd
+ * `ctx` argument that Next.js passes to dynamic-route handlers
+ * (`{ params: Promise<{ id: string }> }`). The default `C = unknown` lets
+ * single-arg handlers (`(req) => ...`) keep working unchanged — TypeScript
+ * infers `C` from the handler signature when the second arg is destructured.
  */
-export function withErrorHandling<T extends NextRequest>(
-  handler: (req: T) => Promise<NextResponse>,
-): (req: T) => Promise<NextResponse> {
-  return async (req: T) => {
+export function withErrorHandling<T extends NextRequest, C = unknown>(
+  handler: (req: T, ctx: C) => Promise<NextResponse>,
+): (req: T, ctx: C) => Promise<NextResponse> {
+  return async (req: T, ctx: C) => {
     try {
-      return await handler(req)
+      return await handler(req, ctx)
     } catch (error) {
       // If the handler threw a NextResponse (a common Next.js pattern for
       // early-exit 4xx), preserve it as-is. This is checked before Sentry

@@ -37,6 +37,15 @@ export interface LLMChatOptions {
   stream?: boolean
   /** Optional system prompt override. */
   system?: string
+  /**
+   * SPRINT-AI-LLM-ADAPTER-001 — control de "thinking" del modelo.
+   * Solo lo respeta ZAI (GLM-4.6 soporta thinking mode). Los demás
+   * proveedores lo ignoran. Los call sites anteriores pasaban
+   * `thinking: { type: 'disabled' }` al SDK directamente — lo replicamos
+   * aquí para preservar el comportamiento (evitar tokens de razonamiento
+   * que inflarían el costo y la latencia).
+   */
+  thinking?: 'disabled' | 'enabled'
 }
 
 export interface LLMChatResult {
@@ -86,6 +95,12 @@ export class ZaiProvider implements LLMProvider {
       temperature: opts.temperature,
     }
     if (opts.maxTokens) (body as Record<string, unknown>).max_tokens = opts.maxTokens
+    // SPRINT-AI-LLM-ADAPTER-001 — preserva el comportamiento anterior
+    // (`thinking: { type: 'disabled' }`) para que la migración al adapter
+    // no cambie la salida ni el costo del modelo.
+    if (opts.thinking) {
+      ;(body as Record<string, unknown>).thinking = { type: opts.thinking }
+    }
 
     const res = await client.chat.completions.create(body)
     const content: string =

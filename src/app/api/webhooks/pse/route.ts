@@ -50,6 +50,31 @@ function mapPseState(state: string): { status: string; success: boolean } {
   return { status: 'pending', success: false }
 }
 
+/**
+ * PSE (ACH Colombia) webhook handler.
+ *
+ * Recibe el callback server-to-server tras la autenticación bancaria del
+ * cliente (estudio §18). El callback incluye `transactionId`, `state`
+ * (OK / NOT_OK / PENDING / EXPIRED / NOT_AUTHORIZED / FAILED),
+ * `reference` (= Order.number), `amount` y `currency`. PSE firma el body
+ * con HMAC-SHA256 y lo envía en el header `X-PSE-Signature` (hex).
+ *
+ * Tras verificar, mapea `state` a estado canónico (approved / rejected /
+ * expired / pending) vía `mapPseState` y aplica `applyPaymentUpdate` —
+ * actualiza `Order.paymentStatus` + crea `OrderEvent` + dispara el evento
+ * CAPI Purchase si la orden pasa a `paid`.
+ *
+ * Idempotencia de 2 capas: in-memory Map (fast path) + DB-backed AuditLog
+ * (multi-instancia) usando el `webhookId` como `entityId` indexado.
+ *
+ * @see https://www.pse.com.co/persona
+ * @security HMAC-SHA256 verificada con `verifyHmacSha256` (timingSafeEqual).
+ *           Producción: 500 si falta `PSE_WEBHOOK_SECRET`.
+ *           Dev mode: warn + acepta cualquier firma no vacía.
+ * @returns 200 siempre (ack) para evitar reintentos de PSE;
+ *          `status: 'invalid_signature'` si la firma no verifica;
+ *          `status: 'duplicate'` si ya fue procesado.
+ */
 export async function POST(req: NextRequest) {
   const rawBody = await req.text()
   const signature = req.headers.get('x-pse-signature') ?? ''

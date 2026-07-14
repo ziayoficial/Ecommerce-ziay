@@ -3,10 +3,21 @@ import { z } from 'zod'
 import { requireTenantAccess } from '@/lib/auth-helpers'
 import { rateLimit } from '@/lib/middleware/rate-limit'
 import { db } from '@/lib/db'
-import ZAI from 'z-ai-web-dev-sdk'
+// SPRINT-AI-LLM-ADAPTER-001 — reemplazo de la llamada directa al SDK de ZAI por el
+// adapter pluggable. Provider resuelto desde `tenant.proveedorIa`.
+import { chat, type LLMChatResult } from '@/lib/llm/adapter'
+import { calculateCost } from '@/lib/llm/costs'
+// SPRINT-AI-LLM-ADAPTER-001 §A-7 — truncado del historial para prevenir
+// desbordamiento del context window en conversaciones largas.
+import { truncateHistory, type Message } from '@/lib/agents/history'
 // FIX-AI-AGENTS-001 — defensas anti-inyección + confidence real.
 import { wrapUserInput, ANTI_INJECTION_PREFIX } from '@/lib/agents/sanitize'
 import { emitToTenant } from '@/lib/chat-emit'
+// SPRINT-ADOPT-ERRORHANDLER-001 — wrapper funnels unhandled exceptions
+// through Sentry + pino. The inner try/catch around the LLM call is
+// preserved (it implements the §A-3 fallback-reply + DecisionLog
+// persistence + low_confidence emit — business logic, not boilerplate).
+import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 
 // TD-2: Zod schema for ai-reply POST.
 const AiReplySchema = z.object({
@@ -34,7 +45,13 @@ const AiReplySchema = z.object({
 // ownership before the LLM call. Any authed user used to be able to feed
 // any tenant's customer PII + message history into the LLM (cross-tenant
 // PII exfiltration via the LLM response).
-export async function POST(req: NextRequest) {
+// SPRINT-ADOPT-ERRORHANDLER-001 — POST wrapped with `withErrorHandling`.
+// The inner try/catch around the LLM call is preserved because its catch
+// block implements §A-3 business logic (fallback reply + DecisionLog
+// persistence + low_confidence emit + 200 response with `confidence: 0.1`),
+// NOT generic 500 boilerplate. Errors thrown BEFORE that try (auth, rate
+// limit, JSON parse, tenant gate, db lookup) bubble to the wrapper → Sentry.
+export const POST = withErrorHandling(async (req: NextRequest) => {
   // FIX-REALTIME-WEBHOOKS-001 · P2 — per-route rate limit (10 req/min/IP).
   // Each call hits the LLM API ($0.01–0.10/call); the global 60/min/IP
   // middleware is too generous for an LLM endpoint.
@@ -84,7 +101,16 @@ export async function POST(req: NextRequest) {
     }
   })()
 
-  const history = conv.messages.map(m => `${m.direction === 'inbound' ? 'Cliente' : 'Agente'}: ${m.body}`).join('\n')
+  // SPRINT-AI-LLM-ADAPTER-001 §A-7 — el historial ahora se construye
+  // como Message[] (role+content) más abajo, para pasarlo por
+  // truncateHistory. La variable `history` (string único) se removió.
+
+  // SPRINT-AI-LLM-ADAPTER-001 — resolver el provider desde el tenant.
+  // Reutilizamos el tenantId del conversation (ya cargado con customer/channel).
+  const tenant = await db.tenant.findUnique({
+    where: { id: conv.tenantId },
+    select: { proveedorIa: true },
+  })
 
   const systemPrompt = `Eres un asistente de ventas conversacional experto para una tienda de belleza y cuidado personal en Colombia (y expansión internacional).
 Canal: ${conv.channel.displayName} (${conv.channel.type}).
@@ -97,29 +123,82 @@ ${catalog}
 
 Tono: ${tone}, cálido, cercano (estilo LATAM), emojis moderados. Máximo 2 mensajes cortos. Cierra hacia la venta: confirma producto, cantidad, modo de pago y dirección. NO inventes precios fuera del catálogo. Si el cliente pregunta por contra entrega y el canal es solo 'advance', explica amablemente que ese canal requiere pago anticipado pero ofrece descuento.`
 
+  // SPRINT-AI-LLM-ADAPTER-001 §A-7 — convertir el historial a formato
+  // Message[] (role+content) y truncar con truncateHistory. Esto
+  // preserva el context window y genera un resumen de mensajes antiguos
+  // cuando hay >20 (no es el caso típico aquí porque ya filtramos con
+  // `take: 12`, pero queda como defensa si se sube el límite).
+  //
+  // FIX-AI-AGENTS-001 §A-4: cada mensaje del cliente se envuelve con
+  // wrapUserInput (delimitador <user_message>) para prevenir prompt
+  // injection — antes todo el historial iba como un solo user message
+  // sin delimitar, mezclando input del cliente con respuestas del agente.
+  const conversationHistory: Message[] = conv.messages.map(m => ({
+    role: m.direction === 'inbound' ? 'user' : 'assistant',
+    content: m.direction === 'inbound' ? wrapUserInput(m.body) : m.body,
+  }))
+  const messages = truncateHistory(ANTI_INJECTION_PREFIX + systemPrompt, conversationHistory)
+  messages.push({
+    role: 'user',
+    content: wrapUserInput(
+      'Genera la siguiente respuesta del agente (solo el texto, sin prefijo "Agente:"):',
+    ),
+  })
+
+  // SPRINT-AI-LLM-ADAPTER-001 §A-6 — capturamos startTime para medir
+  // latencia y persistirla en el DecisionLog.
+  const startTime = Date.now()
+  let llmResult: LLMChatResult | undefined
+
   try {
-    const zai = await ZAI.create()
-    // FIX-AI-AGENTS-001 §A-1: el system prompt va con rol `system`
-    // (antes iba con rol `assistant` — el modelo lo trataba como una
-    // respuesta previa suya, debilitando los guardrails "NO inventes
-    // precios fuera del catálogo" y habilitando prompt injection).
-    //
-    // FIX-AI-AGENTS-001 §A-4: se antepone `ANTI_INJECTION_PREFIX` al
-    // system prompt (instrucciones anti-inyección en español) y se envuelve
-    // el user prompt con `wrapUserInput()` — el historial de la conversación
-    // es input del cliente y debe ir delimitado con <user_message>.
-    const completion = await zai.chat.completions.create({
-      messages: [
-        { role: 'system', content: ANTI_INJECTION_PREFIX + systemPrompt },
-        { role: 'user', content: wrapUserInput(`Historia de la conversación:\n${history}\n\nGenera la siguiente respuesta del agente (solo el texto, sin prefijo "Agente:"):`) },
-      ],
-      thinking: { type: 'disabled' },
-    })
-    const reply = completion.choices[0]?.message?.content?.trim() || ''
+    // §A-3 (timeout): Promise.race con 15s. Si el LLM no responde,
+    // cae al catch (fallback deterministic) — mismo comportamiento que
+    // una excepción de red o del provider.
+    llmResult = await Promise.race([
+      chat(messages, {
+        provider: tenant?.proveedorIa,
+        thinking: 'disabled',
+      }),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('LLM timeout (15s)')), 15_000),
+      ),
+    ])
+    const reply = llmResult.content.trim() || ''
     // FIX-AI-AGENTS-001 §A-3: confidence real — esta ruta devuelve texto
     // libre (no JSON), no hay esquema Zod que validar → 0.6.
     // (Antes era 0.9 hardcodeado en cada éxito.)
     const confidence = 0.6
+
+    // SPRINT-AI-LLM-ADAPTER-001 §A-6 — persistir tokens/costo/latencia
+    // en DecisionLog. El path de éxito antes no persistía nada; ahora
+    // registramos tokens y costo para observabilidad (¿cuánto cobra cada
+    // respuesta automática al tenant?).
+    try {
+      const usage = llmResult.usage
+      await db.decisionLog.create({
+        data: {
+          tenantId: conv.tenantId,
+          agentName: 'ai_reply',
+          conversationId: conv.id,
+          input: JSON.stringify({ conversationId: conv.id, tone }),
+          output: JSON.stringify({ reply, confidence }),
+          reasoning: null,
+          confidence,
+          model: llmResult.model ?? null,
+          provider: llmResult.provider ?? null,
+          promptTokens: usage?.promptTokens ?? null,
+          completionTokens: usage?.completionTokens ?? null,
+          totalTokens: usage?.totalTokens ?? null,
+          costUsd: usage
+            ? calculateCost(llmResult.provider ?? 'zai', usage)
+            : null,
+          latencyMs: Date.now() - startTime,
+        },
+      })
+    } catch {
+      // Non-blocking: la trazabilidad es best-effort.
+    }
+
     return NextResponse.json({ reply, confidence })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'unknown error'
@@ -128,6 +207,7 @@ Tono: ${tone}, cálido, cercano (estilo LATAM), emojis moderados. Máximo 2 mens
     // FIX-AI-AGENTS-001 §A-3: la llamada LLM falló completamente → 0.1
     // (antes era 0.3 — pero 0.3 implicaba "teníamos fallback", mientras
     // que 0.1 implica "nunca llegamos a tener output del modelo").
+    // SPRINT-AI-LLM-ADAPTER-001 §A-3: incluye el caso de timeout (15s).
     const confidence = 0.1
     // §A-3 auto-escalación: 0.1 < 0.6 → persistir DecisionLog con
     // `humanReviewed: false` y emitir `agent:low_confidence` al tenant.
@@ -141,6 +221,17 @@ Tono: ${tone}, cálido, cercano (estilo LATAM), emojis moderados. Máximo 2 mens
           output: JSON.stringify({ reply: fallback, confidence, error: message }),
           reasoning: null,
           confidence,
+          // §A-6: si el LLM respondió antes de fallar una side-effect
+          // (raro), tenemos usage; si no, queda en null.
+          model: llmResult?.model ?? null,
+          provider: llmResult?.provider ?? null,
+          promptTokens: llmResult?.usage?.promptTokens ?? null,
+          completionTokens: llmResult?.usage?.completionTokens ?? null,
+          totalTokens: llmResult?.usage?.totalTokens ?? null,
+          costUsd: llmResult?.usage
+            ? calculateCost(llmResult.provider ?? 'zai', llmResult.usage)
+            : null,
+          latencyMs: Date.now() - startTime,
           // humanReviewed: false (default del schema Prisma).
         },
       })
@@ -157,4 +248,4 @@ Tono: ${tone}, cálido, cercano (estilo LATAM), emojis moderados. Máximo 2 mens
     })
     return NextResponse.json({ reply: fallback, confidence, error: message })
   }
-}
+})

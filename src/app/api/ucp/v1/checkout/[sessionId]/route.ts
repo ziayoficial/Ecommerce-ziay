@@ -25,6 +25,23 @@ const log = getLogger('api/ucp/v1/checkout/[sessionId]')
 // GET /api/ucp/v1/checkout/[sessionId]
 // Devuelve el estado actual de la sesión (estado, carrito, continuationUrl
 // si requires_escalation, etc.).
+/**
+ * UCP checkout session status handler (GET).
+ *
+ * Devuelve el estado actual de la sesión UCP: `state`, `cart` (parsed),
+ * `continuationUrl` (si `requires_escalation`), `negotiatedCaps`,
+ * `paymentHandler`, IDs de los mandatos vinculados (intent / cart /
+ * payment), `orderId` (si `completed`) y `expiresAt`.
+ *
+ * Auth: sesión NextAuth (`requireAuth`). El `tenantId` del usuario debe
+ * coincidir con el de la sesión (403 si no).
+ *
+ * @see docs/openapi.yaml `/api/ucp/v1/checkout/{sessionId}`
+ * @security Sesión NextAuth + tenant scoping.
+ * @returns 200 con la representación de la sesión;
+ *          401 / 403 (tenant mismatch) / 404 (sesión no encontrada) /
+ *          500 (error interno).
+ */
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ sessionId: string }> },
@@ -124,6 +141,49 @@ const PatchSchema = z.object({
   failedPaymentCount: z.number().int().nonnegative().optional().default(0),
 })
 
+/**
+ * UCP checkout session state-machine advance handler (PATCH).
+ *
+ * Avanza la máquina de estados UCP (Documento §10.1 + §11):
+ *   `incomplete` → `requires_escalation` → `ready_for_complete` → `completed`
+ *
+ * Transiciones válidas:
+ *   - `incomplete → requires_escalation`  (body: `{ continuationUrl }`)
+ *   - `requires_escalation → ready_for_complete`  (verifica Intent + Cart
+ *     Mandates: firmas válidas + encadenamiento `cart.parentMandateId === intent.id`)
+ *   - `ready_for_complete → completed`  (crea Order, marca mandatos como
+ *     `consumed`, retorna orderId)
+ *   - `ready_for_complete → requires_escalation`  (governance / age gate /
+ *     KYC pueden forzar re-escalamiento)
+ *
+ * Antes de avanzar a `ready_for_complete`:
+ *   - **Governance pilar #1** (`enforceMandateBounds`): verifica topes del
+ *     Intent Mandate (monto global + límites por categoría).
+ *   - **Governance pilar #2** (`checkEscalationRules`): reglas de
+ *     escalamiento a humano (`category_<cat>`, monto, isFirstPurchase,
+ *     paymentMethodChanged, failedPaymentCount).
+ *   - **FIX-LEGAL-P0-001 L-4** (age gate Ley 1098/2006 Art 17): si el
+ *     customer es menor sin `parental_consent_minor` → fuerza `requires_escalation`.
+ *   - **KYC Ley 2573**: si `paymentMode` es `credit` o `installment` →
+ *     `requireIdentityVerification`; si falla, fuerza `requires_escalation`.
+ *
+ * En la transición `completed` (SPRINT-WHATSAPP-FUNCTIONAL-001):
+ *   - Si se pasa `conversationId`, hereda `clickId` / `sourceAdId` /
+ *     `sourceCampaign` de la conversación (CTWA closed-loop, estudio §14.4).
+ *   - Crea Order + OrderItems (resuelve SKUs del catálogo del tenant) +
+ *     OrderEvent(type='created').
+ *   - Marca Cart + Intent (+ Payment si existe) como `consumed`.
+ *   - Valida `intentCartHash` del Payment Mandate (defense-in-depth).
+ *
+ * @see docs/openapi.yaml `/api/ucp/v1/checkout/{sessionId}`
+ * @security Sesión NextAuth + tenant scoping. Los mandatos se verifican con
+ *           `verifyVC` (ed25519) usando la llave pública del tenant.
+ * @returns 200 con `{ sessionId, state, ... }`;
+ *          400 (JSON inválido, params inválidos, falta `customerId`) /
+ *          401 / 403 (tenant mismatch, mandate bounds, governance block) /
+ *          404 (sesión no encontrada) / 409 (transición inválida) /
+ *          500 (error interno).
+ */
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ sessionId: string }> },

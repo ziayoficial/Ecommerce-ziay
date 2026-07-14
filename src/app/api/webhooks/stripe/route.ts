@@ -24,6 +24,27 @@ import { StripeAdapter } from '@/lib/adapters/stripe'
 import { applyPaymentUpdate, safeAudit } from '@/lib/adapters/payment-webhook-utils'
 import { isDuplicateWebhook, isDuplicateWebhookDB, generateWebhookId } from '@/lib/middleware/idempotency'
 
+/**
+ * Stripe webhook handler.
+ *
+ * Recibe `checkout.session.*` y `payment_intent.*` eventos de Stripe
+ * (Saramantha §10). Verifica la firma HMAC-SHA256 (`stripe-signature:
+ * t=<ts>,v1=<hex>`) con `STRIPE_WEBHOOK_SECRET` vía
+ * `StripeAdapter.webhookVerify`. Tras verificar, mapea el estado de
+ * `obj.payment_status` (paid / unpaid / no_payment_required) y aplica
+ * `applyPaymentUpdate` — actualiza `Order.paymentStatus` + crea
+ * `OrderEvent` + dispara el evento CAPI Purchase si la orden pasa a `paid`.
+ *
+ * Idempotencia de 2 capas: in-memory Map (fast path) + DB-backed AuditLog
+ * (multi-instancia) usando el `webhookId` como `entityId` indexado.
+ *
+ * @see https://stripe.com/docs/webhooks
+ * @security Adapter throws en producción si falta `STRIPE_WEBHOOK_SECRET` (R3).
+ *           Dev mode: warn + acepta; producción: 500 para alertar al operador.
+ * @returns 200 siempre (ack) para evitar reintentos de Stripe;
+ *          `status: 'invalid_signature'` si la firma no verifica;
+ *          `status: 'duplicate'` si ya fue procesado.
+ */
 export async function POST(req: NextRequest) {
   const rawBody = await req.text()
   const signature = req.headers.get('stripe-signature') ?? ''

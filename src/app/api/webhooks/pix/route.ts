@@ -57,6 +57,39 @@ function mapPixStatus(status: string): { status: string; success: boolean } {
   return { status: 'pending', success: false }
 }
 
+/**
+ * PIX (Banco Central do Brasil) webhook handler.
+ *
+ * Recibe el callback server-to-server cuando el cliente paga el cobro en
+ * su app bancaria (estudio §18). El callback incluye `txid` (matches the
+ * reference returned by createPayment), `status` (CONCLUIDA = pagado;
+ * ATIVA = pendiente; REMOVIDA_PELO_USUARIO_RECEBEDOR = cancelado),
+ * `valor.original` y `pagador` (nombre, CPF, banco) para reconciliación
+ * + KYC.
+ *
+ * Autenticación dual (estudio §18): en producción, Banco Central / PSPs
+ * usan mTLS; algunos PSPs (MercadoPago PIX, Pagar.me) usan HMAC-SHA256
+ * con un shared secret. Este route soporta el path HMAC (`PIX_HMAC_SECRET`
+ * + header `X-Pix-Signature`); el path mTLS se termina en el edge (Caddy)
+ * y se señaliza con `PIX_MTLS_TERMINATED=true`.
+ *
+ * Tras verificar, mapea `status` a estado canónico (approved / rejected /
+ * expired / pending) vía `mapPixStatus` y aplica `applyPaymentUpdate` —
+ * actualiza `Order.paymentStatus` + crea `OrderEvent` + dispara el evento
+ * CAPI Purchase si la orden pasa a `paid` (closed-loop study §14.4).
+ *
+ * Idempotencia de 2 capas: in-memory Map (fast path) + DB-backed AuditLog
+ * (multi-instancia) usando el `webhookId` como `entityId` indexado.
+ *
+ * @see https://www.bcb.gov.br/estabilidadefinanceira/pix
+ * @security HMAC-SHA256 verificada con `verifyHmacSha256` (timingSafeEqual).
+ *           Producción sin HMAC secret: requiere `PIX_MTLS_TERMINATED=true`
+ *           (Caddy termina mTLS) → si no, 500.
+ *           Dev mode: warn + acepta cualquier firma no vacía.
+ * @returns 200 siempre (ack) para evitar reintentos de PIX;
+ *          `status: 'invalid_signature'` si la firma no verifica;
+ *          `status: 'duplicate'` si ya fue procesado.
+ */
 export async function POST(req: NextRequest) {
   const rawBody = await req.text()
   const signature = req.headers.get('x-pix-signature') ?? ''

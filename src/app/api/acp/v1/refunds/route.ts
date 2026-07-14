@@ -36,6 +36,43 @@ function extractBearerToken(req: NextRequest): string | null {
   return m ? m[1].trim() : null
 }
 
+/**
+ * ACP refund initiation handler.
+ *
+ * Inicia un reembolso desde un agente ACP (ChatGPT / Copilot).
+ * Documento §9.1: capability `refunds`.
+ *
+ * Auth: Bearer = `{mandateId}.{ed25519(mandateId)}` firmado por el tenant
+ * (AUDIT-FINAL-SEC-001 V4). `verifyAcpBearer` valida la firma ed25519 +
+ * estado `active` + vigencia.
+ *
+ * Flujo:
+ *   1. Validar bearer + cargar Intent Mandate (active + no expirado).
+ *   2. Cargar la Order; verificar tenant match + `paymentStatus === 'paid'`
+ *      + que tenga `paymentGateway` + `paymentRef`.
+ *   3. Resolver el adapter de pago concreto (MercadoPago / Wompi / Stripe /
+ *      PayU) vía `getPaymentAdapter`.
+ *   4. Validar `amount <= order.total` (si se omite → reembolso TOTAL).
+ *   5. Invocar `adapter.refund(paymentRef, amount)`.
+ *   6. Persistir: `Order.status = 'returned'` + `paymentStatus = 'refunded'`
+ *      + crear `OrderEvent` (type='refunded') + `AuditLog` firmable
+ *      (Verifiable Intent — SPRINT-PROTOCOLS-TRINITY-001 §11).
+ *
+ * Body (validado con `RefundSchema`):
+ *   - `order_id`: ID interno del pedido
+ *   - `reason`: motivo legible (1-500 chars)
+ *   - `amount?`: si se omite → reembolso TOTAL; si se incluye → parcial
+ *
+ * @see docs/openapi.yaml `/api/acp/v1/refunds`
+ * @security Bearer firmado ed25519 (no el mandate ID en crudo).
+ *           `verifyAcpBearer` valida firma + estado + vigencia.
+ *           Tenant mismatch → 403.
+ * @returns 201 con `{ refund_id, status, amount, currency, order_id, partial }`;
+ *          400 / 401 (token inválido o mandate expirado) /
+ *          404 (pedido no encontrado) / 403 (tenant mismatch) /
+ *          422 (orden no pagada, falta paymentRef, monto > total,
+ *               pasarela no soportada) / 502 (gateway rechazó el reembolso).
+ */
 export async function POST(req: NextRequest) {
   const token = extractBearerToken(req)
   if (!token) {

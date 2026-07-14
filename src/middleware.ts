@@ -23,6 +23,7 @@ const AUTH_SECRET: string = (() => {
 //   /login, /t/[slug]/**, /vendedor/**, /directorio
 //   /api/auth/**, /api/webhooks/**, /api/health/**, /api/public/**
 //   /_next/**, /favicon.ico, /logo.svg, /sitemap.xml, /robots.txt
+//   /docs, /docs/openapi.yaml (ReDoc viewer + spec — no auth, CSP carve-out)
 //
 // EVERYTHING ELSE requires a valid NextAuth JWT.
 //
@@ -45,6 +46,11 @@ const PUBLIC_PATTERNS: Array<RegExp | string> = [
   /^\/privacy(?:\/.*)?$/,
   /^\/terms(?:\/.*)?$/,
   /^\/legal(?:\/.*)?$/,
+  // SPRINT-ADOPT-ERRORHANDLER-001 — age-gate escalation target (Ley 1098
+  // de 2006). The age-gate middleware redirects unauthenticated minors
+  // here mid-checkout. The page itself is static; consent submission goes
+  // through the (auth-protected) /api/compliance/consent endpoint.
+  /^\/compliance\/parental-consent(?:\/.*)?$/,
   /^\/api\/auth(?:\/.*)?$/,
   /^\/api\/webhooks(?:\/.*)?$/,
   /^\/api\/health(?:\/.*)?$/,
@@ -79,6 +85,19 @@ const PUBLIC_PATTERNS: Array<RegExp | string> = [
   // logged in via NextAuth, so the middleware must let these routes through.
   // SPRINT-PROTOCOLS-TRINITY-001.
   '/api/acp/v1',
+  // SPRINT-ADOPT-ERRORHANDLER-001 — retention cleanup cron endpoint.
+  // Authenticated by `Authorization: Bearer $CRON_SECRET` inside the route
+  // handler (NOT NextAuth) so external cron callers (system cron, Vercel
+  // Cron, GitHub Actions) can hit it without a session cookie.
+  '/api/compliance/retention/cron',
+  // SPRINT-DOCS-POLISH-001 · #4 — ReDoc API documentation viewer. Public
+  // (no NextAuth session) so external developers + AI agents can read the
+  // OpenAPI spec without credentials. The HTML page loads ReDoc standalone
+  // from cdn.jsdelivr.net — the CSP carve-out below (`getCspForPath`)
+  // allows that CDN only for /docs (the rest of the app keeps the strict
+  // `'self'`-only script-src). The openapi.yaml route handler returns YAML
+  // with `default-src 'none'` (no script execution possible).
+  '/docs',
   '/_next',
   '/favicon.ico',
   '/logo.svg',
@@ -190,7 +209,7 @@ export async function middleware(req: NextRequest) {
 
   // Public routes pass straight through.
   if (isPublic(path)) {
-    const res = addSecurityHeaders(NextResponse.next())
+    const res = addSecurityHeaders(NextResponse.next(), path)
     if (wantsNoindex) {
       res.headers.set('X-Robots-Tag', 'noindex, follow')
     }
@@ -220,12 +239,13 @@ export async function middleware(req: NextRequest) {
             },
           },
         ),
+        path,
       )
     }
   }
 
   if (token) {
-    const res = addSecurityHeaders(NextResponse.next())
+    const res = addSecurityHeaders(NextResponse.next(), path)
     if (wantsNoindex) {
       res.headers.set('X-Robots-Tag', 'noindex, follow')
     }
@@ -234,12 +254,12 @@ export async function middleware(req: NextRequest) {
 
   // No token → redirect to login (for pages) or 401 JSON (for APIs).
   if (path.startsWith('/api/')) {
-    return addSecurityHeaders(NextResponse.json({ error: 'Unauthorized' }, { status: 401 }))
+    return addSecurityHeaders(NextResponse.json({ error: 'Unauthorized' }, { status: 401 }), path)
   }
 
   const loginUrl = new URL('/login', req.url)
   loginUrl.searchParams.set('callbackUrl', path)
-  const redirectRes = addSecurityHeaders(NextResponse.redirect(loginUrl))
+  const redirectRes = addSecurityHeaders(NextResponse.redirect(loginUrl), path)
   if (wantsNoindex) {
     redirectRes.headers.set('X-Robots-Tag', 'noindex, follow')
   }
@@ -271,16 +291,54 @@ const CSP_HEADER = [
   "form-action 'self'",
 ].join('; ')
 
-function addSecurityHeaders(response: NextResponse) {
+/**
+ * CSP carve-out for the ReDoc documentation viewer at /docs.
+ *
+ * SPRINT-DOCS-POLISH-001 · #4. The HTML page loads ReDoc standalone from
+ * `cdn.jsdelivr.net` (script-src) and ReDoc emits inline styles at runtime
+ * (style-src already allows `'unsafe-inline'`). The openapi.yaml route
+ * returns YAML with the default `default-src 'none'` (overridden below for
+ * non-JSON, non-YAML responses — kept strict).
+ *
+ * Only /docs gets the CDN carve-out — every other route keeps the strict
+ * `'self'`-only script-src. This is the minimum-permissive CSP that still
+ * allows ReDoc to function.
+ */
+const CSP_HEADER_DOCS = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: https:",
+  "font-src 'self' data:",
+  "connect-src 'self'",
+  "frame-ancestors 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+].join('; ')
+
+/**
+ * Picks the per-path CSP. /docs gets the CDN carve-out; everything else
+ * uses the strict `CSP_HEADER`. The YAML route returns `application/yaml`,
+ * which `addSecurityHeaders` overrides with `default-src 'none'` (no
+ * script execution possible from a YAML payload).
+ */
+function getCspForPath(path: string): string {
+  if (path === '/docs' || path.startsWith('/docs/')) {
+    return CSP_HEADER_DOCS
+  }
+  return CSP_HEADER
+}
+
+function addSecurityHeaders(response: NextResponse, path: string = '') {
   response.headers.set('X-Frame-Options', 'DENY')
   response.headers.set('X-Content-Type-Options', 'nosniff')
   response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
   response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
-  response.headers.set('Content-Security-Policy', CSP_HEADER)
+  response.headers.set('Content-Security-Policy', getCspForPath(path))
   // Stricter CSP for JSON responses (defense-in-depth — JSON must never
-  // trigger script/style/img loads). This overrides CSP_HEADER for the
-  // 429 / 401 JSON errors generated inside this middleware.
+  // trigger script/style/img loads). This overrides the path-specific CSP
+  // for the 429 / 401 JSON errors generated inside this middleware.
   if (response.headers.get('content-type')?.includes('application/json')) {
     response.headers.set('Content-Security-Policy', "default-src 'none'")
   }

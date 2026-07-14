@@ -80,6 +80,40 @@ const TENANT_PAYMENT_HANDLERS = [
   'com.payu',
 ]
 
+/**
+ * UCP checkout session start handler.
+ *
+ * Inicia una UCP Checkout Session (Documento §10.1). El agente llega con
+ * su perfil de capacidades + payment handlers soportados; el comercio
+ * calcula la intersección con sus propias capabilities y responde con el
+ * resultado negociado + sessionId para avanzar la máquina de estados.
+ *
+ * Pasos:
+ *   1. Validar body con `CheckoutStartSchema` (cart, capabilities, etc.).
+ *   2. `requireTenantAccess` valida la sesión NextAuth + tenant match.
+ *   3. Negociación: intersectar `agentCapabilities` con `TENANT_CAPABILITIES`
+ *      y `agentPaymentHandlers` con `TENANT_PAYMENT_HANDLERS`.
+ *   4. Si la intersección no incluye `dev.ucp.shopping.checkout` → 422.
+ *   5. Resolver el handler preferido (validar que esté en la intersección).
+ *   6. Crear `UcpCheckoutSession` (state='incomplete', expira en 30 min).
+ *
+ * Body (validado con `CheckoutStartSchema`):
+ *   - `tenantId`, `agentDid`, `intentMandateId?`
+ *   - `cart`: `{ items, totals, shipping? }`
+ *   - `agentCapabilities: string[]` (ej: `["dev.ucp.shopping.checkout"]`)
+ *   - `agentPaymentHandlers: string[]` (ej: `["com.mercadopago", "com.stripe"]`)
+ *   - `paymentHandler?` (preferido)
+ *
+ * @see docs/openapi.yaml `/api/ucp/v1/checkout`
+ * @security Sesión NextAuth (`requireTenantAccess`). El `tenantId` del body
+ *           debe coincidir con el de la sesión salvo platform-admin.
+ * @returns 201 con `{ sessionId, state, negotiatedCapabilities,
+ *          negotiatedPaymentHandlers, paymentHandler, expiresAt, next }`;
+ *          400 (JSON inválido o parámetros inválidos) /
+ *          401 / 403 (tenant mismatch) /
+ *          422 (falta capability `dev.ucp.shopping.checkout`) /
+ *          500 (error interno).
+ */
 export async function POST(req: NextRequest) {
   let raw: unknown
   try {

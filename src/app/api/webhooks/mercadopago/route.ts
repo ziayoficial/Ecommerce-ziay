@@ -20,6 +20,27 @@ import { MercadoPagoAdapter } from '@/lib/adapters/mercadopago'
 import { applyPaymentUpdate, safeAudit } from '@/lib/adapters/payment-webhook-utils'
 import { isDuplicateWebhook, isDuplicateWebhookDB, generateWebhookId } from '@/lib/middleware/idempotency'
 
+/**
+ * MercadoPago webhook handler.
+ *
+ * Recibe notificaciones `payment` y `merchant_order` de MercadoPago (Saramantha §10).
+ * Verifica la firma HMAC (`x-signature: ts=<ts>,v1=<hex>`) con
+ * `MERCADOPAGO_WEBHOOK_SECRET` vía `MercadoPagoAdapter.webhookVerify`.
+ * Tras verificar, llama a la pasarela (`verifyPayment`) para obtener el
+ * estado canónico + `external_reference` (= Order.number) y aplica el
+ * `applyPaymentUpdate` (actualiza `Order.paymentStatus` + crea `OrderEvent`
+ * + dispara el evento CAPI Purchase si la orden pasa a `paid`).
+ *
+ * Idempotencia de 2 capas: in-memory Map (fast path) + DB-backed AuditLog
+ * (multi-instancia) usando el `webhookId` como `entityId` indexado.
+ *
+ * @see https://www.mercado_pago.com/developers/es/docs/checkout-api/webhooks
+ * @security Adapter throws en producción si falta `MERCADOPAGO_WEBHOOK_SECRET` (R3).
+ *           Dev mode: warn + acepta; producción: 500 para alertar al operador.
+ * @returns 200 siempre (ack) para evitar reintentos de MercadoPago;
+ *          `status: 'invalid_signature'` si la firma no verifica;
+ *          `status: 'duplicate'` si ya fue procesado.
+ */
 export async function POST(req: NextRequest) {
   const rawBody = await req.text()
   const signature = req.headers.get('x-signature') ?? ''

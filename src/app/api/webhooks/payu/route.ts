@@ -36,6 +36,30 @@ const PAYU_STATE_POL_MAP: Record<string, string> = {
   '-1': 'ERROR',
 }
 
+/**
+ * PayU webhook handler.
+ *
+ * Recibe confirmaciones de pago de PayU (Saramantha §10). El cuerpo incluye
+ * `reference_sale` (= Order.number), `state_pol` (código numérico) y
+ * `transaction_id`. La firma MD5 puede venir en el header `x-payu-signature`
+ * o dentro del body (campo `sign`); el route acepta ambas y la pasa al
+ * `PayUAdapter.webhookVerify`. Tras verificar, mapea `state_pol` a estado
+ * canónico (4=APPROVED, 6=DECLINED, 5=EXPIRED, 7=PENDING) y aplica
+ * `applyPaymentUpdate` — actualiza `Order.paymentStatus` + crea `OrderEvent`
+ * + dispara el evento CAPI Purchase si la orden pasa a `paid`.
+ *
+ * Idempotencia de 2 capas: in-memory Map (fast path) + DB-backed AuditLog
+ * (multi-instancia) usando el `webhookId` como `entityId` indexado. La firma
+ * se resuelve arriba (header OR body `sign`) para que la key de
+ * idempotencia sea estable sin importar el path de la firma.
+ *
+ * @see https://developers.payulatam.com/latam/es/docs/integrations/webhooks/integration.html
+ * @security Adapter throws en producción si faltan credenciales (R3).
+ *           Dev mode: warn + acepta; producción: 500 para alertar al operador.
+ * @returns 200 siempre (ack) para evitar reintentos de PayU;
+ *          `status: 'invalid_signature'` si la firma no verifica;
+ *          `status: 'duplicate'` si ya fue procesado.
+ */
 export async function POST(req: NextRequest) {
   const rawBody = await req.text()
   const headerSig = req.headers.get('x-payu-signature') ?? ''

@@ -29,6 +29,17 @@ const log = getLogger('webhook:whatsapp')
 //      (fire-and-forget — never blocks the webhook ACK).
 //  10. Mark message as read (best-effort, non-blocking).
 //  11. ALWAYS return 200 — Meta retries on non-200 for ~24h.
+/**
+ * WhatsApp Cloud API webhook — verification handshake (GET).
+ *
+ * Meta envía un GET con `hub.mode=subscribe`, `hub.verify_token` y
+ * `hub.challenge` al configurar el webhook en el App Dashboard. Si el
+ * `verify_token` coincide con `WA_VERIFY_TOKEN` (env var), se devuelve el
+ * `challenge` literal con 200 para completar el handshake.
+ *
+ * @see https://developers.facebook.com/docs/whatsapp/cloud-api/get-started
+ * @returns 200 con el `challenge` si el token verifica; 403 si no coincide.
+ */
 export async function GET(req: NextRequest) {
   const url = req.nextUrl
   const mode = url.searchParams.get('hub.mode')
@@ -41,6 +52,36 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ error: 'forbidden' }, { status: 403 })
 }
 
+/**
+ * WhatsApp Cloud API webhook — inbound messages + status (POST).
+ *
+ * Recibe mensajes entrantes y updates de estado de Meta (estudio §13.1 +
+ * §14.4 CTWA + closed-loop CAPI). Flujo completo (SPRINT-WHATSAPP-FUNCTIONAL-001):
+ *   1. Verificación HMAC-SHA256 (`X-Hub-Signature-256` con `META_APP_SECRET`).
+ *   2. Idempotencia de 2 capas (in-memory + DB-backed AuditLog) + capa 3
+ *      vía `waMessageId` (Meta puede re-enviar el mismo mensaje hasta ~24h).
+ *   3. Parse del inbound con `parseWhatsAppInbound` (text / image / button /
+ *      interactive; extrae CTWA `click_id` para atribución cerrada).
+ *   4. Resolución de tenant + canal vía `phone_number_id` (Channel lookup).
+ *   5. Resolución / creación de Customer por teléfono E.164.
+ *   6. Resolución / creación de Conversation (status=open) en el canal WA.
+ *   7. Persistencia de Message (direction=inbound, waMessageId para dedup).
+ *   8. Stamp CTWA `click_id` en la conversación (atribución cerrada).
+ *   9. Emit `message:new` + `message:received` a chat-service (fire-and-forget).
+ *  10. Marcar mensaje como leído (best-effort, non-blocking).
+ *
+ * @see https://developers.facebook.com/docs/whatsapp/cloud-api/webhooks/components
+ * @security HMAC verificada con `verifyMetaSignature` (timingSafeEqual).
+ *           Producción: 500 si falta `META_APP_SECRET` (forged webhooks
+ *           serían aceptados silenciosamente).
+ *           Dev mode: warn + acepta cualquier firma no vacía.
+ * @returns 200 siempre (ack) para detener los reintentos de Meta (~24h);
+ *          `status: 'invalid_signature'` / `'duplicate'` /
+ *          `'non_message'` (status updates, template callbacks) /
+ *          `'no_channel'` (sin tenant para el `phone_number_id`) /
+ *          `'processed'` (mensaje persistido) /
+ *          `'processing_failed'` (DB error — capturado, ACK 200).
+ */
 export async function POST(req: NextRequest) {
   // ── HMAC verification (Saramantha §10) ───────────────────────────────
   // Meta firma el body con HMAC-SHA256 usando el App Secret y lo envía en

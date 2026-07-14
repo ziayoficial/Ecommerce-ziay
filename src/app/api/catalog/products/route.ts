@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireTenantAccess } from '@/lib/auth-helpers'
 import { withCache } from '@/lib/cache'
-import { captureError } from '@/lib/capture-error'
+import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 import { catalogService } from '@/lib/services'
 
 // GET /api/catalog/products?tenantId=...&q=...
@@ -15,30 +15,26 @@ import { catalogService } from '@/lib/services'
 // FIX-SECURITY-AUTH-001 (#24) — tenantId is verified against the caller's
 // session via requireTenantAccess. Any authed user used to be able to read
 // any tenant's product catalog.
-export async function GET(req: NextRequest) {
-  try {
-    const tenantId = req.nextUrl.searchParams.get('tenantId')
-    if (!tenantId) return NextResponse.json({ error: 'tenantId required' }, { status: 400 })
+//
+// SPRINT-ADOPT-ERRORHANDLER-001 — wrapped with `withErrorHandling` so any
+// unhandled exception is funneled through Sentry + the structured pino
+// logger.
+export const GET = withErrorHandling(async (req: NextRequest) => {
+  const tenantId = req.nextUrl.searchParams.get('tenantId')
+  if (!tenantId) return NextResponse.json({ error: 'tenantId required' }, { status: 400 })
 
-    const { error } = await requireTenantAccess(tenantId)
-    if (error) return error
+  const { error } = await requireTenantAccess(tenantId)
+  if (error) return error
 
-    const q = req.nextUrl.searchParams.get('q') || ''
+  const q = req.nextUrl.searchParams.get('q') || ''
 
-    const payload = await withCache(
-      `catalog:${tenantId}:${q}`,
-      5 * 60_000,
-      () => fetchProducts(tenantId, q),
-    )
-    return NextResponse.json(payload)
-  } catch (err) {
-    captureError(err as Error, { path: '/api/catalog/products', method: 'GET' })
-    return NextResponse.json(
-      { error: 'Internal server error', message: err instanceof Error ? err.message : 'Unknown error' },
-      { status: 500 },
-    )
-  }
-}
+  const payload = await withCache(
+    `catalog:${tenantId}:${q}`,
+    5 * 60_000,
+    () => fetchProducts(tenantId, q),
+  )
+  return NextResponse.json(payload)
+})
 
 async function fetchProducts(tenantId: string, q: string) {
   const products = await catalogService.getProducts(tenantId, q || undefined)

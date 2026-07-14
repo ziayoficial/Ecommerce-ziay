@@ -58,6 +58,40 @@ const PAYMENT_METHOD_TO_HANDLER: Record<string, string> = {
   wompi: 'com.wompi',
 }
 
+/**
+ * ACP checkout initiation handler.
+ *
+ * Flujo de checkout del Agentic Commerce Protocol (Documento §9.1) para
+ * agentes externos tipo ChatGPT / Copilot. El agente llega con un carrito
+ * pre-construido + un `user_auth_token` que ES el ID del AP2 Intent
+ * Mandate firmado por el usuario humano (`{mandateId}.{ed25519(mandateId)}`).
+ *
+ * Pasos:
+ *   1. `verifyAcpBearer` valida la firma ed25519 + estado `active` + vigencia
+ *      del Intent Mandate.
+ *   2. Resuelve los productos por SKU (within tenant del mandate).
+ *   3. Construye el carrito + verifica topes del Intent: `maxAmount` global
+ *      + `categoryLimits` por categoría.
+ *   4. Crea una `UcpCheckoutSession` con `agentDid = agent_id` y devuelve
+ *      la URL de continuación UCP (`/api/ucp/v1/checkout/[sessionId]`).
+ *
+ * Body (validado con `AcpCheckoutSchema`):
+ *   - `agent_id`: DID del agente ACP (ej: `did:web:chatgpt.com`)
+ *   - `items`: array de `{ sku, quantity }`
+ *   - `shipping_address?`: `{ name, address, city, country }`
+ *   - `payment_method`: `'card'` | `'mercadopago'` | `'wompi'`
+ *   - `user_auth_token`: AP2 Intent Mandate ID firmado (Bearer)
+ *
+ * @see docs/openapi.yaml `/api/acp/v1/checkout`
+ * @security Bearer = `{mandateId}.{ed25519(mandateId)}` firmado por el tenant
+ *           (AUDIT-FINAL-SEC-001 V4 — ya NO es el mandate ID en crudo).
+ *           `verifyAcpBearer` valida la firma + estado + vigencia.
+ *           Tenant scoping implícito: el mandate vincula el tenant; solo se
+ *           permiten productos del mismo tenant.
+ * @returns 201 con `{ checkout_id, checkout_url, expires_at, total, currency }`;
+ *          400 / 401 (token inválido o expirado) / 422 (SKUs faltantes /
+ *          topes excedidos) / 500 (error interno).
+ */
 export async function POST(req: NextRequest) {
   let raw: unknown
   try {

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireAuth } from '@/lib/auth-helpers'
 import { db } from '@/lib/db'
-import { captureError } from '@/lib/capture-error'
+import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 import { adsService } from '@/lib/services'
 
 // TD-2: Zod schema for ads PATCH.
@@ -24,13 +24,17 @@ const AdPatchSchema = z.object({
 // verify `campaign.tenantId === session.user.tenantId` before update.
 // Any authed user used to be able to pause/kill/resume any ad of any
 // tenant. Ad has no direct tenantId column — it's scoped via Campaign.
-export async function PATCH(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const { session, error: authErr } = await requireAuth()
-  if (authErr) return authErr
-  try {
+//
+// SPRINT-ADOPT-ERRORHANDLER-001 — wrapped with `withErrorHandling`. The
+// 2nd `ctx` arg is forwarded so dynamic routes can destructure `params`.
+export const PATCH = withErrorHandling(
+  async (
+    req: NextRequest,
+    { params }: { params: Promise<{ id: string }> },
+  ) => {
+    const { session, error: authErr } = await requireAuth()
+    if (authErr) return authErr
+
     const { id } = await params
 
     // Fetch the ad including its campaign's tenantId for the tenant guard.
@@ -85,11 +89,5 @@ export async function PATCH(
     // e.g. POST https://graph.facebook.com/v19.0/{ad_id} { status: PAUSED }
 
     return NextResponse.json({ ad: updated, action })
-  } catch (err) {
-    captureError(err as Error, { path: '/api/ads/[id]', method: 'PATCH' })
-    return NextResponse.json(
-      { error: 'Internal server error', message: err instanceof Error ? err.message : 'Unknown error' },
-      { status: 500 },
-    )
-  }
-}
+  },
+)

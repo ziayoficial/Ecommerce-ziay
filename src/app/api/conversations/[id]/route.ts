@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireAuth } from '@/lib/auth-helpers'
 import { db } from '@/lib/db'
-import { captureError } from '@/lib/capture-error'
+import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 import { conversationService } from '@/lib/services'
 
 // TD-2: Zod schema for conversation PATCH.
@@ -20,6 +20,9 @@ const ConversationPatchSchema = z.object({
 // caller's tenantId matches (or caller is a platform admin with no
 // tenantId) before returning/updating. Mirrors `/api/novedades/[id]`
 // `getCaseOrFail()`.
+//
+// SPRINT-ADOPT-ERRORHANDLER-001 — wrapped with `withErrorHandling`. The
+// 2nd `ctx` arg is forwarded so dynamic routes can destructure `params`.
 
 async function getConversationOrFail(id: string) {
   const { session, error } = await requireAuth()
@@ -52,40 +55,34 @@ async function getConversationOrFail(id: string) {
   return { session, error: null, conv }
 }
 
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const { id } = await params
-  const { error, conv } = await getConversationOrFail(id)
-  if (error) return error
-  if (!conv) return NextResponse.json({ error: 'No conversation' }, { status: 404 })
+export const GET = withErrorHandling(
+  async (
+    _req: NextRequest,
+    { params }: { params: Promise<{ id: string }> },
+  ) => {
+    const { id } = await params
+    const { error, conv } = await getConversationOrFail(id)
+    if (error) return error
+    if (!conv) return NextResponse.json({ error: 'No conversation' }, { status: 404 })
 
-  try {
     // Now safe to call the service method (which clears unread as side-effect).
     const fullConv = await conversationService.getConversationById(id)
     if (!fullConv) return NextResponse.json({ error: 'not found' }, { status: 404 })
 
     return NextResponse.json({ conversation: fullConv })
-  } catch (err) {
-    captureError(err as Error, { path: '/api/conversations/[id]', method: 'GET' })
-    return NextResponse.json(
-      { error: 'Internal server error', message: err instanceof Error ? err.message : 'Unknown error' },
-      { status: 500 },
-    )
-  }
-}
+  },
+)
 
-export async function PATCH(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const { id } = await params
-  const { error, conv } = await getConversationOrFail(id)
-  if (error) return error
-  if (!conv) return NextResponse.json({ error: 'No conversation' }, { status: 404 })
+export const PATCH = withErrorHandling(
+  async (
+    req: NextRequest,
+    { params }: { params: Promise<{ id: string }> },
+  ) => {
+    const { id } = await params
+    const { error, conv } = await getConversationOrFail(id)
+    if (error) return error
+    if (!conv) return NextResponse.json({ error: 'No conversation' }, { status: 404 })
 
-  try {
     const raw = await req.json()
     const parseResult = ConversationPatchSchema.safeParse(raw)
     if (!parseResult.success) {
@@ -105,11 +102,5 @@ export async function PATCH(
       ...(body.assigneeId !== undefined ? { assigneeId: body.assigneeId } : {}),
     })
     return NextResponse.json({ conversation: updated })
-  } catch (err) {
-    captureError(err as Error, { path: '/api/conversations/[id]', method: 'PATCH' })
-    return NextResponse.json(
-      { error: 'Internal server error', message: err instanceof Error ? err.message : 'Unknown error' },
-      { status: 500 },
-    )
-  }
-}
+  },
+)

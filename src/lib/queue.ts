@@ -366,6 +366,45 @@ registerJobHandler('seed-data', async (payload) => {
   log.info({ tenantId: p.tenantId }, 'Seed data job processed')
 })
 
+// ── retention-cleanup ──────────────────────────────────────────────────────
+// SPRINT-ADOPT-ERRORHANDLER-001 — Ley 1581 Art 11 retention policy sweep.
+// Registered as a queue handler so ops can trigger a manual sweep via
+// `enqueue('retention-cleanup', {})` (e.g. from a script or admin shell).
+//
+// Daily scheduling: the BullMQ surface in this file is intentionally
+// minimal — `Queue.add(name, data)` doesn't accept `{ repeat: { cron } }`
+// options, so we can't register a recurring BullMQ job here. Instead, the
+// daily 02:00 sweep is triggered by an external cron calling the HTTP
+// endpoint at `/api/compliance/retention/cron` (see that route for the
+// auth + idempotency contract). This handler is the execution seam the
+// endpoint invokes indirectly via `runRetentionCleanup()`.
+//
+// Idempotent: `runRetentionCleanup` only touches rows strictly older than
+// the retention cutoff — re-running on the same day is a no-op.
+registerJobHandler('retention-cleanup', async () => {
+  const { runRetentionCleanup } = await import('@/lib/compliance/retention')
+  const result = await runRetentionCleanup()
+  log.info(
+    {
+      customersAnonymized: result.customersAnonymized,
+      conversationsDeleted: result.conversationsDeleted,
+      messagesDeleted: result.messagesDeleted,
+      auditLogsArchived: result.auditLogsArchived,
+      consentRecordsDeleted: result.consentRecordsDeleted,
+      decisionLogsDeleted: result.decisionLogsDeleted,
+      durationMs: result.durationMs,
+    },
+    'retention-cleanup job complete',
+  )
+})
+
+// Re-exported so callers can `import { RETENTION_QUEUE_NAME } from '@/lib/queue'`
+// without hard-coding the string. Matches the convention used by other
+// queue consumers (capi-fire, catalog-sync, etc. — those don't export a
+// constant today, but adding one for retention makes future cron-scheduler
+// wiring a one-line change).
+export const RETENTION_QUEUE_NAME = 'retention-cleanup'
+
 // ───────────────────────────────────────────────────────────────────────────
 // CAPI firing helpers
 //

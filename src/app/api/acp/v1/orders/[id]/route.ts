@@ -18,6 +18,31 @@ function extractBearerToken(req: NextRequest): string | null {
   return m ? m[1].trim() : null
 }
 
+/**
+ * ACP order status handler.
+ *
+ * Devuelve el estado del pedido en formato ACP (ChatGPT / Copilot).
+ * Documento §9.1: capability `order_status`.
+ *
+ * Auth: Bearer = `{mandateId}.{ed25519(mandateId)}` firmado por el tenant
+ * (AUDIT-FINAL-SEC-001 V4). `verifyAcpBearer` valida la firma ed25519 +
+ * estado `active` + vigencia. El mandate vincula el tenant; solo se
+ * permite consultar órdenes del mismo tenant (403 si no coincide).
+ *
+ * Mapea el estado interno (Order.status + Order.paymentStatus) al subconjunto
+ * ACP: `created` / `pending_payment` / `preparing` / `shipped` /
+ * `delivered` / `cancelled` / `returned` vía `mapToAcpStatus`. Incluye
+ * `items`, `totals`, `shipping` y `tracking_url` (primera shipment con URL).
+ *
+ * @see docs/openapi.yaml `/api/acp/v1/orders/{id}`
+ * @security Bearer firmado ed25519 (no el mandate ID en crudo).
+ *           `verifyAcpBearer` valida firma + estado + vigencia.
+ *           Tenant mismatch → 403.
+ * @returns 200 con la representación ACP del pedido;
+ *          401 (token inválido o mandate expirado) /
+ *          404 (pedido no encontrado) /
+ *          403 (tenant mismatch) / 500 (error interno).
+ */
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },

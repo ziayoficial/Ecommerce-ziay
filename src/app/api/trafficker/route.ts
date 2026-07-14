@@ -3,9 +3,9 @@ import { z } from 'zod'
 import { requireAuth } from '@/lib/auth-helpers'
 import { verifyTOTP } from '@/lib/totp'
 import { rateLimit } from '@/lib/middleware/rate-limit'
-import { captureError } from '@/lib/capture-error'
 import { getLogger } from '@/lib/logger'
 import { walletService, traffickerService } from '@/lib/services'
+import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 import type { Session } from 'next-auth'
 
 const log = getLogger('api/trafficker')
@@ -102,7 +102,11 @@ const TraffickerBodySchema = z.discriminatedUnion('action', [
 // SPRINT8-SERVICES-REST-001 — migrated the trafficker profile lookup
 // (include campaigns/transactions/compensations) + the sales stats
 // aggregation to `walletService`. Response shape unchanged.
-export async function GET(req: NextRequest) {
+// SPRINT-ADOPT-ERRORHANDLER-001 — wrapped with `withErrorHandling` so any
+// unhandled exception is funneled through Sentry + the structured pino
+// logger. The previous manual `try/catch` boilerplate (captureError +
+// NextResponse.json 500) is now the wrapper's responsibility.
+export const GET = withErrorHandling(async (req: NextRequest) => {
   const { session, error } = await requireAuth()
   if (error) return error
 
@@ -114,50 +118,42 @@ export async function GET(req: NextRequest) {
     )
   }
 
-  try {
-    const trafficker = await traffickerService.getTraffickerProfile(traffickerId)
+  const trafficker = await traffickerService.getTraffickerProfile(traffickerId)
 
-    if (!trafficker) {
-      return NextResponse.json(
-        { error: 'Trafficker not found' },
-        { status: 404 },
-      )
-    }
-
-    // FIX-SECURITY-AUTH-001 (#13) — ownership check. Any authed user used to
-    // be able to read any trafficker's wallet balance / campaigns / sales.
-    // Now restricted to self (email match) or admin/finance.
-    const forbidden = authorizeTraffickerAccess(session, trafficker.email)
-    if (forbidden) return forbidden
-
-    // Aggregate sales stats
-    const { sales, stats: salesStats } = await traffickerService.getSalesStats(traffickerId)
-
-    return NextResponse.json({
-      trafficker: {
-        id: trafficker.id,
-        email: trafficker.email,
-        name: trafficker.name,
-        phone: trafficker.phone,
-        walletBalance: trafficker.walletBalance,
-        status: trafficker.status,
-        createdAt: trafficker.createdAt,
-        updatedAt: trafficker.updatedAt,
-      },
-      campaigns: trafficker.campaigns,
-      transactions: trafficker.transactions,
-      compensations: trafficker.compensations,
-      sales,
-      salesStats,
-    })
-  } catch (err) {
-    captureError(err as Error, { path: '/api/trafficker', method: 'GET' })
+  if (!trafficker) {
     return NextResponse.json(
-      { error: 'Internal server error', message: err instanceof Error ? err.message : 'Unknown error' },
-      { status: 500 },
+      { error: 'Trafficker not found' },
+      { status: 404 },
     )
   }
-}
+
+  // FIX-SECURITY-AUTH-001 (#13) — ownership check. Any authed user used to
+  // be able to read any trafficker's wallet balance / campaigns / sales.
+  // Now restricted to self (email match) or admin/finance.
+  const forbidden = authorizeTraffickerAccess(session, trafficker.email)
+  if (forbidden) return forbidden
+
+  // Aggregate sales stats
+  const { sales, stats: salesStats } = await traffickerService.getSalesStats(traffickerId)
+
+  return NextResponse.json({
+    trafficker: {
+      id: trafficker.id,
+      email: trafficker.email,
+      name: trafficker.name,
+      phone: trafficker.phone,
+      walletBalance: trafficker.walletBalance,
+      status: trafficker.status,
+      createdAt: trafficker.createdAt,
+      updatedAt: trafficker.updatedAt,
+    },
+    campaigns: trafficker.campaigns,
+    transactions: trafficker.transactions,
+    compensations: trafficker.compensations,
+    sales,
+    salesStats,
+  })
+})
 
 // POST /api/trafficker
 // Acciones (body.action):
@@ -172,7 +168,12 @@ export async function GET(req: NextRequest) {
 // TraffickerSale / TraffickerCompensation / TraffickerTransaction /
 // WalletTransaction / WithdrawalRequest read+write to `walletService`.
 // Response shapes unchanged.
-export async function POST(req: NextRequest) {
+// SPRINT-ADOPT-ERRORHANDLER-001 — wrapped with `withErrorHandling`. The
+// inner try/catch around `req.json()` is preserved (returns 400 for invalid
+// JSON — a custom business-rule response). The outer try/catch around the
+// action switch was pure boilerplate (captureError + 500) — now replaced by
+// the wrapper.
+export const POST = withErrorHandling(async (req: NextRequest) => {
   const limited = rateLimit(req, {
     max: 60,
     windowMs: 60_000,
@@ -200,34 +201,26 @@ export async function POST(req: NextRequest) {
   const body = parseResult.data
   const action = body.action
 
-  try {
-    switch (action) {
-      case 'register':
-        return await registerTrafficker(body)
-      case 'create_campaign':
-        return await createCampaign(body)
-      case 'register_sale':
-        return await registerSale(body)
-      case 'confirm_sale':
-        return await confirmSale(body)
-      case 'fail_sale':
-        return await failSale(body)
-      case 'withdraw':
-        return await withdraw(body, session)
-      default:
-        return NextResponse.json(
-          { error: `Unknown action: ${action}` },
-          { status: 400 },
-        )
-    }
-  } catch (err) {
-    captureError(err as Error, { path: '/api/trafficker', method: 'POST', action })
-    return NextResponse.json(
-      { error: 'Internal server error', message: err instanceof Error ? err.message : 'Unknown error' },
-      { status: 500 },
-    )
+  switch (action) {
+    case 'register':
+      return await registerTrafficker(body)
+    case 'create_campaign':
+      return await createCampaign(body)
+    case 'register_sale':
+      return await registerSale(body)
+    case 'confirm_sale':
+      return await confirmSale(body)
+    case 'fail_sale':
+      return await failSale(body)
+    case 'withdraw':
+      return await withdraw(body, session)
+    default:
+      return NextResponse.json(
+        { error: `Unknown action: ${action}` },
+        { status: 400 },
+      )
   }
-}
+})
 
 // ───────────────────────────────────────────────────────────────────────────
 // Action handlers

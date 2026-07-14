@@ -29,6 +29,7 @@ import { rateLimit } from '@/lib/middleware/rate-limit'
 import { captureError } from '@/lib/capture-error'
 import { getLogger } from '@/lib/logger'
 import { walletService, traffickerService } from '@/lib/services'
+import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 
 const log = getLogger('api:wallet')
 
@@ -167,7 +168,11 @@ function computeFee(amount: number) {
 // GET
 // ───────────────────────────────────────────────────────────────────────────
 
-export async function GET(req: NextRequest) {
+// SPRINT-ADOPT-ERRORHANDLER-001 — wrapped with `withErrorHandling` so any
+// unhandled exception is funneled through Sentry + the structured pino
+// logger. The previous manual `try/catch` boilerplate (captureError +
+// NextResponse.json 500) is now the wrapper's responsibility.
+export const GET = withErrorHandling(async (req: NextRequest) => {
   // Rate limit: 20 req/min per IP
   const limited = rateLimit(req, { max: 20, windowMs: 60_000, namespace: 'api:wallet:get' })
   if (limited) return limited
@@ -178,69 +183,66 @@ export async function GET(req: NextRequest) {
 
   const tenantId = req.nextUrl.searchParams.get('tenantId') || undefined
 
-  try {
-    const { transactions, accounts, withdrawals, twoFactor } =
-      await walletService.getWalletDashboard(trafficker.id)
+  const { transactions, accounts, withdrawals, twoFactor } =
+    await walletService.getWalletDashboard(trafficker.id)
 
-    const inbound = transactions
-      .filter(t => t.direction === 'inbound')
-      .reduce((s, t) => s + t.amount, 0)
-    const outbound = transactions
-      .filter(t => t.direction === 'outbound')
-      .reduce((s, t) => s + t.amount, 0)
-    const net = inbound - outbound
-    const commissions = transactions
-      .filter(t => t.type === 'commission')
-      .reduce((s, t) => s + t.amount, 0)
+  const inbound = transactions
+    .filter(t => t.direction === 'inbound')
+    .reduce((s, t) => s + t.amount, 0)
+  const outbound = transactions
+    .filter(t => t.direction === 'outbound')
+    .reduce((s, t) => s + t.amount, 0)
+  const net = inbound - outbound
+  const commissions = transactions
+    .filter(t => t.type === 'commission')
+    .reduce((s, t) => s + t.amount, 0)
 
-    const pendingWithdrawals = withdrawals.filter(w =>
-      ['pending_2fa', 'pending_processing', 'processing'].includes(w.status)
-    )
-    const withdrawalHistory = withdrawals.filter(w =>
-      ['completed', 'rejected'].includes(w.status)
-    )
+  const pendingWithdrawals = withdrawals.filter(w =>
+    ['pending_2fa', 'pending_processing', 'processing'].includes(w.status)
+  )
+  const withdrawalHistory = withdrawals.filter(w =>
+    ['completed', 'rejected'].includes(w.status)
+  )
 
-    return NextResponse.json({
-      trafficker: {
-        id: trafficker.id,
-        name: trafficker.name,
-        email: trafficker.email,
-        phone: trafficker.phone,
-        status: trafficker.status,
-      },
-      balance: trafficker.walletBalance,
-      stats: {
-        inbound,
-        outbound,
-        net,
-        transactions: transactions.length,
-        pending: pendingWithdrawals.length,
-        commissions,
-      },
-      transactions,
-      accounts,
-      pendingWithdrawals,
-      withdrawalHistory,
-      twoFactorEnabled: twoFactor?.enabled ?? false,
-      twoFactor: twoFactor
-        ? { enabled: twoFactor.enabled, enabledAt: twoFactor.enabledAt }
-        : null,
-      tenantId: tenantId || null,
-    })
-  } catch (err) {
-    captureError(err as Error, { path: '/api/wallet', method: 'GET' })
-    return NextResponse.json(
-      { error: 'Internal server error', message: err instanceof Error ? err.message : 'Unknown error' },
-      { status: 500 },
-    )
-  }
-}
+  return NextResponse.json({
+    trafficker: {
+      id: trafficker.id,
+      name: trafficker.name,
+      email: trafficker.email,
+      phone: trafficker.phone,
+      status: trafficker.status,
+    },
+    balance: trafficker.walletBalance,
+    stats: {
+      inbound,
+      outbound,
+      net,
+      transactions: transactions.length,
+      pending: pendingWithdrawals.length,
+      commissions,
+    },
+    transactions,
+    accounts,
+    pendingWithdrawals,
+    withdrawalHistory,
+    twoFactorEnabled: twoFactor?.enabled ?? false,
+    twoFactor: twoFactor
+      ? { enabled: twoFactor.enabled, enabledAt: twoFactor.enabledAt }
+      : null,
+    tenantId: tenantId || null,
+  })
+})
 
 // ───────────────────────────────────────────────────────────────────────────
 // POST — action dispatch
 // ───────────────────────────────────────────────────────────────────────────
 
-export async function POST(req: NextRequest) {
+// SPRINT-ADOPT-ERRORHANDLER-001 — wrapped with `withErrorHandling`. The
+// inner try/catch around `req.json()` is preserved (it returns a 400 for
+// invalid JSON — a custom business-rule response, not boilerplate). The
+// outer try/catch around the action switch was pure boilerplate
+// (captureError + 500) — now replaced by the wrapper.
+export const POST = withErrorHandling(async (req: NextRequest) => {
   // Rate limit: 10 req/min per IP (stricter for POST — financial operations)
   const limited = rateLimit(req, { max: 10, windowMs: 60_000, namespace: 'api:wallet:post' })
   if (limited) return limited
@@ -267,8 +269,7 @@ export async function POST(req: NextRequest) {
   const body = parseResult.data
   const action = body.action
 
-  try {
-    switch (action) {
+  switch (action) {
       // ── 2FA setup: generate secret + otpauth URI for QR display ──────────
       case 'setup_2fa': {
         // If already enabled, refuse to regenerate to avoid breaking an active
@@ -473,15 +474,8 @@ export async function POST(req: NextRequest) {
 
       default:
         return NextResponse.json({ error: `Unknown action: ${action}` }, { status: 400 })
-    }
-  } catch (err) {
-    captureError(err as Error, { path: '/api/wallet', method: 'POST', action })
-    return NextResponse.json(
-      { error: 'Internal server error', message: err instanceof Error ? err.message : 'Unknown error' },
-      { status: 500 },
-    )
   }
-}
+})
 
 // ───────────────────────────────────────────────────────────────────────────
 // Backup-code storage helpers (stored as JSON in a String column).

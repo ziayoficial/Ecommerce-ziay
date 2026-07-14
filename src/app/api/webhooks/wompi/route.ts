@@ -25,6 +25,27 @@ import { WompiAdapter } from '@/lib/adapters/wompi'
 import { applyPaymentUpdate, safeAudit } from '@/lib/adapters/payment-webhook-utils'
 import { isDuplicateWebhook, isDuplicateWebhookDB, generateWebhookId } from '@/lib/middleware/idempotency'
 
+/**
+ * Wompi webhook handler.
+ *
+ * Recibe eventos `transaction.updated` (y otros `transaction.*`) de Wompi
+ * (Saramantha §10). Verifica la firma HMAC (`X-Events-Signature: <hex>`)
+ * con `WOMPI_EVENT_SECRET` vía `WompiAdapter.webhookVerify`. Tras verificar,
+ * usa el estado reportado en `data.transaction.status` (APPROVED / DECLINED
+ * / PENDING) y aplica `applyPaymentUpdate` — actualiza `Order.paymentStatus`
+ * + crea `OrderEvent` + dispara el evento CAPI Purchase si la orden pasa a
+ * `paid`.
+ *
+ * Idempotencia de 2 capas: in-memory Map (fast path) + DB-backed AuditLog
+ * (multi-instancia) usando el `webhookId` como `entityId` indexado.
+ *
+ * @see https://docs.wompi.co/docs/es/webhooks
+ * @security Adapter throws en producción si falta `WOMPI_EVENT_SECRET` (R3).
+ *           Dev mode: warn + acepta; producción: 500 para alertar al operador.
+ * @returns 200 siempre (ack) para evitar reintentos de Wompi;
+ *          `status: 'invalid_signature'` si la firma no verifica;
+ *          `status: 'duplicate'` si ya fue procesado.
+ */
 export async function POST(req: NextRequest) {
   const rawBody = await req.text()
   const signature = req.headers.get('x-events-signature') ?? ''

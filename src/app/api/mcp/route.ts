@@ -190,6 +190,46 @@ const TOOL_DEFINITIONS = [
 // POST handler
 // ───────────────────────────────────────────────────────────────────────────
 
+/**
+ * MCP (Model Context Protocol) JSON-RPC 2.0 transport handler.
+ *
+ * Expone las 4 capabilities UCP como tools invocables por LLMs (Claude,
+ * ChatGPT) vía JSON-RPC 2.0 (Documento §10.1).
+ *
+ * Métodos JSON-RPC soportados:
+ *   - `initialize`         → handshake, protocolVersion, capabilities, serverInfo
+ *   - `tools/list`         → lista las 4 tools con `inputSchema` (JSON Schema)
+ *   - `tools/call`         → ejecuta una tool por nombre (valida sesión + tenant)
+ *
+ * Las 4 tools (matching UCP capabilities):
+ *   1. `ziay_search_catalog`       — busca productos por query
+ *   2. `ziay_create_checkout`      — inicia una UCP checkout session
+ *   3. `ziay_get_order_status`     — consulta el estado de un pedido
+ *   4. `ziay_list_payment_methods` — lista los métodos de pago disponibles
+ *
+ * Auth: el middleware deja pasar `/api/mcp` (PUBLIC_PATTERNS); esta ruta
+ * valida internamente la sesión NextAuth (`requireAuth`) + tenant scoping
+ * (el `tenantId` pasado en cada tool call debe coincidir con el de la
+ * sesión, salvo platform-admin que puede pasar cualquier tenantId).
+ *
+ * Errores JSON-RPC estándar:
+ *   - `-32700` Parse error (JSON inválido)
+ *   - `-32600` Invalid Request (jsonrpc/method/id mal formados)
+ *   - `-32601` Method not found
+ *   - `-32602` Invalid params (Zod falla en los args de la tool)
+ *   - `-32603` Internal error
+ *   - `-32001` Unauthorized (no hay sesión NextAuth)
+ *   - `-32002` Forbidden: tenant mismatch
+ *
+ * @see docs/openapi.yaml `/api/mcp`
+ * @see https://modelcontextprotocol.io/specification
+ * @security Sesión NextAuth (`requireAuth`) validada DENTRO del route
+ *           handler (no en el middleware). Tenant scoping: el `tenantId`
+ *           del body debe coincidir con el de la sesión salvo platform-admin.
+ * @returns 200 siempre (JSON-RPC usa HTTP 200 incluso para errores
+ *          aplicativos); auth errors usan 401 / 403 / 400 / 500 para
+ *          ayudar al cliente MCP a distinguirlos.
+ */
 export async function POST(req: NextRequest) {
   let body: JsonRpcRequest
   try {

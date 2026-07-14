@@ -1,14 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireTenantAccess, requireAuth } from '@/lib/auth-helpers'
 import { rateLimit } from '@/lib/middleware/rate-limit'
-import ZAI from 'z-ai-web-dev-sdk'
 import { db } from '@/lib/db'
 import { buildAgentPrompt, AGENT_NAMES, AGENT_LABELS, AgentName } from '@/lib/agents/prompts'
 import { getLogger } from '@/lib/logger'
+// SPRINT-AI-LLM-ADAPTER-001 — reemplazo de la llamada directa al SDK de ZAI por el
+// adapter pluggable. Resuelve el provider vía `tenant.proveedorIa` y
+// unifica la superficie de llamada para los 4 providers (zai/openai/xai/ollama).
+import { chat, type LLMChatResult } from '@/lib/llm/adapter'
+import { calculateCost, type TokenUsage } from '@/lib/llm/costs'
 // FIX-AI-AGENTS-001 — defensas y validación de salida para los 26 agentes.
 import { parseAgentOutput, hasOutputSchema } from '@/lib/agents/schemas'
 import { wrapUserInput, ANTI_INJECTION_PREFIX } from '@/lib/agents/sanitize'
 import { emitToTenant } from '@/lib/chat-emit'
+// SPRINT-ADOPT-ERRORHANDLER-001 — wrapper funnels unhandled exceptions
+// through Sentry + pino. The inner try/catch around the LLM call is
+// preserved (it implements §A-3 fallback-reply + DecisionLog persistence
+// + low_confidence emit — business logic, not boilerplate).
+import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 
 const log = getLogger('api/agents/[agentName]')
 
@@ -87,14 +96,25 @@ function escalateLowConfidence(params: {
 // Persiste una entrada DecisionLog por cada llamada al agente (éxito o
 // fallback). Best-effort: si la persistencia falla, el agente sigue
 // respondiendo — la llamada principal no debe romper por el log.
+//
+// SPRINT-AI-LLM-ADAPTER-001 §A-6 — ahora persiste también el model,
+// provider, tokens y costo USD de la llamada LLM (cuando el LLM
+// respondió; en fallback no hay usage y los campos quedan en null).
 async function persistDecisionLog(params: {
   tenantId: string
   agentName: string
   conversationId?: string
   ctx: unknown
   result: { reply: string; confidence: number; error?: string }
+  llmData?: {
+    model?: string
+    provider?: string
+    usage?: TokenUsage
+    latencyMs?: number
+  }
 }) {
   try {
+    const usage = params.llmData?.usage
     await db.decisionLog.create({
       data: {
         tenantId: params.tenantId,
@@ -110,6 +130,17 @@ async function persistDecisionLog(params: {
         // para futuras integraciones con modelos con chain-of-thought visible.
         reasoning: null,
         confidence: params.result.confidence,
+        // §A-6: tracking de tokens/costo/latencia (null cuando el LLM
+        // falló antes de responder — no hay usage disponible).
+        model: params.llmData?.model ?? null,
+        provider: params.llmData?.provider ?? null,
+        promptTokens: usage?.promptTokens ?? null,
+        completionTokens: usage?.completionTokens ?? null,
+        totalTokens: usage?.totalTokens ?? null,
+        costUsd: usage
+          ? calculateCost(params.llmData?.provider ?? 'zai', usage)
+          : null,
+        latencyMs: params.llmData?.latencyMs ?? null,
       },
     })
   } catch (err) {
@@ -138,10 +169,17 @@ async function persistDecisionLog(params: {
 // cost + the `vision` agent side-effect writes to `ImageIdentification`
 // on any tenant; the `profile` agent side-effect writes to
 // `Conversation.perfilConversacion` on any tenant).
-export async function POST(
-  req: NextRequest,
-  { params }: { params: Promise<{ agentName: string }> }
-) {
+// SPRINT-ADOPT-ERRORHANDLER-001 — POST wrapped with `withErrorHandling`.
+// The inner try/catch around the LLM call is preserved because its catch
+// block implements §A-3 business logic (fallback reply + DecisionLog
+// persistence + low_confidence emit + 200 response with `confidence: 0.1`),
+// NOT generic 500 boilerplate. Errors thrown BEFORE that try (auth, rate
+// limit, JSON parse, tenant gate, db lookup) bubble to the wrapper → Sentry.
+export const POST = withErrorHandling(
+  async (
+    req: NextRequest,
+    { params }: { params: Promise<{ agentName: string }> },
+  ) => {
   // FIX-REALTIME-WEBHOOKS-001 · P2 — per-route rate limit (10 req/min/IP).
   // Each call hits the LLM API ($0.01–0.10/call); the global 60/min/IP
   // middleware is too generous for an LLM endpoint.
@@ -162,9 +200,24 @@ export async function POST(
   // Persist image identification result for vision agent (after the call)
   // (Done below if agentName === 'vision')
 
+  // SPRINT-AI-LLM-ADAPTER-001 — capturamos el resultado del LLM fuera
+  // del try para que, si una side-effect falla después de una llamada
+  // exitosa, todavía podamos persistir el usage/costo en el catch.
+  let llmResult: LLMChatResult | undefined
+  const startTime = Date.now()
+
   try {
     const { system, user } = await buildAgentPrompt(agentName as AgentName, ctx)
-    const zai = await ZAI.create()
+
+    // SPRINT-AI-LLM-ADAPTER-001 — resolver el provider desde el tenant.
+    // `tenant.proveedorIa` viene del schema Prisma (default 'zai').
+    // Si el tenant no existe (caso edge), dejamos que el adapter use
+    // `LLM_PROVIDER` env var o su default ('zai').
+    const tenant = await db.tenant.findUnique({
+      where: { id: ctx.tenantId },
+      select: { proveedorIa: true },
+    })
+
     // FIX-AI-AGENTS-001 §A-1: el system prompt va con rol `system`
     // (antes iba con rol `assistant` — el modelo lo trataba como una
     // respuesta previa suya y debilitaba los guardrails "Nunca inventes…",
@@ -174,14 +227,29 @@ export async function POST(
     // system prompt (instrucciones anti-inyección en español) y se envuelve
     // el user prompt con `wrapUserInput()` para delimitar el contenido
     // del cliente con <user_message>…</user_message>.
-    const completion = await zai.chat.completions.create({
-      messages: [
-        { role: 'system', content: ANTI_INJECTION_PREFIX + system },
-        { role: 'user', content: wrapUserInput(user) },
-      ],
-      thinking: { type: 'disabled' },
-    })
-    const reply = completion.choices[0]?.message?.content?.trim() || ''
+    //
+    // SPRINT-AI-LLM-ADAPTER-001 §A-3 (timeout): Promise.race con un
+    // timeout de 15s. Si el LLM no responde a tiempo, se rechaza la
+    // promesa y cae al catch (fallback deterministic por agente).
+    // El adapter no soporta `signal` nativamente (cubre 4 providers con
+    // APIs muy distintas), por eso usamos Promise.race en lugar de
+    // AbortController.
+    llmResult = await Promise.race([
+      chat(
+        [
+          { role: 'system', content: ANTI_INJECTION_PREFIX + system },
+          { role: 'user', content: wrapUserInput(user) },
+        ],
+        {
+          provider: tenant?.proveedorIa,
+          thinking: 'disabled',
+        },
+      ),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('LLM timeout (15s)')), 15_000),
+      ),
+    ])
+    const reply = llmResult.content.trim() || ''
 
     // FIX-AI-AGENTS-001 §A-2: validar la salida contra el esquema Zod
     // del agente (si existe). 11 agentes tienen esquema; los 15 restantes
@@ -240,12 +308,20 @@ export async function POST(
     }
 
     // SPRINT-GOVERNANCE-001 — pilar #4: persistir la decisión del agente.
+    // SPRINT-AI-LLM-ADAPTER-001 §A-6: persistimos también model/provider/
+    // tokens/costo/latencia desde el resultado del adapter.
     await persistDecisionLog({
       tenantId: ctx.tenantId,
       agentName,
       conversationId: ctx.conversationId,
       ctx,
       result: { reply: finalReply, confidence },
+      llmData: {
+        model: llmResult.model,
+        provider: llmResult.provider,
+        usage: llmResult.usage,
+        latencyMs: Date.now() - startTime,
+      },
     })
 
     // FIX-AI-AGENTS-001 §A-3: auto-escalación si confidence < 0.6.
@@ -268,16 +344,27 @@ export async function POST(
     // FIX-AI-AGENTS-001 §A-3: la llamada LLM falló completamente → 0.1
     // (antes era 0.3 — pero 0.3 implica "teníamos un fallback y lo usamos",
     // mientras que 0.1 implica "nunca llegamos a tener output del modelo").
+    // SPRINT-AI-LLM-ADAPTER-001 §A-3: incluye el caso de timeout (15s).
     const confidence = 0.1
 
     // SPRINT-GOVERNANCE-001 — pilar #4: persistir incluso los fallbacks
     // (la trazabilidad cubre los casos de error del agente).
+    // Si el LLM respondió pero una side-effect falló, persistimos el
+    // usage; si el LLM no respondió (timeout/error), usage queda en null.
     await persistDecisionLog({
       tenantId: ctx.tenantId,
       agentName,
       conversationId: ctx.conversationId,
       ctx,
       result: { reply: fallbackReply, confidence, error: message },
+      llmData: llmResult
+        ? {
+            model: llmResult.model,
+            provider: llmResult.provider,
+            usage: llmResult.usage,
+            latencyMs: Date.now() - startTime,
+          }
+        : undefined,
     })
 
     // §A-3 auto-escalación: 0.1 < 0.6 → emitir evento.
@@ -292,13 +379,14 @@ export async function POST(
 
     return NextResponse.json({ reply: fallbackReply, agent: agentName, confidence, error: message })
   }
-}
+  },
+)
 
 // GET — list available agents with their labels
-export async function GET() {
+export const GET = withErrorHandling(async () => {
   const { error } = await requireAuth()
   if (error) return error
   return NextResponse.json({
     agents: AGENT_NAMES.map(name => ({ name, label: AGENT_LABELS[name] })),
   })
-}
+})

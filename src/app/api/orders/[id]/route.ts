@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireAuth } from '@/lib/auth-helpers'
 import { orderService } from '@/lib/services'
-import { captureError } from '@/lib/capture-error'
+import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 
 // TD-2: Zod schema for order PATCH. All fields optional (only those present
 // are applied). `.passthrough()` so unknown keys (e.g. future `note` variants)
@@ -32,13 +32,17 @@ const OrderPatchSchema = z.object({
 // update. `orderService.updateOrder` does NOT inject tenantId into the
 // where clause (per the service's own comment), so the route must enforce
 // the tenant guard. Mirrors `/api/novedades/[id]` `getCaseOrFail()`.
-export async function PATCH(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const { session, error: authErr } = await requireAuth()
-  if (authErr) return authErr
-  try {
+//
+// SPRINT-ADOPT-ERRORHANDLER-001 — wrapped with `withErrorHandling`. The
+// 2nd `ctx` arg is forwarded so dynamic routes can destructure `params`.
+export const PATCH = withErrorHandling(
+  async (
+    req: NextRequest,
+    { params }: { params: Promise<{ id: string }> },
+  ) => {
+    const { session, error: authErr } = await requireAuth()
+    if (authErr) return authErr
+
     const { id } = await params
 
     // Fetch the order's tenantId first (lightweight select) and verify.
@@ -74,11 +78,5 @@ export async function PATCH(
       ? { type: body.event as string, note: body.note as string | undefined }
       : undefined)
     return NextResponse.json({ order: updated })
-  } catch (err) {
-    captureError(err as Error, { path: '/api/orders/[id]', method: 'PATCH' })
-    return NextResponse.json(
-      { error: 'Internal server error', message: err instanceof Error ? err.message : 'Unknown error' },
-      { status: 500 },
-    )
-  }
-}
+  },
+)

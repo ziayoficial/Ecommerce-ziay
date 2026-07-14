@@ -1,0 +1,202 @@
+  5990→Task ID: FIX-SECURITY-AUTH-001
+  5991→Agent: senior-security-engineer
+  5992→Task: Cross-tenant auth bypass fix on 19 routes + TOTP verification + payments/config tenant scope
+  5993→
+  5994→Work Log:
+  5995→
+  5996→**Fix 1 — /api/trafficker POST `withdraw` action (P0, financial theft):**
+  5997→- Imported `verifyTOTP` from `@/lib/totp` and `Session` type from `next-auth`.
+  5998→- Added `authorizeTraffickerAccess(session, traffickerEmail)` helper that returns a 403 NextResponse when the caller is neither the trafficker (case-insensitive email match) nor an admin/finance operator; null otherwise.
+  5999→- `withdraw()` now takes `session: Session | null` (passed in from POST dispatcher) and:
+  6000→  1. Fetches the trafficker via `traffickerService.getTraffickerById(traffickerId)`.
+  6001→  2. Calls `authorizeTraffickerAccess` — 403 if forbidden (ownership check, audit #13).
+  6002→  3. Looks up `walletService.getTwoFactorConfig(traffickerId)` (TwoFactorConfig row includes the AES-256-GCM encrypted `secret` + `enabled` flag).
+  6003→  4. If `cfg?.enabled` is true:
+  6004→     - missing `totpCode` → 400 `{ error: 'Código 2FA requerido' }`
+  6005→     - `verifyTOTP(String(totpCode), cfg.secret)` returns false → 400 `{ error: 'Código 2FA inválido' }`
+  6006→     - else `totpVerified = true`
+  6007→  5. If 2FA not enabled → `totpVerified = false` (withdrawal stays `pending_2fa` until admin processes via `/api/wallet action=process_withdrawal`).
+  6008→  - Replaced the vulnerable `totpVerified = !!totpCode` line (route.ts:357).
+  6009→
+  6010→**Fix 4 — /api/trafficker GET ownership check (P1, financial):**
+  6011→- `GET` now destructures `session` from `requireAuth()` and calls `authorizeTraffickerAccess(session, trafficker.email)` after the profile is fetched — 403 for non-self / non-admin-finance callers.
+  6012→- POST dispatcher also destructures `session` so it can be passed to `withdraw()`.
+  6013→
+  6014→**Fix 5 — /api/wallet POST `process_withdrawal` role check (P1, financial):**
+  6015→- POST handler now destructures `session` from `resolveTrafficker(req)`.
+  6016→- Inside the `process_withdrawal` case, added a role gate: `if (session?.user?.role !== 'admin' && session?.user?.role !== 'finance') return 403 { error: 'Forbidden: admin/finance only' }` — runs BEFORE the withdrawal lookup, so non-admin callers can't even probe for valid withdrawalIds.
+  6017→
+  6018→**Fix 3 — /api/payments/config (P0 #1, #2 — credential leak + tampering):**
+  6019→- Re-wrote the entire route. Both GET and PATCH now:
+  6020→  1. Read `tenantId` from `session.user.tenantId` (not from query/body — the route never had one).
+  6021→  2. Return `{ channels: [], global: {} }` (GET) or 403 (PATCH) for platform admins with no tenantId — no global "all tenants" view through this route.
+  6022→- GET: `db.channel.findMany({ where: { tenantId } })`; `db.setting.findMany()` results filtered to drop `cred::*` rows entirely (those are managed by `/api/integrations/credentials`). Added `maskIfCredential()` belt-and-suspenders guard.
+  6023→- PATCH: Fetches the channel by `channelId` first, verifies `existing.tenantId === tenantId` (403 on mismatch, 404 if not found) BEFORE update — previously any authed user could mutate any channel by id (including `whatsappToken`, `pageAccessToken`, `appSecret`).
+  6024→- PATCH `fields.global` whitelist: only `roas_kill_threshold` and `cpa_target` keys are accepted. Any `cred::*` key in `fields.global` returns 400. Unknown non-cred keys silently dropped (defense-in-depth, preserves API shape for valid requests).
+  6025→
+  6026→**Fix 2a — tenantId-based routes (15 routes):**
+  6027→Added a new helper `resolveTenantId(tenantIdParam)` to `src/lib/auth-helpers.ts` that returns `{ session, tenantId, error }`:
+  6028→- tenant users → pinned to their own tenantId; passing a different one → 403
+  6029→- platform admins (no tenantId on session) → honour the param or fall through to `undefined` ("all tenants" legacy view)
+  6030→
+  6031→Applied to:
+  6032→1. `/api/overview/route.ts` GET — `resolveTenantId(query.tenantId)` instead of `requireAuth()`.
+  6033→2. `/api/orders/route.ts` GET — `resolveTenantId`.
+  6034→3. `/api/conversations/route.ts` GET — `resolveTenantId`. POST — rewrote: fetch conversation by id first, `requireTenantAccess(conv.tenantId)`, then create the message with `tenantId: conv.tenantId` (killed the hardcoded `'ten-saramantha'` fallback, audit #42).
+  6035→4. `/api/ads/route.ts` GET — `resolveTenantId`. Also filtered the inline `db.setting.findMany()` to drop `cred::*` rows before building the `cfg` object (defense-in-depth against #1/#3).
+  6036→5. `/api/ads/import/route.ts` POST — `requireTenantAccess(tenantId)` after schema validation; runs before any external adapter call.
+  6037→6. `/api/catalog/products/route.ts` GET — `requireTenantAccess(tenantId)` after the existing 400 check.
+  6038→7. `/api/catalog/sync/route.ts` POST — `requireTenantAccess(tenantId)` after the 400 check, before the tenant existence lookup + queue enqueue.
+  6039→8. `/api/catalog/send-to-chat/route.ts` POST — `requireTenantAccess(tenantId)` after the 400 check, before the service call.
+  6040→9. `/api/shipping/quote/route.ts` POST — `requireTenantAccess(tenantId)` after the 400 check, before the external adapter call.
+  6041→10. `/api/shipping/guide/route.ts` POST — `requireTenantAccess(tenantId)` after the 400 check, before the order fetch.
+  6042→11. `/api/monetization/gmv/route.ts` GET — `requireTenantAccess(tenantId)` after the 400 check.
+  6043→12. `/api/monetization/generate-invoice/route.ts` POST — `requireTenantAccess(tenantId)` after the 400 check, before the invoice upsert.
+  6044→13. `/api/orchestrate/route.ts` POST — `requireTenantAccess(tenantId)` after the action validation, before any LLM call.
+  6045→14. `/api/agents/[agentName]/route.ts` POST — `requireTenantAccess(ctx.tenantId)` after the existing 400 check, before the LLM call. (GET handler kept on `requireAuth()` — it returns global agent metadata, no tenant scope.)
+  6046→
+  6047→**Fix 2b — resource-ID routes (5 routes):**
+  6048→15. `/api/ai-reply/route.ts` POST — fetch conversation first, `requireTenantAccess(conv.tenantId)` before the LLM call. Also narrowed `db.product.findMany` to `where: { active: true, tenantId: conv.tenantId }` so the LLM context only includes this tenant's products.
+  6049→16. `/api/orders/[id]/route.ts` PATCH — `requireAuth()` → destructure `session`, fetch `orderService.getOrderById(id)`, 404 if not found, 403 if `session.user.tenantId !== order.tenantId` (and caller is not a platform admin with no tenantId), then call `updateOrder`. Mirrors the `/api/novedades/[id]` `getCaseOrFail()` pattern.
+  6050→17. `/api/conversations/[id]/route.ts` GET + PATCH — added `getConversationOrFail(id)` helper that does `requireAuth()` + `db.conversation.findUnique({ select: { id, tenantId } })` + tenant guard (404 / 403). Used a direct `db.conversation.findUnique` (not `conversationService.getConversationById`) for the guard because the service method clears the unread badge as a side-effect, which we don't want firing before the tenant check passes. After the guard, GET calls the service method (clearing unread now safe); PATCH calls `conversationService.updateStatus`.
+  6051→18. `/api/ads/[id]/route.ts` PATCH — `requireAuth()` → destructure `session`, fetch `db.ad.findUnique({ select: { id, campaign: { select: { tenantId } } } })` (Ad has no direct tenantId column — it's scoped via Campaign), 404 if not found, 403 if `session.user.tenantId !== ad.campaign.tenantId`. Then proceeds to `adsService.updateAd`.
+  6052→19. `/api/channels/route.ts` GET + POST + PATCH + DELETE — all four methods now enforce tenant access:
+  6053→    - GET: requires `tenantId` in query (400 if missing); `requireTenantAccess(tenantId)`; `db.channel.findMany({ where: { tenantId } })`.
+  6054→    - POST: `requireTenantAccess(body.tenantId)` before the channel create.
+  6055→    - PATCH: `requireAuth()` + fetch channel by `channelId` + verify `existing.tenantId === session.user.tenantId` (403 on mismatch) before update.
+  6056→    - DELETE: `requireAuth()` + fetch channel by `channelId` + verify tenant before soft-delete.
+  6057→
+  6058→**Auth-helpers.ts addition:**
+  6059→- Added `resolveTenantId(tenantIdParam)` helper for routes where `tenantId` is optional (overview/orders/conversations GET/ads GET). Tenant users are pinned to their own tenantId (cross-tenant attempts → 403); platform admins can pass any tenantId or omit it for the legacy "all tenants" view (only reachable by platform admins because tenant users always have a tenantId on their session).
+  6060→
+  6061→Stage Summary:
+  6062→
+  6063→**Files modified (20):**
+  6064→- `src/lib/auth-helpers.ts` — added `resolveTenantId` helper.
+  6065→- `src/app/api/trafficker/route.ts` — TOTP verification + ownership check on GET + withdraw (P0 #5, P1 #13).
+  6066→- `src/app/api/wallet/route.ts` — process_withdrawal role gate (P1 #14).
+  6067→- `src/app/api/payments/config/route.ts` — full rewrite for tenant scope + cred masking + PATCH whitelist (P0 #1, #2).
+  6068→- `src/app/api/overview/route.ts` — `resolveTenantId` (P2 #28).
+  6069→- `src/app/api/orders/route.ts` — `resolveTenantId` (P1 #9).
+  6070→- `src/app/api/conversations/route.ts` — `resolveTenantId` on GET + fetch-then-`requireTenantAccess` on POST (P1 #10, P0 #4, P3 #42).
+  6071→- `src/app/api/ads/route.ts` — `resolveTenantId` + drop `cred::*` from cfg (P2 #31).
+  6072→- `src/app/api/ads/import/route.ts` — `requireTenantAccess` (P2 #32).
+  6073→- `src/app/api/catalog/products/route.ts` — `requireTenantAccess` (P2 #24).
+  6074→- `src/app/api/catalog/sync/route.ts` — `requireTenantAccess` (P2 #25).
+  6075→- `src/app/api/catalog/send-to-chat/route.ts` — `requireTenantAccess` (P2 #33).
+  6076→- `src/app/api/shipping/quote/route.ts` — `requireTenantAccess` (P2 #26).
+  6077→- `src/app/api/shipping/guide/route.ts` — `requireTenantAccess` (P2 #26).
+  6078→- `src/app/api/monetization/gmv/route.ts` — `requireTenantAccess` (P2 #27).
+  6079→- `src/app/api/monetization/generate-invoice/route.ts` — `requireTenantAccess` (P1 #20).
+  6080→- `src/app/api/orchestrate/route.ts` — `requireTenantAccess` (P2 #29).
+  6081→- `src/app/api/agents/[agentName]/route.ts` — `requireTenantAccess(ctx.tenantId)` on POST (P2 #30).
+  6082→- `src/app/api/ai-reply/route.ts` — fetch conv + `requireTenantAccess(conv.tenantId)` + tenant-scoped catalog (P1 #11).
+  6083→- `src/app/api/orders/[id]/route.ts` — fetch order + tenant guard (P1 #8).
+  6084→- `src/app/api/conversations/[id]/route.ts` — `getConversationOrFail` helper for GET + PATCH (P1 #7).
+  6085→- `src/app/api/ads/[id]/route.ts` — fetch ad (with campaign → tenant) + tenant guard (P1 #15).
+  6086→- `src/app/api/channels/route.ts` — all 4 methods tenant-gated (P1 #12).
+  6087→
+  6088→**Verification results:**
+  6089→- `npx tsc --noEmit` → exit 0 (clean typecheck).
+  6090→- `bun run lint` → exit 0 (no eslint errors).
+  6091→- `bunx vitest run` → 180/180 tests pass (10 test files, 0 failures).
+  6092→- `rg "requireAuth\(\)" src/app/api/ --type ts | wc -l` = 24 lines, of which:
+  6093→  - 14 are real `requireAuth()` calls — all on routes that either (a) do their own tenant guard immediately after (channels PATCH/DELETE, conversations/[id], orders/[id], novedades/[id], ads/[id], trafficker GET + POST, payments/config GET + PATCH, wallet POST), or (b) are intentionally global (tenants list, agents list ×2, base /api health check), or (c) are out of scope for this task (`/api/integrations/credentials` is P0 #3 — separate task per worklog; `/api/monetization/commission` was not flagged by the audit).
+  6094→  - 3 are inside code comments.
+  6095→  - The remaining lines are import statements / helper-internal calls.
+  6096→
+  6097→**Notes / out-of-scope items the next task should pick up:**
+  6098→- `/api/integrations/credentials` (P0 #3) — still uses `requireAuth()` and returns masked credentials across ALL tenants. The `Setting` model has no `tenantId` column (per audit) so a proper fix requires a Prisma migration (out of scope per task rules: "DO NOT modify prisma/schema.prisma").
+  6099→- `/api/monetization/commission` (GET + POST) — same insecure pattern as the 19 routes fixed here but not flagged in the audit. Should be patched in a follow-up (GET: `requireTenantAccess(query.tenantId)`; POST: fetch order → verify tenant → upsert).
+  6100→- TOTP rate-limiting — the `withdraw` action is rate-limited via the route's existing 60 req/min cap, but a tighter per-trafficker TOTP-attempt limiter would prevent brute-forcing the 6-digit code (10^6 / 30s window = ~33k attempts needed at 1 window; with rate-limit this becomes impractical, but a per-trafficker 5-attempts-per-5-min lockout would be a strong defense-in-depth).
+  6101→- Backup-code verification path — `verifyBackupCode` exists in `@/lib/totp` but the `withdraw` handler doesn't accept backup codes yet. If a trafficker loses their authenticator, the only path today is admin/finance processing the withdrawal as `pending_2fa` (which is correct — backup codes are an admin-recovery concern, not a self-service one).
+  6102→
+  6103→---
+  6104→Task ID: FIX-REALTIME-WEBHOOKS-001
+  6105→Agent: senior-realtime-engineer
+  6106→Task: Socket.io auth + tenant isolation + webhook dev-mode strict + health 503 + AI rate limits
+  6107→
+  6108→Work Log:
+  6109→- Read worklog tail (lines 5695–5845) for context — prior AUDIT-OBSERVABILITY-REALTIME-001 found 6 P0/P1/P2 real-time issues (R1 io.emit broadcast, R2 no socket auth, R3 dev-mode signature acceptance, R4 in-memory-only idempotency, O3 health 200-on-error, P2 AI endpoints no per-route rate limit). Baseline confirmed: `bun run lint` exit 0, `npx tsc --noEmit` exit 0, `bunx vitest run` 180/180 passing. No idempotency/webhookVerify tests exist (safe to refactor).
+  6110→- **R1 + R2 — Socket.io auth + tenant isolation (server):** Rewrote `mini-services/chat-service/index.ts`. Added `io.use()` JWT verification middleware that reads the token from EITHER `socket.handshake.auth.token` (explicit, native clients) OR `socket.handshake.headers.cookie` (httpOnly NextAuth session cookie auto-sent by the browser via `withCredentials: true`). The JWT is verified with HS256 using Node's `crypto` module (no new dep added — chat-service package.json stays `socket.io`-only). Signature comparison uses `crypto.timingSafeEqual` to avoid timing side-channels. In production the middleware rejects connections when `NEXTAUTH_SECRET` is missing (mirrors `src/lib/auth.ts` strictness); in dev it logs a warning and tags the socket with a `dev` tenant so a fresh checkout can still demo. Each verified socket is joined to room `tenant:<tenantId>`. Replaced ALL `io.emit(...)` calls with `io.to(\`tenant:${tenantRoom}\`).emit(...)` — confirmed via `rg "io\.emit\b" mini-services/` returning exit 1 (0 matches). `socket.broadcast.emit('agent:typing')` became `socket.to(tenantRoom).emit('agent:typing')` (tenant-scoped, excludes sender). Tightened CORS: `cors: { origin: CHAT_CORS_ORIGIN || CORS_ORIGIN || ['http://localhost:3000', 'http://localhost', 'http://localhost:81'], methods: ['GET', 'POST'], credentials: true }` (no more `'*'`). Also added a lightweight `/health` GET endpoint so the docker-compose healthcheck (`wget --spider http://localhost:3003/health`) actually gets a 200 instead of a 404. Smoke-tested via `bun mini-services/chat-service/index.ts` — boots, parses, hits EADDRINUSE (3003 already bound by the dev server), graceful shutdown handler runs cleanly. Bun build: 60 modules bundled in 24ms.
+  6111→- **R1 + R2 — Socket.io client:** Updated `src/lib/socket.ts`. Added `withCredentials: true` (correct socket.io-client option name — `credentials` doesn't exist in `ManagerOptions`, caught by tsc on first run). Added optional `token` arg for non-browser clients (passed as `auth.token`). Added `connect_error` listener that logs auth-related errors so the UI can surface a re-login prompt instead of silently retrying forever. Tears down any half-open socket from a previous failed attempt before creating a new one.
+  6112→- **R3 — Webhook dev-mode strict (4 adapters + 2 webhook routes):** Replaced the `return signature.length > 0` fallback in `mercadopago.ts` (line 211), `stripe.ts` (line 237), `wompi.ts` (line 197), `payu.ts` (line 282) with: `if (process.env.NODE_ENV === 'production') throw new Error('...')` + `console.warn` in dev + `return true`. Same pattern for `whatsapp/route.ts` (line 31) and `meta/route.ts` (line 30) — they return a 500 with `{ error: 'Webhook secret not configured' }` and audit-log `webhook.{wa,meta}.no_secret` before reaching the `signature.length > 0` fallback. Wrapped each payment webhook route's `adapter.webhookVerify()` call in try/catch so the thrown error becomes a clean 500 + `webhook.<gateway>.config_error` audit row (rather than propagating to Next.js's default 500 handler). The 500 (instead of ACK 200) is deliberate — it triggers gateway retries that alert the operator via monitoring. Dev-mode still accepts any non-empty signature so local testing without secrets continues to work.
+  6113→- **R4 + R12 — Idempotency hash collision + multi-instance safety:** Replaced the djb2 32-bit hash in `src/lib/middleware/idempotency.ts` (collision-prone at high webhook volume — birthday bound ~65k events) with `crypto.createHash('sha256').update(body + signature).digest('hex')`. Output is `wh_<64 hex chars>` (suitable for `AuditLog.entityId`). Added new `isDuplicateWebhookDB(actionPrefix, webhookId)` async helper that queries `db.auditLog.findFirst({ where: { entityId: webhookId, action: { startsWith: actionPrefix }, createdAt: { gte: now - 10min } } })` — works across instances because all share the DB. Returns `false` on DB error (webhook never 500s just because the dedup check failed — falls back to in-memory Map). Extended `safeAudit(action, entity, meta, entityId?)` in `payment-webhook-utils.ts` with an optional 4th `entityId` param (backward-compatible — existing 3-arg callers still work). Updated all 6 webhook routes (stripe, mercadopago, wompi, payu, whatsapp, meta) to: (1) check the in-memory Map (fast path), (2) check the DB (durable), (3) pass `webhookId` as `entityId` to `safeAudit` so the next retry from ANY instance finds it. The in-memory Map is warmed on DB-hit so the next in-process retry is fast-pathed.
+  6114→- **O3 — Health endpoint 503 on error:** `src/app/api/health/route.ts` GET now returns `503` when `status === 'error'` (DB down, Redis down with `REDIS_URL` set, disk <10% free). `warning` (slow DB, low disk) still returns 200 — the app is serving traffic, just degraded. Load balancers and uptime monitors can now drain on 503.
+  6115→- **P2 — Per-route rate limits on AI endpoints:** Added `rateLimit(req, { max: 10, windowMs: 60_000, namespace: 'api:ai-reply' })` to `/api/ai-reply`, `max: 10, namespace: 'api:agents'` to `/api/agents/[agentName]`, and `max: 5, namespace: 'api:orchestrate'` to `/api/orchestrate` (lower because `action='full'` runs 9 LLM calls per request). Each is the first statement in the POST handler — before any DB query or LLM call. The global 60/min/IP middleware remains as a backstop.
+  6116→
+  6117→Stage Summary:
+  6118→
+  6119→### Files modified (10)
+  6120→- `mini-services/chat-service/index.ts` — JWT auth middleware (HS256 via `crypto`), tenant room join, all `io.emit` → `io.to(tenant:<id>)`, tightened CORS, added `/health` endpoint.
+  6121→- `src/lib/socket.ts` — `withCredentials: true`, optional `auth.token`, `connect_error` listener.
+  6122→- `src/lib/adapters/mercadopago.ts` — `webhookVerify` dev-mode strict (throw in prod, warn+allow in dev).
+  6123→- `src/lib/adapters/stripe.ts` — same.
+  6124→- `src/lib/adapters/wompi.ts` — same.
+  6125→- `src/lib/adapters/payu.ts` — same.
+  6126→- `src/lib/middleware/idempotency.ts` — djb2 → sha256, added `isDuplicateWebhookDB(actionPrefix, webhookId)` async helper.
+  6127→- `src/lib/adapters/payment-webhook-utils.ts` — extended `safeAudit` with optional `entityId` param (backward-compatible).
+  6128→- `src/app/api/webhooks/{stripe,mercadopago,wompi,payu}/route.ts` — try/catch around `webhookVerify` (500 on config error), 2-layer idempotency (in-memory + DB), pass `webhookId` as `entityId` to `safeAudit`.
+  6129→- `src/app/api/webhooks/{whatsapp,meta}/route.ts` — dev-mode strict (500 + audit `no_secret` in prod, warn+allow in dev), 2-layer idempotency, pass `entityId` to `db.auditLog.create`.
+  6130→- `src/app/api/health/route.ts` — return 503 when `status === 'error'`.
+  6131→- `src/app/api/ai-reply/route.ts`, `src/app/api/orchestrate/route.ts`, `src/app/api/agents/[agentName]/route.ts` — per-route rate limits (10/10/5 per min per IP).
+  6132→
+  6133→### Verification results
+  6134→- `bun run lint` → exit 0 ✓
+  6135→- `npx tsc --noEmit` → exit 0 ✓ (initially failed on `credentials` not in ManagerOptions — fixed by using the correct socket.io-client option `withCredentials`)
+  6136→- `bunx vitest run` → 180/180 passing ✓ (10 test files)
+  6137→- `rg "io\.emit\b" mini-services/` → exit 1 (0 matches) ✓ — all replaced with `io.to(...)`
+  6138→- `rg "process.env.NODE_ENV === 'production'" src/lib/adapters/ src/app/api/webhooks/` → 6 hits (one per webhook verification path) ✓
+  6139→- Chat-service smoke test: `bun mini-services/chat-service/index.ts` parses + boots, hits EADDRINUSE (port 3003 already bound by dev server), graceful shutdown handler runs cleanly. `bun build` succeeds (60 modules, 24ms). No new deps added to chat-service (still `socket.io`-only).
+  6140→- `safeAudit` backward compatibility: existing 3-arg callers continue to work (`entityId` defaults to `undefined`, Prisma writes `null`).
+  6141→
+  6142→### Notes / out-of-scope follow-ups
+  6143→- **No `/api/auth/socket-token` endpoint added** — the cookie-based auth path (`withCredentials: true` + httpOnly NextAuth session cookie auto-sent via Caddy same-origin proxy) handles the browser use case without an extra round-trip. The `auth.token` path is supported for future native/mobile clients; they'd fetch a token from a yet-to-be-built `/api/auth/socket-token` endpoint (not required by the task scope).
+  6144→- **Idempotency in production multi-instance** — the DB-backed `isDuplicateWebhookDB` is durable across instances, but it adds 1 DB round-trip per webhook. For very high-throughput deployments, swap the in-memory Map for `redisSet('idem:'+id, 1, 300)` (the `isDuplicateWebhook()` API stays the same — documented in the file header). The DB check remains as a durable fallback.
+  6145→- **`src/app/api/wallet/route.ts`** has 2 pre-existing tsc errors (`Cannot find name 'session'`) at line 400 — out of scope (was already failing before this task; left untouched).
+  6146→
+  6147→---
+  6148→Task ID: AUDIT-AGENTIC-PROTOCOLS-001
+  6149→Agent: senior-architect
+  6150→Task: Audit project against Comercio Agéntico study (AP2/UCP/ACP protocols, governance, regulatory, CAPI)
+  6151→
+  6152→Work Log:
+  6153→- Read worklog tail (lines 6045–6144) for context — last two tasks were AUDIT-AUTH-TENANT-ISOLATION-001 (tenant guards on 20 routes) and FIX-REALTIME-WEBHOOKS-001 (socket.io auth + 2-layer webhook idempotency + 503-on-error + per-route rate limits). Project is at 180/180 tests, tsc clean, lint clean. No prior agentic-protocol work in the log.
+  6154→- Read full study document `upload/Comercio_Agentico_Estudio_Completo.md` (597 lines) — captured §9 protocol stack (AP2/UCP/ACP/x402/MPP), §10 technical integration (well-known/ucp manifest, 4 UCP capabilities, checkout state machine, profile negotiation, multi-transport, AP2 3-mandate chain as W3C VCs, human-present vs delegated modes), §11 governance checklist, §12 Colombian regulatory (Ley 2573/2026 + Ley 1581/2012), §14.4 CAPI as highest-impact attribution lever.
+  6155→- Ran all 10 audit searches in parallel against `src/` (ripgrep via Grep tool). Results below — all are first-pass findings, no false-positive correction needed except `acp` in `tiktok-ads.ts` which on second-pass `Grep -i` returned no actual ACP content (just `TikTok` substring noise).
+  6156→- Verified Prisma schema (1,290 lines, 55 models) — confirmed `AuditLog`, `Order`, `ConversationalCart`, `CustomerScore`, `ConversionEvent`, `PixelConfig`, `TwoFactorConfig` models exist; NO models for `Mandate`, `Intent`, `SpendLimit`, `Consent`, `IdentityVerification`, `UCPProfile`, `AgentCard`, or anything resembling AP2/UCP/ACP primitives.
+  6157→- Verified `/api-docs/route.ts` static manifest — 78 routes catalogued. Zero routes under `/.well-known/`, zero under `/ucp/`, `/ap2/`, `/acp/`, `/mcp/`, `/a2a/`, `/agents-card/`. Confirmed via `Glob src/app/api/.well-known/**` and `Glob public/.well-known/**` — both empty.
+  6158→- Verified CAPI implementation end-to-end: `/api/conversions` (route) → `conversionsService` (persistence) → `enqueue('capi-fire', ...)` (BullMQ job in `src/lib/queue.ts`) → Meta CAPI / Google MP / TikTok Events API firing helpers. Has test mode + per-pixel fan-out + `pending|sent|failed` status tracking.
+  6159→- Mapped all 26 agents (`src/lib/agents/prompts/index.ts`) to the document's 6-stage agentic flow:
+  6160→  - Discovery: catalog, theme, vision, product_enrichment, marketplace, traffic_orchestrator (6 agents)
+  6161→  - Evaluation: profile, quote, buyer_behavior, objection (4)
+  6162→  - Decision: speech, cart_builder, sales_retainer (3)
+  6163→  - Payment: address, checkout, address_analysis (3) — no mandate signing
+  6164→  - Fulfillment: logistics, guide_tracking, novedades, redelivery, guide_alert, logistics_notifier (6)
+  6165→  - Learning: remarketing, customer_score, carrier_score, affiliator (4)
+  6166→  All 6 stages covered, but every agent is an LLM prompt builder — none speaks UCP/AP2/ACP wire format.
+  6167→- No files were modified (audit-only task per scope rules).
+  6168→
+  6169→Stage Summary:
+  6170→
+  6171→### Compliance Matrix
+  6172→
+  6173→| # | Requirement | Document Section | Status | Evidence | Gap |
+  6174→|---|-------------|-----------------|--------|----------|-----|
+  6175→| 1 | UCP `/.well-known/ucp` manifest endpoint | §10.1 | ❌ MISSING | `rg "well-known/ucp\|ucp\|UCP" src/ --type ts -l` → 0 files. `Glob src/app/api/.well-known/**` → empty. | No public manifest. No version, no capabilities block, no payment_handlers block. |
+  6176→| 2 | UCP 4 capabilities (`checkout`, `identity_linking`, `order`, `payment_token_exchange`) | §10.1 | ❌ MISSING | `rg "dev\.ucp\.shopping\|identity_linking\|payment_token_exchange" src/` → 0 matches. | None of the 4 capability verbs exist anywhere in code. |
+  6177→| 3 | UCP checkout state machine (`incomplete` → `requires_escalation` → `ready_for_complete`) | §10.1 | ❌ MISSING | `rg "requires_escalation\|ready_for_complete" src/` → 0 matches. `Order.status` in Prisma is `new\|pending_payment\|paid\|preparing\|shipped\|delivered\|returned\|cancelled` — operational, not protocol. | No continuation URL for human escalation; no programmatic-ready terminal state. |
+  6178→| 4 | UCP profile negotiation (agent ∩ commerce per-transaction) | §10.1 | ❌ MISSING | No intersection/negotiation code; `/api/agents/[agentName]` is one-shot LLM call. | Agents cannot advertise their own capability profile to a counterparty. |
+  6179→| 5 | UCP multi-transport (REST + MCP + A2A + embedded) | §10.1 | ❌ MISSING | `rg "mcp\|MCP\|model.*context.*protocol" src/ --type ts -l` → 0 files. `rg "agent-card\|a2a\|A2A" src/` → 0 files. | Only REST exists. No MCP tool definition, no agent-card.json, no embedded checkout widget. |
+  6180→| 6 | AP2 Intent Mandate (user authorization, signed) | §10.2 | ❌ MISSING | `rg "intent.*mandate\|AP2\|ap2" src/ --type ts -l` → 0 files. | No schema, no signing primitive, no user-issued Intent storage. |
+  6181→| 7 | AP2 Cart Mandate (SKU/price/taxes/shipping/total, linked to Intent) | §10.2 | ❌ MISSING | `ConversationalCart` model exists (tenantId, conversationId, status, total, items) but it has no Intent linkage, no signature, no W3C VC format. | Cart is conversational state, not a signed mandate. |
+  6182→| 8 | AP2 Payment Mandate (amount + funding instrument + hash linking Intent+Cart) | §10.2 | ❌ MISSING | No model, no signing, no hash linking. | Final payment authorization goes straight to Stripe/MP/Wompi/PayU adapters — no AP2 layer in between. |
+  6183→| 9 | AP2 mandates as W3C Verifiable Credentials | §10.2 | ❌ MISSING | `rg "verifiable.*credential\|W3C.*VC\|VerifiableCredential" src/` → 0 matches. | No VC data model, no JSON-LD context, no proof/signature block. |
+  6184→| 10 | AP2 mandate revocation (any time) | §11 | ❌ MISSING | `rg "mandate.*revoc\|revoke.*mandate" src/` → 0 matches. | No revocation endpoint, no revoked-state column, no event emitted on revoke. |
+  6185→| 11 | AP2 human-present vs delegated modes | §10.2 | ❌ MISSING | `rg "delegated.*purchase\|human.*present\|autopay" src/` → 0 matches. | Every purchase is human-present (chat-driven); no pre-authorized Intent for autonomous execution. |
+  6186→| 12 | ACP (OpenAI/Stripe, ChatGPT/Copilot checkout) | §9.1 | ❌ MISSING | `rg "ACP\|acp\|chatgpt.*checkout\|copilot" src/ --type ts -l` → 1 file (`tiktok-ads.ts`) but on `-i` re-check it contains no actual ACP reference (substring noise). Real matches: 0. | Cannot receive buyers from ChatGPT/Copilot Instant Checkout. |
+  6187→| 13 | A2A agent-card.json (`/.well-known/agent`) | §10.1 | ❌ MISSING | `rg "agent-card\|agentCard\|a2a" src/` → 0 files. `rg "well-known/agent" src/` → 0. | No agent-to-agent discovery. |
+  6188→| 14 | MCP tool exposure (LLM-callable UCP) | §10.1 | ❌ MISSING | Same as #5 — 0 files. | Claude/ChatGPT cannot call ZIAY's catalog/checkout as a native tool. |
+  6189→| 15 | Spend limits per category (not just total) | §11 | ❌ MISSING | `rg "spendLimit\|categoryLimit\|gastoMaximo\|limite.*categoria" src/ --type ts -l` → 0 files. `CustomerScore` exists but scores customers, doesn't cap spend. | No per-category authorization ceiling. |
+
+[showing lines 5990-6189 of 6978; use offset=6190 with limit to continue reading]

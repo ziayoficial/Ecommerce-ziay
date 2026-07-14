@@ -48,6 +48,14 @@ function maskIfCredential(key: string, value: string): string {
   return value
 }
 
+/**
+ * GET /api/payments/config
+ *
+ * List payment strategy config per channel for the caller's tenant + non-credential global thresholds (roas_kill_threshold, cpa_target). Credential Setting rows (`cred::*`) are masked.
+ *
+ * @security Requires authentication (tenantId derived from session — no query param)
+ * @returns { channels: [{ id, type, name, ..., paymentStrategy, codFee }], global: Record<string, string> }
+ */
 export const GET = withErrorHandling(async () => {
 
   const { session, error } = await requireAuth()
@@ -96,6 +104,15 @@ export const GET = withErrorHandling(async () => {
 })
 
 // Update a channel's payment strategy + a whitelist of global Setting keys.
+/**
+ * PATCH /api/payments/config
+ *
+ * Update a channel's payment strategy fields (requirePrepayMin, prepayDiscountPct, codFee, paymentStrategy) + upsert whitelisted global Setting keys (roas_kill_threshold, cpa_target).
+ * Credential keys (`cred::*`) are rejected with 400 — use /api/integrations/credentials for those.
+ *
+ * @security Requires authentication (tenantId derived from session; channel.tenantId verified before update)
+ * @returns Updated channel + changed setting keys
+ */
 export const PATCH = withErrorHandling(async (req: NextRequest) => {
 
   const { session, error } = await requireAuth()

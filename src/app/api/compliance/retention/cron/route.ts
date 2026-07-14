@@ -29,6 +29,16 @@ import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 // second time.
 // ───────────────────────────────────────────────────────────────────────────
 
+/**
+ * GET /api/compliance/retention/cron
+ *
+ * Daily retention sweep — deletes records past their retention window.
+ * Triggered by an external cron (Vercel Cron / systemd / k8s CronJob) at 02:00 America/Bogota.
+ * Idempotent: running twice in the same day is a no-op.
+ *
+ * @security Public (Authorization: Bearer $CRON_SECRET — shared with the external cron caller)
+ * @returns { success: true, results } — summary of deleted records per table
+ */
 export const GET = withErrorHandling(async (req: NextRequest) => {
   const authHeader = req.headers.get('authorization')
   const cronSecret = process.env.CRON_SECRET

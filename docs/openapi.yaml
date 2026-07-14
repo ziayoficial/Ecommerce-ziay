@@ -2,9 +2,23 @@ openapi: 3.1.0
 info:
   title: ZIAY API
   version: 1.0.0
-  description: Comercio Conversacional + Atribución Inteligente
+  description: |
+    Comercio Conversacional + Atribución Inteligente.
+
+    Multi-tenant conversational-commerce platform with agent-driven checkout
+    (AP2 / UCP / ACP / MCP protocol trinity), ad attribution, compliance
+    (Ley 1581 / Ley 2573 / Ley 1480 / DIAN), and a wallet/commission layer
+    for traffickers + marketplaces.
+
+    All tenant-scoped endpoints require a session cookie (`sessionAuth`)
+    unless marked otherwise. UCP / ACP / webhook endpoints use `bearerAuth`
+    or are public.
+
   contact:
     email: api@ziay.co
+  license:
+    name: Proprietary
+
 servers:
   - url: https://ziay.co
     description: Production
@@ -17,71 +31,1014 @@ components:
       type: apiKey
       in: cookie
       name: next-auth.session-token
+      description: NextAuth v4 session cookie (set by /api/auth/[...nextauth]/callback/credentials).
     bearerAuth:
       type: http
       scheme: bearer
+      description: Signed W3C Verifiable Credential or bearer token (UCP/AP2/ACP).
+    cronAuth:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: 'Bearer $CRON_SECRET — shared secret for /api/compliance/retention/cron.'
+    webhookSignature:
+      type: apiKey
+      in: header
+      name: X-Hub-Signature-256
+      description: HMAC-SHA256 signature from the gateway (Meta/Stripe/Wompi/etc.).
+
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        details:
+          type: object
+          additionalProperties: true
+      required: [error]
+
+    SuccessResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+          example: true
+      additionalProperties: true
+
+    PaginatedResponse:
+      type: object
+      properties:
+        nextCursor:
+          type: string
+          nullable: true
+        hasMore:
+          type: boolean
+      additionalProperties: true
+
+    TenantIdQuery:
+      type: object
+      properties:
+        tenantId:
+          type: string
+          description: Tenant slug — required on most tenant-scoped endpoints.
+
+    MandateVC:
+      type: object
+      description: W3C Verifiable Credential for an AP2 Intent / Cart / Payment mandate.
+      properties:
+        mandateId:
+          type: string
+        vc:
+          type: object
+          description: Signed W3C VC payload.
+        did:
+          type: string
+        status:
+          type: string
+          enum: [active, consumed, revoked]
+
+  parameters:
+    TenantId:
+      name: tenantId
+      in: query
+      required: true
+      schema:
+        type: string
+      description: Tenant slug (e.g. "saramantha").
+    Days:
+      name: days
+      in: query
+      schema:
+        type: integer
+        default: 14
+      description: Lookback window in days.
+    Cursor:
+      name: cursor
+      in: query
+      schema:
+        type: string
+      description: Opaque cursor for cursor-based pagination (id of the last item on the previous page).
+    Limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        default: 20
+        maximum: 100
+      description: Page size (max 100).
+
+  responses:
+    BadRequest:
+      description: Validation error.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Authentication required.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: Tenant access denied.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Resource not found.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ServerError:
+      description: Internal server error (logged to Sentry).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
 
 security:
   - sessionAuth: []
 
 paths:
+  # ─────────────────────────────────────────────────────────────────────
+  # 1. HEALTH & SYSTEM
+  # ─────────────────────────────────────────────────────────────────────
+  /api:
+    get:
+      summary: API root / identity
+      description: Returns the API name + status. Requires auth.
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: API status JSON.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
   /api/health:
     get:
-      summary: Health check
+      summary: Full health check (integrations + runtime)
+      description: Reports DB, Redis, LLM provider, adapter, webhook, disk, and runtime metrics. Cached 30s. Returns 503 on overall `error`.
+      security: []
+      parameters:
+        - name: tenantId
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Healthy or warning.
+        '503':
+          description: Unhealthy (DB down, etc.).
+
+  /api/health/live:
+    get:
+      summary: Liveness probe
+      description: Kubernetes / load balancer liveness. No DB touch.
       security: []
       responses:
         '200':
-          description: Healthy
-        '503':
-          description: Unhealthy
+          description: '{ status: "alive", timestamp }'
 
-  /api/overview:
+  /api/health/ready:
     get:
-      summary: Dashboard overview KPIs
-      parameters:
-        - name: tenantId
-          in: query
-          required: true
-          schema:
-            type: string
-        - name: days
-          in: query
-          schema:
-            type: integer
-            default: 14
+      summary: Readiness probe
+      description: DB + critical integrations ready to serve traffic.
+      security: []
       responses:
         '200':
-          description: KPIs
-          content:
-            application/json:
-              schema:
-                type: object
+          description: Ready.
+        '503':
+          description: Not ready.
 
-  /api/orders:
+  /api/health/uptime:
     get:
-      summary: List orders
+      summary: Uptime + process metrics
+      description: Process uptime, memory, pid, Node version.
+      security: []
+      responses:
+        '200':
+          description: Runtime metrics.
+
+  /api/metrics:
+    get:
+      summary: Prometheus metrics
+      description: Prometheus text-format counters + histograms for scraping.
+      security: []
+      responses:
+        '200':
+          description: Prometheus text-format body.
+
+  # ─────────────────────────────────────────────────────────────────────
+  # 2. AUTH & TENANTS
+  # ─────────────────────────────────────────────────────────────────────
+  /api/auth/[...nextauth]:
+    get:
+      summary: NextAuth handler (GET)
+      description: Sign-in pages, session lookup, csrf token.
+      security: []
+      responses:
+        '200':
+          description: NextAuth response (HTML/JSON).
+    post:
+      summary: NextAuth handler (POST)
+      description: Credentials sign-in / form submissions / sign-out.
+      security: []
+      responses:
+        '200':
+          description: NextAuth response.
+        '302':
+          description: Redirect on successful sign-in.
+
+  /api/tenants:
+    get:
+      summary: List tenants
+      description: Platform admins see all; tenant users see their own.
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Tenant list.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      summary: Create tenant (onboarding)
+      description: Create a new tenant — platform admin only.
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Created tenant.
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    patch:
+      summary: Update tenant config
+      description: Update name, currency, country, AI provider, etc.
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Updated tenant.
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/public/tenants:
+    get:
+      summary: Public tenant directory
+      description: Slugs + display names for the login tenant picker. No sensitive fields.
+      security: []
+      responses:
+        '200':
+          description: Tenant list (no sensitive fields).
+
+  # ─────────────────────────────────────────────────────────────────────
+  # 3. CATALOG & PRODUCTS
+  # ─────────────────────────────────────────────────────────────────────
+  /api/catalog/products:
+    get:
+      summary: List catalog products
+      description: Search + pagination over the tenant's product catalog.
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - name: q
+          in: query
+          schema:
+            type: string
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Paginated product list.
+
+  /api/catalog/send-to-chat:
+    post:
+      summary: Send product card to chat
+      description: Push a product card into an active conversation (chat-up sell flow).
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Send confirmation.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/catalog/sync:
+    get:
+      summary: Catalog sync status
+      description: Last sync status + audit log entry.
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      responses:
+        '200':
+          description: Sync status.
+    post:
+      summary: Trigger catalog sync
+      description: Enqueue a background sync job from the external platform (WooCommerce/Shopify/etc.).
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tenantId:
+                  type: string
+      responses:
+        '200':
+          description: Sync job status.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/public/catalog:
+    get:
+      summary: Public catalog endpoint
+      description: Product list for storefront / AI agent discovery (no auth).
+      security: []
       parameters:
         - name: tenantId
           in: query
           required: true
           schema:
             type: string
+      responses:
+        '200':
+          description: Catalog product list.
+
+  /api/product-enrichment:
+    get:
+      summary: List product enrichments + pending
+      description: Existing ProductEnrichment rows + products that still lack enrichment.
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      responses:
+        '200':
+          description: '{ enrichments, pending }'
+    post:
+      summary: Enrich a product (VLM)
+      description: Call the VLM (glm-4.6v) to analyze the product image and upsert ProductEnrichment.
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tenantId:
+                  type: string
+                sku:
+                  type: string
+      responses:
+        '200':
+          description: Enriched product data.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  # ─────────────────────────────────────────────────────────────────────
+  # 4. ORDERS & OVERVIEW
+  # ─────────────────────────────────────────────────────────────────────
+  /api/orders:
+    get:
+      summary: List orders (cursor-paginated)
+      description: Filter by status / mode / search query. Cursor-based pagination (max 100).
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
         - name: status
           in: query
           schema:
             type: string
-        - name: cursor
+        - name: mode
+          in: query
+          schema:
+            type: string
+        - name: q
+          in: query
+          schema:
+            type: string
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Paginated orders + nextCursor + hasMore.
+
+  /api/orders/{id}:
+    patch:
+      summary: Update order
+      description: Update status / payment status. Optional `event` is recorded atomically in a transaction.
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                paymentStatus:
+                  type: string
+                paidAt:
+                  type: string
+                  format: date-time
+                paymentGateway:
+                  type: string
+                paymentRef:
+                  type: string
+                event:
+                  type: string
+                note:
+                  type: string
+      responses:
+        '200':
+          description: Updated order.
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/overview:
+    get:
+      summary: Dashboard overview KPIs
+      description: Revenue, orders, conversations, ads KPIs for a tenant + date range.
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - $ref: '#/components/parameters/Days'
+      responses:
+        '200':
+          description: KPI aggregates + breakdowns.
+
+  # ─────────────────────────────────────────────────────────────────────
+  # 5. CONVERSATIONS & AI REPLY
+  # ─────────────────────────────────────────────────────────────────────
+  /api/conversations:
+    get:
+      summary: List conversations (cursor-paginated)
+      description: Filter by status / channel / search query.
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: channel
+          in: query
+          schema:
+            type: string
+        - name: q
+          in: query
+          schema:
+            type: string
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Paginated conversations + nextCursor + hasMore.
+    post:
+      summary: Send a conversation message
+      description: Routes through conversationService so WhatsApp adapter delivers + TTR is stamped.
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                conversationId:
+                  type: string
+                body:
+                  type: string
+                direction:
+                  type: string
+                  enum: [inbound, outbound]
+      responses:
+        '200':
+          description: Created message.
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/conversations/{id}:
+    get:
+      summary: Fetch conversation detail
+      description: Single conversation with messages + customer + channel context.
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Conversation detail.
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      summary: Update conversation
+      description: Update status / priority / assignee.
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Updated conversation.
+
+  /api/ai-reply:
+    post:
+      summary: Generate AI draft reply
+      description: Generate an AI draft reply for a conversation message (uses the tenant's LLM adapter).
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: AI-generated draft reply.
+
+  # ─────────────────────────────────────────────────────────────────────
+  # 6. CHANNELS & INTEGRATIONS
+  # ─────────────────────────────────────────────────────────────────────
+  /api/channels:
+    get:
+      summary: List channels
+      description: List channels for a tenant. Tokens are masked (hasToken flags only).
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      responses:
+        '200':
+          description: Channel list with masked credentials.
+    post:
+      summary: Create channel
+      description: Add a new channel (WhatsApp / Messenger / Instagram / Telegram). Validates per-type required fields.
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tenantId:
+                  type: string
+                type:
+                  type: string
+                  enum: [whatsapp, messenger, instagram, telegram]
+                name:
+                  type: string
+                displayName:
+                  type: string
+      responses:
+        '201':
+          description: Created channel.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+    patch:
+      summary: Update channel
+      description: Update a channel (e.g., rotate credentials). Tenant ownership verified.
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                channelId:
+                  type: string
+      responses:
+        '200':
+          description: Updated channel.
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      summary: Deactivate channel (soft delete)
+      description: Soft-delete a channel — preserves conversation history.
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: channelId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Deactivated channel id.
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/integrations/credentials:
+    get:
+      summary: List integration credentials (masked)
+      description: List credential Setting rows (`cred::*` keys) with masked values.
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Masked credential list.
+    post:
+      summary: Create / update integration credential
+      description: Upsert a `cred::*` Setting row.
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Upserted credential.
+    put:
+      summary: Replace integration credential
+      description: Replace a `cred::*` Setting row.
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Replaced credential.
+    delete:
+      summary: Delete integration credential
+      description: Delete a `cred::*` Setting row.
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: key
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Deleted credential.
+
+  # ─────────────────────────────────────────────────────────────────────
+  # 7. ADS, TRAFFICKER, ATTRIBUTION
+  # ─────────────────────────────────────────────────────────────────────
+  /api/ads:
+    get:
+      summary: Ad-level performance
+      description: Per-ad spend, ROAS, CPA, ROI, cannibalization detection, kill recommendation.
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - $ref: '#/components/parameters/Days'
+        - name: platform
           in: query
           schema:
             type: string
       responses:
         '200':
-          description: Paginated orders list
+          description: Ad performance rows + totals + daily spend series.
 
-  /api/ap2/mandates:
+  /api/ads/{id}:
+    patch:
+      summary: Kill / pause / resume / scale an ad
+      description: Pushes the action to the ad platform (simulated in dev).
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                action:
+                  type: string
+                  enum: [pause, kill, resume, scale]
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: Updated ad + action taken.
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/ads/import:
     post:
-      summary: Create AP2 Intent Mandate
-      description: Creates a signed W3C Verifiable Credential for purchase authorization
+      summary: Import ad spend from platform
+      description: Importa spend/impressions/clicks de Google/TikTok Ads. Rate-limited (20 req/min).
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tenantId:
+                  type: string
+                platform:
+                  type: string
+                  enum: [google, tiktok]
+                dateStart:
+                  type: string
+                  format: date
+                dateEnd:
+                  type: string
+                  format: date
+      responses:
+        '200':
+          description: 'Import summary: campaignsFetched, adsProcessed, spendUpserted.'
+
+  /api/conversions:
+    get:
+      summary: List conversion events
+      description: Server-side pixel events + stats (sent / failed / pending).
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      responses:
+        '200':
+          description: '{ events, stats }'
+    post:
+      summary: Fire conversion event (CAPI)
+      description: Server-side pixel fire (Meta CAPI / Google MP / TikTok Events API). Enqueues a `capi-fire` job.
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tenantId:
+                  type: string
+                eventType:
+                  type: string
+                value:
+                  type: number
+                  nullable: true
+                currency:
+                  type: string
+      responses:
+        '200':
+          description: Per-pixel fire results + aggregate status.
+
+  /api/trafficker:
+    get:
+      summary: List traffickers
+      description: Trafficker roster + wallet balance + campaign performance.
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      responses:
+        '200':
+          description: Trafficker list.
+    post:
+      summary: Create trafficker
+      description: Onboard a new trafficker for a tenant.
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Created trafficker.
+
+  /api/remarketing:
+    get:
+      summary: List remarketing campaigns
+      description: List scheduled remarketing touches (win-back / cross-sell).
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      responses:
+        '200':
+          description: Remarketing campaign list.
+    post:
+      summary: Create remarketing campaign
+      description: Schedule a new remarketing touch.
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Created campaign.
+    patch:
+      summary: Update remarketing campaign
+      description: Pause / resume / reschedule.
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Updated campaign.
+
+  # ─────────────────────────────────────────────────────────────────────
+  # 8. AGENTS
+  # ─────────────────────────────────────────────────────────────────────
+  /api/agents:
+    get:
+      summary: List available agents
+      description: Saramantha agent registry (cached 1 hour).
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: '{ agents, count }'
+
+  /api/agents/{agentName}:
+    get:
+      summary: Agent metadata
+      description: Fetch metadata for a single agent (schema, label).
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: agentName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Agent metadata.
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      summary: Invoke an agent
+      description: Call an agent with a context payload — returns reply + confidence + agent name. Rate-limited (10 req/min/IP).
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: agentName
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tenantId:
+                  type: string
+                conversationId:
+                  type: string
+                customerId:
+                  type: string
+      responses:
+        '200':
+          description: '{ reply, agent, confidence, error? }'
+        '429':
+          description: Budget exceeded or rate limit.
+
+  /api/orchestrate:
+    post:
+      summary: Orchestrate multi-agent flow
+      description: Run a multi-agent orchestration (profile → quote → checkout → etc.).
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Orchestration result.
+
+  # ─────────────────────────────────────────────────────────────────────
+  # 9. AP2 MANDATES (W3C Verifiable Credentials)
+  # ─────────────────────────────────────────────────────────────────────
+  /api/ap2/mandates:
+    get:
+      summary: List mandates
+      description: List AP2 mandates for a tenant, optionally filtered by userId/type/status.
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - name: userId
+          in: query
+          schema:
+            type: string
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [intent, cart, payment]
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, consumed, revoked]
+      responses:
+        '200':
+          description: Mandate list.
+    post:
+      summary: Create Intent Mandate
+      description: Create a signed W3C VC Intent Mandate — first link in the Intent → Cart → Payment chain.
+      security:
+        - sessionAuth: []
       requestBody:
         required: true
         content:
@@ -97,45 +1054,289 @@ paths:
                   type: number
                 currency:
                   type: string
+                  default: COP
                 categoryLimits:
                   type: object
+                expiresAt:
+                  type: string
+                  format: date-time
                 purpose:
                   type: string
       responses:
         '201':
-          description: Mandate created
+          description: Created mandate + signed VC.
 
-  /.well-known/ucp:
+  /api/ap2/mandates/{id}:
     get:
-      summary: UCP manifest
-      security: []
-      description: Universal Commerce Protocol manifest for AI agent discovery
+      summary: Fetch mandate by id
+      description: Fetch a single AP2 mandate (full VC payload + signature verification status).
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
       responses:
         '200':
-          description: UCP manifest JSON
-
-  /.well-known/acp:
-    get:
-      summary: ACP manifest
-      security: []
-      description: Agentic Commerce Protocol manifest for ChatGPT/Copilot
+          description: Mandate object including signed VC.
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      summary: Update mandate
+      description: Advance status (active→consumed), stamp orderId / paymentRef.
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [active, consumed]
+                orderId:
+                  type: string
+                paymentRef:
+                  type: string
       responses:
         '200':
-          description: ACP manifest JSON
+          description: Updated mandate.
 
-  /.well-known/agent-card:
-    get:
-      summary: A2A agent card
-      security: []
-      description: Agent-to-Agent discovery card
+  /api/ap2/mandates/{id}/revoke:
+    patch:
+      summary: Revoke mandate (with cascade)
+      description: Revoke an AP2 mandate. Cascades to children (Intent → Cart → Payment) in a single transaction.
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
       responses:
         '200':
-          description: Agent card JSON
+          description: '{ mandateId, status: "revoked", revokedAt, reason }'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Already revoked.
 
+  /api/ap2/mandates/cart:
+    post:
+      summary: Create Cart Mandate
+      description: Create a Cart Mandate signed by the agent (parent = Intent).
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Created Cart Mandate + signed VC.
+
+  /api/ap2/mandates/payment:
+    post:
+      summary: Create Payment Mandate
+      description: Create a Payment Mandate signed by the agent (parent = Cart, intentCartHash binds to Intent+Cart).
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Created Payment Mandate + signed VC.
+
+  # ─────────────────────────────────────────────────────────────────────
+  # 10. UCP (Universal Commerce Protocol)
+  # ─────────────────────────────────────────────────────────────────────
+  /api/ucp/v1/checkout:
+    post:
+      summary: UCP checkout — create session
+      description: Create a UCP checkout session bound to a signed mandate.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Created UCP checkout session.
+
+  /api/ucp/v1/checkout/{sessionId}:
+    get:
+      summary: UCP checkout — fetch session
+      description: Fetch a UCP checkout session by id (read-only).
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Session detail.
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      summary: UCP checkout — advance session
+      description: Advance a UCP checkout session through its state machine.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Updated session.
+
+  /api/ucp/v1/identity-linking:
+    post:
+      summary: UCP identity linking
+      description: Bind an external AI agent identity to a platform user (per UCP spec).
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Identity link record.
+
+  /api/ucp/v1/order/{orderId}:
+    get:
+      summary: UCP order fetch
+      description: Read-only order access for an external AI agent (per UCP spec).
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Order detail (UCP-shaped).
+
+  /api/ucp/v1/payment-token-exchange:
+    post:
+      summary: UCP payment token exchange
+      description: Swap a signed mandate for a one-time payment token (per UCP spec).
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Payment token + expiry.
+
+  # ─────────────────────────────────────────────────────────────────────
+  # 11. ACP (Agentic Commerce Protocol)
+  # ─────────────────────────────────────────────────────────────────────
+  /api/acp/v1/checkout:
+    post:
+      summary: ACP checkout
+      description: Agentic Commerce Protocol checkout endpoint (ChatGPT/Copilot).
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Checkout result.
+
+  /api/acp/v1/orders/{id}:
+    get:
+      summary: ACP order fetch
+      description: Read-only order access for an external AI agent (per ACP spec).
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Order detail (ACP-shaped).
+
+  /api/acp/v1/refunds:
+    post:
+      summary: ACP refund
+      description: Initiate a refund via ACP (external AI agent).
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Refund result.
+
+  # ─────────────────────────────────────────────────────────────────────
+  # 12. MCP & AGENT DISCOVERY
+  # ─────────────────────────────────────────────────────────────────────
   /api/mcp:
     post:
       summary: MCP JSON-RPC endpoint
-      description: Model Context Protocol for Claude/ChatGPT tool calling
+      description: Model Context Protocol for Claude/ChatGPT tool calling.
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -145,10 +1346,1160 @@ paths:
               properties:
                 jsonrpc:
                   type: string
+                  example: '2.0'
                 method:
                   type: string
                 params:
                   type: object
       responses:
         '200':
-          description: JSON-RPC response
+          description: JSON-RPC response.
+
+  /.well-known/ucp:
+    get:
+      summary: UCP manifest
+      security: []
+      description: Universal Commerce Protocol manifest for AI agent discovery.
+      responses:
+        '200':
+          description: UCP manifest JSON.
+
+  /.well-known/acp:
+    get:
+      summary: ACP manifest
+      security: []
+      description: Agentic Commerce Protocol manifest for ChatGPT/Copilot.
+      responses:
+        '200':
+          description: ACP manifest JSON.
+
+  /.well-known/agent-card:
+    get:
+      summary: A2A agent card
+      security: []
+      description: Agent-to-Agent discovery card.
+      responses:
+        '200':
+          description: Agent card JSON.
+
+  # ─────────────────────────────────────────────────────────────────────
+  # 13. PAYMENTS
+  # ─────────────────────────────────────────────────────────────────────
+  /api/payments/config:
+    get:
+      summary: List payment config
+      description: Payment strategy per channel + non-credential global thresholds.
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: '{ channels, global }'
+    patch:
+      summary: Update payment config
+      description: Update a channel's payment strategy + whitelisted global Setting keys.
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Updated channel + changed setting keys.
+
+  /api/payments/create-link:
+    post:
+      summary: Create payment link
+      description: Create a payment link for an order (checkout URL).
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Payment link URL + reference.
+
+  /api/payments/local:
+    post:
+      summary: Create local payment (PSE/PIX/OXXO/SPEI)
+      description: LATAM cash/bank-transfer flow. Resolves currency + tax, creates Order, calls adapter, stamps paymentRef atomically.
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                method:
+                  type: string
+                  enum: [pse, pix, oxxo, spei]
+                amount:
+                  type: number
+                reference:
+                  type: string
+                tenantId:
+                  type: string
+                countryCode:
+                  type: string
+      responses:
+        '201':
+          description: Order id + payment reference + poll URL.
+
+  /api/payments/local/{reference}/status:
+    get:
+      summary: Poll local payment status
+      description: Check the status of a local payment reference.
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: reference
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Payment reference + status.
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ─────────────────────────────────────────────────────────────────────
+  # 14. SHIPPING & LOGISTICS
+  # ─────────────────────────────────────────────────────────────────────
+  /api/shipping/guide:
+    post:
+      summary: Create shipping guide
+      description: Create a shipping guide with the configured logistics adapter (Dropi/99envios/AveOnline).
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Created guide + tracking number.
+
+  /api/shipping/quote:
+    post:
+      summary: Get shipping rate quotes
+      description: Get rate quotes from one or more carriers for an address + package.
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Quote list (carrier + rate + ETA).
+
+  /api/guide-movements:
+    get:
+      summary: List guide movements
+      description: Tracking movement events per guide.
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - name: guideNumber
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: '{ movements }'
+    post:
+      summary: Create guide movement
+      description: Append a tracking event (picked_up / in_transit / delivered / exception). Best-effort cascades a Shipment status update.
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Created GuideMovement.
+
+  /api/logistics-intelligence:
+    get:
+      summary: Logistics intelligence insights
+      description: Carrier performance, delivery SLA, exception rates.
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      responses:
+        '200':
+          description: Logistics insight summary.
+
+  # ─────────────────────────────────────────────────────────────────────
+  # 15. WALLET, MONETIZATION, MARKETPLACE
+  # ─────────────────────────────────────────────────────────────────────
+  /api/wallet:
+    get:
+      summary: List wallet accounts + balances
+      description: Per trafficker / marketplace.
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      responses:
+        '200':
+          description: Wallet account list + balances.
+    post:
+      summary: Create wallet transaction
+      description: Deposit / withdrawal / commission credit. Admin/finance role required.
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Created transaction.
+
+  /api/monetization/commission:
+    get:
+      summary: List commission entries
+      description: Per trafficker / marketplace / order.
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      responses:
+        '200':
+          description: Commission entry list.
+    post:
+      summary: Upsert commission entry
+      description: Create / upsert a commission entry (uses upsert to avoid the POST race condition). Admin/finance role.
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Created/updated commission entry.
+
+  /api/monetization/generate-invoice:
+    post:
+      summary: Generate commission invoice
+      description: Generate an invoice PDF for trafficker/marketplace commissions in a date range. Admin/finance role.
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Invoice id + download URL.
+
+  /api/monetization/gmv:
+    get:
+      summary: GMV aggregation
+      description: Gross Merchandise Volume per tenant / channel / period. Admin/finance role.
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - $ref: '#/components/parameters/Days'
+      responses:
+        '200':
+          description: GMV aggregation rows.
+
+  /api/marketplace:
+    get:
+      summary: Marketplace listings + referrals + stats
+      description: Other tenants' active listings, my listings, lead-share config, referrals sent/received + stats.
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      responses:
+        '200':
+          description: '{ listings, myListings, leadConfig, referrals, currentTenant, stats }'
+    post:
+      summary: Marketplace action dispatch
+      description: '`publish_listing` | `update_config` | `create_referral` (discriminated union on `action`).'
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                action:
+                  type: string
+                  enum: [publish_listing, update_config, create_referral]
+      responses:
+        '200':
+          description: Action-specific result.
+
+  # ─────────────────────────────────────────────────────────────────────
+  # 16. COMPLIANCE (Ley 1581 / Ley 2573 / Ley 1480 / DIAN)
+  # ─────────────────────────────────────────────────────────────────────
+  /api/compliance/consent:
+    get:
+      summary: List consent records
+      description: Lista los consentimientos de un data subject (Ley 1581 de 2012).
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - name: dataSubjectId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: '{ consents }'
+    post:
+      summary: Register consent
+      description: Registra un consentimiento (Ley 1581 de 2012 — protección de datos personales).
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tenantId:
+                  type: string
+                dataSubjectId:
+                  type: string
+                dataSubjectType:
+                  type: string
+                  enum: [customer, user, lead]
+                purpose:
+                  type: string
+                  enum: [marketing, analytics, ai_processing, data_sharing]
+                legalBasis:
+                  type: string
+                  enum: [consent, contract, legitimate_interest, legal_obligation]
+                proofPayload:
+                  type: object
+      responses:
+        '201':
+          description: Created consent record.
+    delete:
+      summary: Revoke consent
+      description: Revoke a consent (granted=false, revokedAt=now).
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: reason
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Revoked consent summary.
+
+  /api/compliance/dian-invoice:
+    post:
+      summary: Generate DIAN invoice draft
+      description: Generate a DIAN electronic invoice draft for an order (Ley 1819 — facturación electrónica).
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Created invoice draft.
+
+  /api/compliance/dian-invoice/{invoiceId}/submit:
+    post:
+      summary: Submit DIAN invoice
+      description: Submit a DIAN invoice to the tax authority (DIAN) for formal acceptance.
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: invoiceId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: DIAN submission response.
+
+  /api/compliance/dsr:
+    post:
+      summary: Data Subject Request
+      description: DSR — access / deletion / portability (Ley 1581 Art. 8).
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: DSR tracking id + status.
+
+  /api/compliance/kyc:
+    get:
+      summary: List KYC records
+      description: KYC verification records (Ley 2573 Colombia — required for credit/installments).
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      responses:
+        '200':
+          description: KYC record list.
+    post:
+      summary: Create KYC request
+      description: Create a KYC verification request for a customer.
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Created KYC request.
+
+  /api/compliance/kyc/{id}/verify:
+    post:
+      summary: Verify KYC
+      description: Mark a KYC request as verified or rejected (manual review decision).
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Updated KYC status.
+
+  /api/compliance/retention:
+    get:
+      summary: Retention policy + volumes
+      description: Retention policy matrix (Ley 1581 Art 11 + Estatuto Tributario Art 632) + current data volumes. Admin only.
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: '{ policy, legalBasis, currentVolumes, lastRun }'
+    post:
+      summary: Trigger retention sweep
+      description: Trigger a retention sweep immediately (admin-only, idempotent).
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: '{ success, results }'
+
+  /api/compliance/retention/cron:
+    get:
+      summary: Daily retention sweep (cron)
+      description: Cron-triggered daily retention sweep. Idempotent.
+      security:
+        - cronAuth: []
+      responses:
+        '200':
+          description: '{ success, results }'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          description: CRON_SECRET not configured.
+
+  /api/compliance/retracto:
+    post:
+      summary: Process retracto
+      description: Procesa un retracto de venta (Ley 1480 Estatuto del Consumidor — derecho de retracto 14 días).
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Retracto record + refund status.
+
+  # ─────────────────────────────────────────────────────────────────────
+  # 17. GOVERNANCE (verifiable intent audit trail)
+  # ─────────────────────────────────────────────────────────────────────
+  /api/governance/decisions:
+    get:
+      summary: List DecisionLog entries
+      description: Governance DecisionLog entries (verifiable intent audit trail).
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      responses:
+        '200':
+          description: Decision log list.
+    post:
+      summary: Record governance decision
+      description: Record a new governance decision (escalation, age-gate override, mandate enforcement).
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Created decision record.
+
+  /api/governance/decisions/{id}:
+    get:
+      summary: Fetch DecisionLog by id
+      description: Fetch a single DecisionLog entry.
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: DecisionLog record.
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      summary: Update governance decision
+      description: Update a decision (e.g., resolve an escalation).
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Updated decision record.
+
+  /api/governance/escalations:
+    get:
+      summary: List escalations
+      description: Pending governance escalations (age-gate, KYC, mandate override requests).
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      responses:
+        '200':
+          description: Escalation list.
+    post:
+      summary: Create escalation
+      description: Create a new governance escalation for human review.
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Created escalation.
+
+  /api/governance/liability:
+    post:
+      summary: Record liability entry
+      description: Record who is accountable when an agent acts on behalf of a user.
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Liability record.
+
+  # ─────────────────────────────────────────────────────────────────────
+  # 18. AUDIT (Verifiable Credentials)
+  # ─────────────────────────────────────────────────────────────────────
+  /api/audit/{id}/verifiable:
+    get:
+      summary: Build audit-log Verifiable Credential
+      description: Build a W3C Verifiable Credential for an audit log entry (signed with the tenant keypair).
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Verifiable Credential JSON.
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ─────────────────────────────────────────────────────────────────────
+  # 19. NOVEDADES (post-sale cases) & REDELIVERY
+  # ─────────────────────────────────────────────────────────────────────
+  /api/novedades:
+    get:
+      summary: List novedades
+      description: Post-sale cases — complaints, returns, refunds.
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Case list.
+    post:
+      summary: Create novedad
+      description: Open a new post-sale case.
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Created case.
+    patch:
+      summary: Dispatch novedad action
+      description: '`assign` | `resolve` | `add_evidence` | `add_message` | `escalate` | `close`.'
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                action:
+                  type: string
+                  enum: [assign, resolve, add_evidence, add_message, escalate, close]
+                caseId:
+                  type: string
+      responses:
+        '200':
+          description: Action-specific result.
+
+  /api/novedades/{id}:
+    get:
+      summary: Fetch novedad detail
+      description: Single case with events + assignee + customer.
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Case detail.
+    patch:
+      summary: Update novedad
+      description: Update case fields (status, priority, assignment).
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Updated case.
+
+  /api/redelivery:
+    get:
+      summary: List redelivery requests
+      description: Failed/returned orders with attempt history + status stats.
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: '{ stats, requests }'
+    post:
+      summary: Create redelivery request
+      description: Create a new RedeliveryRequest. Auto-schedules attempt #1.
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: '{ request, attempt }'
+    patch:
+      summary: Dispatch redelivery action
+      description: '`confirm_address` | `schedule` | `assign_human` | `complete` | `cancel` | `add_attempt`.'
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                action:
+                  type: string
+                  enum: [confirm_address, schedule, assign_human, complete, cancel, add_attempt]
+                redeliveryId:
+                  type: string
+      responses:
+        '200':
+          description: Action-specific result.
+
+  # ─────────────────────────────────────────────────────────────────────
+  # 20. FINANCE
+  # ─────────────────────────────────────────────────────────────────────
+  /api/finance/channel-contribution:
+    get:
+      summary: Channel contribution margin
+      description: Per-channel revenue minus ad spend minus channel cost (WhatsApp Cloud API fee, Meta Ads platform fee).
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - $ref: '#/components/parameters/Days'
+      responses:
+        '200':
+          description: Channel contribution rows.
+
+  /api/finance/channel-cost/sync:
+    post:
+      summary: Sync channel costs
+      description: Import channel-cost rows from external sources (Meta Ads platform fee, WhatsApp Cloud API).
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Sync summary.
+
+  # ─────────────────────────────────────────────────────────────────────
+  # 21. LLM COSTS & BUDGET
+  # ─────────────────────────────────────────────────────────────────────
+  /api/llm/budget:
+    get:
+      summary: Get tenant LLM budget
+      description: Daily budget + spent + remaining for the tenant's LLM calls.
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      responses:
+        '200':
+          description: '{ budget, spent, remaining }'
+    post:
+      summary: Set tenant LLM budget
+      description: Update the daily LLM budget cap. Admin only.
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Updated budget.
+
+  /api/llm/costs:
+    get:
+      summary: List LLM costs
+      description: Per-tenant / provider / day cost aggregation.
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - $ref: '#/components/parameters/Days'
+      responses:
+        '200':
+          description: Cost aggregation rows.
+
+  # ─────────────────────────────────────────────────────────────────────
+  # 22. MISC (analytics, buyer-behavior, notifications)
+  # ─────────────────────────────────────────────────────────────────────
+  /api/analytics/web-vitals:
+    post:
+      summary: Receive Core Web Vitals
+      description: Browser-side web-vitals beacon (no auth).
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Acknowledgement.
+
+  /api/buyer-behavior:
+    get:
+      summary: List buyer-behavior records
+      description: BuyerBehavior records + risk-level stats.
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      responses:
+        '200':
+          description: '{ behaviors, stats }'
+    post:
+      summary: Upsert buyer-behavior record
+      description: Upsert by (tenantId, phone). When riskLevel is 'high_risk'/'blacklist', also creates a BehaviorAlert.
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: '{ behavior, alert }'
+
+  /api/notifications:
+    get:
+      summary: List notifications
+      description: Inbox for the current user.
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Notification list.
+    post:
+      summary: Create notification
+      description: System-generated — user mentions, escalations.
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Created notification.
+
+  # ─────────────────────────────────────────────────────────────────────
+  # 23. WEBHOOKS (gateway callbacks)
+  # ─────────────────────────────────────────────────────────────────────
+  /api/webhooks/meta:
+    get:
+      summary: Meta webhook verification
+      description: Meta webhook subscribe/verify handshake (`hub.mode=subscribe`, `hub.verify_token`).
+      security: []
+      parameters:
+        - name: hub.mode
+          in: query
+          schema:
+            type: string
+        - name: hub.verify_token
+          in: query
+          schema:
+            type: string
+        - name: hub.challenge
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: hub.challenge echoed back.
+    post:
+      summary: Meta webhook inbound
+      description: Meta (Instagram/Facebook) webhook for messaging events, leadgen, etc.
+      security:
+        - webhookSignature: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: '{ status: "received" } (always 200 to stop Meta retries).'
+
+  /api/webhooks/whatsapp:
+    get:
+      summary: WhatsApp webhook verification
+      description: WhatsApp Cloud API webhook verify handshake.
+      security: []
+      parameters:
+        - name: hub.mode
+          in: query
+          schema:
+            type: string
+        - name: hub.verify_token
+          in: query
+          schema:
+            type: string
+        - name: hub.challenge
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: hub.challenge echoed back.
+    post:
+      summary: WhatsApp webhook inbound
+      description: WhatsApp Cloud API inbound message / status webhook.
+      security:
+        - webhookSignature: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: '{ status: "received" } (always 200 to stop retries).'
+
+  /api/webhooks/stripe:
+    post:
+      summary: Stripe webhook
+      description: Stripe payment_intent.* / charge.* events.
+      security:
+        - webhookSignature: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: '{ received: true }'
+
+  /api/webhooks/mercadopago:
+    post:
+      summary: MercadoPago webhook
+      description: MercadoPago payment notifications.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: '{ status: "ok" }'
+
+  /api/webhooks/payu:
+    post:
+      summary: PayU webhook
+      description: PayU payment status callbacks.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: '{ status: "ok" }'
+
+  /api/webhooks/pix:
+    post:
+      summary: PIX webhook
+      description: Brazilian PIX payment webhook.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: '{ status: "ok" }'
+
+  /api/webhooks/pse:
+    post:
+      summary: PSE webhook
+      description: Colombian PSE bank-transfer payment webhook.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: '{ status: "ok" }'
+
+  /api/webhooks/wompi:
+    post:
+      summary: Wompi webhook
+      description: Wompi (Colombia) payment webhook.
+      security:
+        - webhookSignature: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: '{ status: "ok" }'
+
+tags:
+  - name: Health
+    description: Health, metrics, uptime.
+  - name: Auth
+    description: Authentication + tenants.
+  - name: Catalog
+    description: Catalog products + sync + enrichment.
+  - name: Orders
+    description: Orders + dashboard overview.
+  - name: Conversations
+    description: Conversations + AI reply.
+  - name: Channels
+    description: Channels + integration credentials.
+  - name: Ads
+    description: Ad performance + spend import + conversions.
+  - name: Agents
+    description: Saramantha agent registry + invocation.
+  - name: AP2
+    description: AP2 Intent / Cart / Payment Mandates (W3C VCs).
+  - name: UCP
+    description: Universal Commerce Protocol (AI agent checkout).
+  - name: ACP
+    description: Agentic Commerce Protocol (ChatGPT/Copilot checkout).
+  - name: MCP
+    description: Model Context Protocol (Claude/ChatGPT tool calling).
+  - name: Payments
+    description: Payment config + links + local payments (PSE/PIX/OXXO/SPEI).
+  - name: Logistics
+    description: Shipping guides + quotes + movements.
+  - name: Wallet
+    description: Wallet + commissions + GMV + marketplace.
+  - name: Compliance
+    description: Ley 1581 / Ley 2573 / Ley 1480 / DIAN compliance.
+  - name: Governance
+    description: Verifiable intent audit trail + escalations + liability.
+  - name: Audit
+    description: Audit log verifiable credentials.
+  - name: Novedades
+    description: Post-sale cases + redelivery.
+  - name: Finance
+    description: Channel contribution margin + cost sync.
+  - name: LLM
+    description: LLM budget + cost tracking.
+  - name: Webhooks
+    description: Gateway callbacks (Meta, WhatsApp, Stripe, Wompi, etc.).

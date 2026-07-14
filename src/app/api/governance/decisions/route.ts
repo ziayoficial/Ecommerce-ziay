@@ -10,6 +10,14 @@ const log = getLogger('api/governance/decisions')
 // GET /api/governance/decisions?tenantId=X&agentName=Y&orderId=Z&conversationId=W
 // Lista los DecisionLog del tenant, opcionalmente filtrados.
 // Documento §11 pilar #4: "Trazabilidad de decisiones del agente".
+/**
+ * GET /api/governance/decisions
+ *
+ * List governance DecisionLog entries (verifiable intent audit trail).
+ *
+ * @security Requires authentication + tenant access
+ * @returns Decision log list
+ */
 export const GET = withErrorHandling(async (req: NextRequest) => {
 
   const tenantIdParam = req.nextUrl.searchParams.get('tenantId') || undefined
@@ -101,6 +109,14 @@ const CreateSchema = z.object({
   liabilityParty: z.string().optional(),
 })
 
+/**
+ * POST /api/governance/decisions
+ *
+ * Record a new governance decision (escalation, age-gate override, mandate enforcement).
+ *
+ * @security Requires authentication + tenant access
+ * @returns Created decision record
+ */
 export const POST = withErrorHandling(async (req: NextRequest) => {
 
   let raw: unknown

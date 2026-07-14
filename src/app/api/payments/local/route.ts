@@ -78,6 +78,15 @@ const CreateLocalPaymentSchema = z.object({
   customerPhone: z.string().optional(),
 })
 
+/**
+ * POST /api/payments/local
+ *
+ * Create a local payment (PSE / PIX / OXXO / SPEI) — LATAM cash/bank-transfer flow.
+ * Resolves currency + tax breakdown, creates an Order, calls the adapter, stamps paymentRef atomically.
+ *
+ * @security Requires authentication + tenant access (requireTenantAccess)
+ * @returns Order id + payment reference + poll URL
+ */
 export const POST = withErrorHandling(async (req: NextRequest) => {
 
   const limited = rateLimit(req, {

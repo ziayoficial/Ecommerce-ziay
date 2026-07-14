@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
+import Image from 'next/image'
 import { db } from '@/lib/db'
 import { formatCurrency } from '@/lib/format'
 import { safeJsonLd } from '@/lib/seo/json-ld'
@@ -271,11 +272,13 @@ export default async function TenantStorefrontPage({ params }: PageProps) {
               >
                 <div className="aspect-square w-full overflow-hidden bg-muted">
                   {p.imageUrl ? (
-                    <img
+                    <Image
                       src={p.imageUrl}
                       alt={p.name}
+                      width={400}
+                      height={400}
                       className="h-full w-full object-cover transition-transform group-hover:scale-105"
-                      loading="lazy"
+                      unoptimized
                     />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center text-muted-foreground">

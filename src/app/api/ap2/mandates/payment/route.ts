@@ -45,6 +45,14 @@ const CreatePaymentSchema = z.object({
   paymentMethod: PaymentMethodSchema,
 })
 
+/**
+ * POST /api/ap2/mandates/payment
+ *
+ * Crea un Payment Mandate firmado por el agente (parent=Cart, intentCartHash binds to Intent+Cart).
+ *
+ * @security Requires authentication + tenant access
+ * @returns Payment mandateId + signed VC
+ */
 export const POST = withErrorHandling(async (req: NextRequest) => {
 
   let raw: unknown

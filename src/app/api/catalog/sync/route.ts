@@ -35,6 +35,14 @@ import { db } from '@/lib/db'
 import { enqueue, isInlineMode } from '@/lib/queue'
 import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 
+/**
+ * POST /api/catalog/sync
+ *
+ * Trigger catalog sync from the external platform (WooCommerce/Shopify/etc.) — enqueues a background job.
+ *
+ * @security Requires authentication + tenant access
+ * @returns Sync job status
+ */
 export const POST = withErrorHandling(async (req: NextRequest) => {
 
     const body = await req.json()

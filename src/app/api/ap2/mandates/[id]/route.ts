@@ -18,6 +18,14 @@ const log = getLogger('api/ap2/mandates/[id]')
 
 // GET /api/ap2/mandates/[id]
 // Devuelve el mandato + VC + estado de verificación de firma.
+/**
+ * GET /api/ap2/mandates/[id]
+ *
+ * Fetch a single AP2 mandate by id (full VC payload).
+ *
+ * @security Requires authentication + tenant access
+ * @returns Mandate object including signed VC
+ */
 export const GET = withErrorHandling(async (_req: NextRequest,
   { params }: { params: Promise<{ id: string }> },) => {
 
@@ -94,6 +102,14 @@ const PatchSchema = z.object({
   paymentRef: z.string().optional(),
 })
 
+/**
+ * PATCH /api/ap2/mandates/[id]
+ *
+ * Update a mandate — advance status (active→consumed), stamp orderId / paymentRef.
+ *
+ * @security Requires authentication + tenant access (requireTenantAccess)
+ * @returns Updated mandate
+ */
 export const PATCH = withErrorHandling(async (req: NextRequest,
   { params }: { params: Promise<{ id: string }> },) => {
 

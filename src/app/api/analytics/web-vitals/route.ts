@@ -34,6 +34,14 @@ const WebVitalSchema = z.object({
   page: z.string().min(1).max(512).optional().default('/'),
 })
 
+/**
+ * POST /api/analytics/web-vitals
+ *
+ * Receive Core Web Vitals metrics from the browser.
+ *
+ * @security Public (no auth — beacon endpoint)
+ * @returns Empty 204-style acknowledgement
+ */
 export const POST = withErrorHandling(async (req: NextRequest) => {
 
   let body: unknown

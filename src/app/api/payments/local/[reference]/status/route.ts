@@ -27,6 +27,14 @@ import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 // SPRINT-MULTICOUNTRY-001 — study §18 LATAM expansion.
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * GET /api/payments/local/[reference]/status
+ *
+ * Check the status of a local payment reference.
+ *
+ * @security Requires authentication + tenant access
+ * @returns Payment reference + status
+ */
 export const GET = withErrorHandling(async (_req: NextRequest,
   { params }: { params: Promise<{ reference: string }> },) => {
 

@@ -20,6 +20,14 @@ const DsrSchema = z.object({
   dataSubjectType: z.enum(['customer', 'user', 'lead']).default('customer'),
 })
 
+/**
+ * POST /api/compliance/dsr
+ *
+ * Data Subject Request — access / deletion / portability (Ley 1581 Art. 8).
+ *
+ * @security Requires authentication + tenant access
+ * @returns DSR tracking id + status
+ */
 export const POST = withErrorHandling(async (req: NextRequest) => {
 
   let raw: unknown

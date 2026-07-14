@@ -33,6 +33,14 @@ const LiabilitySchema = z.object({
   withinBounds: z.boolean(),
 })
 
+/**
+ * POST /api/governance/liability
+ *
+ * Record a liability entry (who is accountable when an agent acts on behalf of a user).
+ *
+ * @security Requires authentication + tenant access
+ * @returns Liability record
+ */
 export const POST = withErrorHandling(async (req: NextRequest) => {
 
   let raw: unknown

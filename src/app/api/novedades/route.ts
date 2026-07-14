@@ -107,6 +107,14 @@ const CaseActionSchema = z.discriminatedUnion('action', [
 // GET
 // ───────────────────────────────────────────────────────────────────────────
 
+/**
+ * GET /api/novedades
+ *
+ * List novedades (post-sale cases — complaints, returns, refunds).
+ *
+ * @security Requires authentication + tenant access
+ * @returns Case list
+ */
 export const GET = withErrorHandling(async (req: NextRequest) => {
 
   const sp = req.nextUrl.searchParams
@@ -185,6 +193,14 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
 // POST — create case
 // ───────────────────────────────────────────────────────────────────────────
 
+/**
+ * POST /api/novedades
+ *
+ * Create a novedad (post-sale case).
+ *
+ * @security Requires authentication + tenant access
+ * @returns Created case
+ */
 export const POST = withErrorHandling(async (req: NextRequest) => {
 
   const sp = req.nextUrl.searchParams
@@ -256,6 +272,15 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
 // PATCH — action dispatch
 // ───────────────────────────────────────────────────────────────────────────
 
+/**
+ * PATCH /api/novedades
+ *
+ * Action dispatch on a novedad case — assign / resolve / add_evidence / add_message / escalate / close.
+ * Each action updates the case + writes an audit NovedadMessage atomically (in $transaction where applicable).
+ *
+ * @security Requires authentication + tenant access (requireTenantAccess + case.tenantId check)
+ * @returns Action-specific result (updated case / new evidence / new message)
+ */
 export const PATCH = withErrorHandling(async (req: NextRequest) => {
 
   const sp = req.nextUrl.searchParams

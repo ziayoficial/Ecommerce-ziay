@@ -55,6 +55,14 @@ async function getCaseOrFail(id: string) {
   return { session, error: null, caseRow }
 }
 
+/**
+ * GET /api/novedades/[id]
+ *
+ * Fetch a single novedad with events + assignee + customer.
+ *
+ * @security Requires authentication + tenant access
+ * @returns Case detail
+ */
 export const GET = withErrorHandling(async (_req: NextRequest,
   { params }: { params: Promise<{ id: string }> },) => {
 
@@ -89,6 +97,14 @@ export const GET = withErrorHandling(async (_req: NextRequest,
 
 })
 
+/**
+ * PATCH /api/novedades/[id]
+ *
+ * Update a novedad (status change, add note, reassign).
+ *
+ * @security Requires authentication + tenant access
+ * @returns Updated case
+ */
 export const PATCH = withErrorHandling(async (req: NextRequest,
   { params }: { params: Promise<{ id: string }> },) => {
 

@@ -22,6 +22,14 @@ const EnrichSchema = z.object({
 // (enrichments, products, enrichedSkus) to `catalogService.getEnrichments`
 // + `catalogService.getActiveProductsForEnrichment`. Response shape
 // unchanged.
+/**
+ * GET /api/product-enrichment
+ *
+ * List existing ProductEnrichment rows + products that still lack enrichment (pending).
+ *
+ * @security Requires authentication + tenant access (requireTenantAccess)
+ * @returns { enrichments, pending }
+ */
 export const GET = withErrorHandling(async (req: NextRequest) => {
 
   const tenantId = req.nextUrl.searchParams.get('tenantId')
@@ -62,6 +70,14 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
 // SPRINT8-SERVICES-REST-001 — migrated the `db.product.findUnique` lookup
 // to `catalogService.getProductBySku` + the `db.productEnrichment.upsert`
 // to `catalogService.upsertEnrichment`. Response shape unchanged.
+/**
+ * POST /api/product-enrichment
+ *
+ * Enrich a product with AI-generated description / images / attributes.
+ *
+ * @security Requires authentication + tenant access
+ * @returns Enriched product data
+ */
 export const POST = withErrorHandling(async (req: NextRequest) => {
 
   const limited = rateLimit(req, {

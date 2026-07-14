@@ -33,6 +33,14 @@ const CreateLinkSchema = z.object({
 // call. The order lookup uses `getOrderById` because the existing service
 // method already scopes by tenant + includes the same relations. Response
 // shape unchanged.
+/**
+ * POST /api/payments/create-link
+ *
+ * Create a payment link for an order (checkout URL).
+ *
+ * @security Requires authentication + tenant access
+ * @returns Payment link URL + reference
+ */
 export const POST = withErrorHandling(async (req: NextRequest) => {
 
   const limited = rateLimit(req, {

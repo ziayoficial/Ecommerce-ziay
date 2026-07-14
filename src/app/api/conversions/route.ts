@@ -34,6 +34,14 @@ const FireSchema = z.object({
 // SPRINT8-SERVICES-REST-001 — migrated the `db.conversionEvent` /
 // `db.pixelConfig` reads + writes to `conversionsService`. Response shapes
 // unchanged.
+/**
+ * GET /api/conversions
+ *
+ * List server-side pixel conversion events + stats (sent / failed / pending).
+ *
+ * @security Requires authentication + tenant access (requireTenantAccess)
+ * @returns ConversionEvent[] + stats aggregate
+ */
 export const GET = withErrorHandling(async (req: NextRequest) => {
 
   const tenantId = req.nextUrl.searchParams.get('tenantId')
@@ -51,6 +59,15 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
 
 type FirePayload = z.infer<typeof FireSchema>
 
+/**
+ * POST /api/conversions
+ *
+ * Fire a server-side conversion event (Meta CAPI / Google MP / TikTok Events API).
+ * Creates one pending ConversionEvent per active pixel, then enqueues a `capi-fire` job.
+ *
+ * @security Requires authentication + tenant access (requireTenantAccess)
+ * @returns Per-pixel fire results + aggregate status (sent / pending / failed)
+ */
 export const POST = withErrorHandling(async (req: NextRequest) => {
 
   let raw: unknown

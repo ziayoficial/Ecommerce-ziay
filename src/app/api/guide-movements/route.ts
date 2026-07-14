@@ -19,6 +19,14 @@ const GuideMovementSchema = z.object({
 //
 // SPRINT8-SERVICES-REST-001 — migrated `db.guideMovement.findMany` to
 // `logisticsService.getGuideMovements`. Response shape unchanged.
+/**
+ * GET /api/guide-movements
+ *
+ * List shipping guide movement events (status history per guide).
+ *
+ * @security Requires authentication + tenant access
+ * @returns Movement list
+ */
 export const GET = withErrorHandling(async (req: NextRequest) => {
 
   const tenantId = req.nextUrl.searchParams.get('tenantId')
@@ -47,6 +55,15 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
 // `logisticsService.createGuideMovement`. The service preserves the
 // best-effort semantics (Shipment update failure is non-fatal). Response
 // shape unchanged.
+/**
+ * POST /api/guide-movements
+ *
+ * Create a tracking movement event for a guide (picked_up / in_transit / delivered / exception).
+ * Best-effort cascades a Shipment status update. Rate-limited (120 req/min).
+ *
+ * @security Requires authentication + tenant access (requireTenantAccess)
+ * @returns Created GuideMovement
+ */
 export const POST = withErrorHandling(async (req: NextRequest) => {
 
   const limited = rateLimit(req, {

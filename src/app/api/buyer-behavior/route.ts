@@ -18,6 +18,14 @@ const BuyerBehaviorSchema = z.object({
 // SPRINT8-SERVICES-REST-001 — migrated `db.buyerBehavior.findMany` +
 // `groupBy` to `logisticsService.getBuyerBehaviors`. Response shape
 // unchanged (`{ behaviors, stats }`).
+/**
+ * GET /api/buyer-behavior
+ *
+ * List BuyerBehavior records for a tenant + risk-level stats (normal / caution / high_risk / blacklist).
+ *
+ * @security Requires authentication + tenant access (requireTenantAccess)
+ * @returns { behaviors, stats }
+ */
 export const GET = withErrorHandling(async (req: NextRequest) => {
 
   const tenantId = req.nextUrl.searchParams.get('tenantId')
@@ -45,6 +53,14 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
 // create (2 db calls + 1 conditional) to
 // `logisticsService.upsertBuyerBehavior`. Response shape unchanged
 // (`{ behavior, alert }`).
+/**
+ * POST /api/buyer-behavior
+ *
+ * Upsert a BuyerBehavior record for (tenantId, phone). When riskLevel is 'high_risk' or 'blacklist', also creates a BehaviorAlert for ops review. Rate-limited (60 req/min).
+ *
+ * @security Requires authentication + tenant access (requireTenantAccess)
+ * @returns { behavior, alert }
+ */
 export const POST = withErrorHandling(async (req: NextRequest) => {
 
   const limited = rateLimit(req, {

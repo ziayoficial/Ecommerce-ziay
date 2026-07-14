@@ -27,6 +27,14 @@ const AdPatchSchema = z.object({
 //
 // SPRINT-ADOPT-ERRORHANDLER-001 — wrapped with `withErrorHandling`. The
 // 2nd `ctx` arg is forwarded so dynamic routes can destructure `params`.
+/**
+ * PATCH /api/ads/[id]
+ *
+ * Kill / pause / resume / scale an ad (simulates pushing the action to the ad platform).
+ *
+ * @security Requires authentication + tenant access (ad→campaign→tenant check)
+ * @returns Updated ad object + action taken
+ */
 export const PATCH = withErrorHandling(
   async (
     req: NextRequest,

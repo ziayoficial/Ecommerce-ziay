@@ -19,6 +19,14 @@ import { db } from '@/lib/db'
 import { submitToDian } from '@/lib/compliance/dian-invoicing'
 import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 
+/**
+ * POST /api/compliance/dian-invoice/[invoiceId]/submit
+ *
+ * Submit a DIAN invoice to the tax authority (DIAN) for formal acceptance.
+ *
+ * @security Requires authentication + tenant access
+ * @returns DIAN submission response
+ */
 export const POST = withErrorHandling(async (_req: NextRequest,
   { params }: { params: Promise<{ invoiceId: string }> },) => {
 

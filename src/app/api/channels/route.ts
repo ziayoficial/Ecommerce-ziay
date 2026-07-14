@@ -55,6 +55,14 @@ const UpdateChannelSchema = z.object({
 // `withErrorHandling`. The previous manual `try/catch` boilerplate
 // (captureError + NextResponse.json 500) is now the wrapper's
 // responsibility.
+/**
+ * GET /api/channels
+ *
+ * List channels for a tenant. Tokens are masked (hasToken flags only).
+ *
+ * @security Requires authentication + tenant access (requireTenantAccess)
+ * @returns Channel list with masked credentials
+ */
 export const GET = withErrorHandling(async (req: NextRequest) => {
   const tenantId = req.nextUrl.searchParams.get('tenantId')
   if (!tenantId) {
@@ -83,6 +91,14 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
 })
 
 // POST /api/channels — create a new channel (e.g., add a new WhatsApp line)
+/**
+ * POST /api/channels
+ *
+ * Create a new channel (e.g., add a WhatsApp line). Validates required fields per channel type.
+ *
+ * @security Requires authentication + tenant access (requireTenantAccess)
+ * @returns Created channel id + type + name
+ */
 export const POST = withErrorHandling(async (req: NextRequest) => {
   const raw = await req.json()
   const parseResult = CreateChannelSchema.safeParse(raw)
@@ -141,6 +157,14 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
 })
 
 // PATCH /api/channels — update a channel (e.g., update credentials)
+/**
+ * PATCH /api/channels
+ *
+ * Update a channel (e.g., rotate credentials). Tenant ownership verified before update.
+ *
+ * @security Requires authentication + tenant ownership check
+ * @returns Updated channel + changed fields
+ */
 export const PATCH = withErrorHandling(async (req: NextRequest) => {
   const { session, error: authErr } = await requireAuth()
   if (authErr) return authErr
@@ -192,6 +216,14 @@ export const PATCH = withErrorHandling(async (req: NextRequest) => {
 })
 
 // DELETE /api/channels — delete (deactivate) a channel
+/**
+ * DELETE /api/channels
+ *
+ * Soft-delete (deactivate) a channel. Preserves conversation history.
+ *
+ * @security Requires authentication + tenant ownership check
+ * @returns Deactivated channel id
+ */
 export const DELETE = withErrorHandling(async (req: NextRequest) => {
   const { session, error: authErr } = await requireAuth()
   if (authErr) return authErr

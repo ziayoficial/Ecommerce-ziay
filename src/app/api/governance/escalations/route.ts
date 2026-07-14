@@ -11,6 +11,14 @@ const log = getLogger('api/governance/escalations')
 // Lista las sesiones de checkout UCP en estado `requires_escalation` del
 // tenant. Documento §11 pilar #2: "Reglas de escalamiento a humano" — el
 // operador humano consulta esta cola para aprobar/rechazar cada caso.
+/**
+ * GET /api/governance/escalations
+ *
+ * List pending governance escalations (age-gate, KYC, mandate override requests).
+ *
+ * @security Requires authentication + tenant access
+ * @returns Escalation list
+ */
 export const GET = withErrorHandling(async (req: NextRequest) => {
 
   const tenantIdParam = req.nextUrl.searchParams.get('tenantId') || undefined
@@ -68,6 +76,14 @@ const DecisionSchema = z.object({
   reason: z.string().min(1).max(500).optional(),
 })
 
+/**
+ * POST /api/governance/escalations
+ *
+ * Create a new governance escalation for human review.
+ *
+ * @security Requires authentication + tenant access
+ * @returns Created escalation
+ */
 export const POST = withErrorHandling(async (req: NextRequest) => {
 
   const { session: authSession } = await requireAuth()

@@ -31,6 +31,14 @@ const ShippingQuoteSchema = z.object({
   cantidad_unidades: z.number().optional(),
 }).passthrough()
 
+/**
+ * POST /api/shipping/quote
+ *
+ * Get shipping rate quotes from one or more carriers for an address + package.
+ *
+ * @security Requires authentication + tenant access
+ * @returns Quote list (carrier + rate + ETA)
+ */
 export const POST = withErrorHandling(async (req: NextRequest) => {
 
     const raw = await req.json()

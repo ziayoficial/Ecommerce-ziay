@@ -172,6 +172,14 @@ function computeFee(amount: number) {
 // unhandled exception is funneled through Sentry + the structured pino
 // logger. The previous manual `try/catch` boilerplate (captureError +
 // NextResponse.json 500) is now the wrapper's responsibility.
+/**
+ * GET /api/wallet
+ *
+ * List wallet accounts + balance per trafficker / marketplace.
+ *
+ * @security Requires authentication + tenant access
+ * @returns Wallet account list + balances
+ */
 export const GET = withErrorHandling(async (req: NextRequest) => {
   // Rate limit: 20 req/min per IP
   const limited = rateLimit(req, { max: 20, windowMs: 60_000, namespace: 'api:wallet:get' })
@@ -242,6 +250,14 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
 // invalid JSON — a custom business-rule response, not boilerplate). The
 // outer try/catch around the action switch was pure boilerplate
 // (captureError + 500) — now replaced by the wrapper.
+/**
+ * POST /api/wallet
+ *
+ * Create a wallet transaction (deposit / withdrawal / commission credit).
+ *
+ * @security Requires authentication + tenant access (admin/finance role)
+ * @returns Created transaction
+ */
 export const POST = withErrorHandling(async (req: NextRequest) => {
   // Rate limit: 10 req/min per IP (stricter for POST — financial operations)
   const limited = rateLimit(req, { max: 10, windowMs: 60_000, namespace: 'api:wallet:post' })

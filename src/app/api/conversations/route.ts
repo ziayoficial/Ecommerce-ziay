@@ -38,6 +38,14 @@ const SendMessageSchema = z.object({
 // unhandled exception is funneled through Sentry + the structured pino
 // logger. The previous manual `try/catch` boilerplate (captureError +
 // NextResponse.json 500) is now the wrapper's responsibility.
+/**
+ * GET /api/conversations
+ *
+ * List conversations with cursor-based pagination. Filter by status/channel/search.
+ *
+ * @security Requires authentication + tenant access (resolveTenantId)
+ * @returns Paginated conversations + nextCursor + hasMore
+ */
 export const GET = withErrorHandling(async (req: NextRequest) => {
   const tenantIdParam = req.nextUrl.searchParams.get('tenantId') || undefined
   const { error, tenantId } = await resolveTenantId(tenantIdParam)
@@ -98,6 +106,14 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
 // received the agent's reply on WhatsApp.
 //
 // SPRINT-ADOPT-ERRORHANDLER-001 — wrapped with `withErrorHandling`.
+/**
+ * POST /api/conversations
+ *
+ * Send a message in a conversation. Routes through conversationService so WhatsApp adapter delivers + TTR is stamped.
+ *
+ * @security Requires authentication + tenant access (conversation.tenantId)
+ * @returns Created message + broadcast via socket
+ */
 export const POST = withErrorHandling(async (req: NextRequest) => {
   const raw = await req.json()
   const parseResult = SendMessageSchema.safeParse(raw)

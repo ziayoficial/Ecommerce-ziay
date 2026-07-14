@@ -31,6 +31,14 @@ const ShippingGuideSchema = z.object({
   orderId: z.string().min(1),
 }).passthrough()
 
+/**
+ * POST /api/shipping/guide
+ *
+ * Create a shipping guide with the configured logistics adapter (Dropi / 99envios / AveOnline).
+ *
+ * @security Requires authentication + tenant access
+ * @returns Created guide + tracking number
+ */
 export const POST = withErrorHandling(async (req: NextRequest) => {
 
     const raw = await req.json()

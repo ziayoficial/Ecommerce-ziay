@@ -37,6 +37,14 @@ const CreateIntentSchema = z.object({
   expiresAt: z.string().datetime().optional(),
 })
 
+/**
+ * POST /api/ap2/mandates
+ *
+ * Crea un Intent Mandate firmado (W3C Verifiable Credential) — primer eslabón de la cadena Intent → Cart → Payment.
+ *
+ * @security Requires authentication + tenant access (requireTenantAccess)
+ * @returns mandateId + signed VC + did + status
+ */
 export const POST = withErrorHandling(async (req: NextRequest) => {
 
   let raw: unknown
@@ -113,6 +121,14 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
 
 // GET /api/ap2/mandates?tenantId=X&userId=Y&type=intent&status=active
 // Lista los mandatos del tenant, opcionalmente filtrados.
+/**
+ * GET /api/ap2/mandates
+ *
+ * Lista los mandatos del tenant, opcionalmente filtrados por userId/type/status.
+ *
+ * @security Requires authentication + tenant access (resolveTenantId)
+ * @returns Array of mandate metadata
+ */
 export const GET = withErrorHandling(async (req: NextRequest) => {
 
   const tenantIdParam = req.nextUrl.searchParams.get('tenantId') || undefined

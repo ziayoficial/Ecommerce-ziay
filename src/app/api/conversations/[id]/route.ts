@@ -55,6 +55,14 @@ async function getConversationOrFail(id: string) {
   return { session, error: null, conv }
 }
 
+/**
+ * GET /api/conversations/[id]
+ *
+ * Fetch a single conversation with messages + customer + channel context.
+ *
+ * @security Requires authentication + tenant access
+ * @returns Conversation detail
+ */
 export const GET = withErrorHandling(
   async (
     _req: NextRequest,
@@ -73,6 +81,14 @@ export const GET = withErrorHandling(
   },
 )
 
+/**
+ * PATCH /api/conversations/[id]
+ *
+ * Update conversation (status, priority, assignee).
+ *
+ * @security Requires authentication + tenant access
+ * @returns Updated conversation
+ */
 export const PATCH = withErrorHandling(
   async (
     req: NextRequest,

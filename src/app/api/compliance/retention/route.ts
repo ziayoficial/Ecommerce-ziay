@@ -25,6 +25,14 @@ import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 
 // GET /api/compliance/retention
 // Public to admins (any role with `admin`). Returns the policy + stats.
+/**
+ * GET /api/compliance/retention
+ *
+ * Returns the retention policy matrix (Ley 1581 Art 11 + Estatuto Tributario Art 632) + current data volumes per type.
+ *
+ * @security Requires authentication + admin role (requireRole(['admin']))
+ * @returns { policy, legalBasis, currentVolumes, lastRun }
+ */
 export const GET = withErrorHandling(async (_req: NextRequest) => {
 
   const { error } = await requireRole(['admin'])
@@ -87,6 +95,15 @@ export const GET = withErrorHandling(async (_req: NextRequest) => {
 // keys so future optional filters don't 400 the caller.
 const RetentionSweepSchema = z.object({}).passthrough()
 
+/**
+ * POST /api/compliance/retention
+ *
+ * Trigger a retention sweep immediately (admin-only, idempotent).
+ * Same logic as the daily cron at /api/compliance/retention/cron — exposed here for ops + debugging.
+ *
+ * @security Requires authentication + admin role (requireRole(['admin']))
+ * @returns { success, results } — deletion summary per table
+ */
 export const POST = withErrorHandling(async (req: NextRequest) => {
 
   const { error } = await requireRole(['admin'])

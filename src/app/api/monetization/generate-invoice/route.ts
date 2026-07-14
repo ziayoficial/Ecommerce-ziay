@@ -28,6 +28,14 @@ const GenerateInvoiceSchema = z.object({
   periodo: z.string().optional(),
 }).passthrough()
 
+/**
+ * POST /api/monetization/generate-invoice
+ *
+ * Generate an invoice PDF for trafficker/marketplace commissions in a date range.
+ *
+ * @security Requires authentication + tenant access (admin/finance role)
+ * @returns Invoice id + download URL
+ */
 export const POST = withErrorHandling(async (req: NextRequest) => {
 
     const raw = await req.json()

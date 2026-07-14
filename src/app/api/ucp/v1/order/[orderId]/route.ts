@@ -6,6 +6,14 @@ import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 // GET /api/ucp/v1/order/[orderId]
 // Devuelve el estado del pedido en formato UCP (para que el agente consulte
 // fulfillment). Documento §10.1: "Order" capability.
+/**
+ * GET /api/ucp/v1/order/[orderId]
+ *
+ * UCP order fetch — read-only access for an external AI agent (per UCP spec).
+ *
+ * @security Public (signed UCP mandate — bearer auth)
+ * @returns Order detail (UCP-shaped)
+ */
 export const GET = withErrorHandling(async (_req: NextRequest,
   { params }: { params: Promise<{ orderId: string }> },) => {
 

@@ -7,6 +7,14 @@ import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 // GET /api/public/tenants — directorio público de tiendas activas.
 // NO requiere auth. Devuelve solo { slug, nombreNegocio, marca } para SSR
 // del storefront público /t/[slug].
+/**
+ * GET /api/public/tenants
+ *
+ * Public tenant directory (slug + display name) — used by login screen tenant picker.
+ *
+ * @security Public
+ * @returns Tenant list (no sensitive fields)
+ */
 export const GET = withErrorHandling(async (req: NextRequest) => {
 
   const limited = rateLimit(req, {

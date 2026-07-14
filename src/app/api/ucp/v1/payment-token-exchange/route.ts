@@ -32,6 +32,14 @@ const ExchangeSchema = z.object({
   paymentHandler: z.string().min(1), // "com.mercadopago" | "com.stripe" etc
 })
 
+/**
+ * POST /api/ucp/v1/payment-token-exchange
+ *
+ * UCP payment token exchange — swap a signed mandate for a one-time payment token (per UCP spec).
+ *
+ * @security Public (signed UCP mandate — bearer auth)
+ * @returns Payment token + expiry
+ */
 export const POST = withErrorHandling(async (req: NextRequest) => {
 
   let raw: unknown

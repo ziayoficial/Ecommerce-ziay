@@ -23,6 +23,14 @@ const CommissionPostSchema = z.object({
 // handler (commission recognition upsert) is left inline — its two-moment
 // recognition logic doesn't have a 1:1 service method yet. Response shape
 // is unchanged.
+/**
+ * GET /api/monetization/commission
+ *
+ * List commission entries per trafficker / marketplace / order.
+ *
+ * @security Requires authentication + tenant access
+ * @returns Commission entry list
+ */
 export const GET = withErrorHandling(async (req: NextRequest) => {
 
   const tenantId = req.nextUrl.searchParams.get('tenantId')
@@ -61,6 +69,14 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
 // V6 (AUDIT-FINAL-SEC-001): verificamos que el caller pertenezca al tenant
 // del order (requireTenantAccess). Previamente cualquier usuario authed
 // podía crear/actualizar commission entries para cualquier order.
+/**
+ * POST /api/monetization/commission
+ *
+ * Create / upsert a commission entry (uses upsert to avoid the POST race condition).
+ *
+ * @security Requires authentication + tenant access (admin/finance role)
+ * @returns Created/updated commission entry
+ */
 export const POST = withErrorHandling(async (req: NextRequest) => {
 
   // Auth primero — necesitamos la sesión para errores 401 tempranos.

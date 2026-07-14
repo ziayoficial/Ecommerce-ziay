@@ -9,6 +9,14 @@ const log = getLogger('api/governance/decisions/[id]')
 
 // GET /api/governance/decisions/[id]
 // Devuelve un DecisionLog específico.
+/**
+ * GET /api/governance/decisions/[id]
+ *
+ * Fetch a single DecisionLog entry by id (governance / verifiable-intent audit trail).
+ *
+ * @security Requires authentication + tenant access (decision.tenantId check)
+ * @returns DecisionLog record
+ */
 export const GET = withErrorHandling(async (_req: NextRequest,
   { params }: { params: Promise<{ id: string }> },) => {
 
@@ -70,6 +78,14 @@ const PatchSchema = z.object({
   note: z.string().max(500).optional(),
 })
 
+/**
+ * PATCH /api/governance/decisions/[id]
+ *
+ * Update a governance decision (e.g., resolve an escalation).
+ *
+ * @security Requires authentication + tenant access
+ * @returns Updated decision record
+ */
 export const PATCH = withErrorHandling(async (req: NextRequest,
   { params }: { params: Promise<{ id: string }> },) => {
 

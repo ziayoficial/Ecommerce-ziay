@@ -22,6 +22,14 @@ import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 //
 // SPRINT-PROTOCOLS-TRINITY-001.
 
+/**
+ * GET /api/audit/[id]/verifiable
+ *
+ * Build a W3C Verifiable Credential for an audit log entry (signed with the tenant keypair).
+ *
+ * @security Requires authentication + tenant access
+ * @returns Verifiable Credential JSON
+ */
 export const GET = withErrorHandling(async (_req: NextRequest,
   { params }: { params: Promise<{ id: string }> },) => {
 

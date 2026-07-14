@@ -17,6 +17,15 @@ const RevokeSchema = z.object({
   reason: z.string().min(1).max(500).optional(),
 })
 
+/**
+ * PATCH /api/ap2/mandates/[id]/revoke
+ *
+ * Revoke an AP2 mandate (Intent / Cart / Payment) — Documento §11: "Mandatos revocables en cualquier momento".
+ * Revoking an Intent cascades to its Cart + Payment children in a single transaction (BFS, depth ≤ 3).
+ *
+ * @security Requires authentication + tenant access (requireTenantAccess on mandate.tenantId)
+ * @returns { mandateId, status: 'revoked', revokedAt, reason }
+ */
 export const PATCH = withErrorHandling(async (req: NextRequest,
   { params }: { params: Promise<{ id: string }> },) => {
 

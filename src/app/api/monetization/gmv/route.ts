@@ -18,6 +18,14 @@ import { monetizationService } from '@/lib/services'
 // SPRINT-ADOPT-ERRORHANDLER-001 — wrapped with `withErrorHandling` so any
 // unhandled exception is funneled through Sentry + the structured pino
 // logger.
+/**
+ * GET /api/monetization/gmv
+ *
+ * GMV (Gross Merchandise Volume) per tenant / channel / period.
+ *
+ * @security Requires authentication + tenant access (admin/finance role)
+ * @returns GMV aggregation rows
+ */
 export const GET = withErrorHandling(async (req: NextRequest) => {
   const tenantId = req.nextUrl.searchParams.get('tenantId')
   if (!tenantId) return NextResponse.json({ error: 'tenantId required' }, { status: 400 })

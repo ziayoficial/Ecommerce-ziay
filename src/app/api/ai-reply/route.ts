@@ -10,8 +10,15 @@ import { calculateCost } from '@/lib/llm/costs'
 // SPRINT-AI-LLM-ADAPTER-001 §A-7 — truncado del historial para prevenir
 // desbordamiento del context window en conversaciones largas.
 import { truncateHistory, type Message } from '@/lib/agents/history'
+// SPRINT-AI-AGENTS-003 §1 — resumen LLM para conversaciones largas (>20
+// mensajes). truncateHistory (simple) sigue siendo el default para
+// conversaciones cortas (ahorra una llamada LLM extra).
+import { truncateWithSummary } from '@/lib/agents/summarize'
 // FIX-AI-AGENTS-001 — defensas anti-inyección + confidence real.
 import { wrapUserInput, ANTI_INJECTION_PREFIX } from '@/lib/agents/sanitize'
+// SPRINT-AI-AGENTS-003 §3 — check de presupuesto diario por tenant antes
+// de la llamada LLM. Si el tenant excedió su budget, se rechaza con 429.
+import { checkBudgetBeforeCall } from '@/lib/llm/budget'
 import { emitToTenant } from '@/lib/chat-emit'
 // SPRINT-ADOPT-ERRORHANDLER-001 — wrapper funnels unhandled exceptions
 // through Sentry + pino. The inner try/catch around the LLM call is
@@ -51,6 +58,14 @@ const AiReplySchema = z.object({
 // persistence + low_confidence emit + 200 response with `confidence: 0.1`),
 // NOT generic 500 boilerplate. Errors thrown BEFORE that try (auth, rate
 // limit, JSON parse, tenant gate, db lookup) bubble to the wrapper → Sentry.
+/**
+ * POST /api/ai-reply
+ *
+ * Generate an AI draft reply for a conversation message.
+ *
+ * @security Requires authentication + tenant access
+ * @returns AI-generated draft reply text
+ */
 export const POST = withErrorHandling(async (req: NextRequest) => {
   // FIX-REALTIME-WEBHOOKS-001 · P2 — per-route rate limit (10 req/min/IP).
   // Each call hits the LLM API ($0.01–0.10/call); the global 60/min/IP
@@ -84,6 +99,18 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   // FIX-SECURITY-AUTH-001 (#11) — tenant gate before the LLM gets fed PII.
   const { error } = await requireTenantAccess(conv.tenantId)
   if (error) return error
+
+  // SPRINT-AI-AGENTS-003 §3 — verificar el presupuesto diario del tenant
+  // antes de la llamada LLM. Si excedió el budget, devolvemos 429 para que
+  // el cliente sepa que debe esperar al reset diario (o contactar al admin
+  // para subir el budget vía /api/llm/budget).
+  const budgetCheck = await checkBudgetBeforeCall(conv.tenantId)
+  if (!budgetCheck.allowed) {
+    return NextResponse.json(
+      { error: budgetCheck.message, code: 'BUDGET_EXCEEDED' },
+      { status: 429 },
+    )
+  }
 
   // Build context for the model
   const products = await db.product.findMany({ where: { active: true, tenantId: conv.tenantId }, take: 8 })
@@ -124,10 +151,15 @@ ${catalog}
 Tono: ${tone}, cálido, cercano (estilo LATAM), emojis moderados. Máximo 2 mensajes cortos. Cierra hacia la venta: confirma producto, cantidad, modo de pago y dirección. NO inventes precios fuera del catálogo. Si el cliente pregunta por contra entrega y el canal es solo 'advance', explica amablemente que ese canal requiere pago anticipado pero ofrece descuento.`
 
   // SPRINT-AI-LLM-ADAPTER-001 §A-7 — convertir el historial a formato
-  // Message[] (role+content) y truncar con truncateHistory. Esto
-  // preserva el context window y genera un resumen de mensajes antiguos
-  // cuando hay >20 (no es el caso típico aquí porque ya filtramos con
-  // `take: 12`, pero queda como defensa si se sube el límite).
+  // Message[] (role+content) y truncar para preservar el context window.
+  //
+  // SPRINT-AI-AGENTS-003 §1 — enfoque híbrido: si el historial es largo
+  // (>20 mensajes), usamos `truncateWithSummary` que invoca al LLM para
+  // generar un resumen enriquecido de los mensajes antiguos (preserva
+  // precios cotizados, preocupaciones del cliente, próximos pasos
+  // acordados). Si el historial es corto, usamos `truncateHistory`
+  // (resumen simple basado en intents del usuario) — ahorrar el costo
+  // de una llamada LLM extra (~$0.0005 con glm-4.6) cuando no se justifica.
   //
   // FIX-AI-AGENTS-001 §A-4: cada mensaje del cliente se envuelve con
   // wrapUserInput (delimitador <user_message>) para prevenir prompt
@@ -137,7 +169,16 @@ Tono: ${tone}, cálido, cercano (estilo LATAM), emojis moderados. Máximo 2 mens
     role: m.direction === 'inbound' ? 'user' : 'assistant',
     content: m.direction === 'inbound' ? wrapUserInput(m.body) : m.body,
   }))
-  const messages = truncateHistory(ANTI_INJECTION_PREFIX + systemPrompt, conversationHistory)
+  // `take: 12` en el query anterior normalmente deja este historial corto
+  // (<20) — el path de truncateWithSummary solo se activa si se sube el
+  // límite o si el caller ya trae un historial más grande (p.ej. desde un
+  // contexto externo inyectado por webhook).
+  let messages: Message[]
+  if (conversationHistory.length > 20) {
+    messages = await truncateWithSummary(ANTI_INJECTION_PREFIX + systemPrompt, conversationHistory)
+  } else {
+    messages = truncateHistory(ANTI_INJECTION_PREFIX + systemPrompt, conversationHistory)
+  }
   messages.push({
     role: 'user',
     content: wrapUserInput(

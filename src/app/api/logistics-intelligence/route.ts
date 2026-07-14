@@ -15,6 +15,14 @@ import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 // + manual behavior hydration to `logisticsService.getDashboardData`.
 // The service returns the exact same response shape; the route still owns
 // HTTP concerns (auth, 400, error capture). Response shape is unchanged.
+/**
+ * GET /api/logistics-intelligence
+ *
+ * Logistics intelligence insights (carrier performance, delivery SLA, exception rates).
+ *
+ * @security Requires authentication + tenant access
+ * @returns Logistics insight summary
+ */
 export const GET = withErrorHandling(async (req: NextRequest) => {
 
   const tenantId = req.nextUrl.searchParams.get('tenantId')

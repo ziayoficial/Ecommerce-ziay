@@ -9,6 +9,14 @@ import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 //
 // Nota: Redis es opcional — si no está configurado, no afecta la readiness.
 // Solo falla si REDIS_URL está seteada pero el ping falla (Redis caído).
+/**
+ * GET /api/health/ready
+ *
+ * Readiness probe — checks DB + critical integrations are ready to serve traffic.
+ *
+ * @security Public
+ * @returns { status: 'ready' | 'unready' }
+ */
 export const GET = withErrorHandling(async () => {
 
   const headers = { 'Cache-Control': 'no-store' }

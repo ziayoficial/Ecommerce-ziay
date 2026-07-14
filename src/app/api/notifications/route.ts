@@ -57,6 +57,14 @@ const NotificationBodySchema = z.discriminatedUnion('action', [
 // SPRINT8-SERVICES-REST-001 — migrated every CustomerNotification + the
 // GuideTracking lookup (used by `auto_generate`) to `notificationService`.
 // Response shapes unchanged.
+/**
+ * GET /api/notifications
+ *
+ * List notifications for the current user (inbox).
+ *
+ * @security Requires authentication
+ * @returns Notification list
+ */
 export const GET = withErrorHandling(async (req: NextRequest) => {
 
   const tenantId = req.nextUrl.searchParams.get('tenantId')
@@ -74,6 +82,14 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
 
 })
 
+/**
+ * POST /api/notifications
+ *
+ * Create a notification (typically system-generated — user mentions, escalations).
+ *
+ * @security Requires authentication + tenant access
+ * @returns Created notification
+ */
 export const POST = withErrorHandling(async (req: NextRequest) => {
 
   let raw: unknown

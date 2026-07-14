@@ -35,6 +35,14 @@ const VerifySchema = z.object({
   providerSignature: z.string().optional(),
 })
 
+/**
+ * POST /api/compliance/kyc/[id]/verify
+ *
+ * Mark a KYC request as verified or rejected (manual review decision).
+ *
+ * @security Requires authentication + tenant access
+ * @returns Updated KYC status
+ */
 export const POST = withErrorHandling(async (req: NextRequest,
   { params }: { params: Promise<{ id: string }> },) => {
 

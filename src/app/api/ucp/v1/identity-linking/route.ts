@@ -43,6 +43,14 @@ const LinkingSchema = z.object({
   ts: z.number().int().positive(),
 })
 
+/**
+ * POST /api/ucp/v1/identity-linking
+ *
+ * UCP identity linking — bind an external AI agent identity to a platform user (per UCP spec).
+ *
+ * @security Public (signed UCP mandate — bearer auth)
+ * @returns Identity link record
+ */
 export const POST = withErrorHandling(async (req: NextRequest) => {
 
   let raw: unknown

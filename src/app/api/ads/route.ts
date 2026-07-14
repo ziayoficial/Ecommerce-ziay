@@ -20,6 +20,14 @@ import { adsService } from '@/lib/services'
 // SPRINT-ADOPT-ERRORHANDLER-001 — wrapped with `withErrorHandling` so any
 // unhandled exception is funneled through Sentry + the structured pino
 // logger.
+/**
+ * GET /api/ads
+ *
+ * Ad-level performance: spend, ROAS, CPA, ROI, cannibalization detection, kill recommendation.
+ *
+ * @security Requires authentication + tenant access (resolveTenantId)
+ * @returns Ad performance rows + totals + daily spend series
+ */
 export const GET = withErrorHandling(async (req: NextRequest) => {
   const tenantIdParam = req.nextUrl.searchParams.get('tenantId') || undefined
   const { error, tenantId } = await resolveTenantId(tenantIdParam)

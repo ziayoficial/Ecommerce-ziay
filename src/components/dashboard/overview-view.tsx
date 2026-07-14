@@ -259,40 +259,42 @@ export function OverviewView() {
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto -mx-2 px-2">
-            <ResponsiveContainer width="100%" height={280} minWidth={320}>
-              <AreaChart data={data.series} margin={{ left: -10, right: 10, top: 5, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="rev" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.35} />
-                    <stop offset="95%" stopColor="var(--primary)" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="spd" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#f43f5e" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-                <XAxis
-                  dataKey="date"
-                  tickFormatter={shortDate}
-                  tick={{ fontSize: 11 }}
-                  stroke="var(--muted-foreground)"
-                  interval="preserveStartEnd"
-                  minTickGap={24}
-                  angle={-35}
-                  textAnchor="end"
-                  height={50}
-                />
-                <YAxis tickFormatter={(v) => formatCurrency(v, 'COP', { compact: true })} tick={{ fontSize: 11 }} stroke="var(--muted-foreground)" width={64} />
-                <Tooltip
-                  contentStyle={{ background: 'var(--background)', border: '1px solid var(--border)', borderRadius: 12, fontSize: 12 }}
-                  formatter={(v: number, n) => [formatCurrency(v), n === 'revenue' ? 'Ingresos' : 'Pauta']}
-                  labelFormatter={(l) => `Día ${shortDate(l as string)}`}
-                />
-                <Area type="monotone" dataKey="revenue" stroke="var(--primary)" strokeWidth={2} fill="url(#rev)" />
-                <Area type="monotone" dataKey="spend" stroke="#f43f5e" strokeWidth={2} fill="url(#spd)" />
-              </AreaChart>
-            </ResponsiveContainer>
+            <figure role="img" aria-label="Ingresos vs inversión en pauta durante los últimos 14 días en COP">
+              <ResponsiveContainer width="100%" height={280} minWidth={320}>
+                <AreaChart data={data.series} margin={{ left: -10, right: 10, top: 5, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="rev" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.35} />
+                      <stop offset="95%" stopColor="var(--primary)" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="spd" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#f43f5e" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                  <XAxis
+                    dataKey="date"
+                    tickFormatter={shortDate}
+                    tick={{ fontSize: 11 }}
+                    stroke="var(--muted-foreground)"
+                    interval="preserveStartEnd"
+                    minTickGap={24}
+                    angle={-35}
+                    textAnchor="end"
+                    height={50}
+                  />
+                  <YAxis tickFormatter={(v) => formatCurrency(v, 'COP', { compact: true })} tick={{ fontSize: 11 }} stroke="var(--muted-foreground)" width={64} />
+                  <Tooltip
+                    contentStyle={{ background: 'var(--background)', border: '1px solid var(--border)', borderRadius: 12, fontSize: 12 }}
+                    formatter={(v: number, n) => [formatCurrency(v), n === 'revenue' ? 'Ingresos' : 'Pauta']}
+                    labelFormatter={(l) => `Día ${shortDate(l as string)}`}
+                  />
+                  <Area type="monotone" dataKey="revenue" stroke="var(--primary)" strokeWidth={2} fill="url(#rev)" />
+                  <Area type="monotone" dataKey="spend" stroke="#f43f5e" strokeWidth={2} fill="url(#spd)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </figure>
           </div>
         </CardContent>
       </Card>
@@ -333,16 +335,18 @@ export function OverviewView() {
             <CardDescription>Penetración de anticipado vs. contra entrega</CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={200}>
-              <PieChart>
-                <Pie data={[
-                  { name: 'Anticipado', value: k.advanceOrders, fill: 'var(--primary)' },
-                  { name: 'Contra entrega', value: k.codOrders, fill: '#f59e0b' },
-                ]} dataKey="value" nameKey="name" innerRadius={50} outerRadius={75} paddingAngle={3}>
-                </Pie>
-                <Tooltip contentStyle={{ background: 'var(--background)', border: '1px solid var(--border)', borderRadius: 12, fontSize: 12 }} />
-              </PieChart>
-            </ResponsiveContainer>
+            <figure role="img" aria-label="Distribución de pedidos por modo de pago: anticipado vs contra entrega">
+              <ResponsiveContainer width="100%" height={200}>
+                <PieChart>
+                  <Pie data={[
+                    { name: 'Anticipado', value: k.advanceOrders, fill: 'var(--primary)' },
+                    { name: 'Contra entrega', value: k.codOrders, fill: '#f59e0b' },
+                  ]} dataKey="value" nameKey="name" innerRadius={50} outerRadius={75} paddingAngle={3}>
+                  </Pie>
+                  <Tooltip contentStyle={{ background: 'var(--background)', border: '1px solid var(--border)', borderRadius: 12, fontSize: 12 }} />
+                </PieChart>
+              </ResponsiveContainer>
+            </figure>
             <div className="flex items-center justify-center gap-4 text-sm -mt-2">
               <span className="flex items-center gap-1.5"><span className="size-2.5 rounded-sm bg-primary" /> Anticipado {formatPercent(k.advanceRate, 0)}</span>
               <span className="flex items-center gap-1.5"><span className="size-2.5 rounded-sm bg-amber-500" /> COD {formatPercent(100 - k.advanceRate, 0)}</span>

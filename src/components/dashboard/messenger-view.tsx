@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState, useRef, useCallback } from 'react'
+import Image from 'next/image'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -389,11 +390,16 @@ export function MessengerView() {
                       {/* Product image if present */}
                       {m.mediaUrl && (
                         <div className="mb-1 rounded-xl overflow-hidden shadow-sm max-w-[240px]">
-                          <img
+                          <Image
                             src={m.mediaUrl}
                             alt="Producto"
+                            width={240}
+                            height={240}
                             className="w-full h-auto object-cover"
-                            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                            unoptimized
+                            onError={(e: React.SyntheticEvent<HTMLImageElement>) => {
+                              e.currentTarget.style.display = 'none'
+                            }}
                           />
                         </div>
                       )}

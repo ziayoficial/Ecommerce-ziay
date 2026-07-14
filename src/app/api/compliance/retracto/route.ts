@@ -28,6 +28,14 @@ const RetractoSchema = z.object({
   reason: z.string().max(500).optional(),
 })
 
+/**
+ * POST /api/compliance/retracto
+ *
+ * Procesa un retracto de venta (Ley 1480 Estatuto del Consumidor — derecho de retracto 14 días).
+ *
+ * @security Requires authentication + tenant access
+ * @returns Retracto record + refund status
+ */
 export const POST = withErrorHandling(async (req: NextRequest) => {
 
   let raw: unknown

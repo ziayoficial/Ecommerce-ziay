@@ -30,6 +30,14 @@ const InitiateSchema = z.object({
   orderAmount: z.number().nonnegative().optional(),
 })
 
+/**
+ * POST /api/compliance/kyc
+ *
+ * Create a KYC verification request for a customer.
+ *
+ * @security Requires authentication + tenant access
+ * @returns Created KYC request
+ */
 export const POST = withErrorHandling(async (req: NextRequest) => {
 
   let raw: unknown
@@ -81,6 +89,14 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
 
 // GET /api/compliance/kyc?tenantId=X&userId=Y
 // Devuelve el estado KYC vigente para el usuario (o null si no tiene).
+/**
+ * GET /api/compliance/kyc
+ *
+ * List KYC verification records (Ley 2573 Colombia — required for credit/installments).
+ *
+ * @security Requires authentication + tenant access
+ * @returns KYC record list
+ */
 export const GET = withErrorHandling(async (req: NextRequest) => {
 
   const tenantId = req.nextUrl.searchParams.get('tenantId') || undefined

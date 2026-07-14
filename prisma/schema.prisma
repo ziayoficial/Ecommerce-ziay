@@ -31,6 +31,19 @@ generator client {
   provider = "prisma-client-js"
 }
 
+// SPRINT-DOCS-COMPLETE-001 — auto-generate an ERD (Entity Relationship
+// Diagram) from the Prisma schema on every `prisma generate`. Output is a
+// Mermaid-rendered SVG at `docs/erd.svg`. The path is relative to the
+// `prisma/` directory (where schema.prisma lives), so `../docs/erd.svg`
+// lands in the project's `docs/` folder. Requires `@mermaid-js/mermaid-cli`
+// (mmdc) for SVG rendering — if mmdc is unavailable (no browser), the
+// generator falls back to writing a `docs/erd.mmd` Mermaid source file that
+// can be rendered manually via `bunx mmdc -i docs/erd.mmd -o docs/erd.svg`.
+generator erd {
+  provider = "prisma-erd-generator"
+  output   = "../docs/erd.svg"
+}
+
 datasource db {
   // Dev: "sqlite"  ·  Prod: "postgresql"
   // (SPRINT7-POSTGRES-SERVICES-001 — keep dev on SQLite, switch only at deploy.)

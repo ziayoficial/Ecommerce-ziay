@@ -29,6 +29,14 @@ import { db } from '@/lib/db'
 //     específico del provider.
 //   - `model: { not: null }` en byModel para no agrupar filas de fallback
 //     (cuando el LLM falló antes de responder, model queda en null).
+/**
+ * GET /api/llm/costs
+ *
+ * List LLM API costs per tenant/provider/day.
+ *
+ * @security Requires authentication + tenant access
+ * @returns Cost aggregation rows
+ */
 export const GET = withErrorHandling(async (req: NextRequest) => {
   const tenantIdParam = req.nextUrl.searchParams.get('tenantId') || undefined
   const { error, tenantId } = await resolveTenantId(tenantIdParam)

@@ -35,6 +35,14 @@ const OrderPatchSchema = z.object({
 //
 // SPRINT-ADOPT-ERRORHANDLER-001 — wrapped with `withErrorHandling`. The
 // 2nd `ctx` arg is forwarded so dynamic routes can destructure `params`.
+/**
+ * PATCH /api/orders/[id]
+ *
+ * Update order status / payment status. Optional `event` is recorded atomically in a transaction.
+ *
+ * @security Requires authentication + tenant ownership check
+ * @returns Updated order
+ */
 export const PATCH = withErrorHandling(
   async (
     req: NextRequest,

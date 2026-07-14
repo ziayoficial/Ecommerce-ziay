@@ -19,6 +19,14 @@ import { catalogService } from '@/lib/services'
 // SPRINT-ADOPT-ERRORHANDLER-001 — wrapped with `withErrorHandling` so any
 // unhandled exception is funneled through Sentry + the structured pino
 // logger.
+/**
+ * GET /api/catalog/products
+ *
+ * List catalog products with search/pagination.
+ *
+ * @security Requires authentication + tenant access
+ * @returns Paginated product list
+ */
 export const GET = withErrorHandling(async (req: NextRequest) => {
   const tenantId = req.nextUrl.searchParams.get('tenantId')
   if (!tenantId) return NextResponse.json({ error: 'tenantId required' }, { status: 400 })

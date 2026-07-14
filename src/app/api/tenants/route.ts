@@ -16,6 +16,14 @@ import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 // — the cache key already encodes the only meaningful input. A future
 // `tenant.service.ts` would only make sense if tenant CRUD lands.
 // TODO: migrate to service layer when tenant CRUD is added.
+/**
+ * GET /api/tenants
+ *
+ * List tenants (platform admins see all; tenant users see only their own).
+ *
+ * @security Requires authentication (platform admin for full list)
+ * @returns Tenant list
+ */
 export const GET = withErrorHandling(async () => {
 
   const { error } = await requireAuth()

@@ -26,6 +26,14 @@ const GenerateSchema = z.object({
   tenantId: z.string().min(1),
 })
 
+/**
+ * POST /api/compliance/dian-invoice
+ *
+ * Generate a DIAN electronic invoice draft for an order.
+ *
+ * @security Requires authentication + tenant access
+ * @returns Created invoice draft
+ */
 export const POST = withErrorHandling(async (req: NextRequest) => {
 
   // ── Auth: admin/finance/operator only — billing artefact creation ───

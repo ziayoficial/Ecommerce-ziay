@@ -17,6 +17,14 @@ import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 // myListings, leadConfig, sentReferrals, receivedReferrals, tenant) +
 // the per-listing brand hydration + the three POST actions to
 // `marketplaceService`. Response shapes unchanged.
+/**
+ * GET /api/marketplace
+ *
+ * List marketplace listings (other tenants' active listings), my listings, lead-share config, referrals sent/received + aggregate stats.
+ *
+ * @security Requires authentication + tenant access (requireTenantAccess)
+ * @returns { listings, myListings, leadConfig, referrals, currentTenant, stats }
+ */
 export const GET = withErrorHandling(async (req: NextRequest) => {
 
   const tenantId = req.nextUrl.searchParams.get('tenantId')
@@ -105,6 +113,15 @@ const MarketplaceBodySchema = z.discriminatedUnion('action', [
   CreateReferralSchema,
 ])
 
+/**
+ * POST /api/marketplace
+ *
+ * Dispatch a marketplace action — `publish_listing` | `update_config` (lead-share + commission pct) | `create_referral`.
+ * Body is a discriminated union on the `action` field.
+ *
+ * @security Requires authentication + tenant access (requireTenantAccess)
+ * @returns Action-specific result (listing / config / referral)
+ */
 export const POST = withErrorHandling(async (req: NextRequest) => {
 
   let raw: unknown

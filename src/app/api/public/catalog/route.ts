@@ -8,6 +8,14 @@ import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 //
 // Devuelve los productos activos del tenant + datos básicos del tenant
 // (slug, marca, plataformaCatalogo).
+/**
+ * GET /api/public/catalog
+ *
+ * Public catalog endpoint — product list for storefront / AI agent discovery (no auth).
+ *
+ * @security Public
+ * @returns Catalog product list
+ */
 export const GET = withErrorHandling(async (req: NextRequest) => {
 
   const limited = rateLimit(req, {

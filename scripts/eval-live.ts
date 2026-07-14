@@ -9,6 +9,12 @@
  *   - Latency
  *   - Cost per call
  *
+ * SPRINT-AI-AGENTS-003 §2 — ampliado de 5 a los 11 agentes con esquema
+ * (profile, quote, cart_builder, buyer_behavior, address_analysis,
+ * guide_tracking, customer_score, carrier_score, vision, novedades,
+ * remarketing). Cada caso nuevo añade ~$0.001 al costo del harness — total
+ * ~$0.011 por run completo.
+ *
  * Usage:  bun run scripts/eval-live.ts
  * Requiere: ZAI_API_KEY en .env (o el provider alternativo configurado vía
  * LLM_PROVIDER).
@@ -41,13 +47,19 @@ interface EvalCase {
 }
 
 /**
- * Casos de evaluación — uno por agente con esquema (5 de los 11 para
- * mantener el costo del harness bajo; ampliar según se requiera). Cada
- * caso incluye un system prompt autocontenido + un user input realista.
+ * Casos de evaluación — uno por cada agente con esquema (los 11). Cada
+ * caso incluye un system prompt autocontenido + un user input realista en
+ * español. Los system prompts son reducidos respecto a los del catálogo
+ * (`src/lib/agents/prompts/<agent>.ts`) porque el harness valida el
+ * contrato de salida (schema), no la integración con la DB del tenant —
+ * los builders reales leen Tenant/Shipment/Customer/Product y requerirían
+ * un setup de DB pesado para el eval.
  *
- * Los system prompts son reducidos respecto a los del catálogo
- * (src/lib/agents/prompts/<agent>.ts) porque el harness valida el contrato
- * de salida (schema), no la integración con la DB del tenant.
+ * Los 6 casos nuevos (guide_tracking, customer_score, carrier_score,
+ * vision, novedades, remarketing) se añadieron en SPRINT-AI-AGENTS-003 §2.
+ * Cada uno apunta al esquema Zod correspondiente en
+ * `src/lib/agents/schemas.ts` y usa inputs realistas en español LATAM
+ * (mensajes de WhatsApp típicos del canal de ventas).
  */
 const EVAL_CASES: EvalCase[] = [
   {
@@ -85,6 +97,80 @@ const EVAL_CASES: EvalCase[] = [
       'Eres un agente que valida direcciones. Devuelve JSON con valid (bool), ciudad, barrio, sugerencia.',
     userInput: 'Calle 100 #15-20, Bogotá',
     description: 'Valid Bogotá address',
+  },
+  // ── SPRINT-AI-AGENTS-003 §2 — 6 casos nuevos para los agentes ──────────
+  // Cada caso nuevo apunta a su esquema Zod (ver AGENT_OUTPUT_SCHEMAS en
+  // src/lib/agents/schemas.ts). Los system prompts son reducidos respecto
+  // a los builders reales (que leen DB) — el harness valida el contrato
+  // de salida, no la integración con el tenant.
+  {
+    // Esquema GuideTrackingSchema: { estado: en_transito|entregado|...
+    //   fechaEstimada?, ultimaActualizacion? }. El prompt incluye un
+    // estado simulado (guía 123456 en tránsito con ETA 2 días) — el
+    // builder real consultaría LogisticsAdapter.
+    agentName: 'guide_tracking',
+    systemPrompt:
+      'Eres el agente de seguimiento de guías. Devuelves JSON estricta con estado (en_transito/entregado/devuelto/perdido/desconocido), fechaEstimada (ISO date), ultimaActualizacion (ISO date). No inventes estados — usa solo el dato proporcionado.',
+    userInput:
+      'Mi guía es 123456, ¿dónde está mi pedido? (dato del sistema: guía 123456 con Servientrega, estado actual en_transito, ETA 2025-01-15, última actualización 2025-01-12)',
+    description: 'Guide tracking — should return estado=en_transito with ETA',
+  },
+  {
+    // Esquema CustomerScoreSchema: { score: 0-100, nivel: vip|regular|
+    //   en_riesgo|nuevo, razon }. El cliente del input tiene 15 compras
+    // en 6 meses con ticket promedio $80k — claramente VIP.
+    agentName: 'customer_score',
+    systemPrompt:
+      'Eres el motor de scoring de clientes. Recibes el historial del cliente y devuelves JSON estricta con score (0-100), nivel (vip/regular/en_riesgo/nuevo), razon. Score basado en frecuencia de compra, ticket promedio, recencia y riesgo de churn.',
+    userInput:
+      'Cliente que ha comprado 15 veces en 6 meses, ticket promedio $80k. Última compra hace 5 días. Sin cancelaciones. Perfil: mayorista.',
+    description: 'Customer score — VIP signal (15 compras, $80k avg)',
+  },
+  {
+    // Esquema CarrierScoreSchema: { carrier: string, score: 0-100,
+    //   onTimeRate: 0-1, issues: array }. Servientrega entregó 45/50 a
+    // tiempo → onTimeRate=0.9, score alto.
+    agentName: 'carrier_score',
+    systemPrompt:
+      'Eres el motor de scoring de transportadoras. Para la transportadora indicada, devuelves JSON estricta con carrier (nombre), score (0-100), onTimeRate (0-1), issues (array de strings con problemas detectados). Basado en volumen, % on-time, % novedad, % devolución.',
+    userInput:
+      'Servientrega ha entregado 45 de 50 paquetes a tiempo. 3 tuvieron novedad (dirección errónea), 2 fueron devueltos. Volumen total: 50 envíos en 30 días.',
+    description: 'Carrier score — Servientrega 90% on-time, high score',
+  },
+  {
+    // Esquema VisionSchema: { producto: string, categoria?, atributos?:
+    //   record<string,string>, altText? }. Nota: el eval harness no
+    // puede invocar al VLM real (zai-vlm) porque el adapter de chat()
+    // es texto-only. Le pasamos al LLM una descripción textual de la
+    // imagen (mock) y validamos que la salida cumpla VisionSchema.
+    agentName: 'vision',
+    systemPrompt:
+      'Eres el agente de visión. Identificas productos a partir de descripciones de imágenes. Devuelves JSON estricta con producto (nombre), categoria (opcional), atributos (objeto de pares clave-valor: color, talla, marca, etc., opcional), altText (descripción accesible, opcional).',
+    userInput:
+      'Descripción de la imagen: short de pijama color azul con estampado de estrellas, talla M, marca ZIAY. SKU visible en la franja: SHORT-AZUL-M. Confianza alta en la identificación.',
+    description: 'Vision (mock) — should return producto + atributos from description',
+  },
+  {
+    // Esquema NovedadesSchema: { tipo: string, severidad: baja|media|
+    //   alta, accion: string }. El cliente reporta que nunca recibió el
+    // paquete — novedad de "extravío" o "no entregado", severidad alta.
+    agentName: 'novedades',
+    systemPrompt:
+      'Eres el agente de novedades logísticas. Clasificas la novedad reportada y propones acción correctiva. Devuelves JSON estricta con tipo (string descriptivo: extravio/direccion_errona/rechazo/etc.), severidad (baja/media/alta), accion (string con el siguiente paso a tomar).',
+    userInput:
+      'El cliente dice que nunca recibió el paquete. Guía 123456 con Servientrega, marcada como entregada hace 3 días pero el cliente no la recibió. Reclamación urgente.',
+    description: 'Novedades — extravío reportado, severidad alta',
+  },
+  {
+    // Esquema RemarketingSchema: { mensaje: string, canal: whatsapp|
+    //   messenger|instagram, momento: string }. Cliente abandonó carrito
+    // hace 2 horas — momento óptimo para re-enganche.
+    agentName: 'remarketing',
+    systemPrompt:
+      'Eres el agente de remarketing. Redactas un mensaje de re-enganche personalizado. Devuelves JSON estricta con mensaje (string, máximo 25 palabras, 1 pregunta binaria al cierre), canal (whatsapp/messenger/instagram), momento (string: cuándo enviar — inmediato/1h/24h/etc.).',
+    userInput:
+      'Cliente abandonó carrito hace 2 horas. Carrito: 2 short tira azul ($45k c/u), 1 pantalón tira ($65k). Perfil: mayorista. Canal preferido: WhatsApp.',
+    description: 'Remarketing — abandoned cart 2h ago, WhatsApp channel',
   },
 ]
 

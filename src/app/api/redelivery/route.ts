@@ -84,6 +84,14 @@ const RedeliveryActionSchema = z.discriminatedUnion('action', [
 // GET
 // ───────────────────────────────────────────────────────────────────────────
 
+/**
+ * GET /api/redelivery
+ *
+ * List redelivery requests (failed/returned orders) with their attempt history + status stats.
+ *
+ * @security Requires authentication + tenant access (requireTenantAccess)
+ * @returns { stats, requests[] }
+ */
 export const GET = withErrorHandling(async (req: NextRequest) => {
 
   const sp = req.nextUrl.searchParams
@@ -115,6 +123,14 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
 // POST — create redelivery request
 // ───────────────────────────────────────────────────────────────────────────
 
+/**
+ * POST /api/redelivery
+ *
+ * Create a new RedeliveryRequest for a failed/returned shipment. Auto-schedules attempt #1.
+ *
+ * @security Requires authentication + tenant access (requireTenantAccess)
+ * @returns { request, attempt } (HTTP 201)
+ */
 export const POST = withErrorHandling(async (req: NextRequest) => {
 
   const sp = req.nextUrl.searchParams
@@ -159,6 +175,15 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
 // PATCH — action dispatch
 // ───────────────────────────────────────────────────────────────────────────
 
+/**
+ * PATCH /api/redelivery
+ *
+ * Action dispatch on a RedeliveryRequest — `confirm_address` | `schedule` | `assign_human` | `complete` | `cancel` | `add_attempt`.
+ * Body is a discriminated union on the `action` field.
+ *
+ * @security Requires authentication + tenant access (requireTenantAccess + request.tenantId check)
+ * @returns Action-specific result (updated request / attempt)
+ */
 export const PATCH = withErrorHandling(async (req: NextRequest) => {
 
   const sp = req.nextUrl.searchParams

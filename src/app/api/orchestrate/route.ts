@@ -47,6 +47,12 @@ import { calculateCost, type TokenUsage } from '@/lib/llm/costs'
 // del pipeline de orquestación.
 import { parseAgentOutput, hasOutputSchema } from '@/lib/agents/schemas'
 import { wrapUserInput, ANTI_INJECTION_PREFIX } from '@/lib/agents/sanitize'
+// SPRINT-AI-AGENTS-003 §3 — check de presupuesto diario por tenant antes
+// de la llamada LLM. Si el tenant excedió su budget, se rechaza con 429.
+// Importante: el orchestrator dispara 9 llamadas LLM por request 'full',
+// así que el budget se verifica una vez al inicio del handler (no por
+// step) para no bloquear a mitad del pipeline.
+import { checkBudgetBeforeCall } from '@/lib/llm/budget'
 import { emitToTenant } from '@/lib/chat-emit'
 // SPRINT-ADOPT-ERRORHANDLER-001 — wrapper funnels unhandled exceptions
 // through Sentry + pino. The inner per-agent try/catches inside the
@@ -271,6 +277,20 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     // FIX-SECURITY-AUTH-001 (#29) — tenant gate before any LLM call.
     const { error } = await requireTenantAccess(tenantId)
     if (error) return error
+
+    // SPRINT-AI-AGENTS-003 §3 — verificar el presupuesto diario del tenant
+    // antes de empezar el pipeline. El orchestrator dispara 9 llamadas LLM
+    // por request 'full' — verificar una vez al inicio evita gastar tokens
+    // a mitad del pipeline si el budget ya está agotado. (Cada step todavía
+    // se loguea en DecisionLog, así que el spent real se contabiliza para
+    // el siguiente check.)
+    const budgetCheck = await checkBudgetBeforeCall(tenantId)
+    if (!budgetCheck.allowed) {
+      return NextResponse.json(
+        { ok: false, error: budgetCheck.message, code: 'BUDGET_EXCEEDED' },
+        { status: 429 },
+      )
+    }
 
     const tenant = await db.tenant.findUnique({
       where: { id: tenantId },

@@ -3,6 +3,14 @@ import { db } from '@/lib/db'
 import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 
 // GET /api/health/uptime — lightweight for Uptime Kuma
+/**
+ * GET /api/health/uptime
+ *
+ * Uptime + process metrics (uptime_seconds, memory, pid).
+ *
+ * @security Public
+ * @returns Uptime + runtime metrics
+ */
 export const GET = withErrorHandling(async () => {
 
   const start = Date.now()

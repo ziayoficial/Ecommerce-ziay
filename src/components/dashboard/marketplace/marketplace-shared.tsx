@@ -6,6 +6,7 @@
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import Image from 'next/image'
 import { formatCurrency } from '@/lib/format'
 import { ImageOff, CheckCircle2, Clock, XCircle } from 'lucide-react'
 
@@ -90,10 +91,13 @@ export function ListingCard({
     <Card className="overflow-hidden flex flex-col">
       <div className="aspect-[4/3] bg-muted relative shrink-0">
         {listing.imageUrl ? (
-          <img
+          <Image
             src={listing.imageUrl}
             alt={listing.name}
-            className="absolute inset-0 w-full h-full object-cover"
+            fill
+            className="object-cover"
+            sizes="300px"
+            unoptimized
           />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center text-muted-foreground/40">

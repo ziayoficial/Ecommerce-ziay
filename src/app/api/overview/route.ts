@@ -24,6 +24,14 @@ import { overviewService } from '@/lib/services'
 // unhandled exception is funneled through Sentry + the structured pino
 // logger. The previous manual `try/catch` boilerplate (captureError +
 // NextResponse.json 500) is now the wrapper's responsibility.
+/**
+ * GET /api/overview
+ *
+ * Dashboard overview KPIs (revenue, orders, conversations, ads) for a tenant + date range.
+ *
+ * @security Requires authentication + tenant access
+ * @returns KPI aggregates + breakdowns
+ */
 export const GET = withErrorHandling(async (req: NextRequest) => {
   const tenantIdParam = req.nextUrl.searchParams.get('tenantId') || undefined
   const { error, tenantId } = await resolveTenantId(tenantIdParam)

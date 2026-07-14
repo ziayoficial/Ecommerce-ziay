@@ -47,6 +47,14 @@ const AdsImportSchema = z.object({
 // loop. The tenantId filter moves the safety check into the WHERE clause
 // (previously done in the loop body) — same security posture, fewer round
 // trips. Response shape unchanged.
+/**
+ * POST /api/ads/import
+ *
+ * Importa spend/impressions/clicks/conversions de una plataforma de pauta (Google/TikTok) para un tenant y un rango de fechas. Rate-limited (20 req/min).
+ *
+ * @security Requires authentication + tenant access (requireTenantAccess)
+ * @returns Import summary: campaignsFetched, adsProcessed, spendUpserted
+ */
 export const POST = withErrorHandling(async (req: NextRequest) => {
 
   const limited = rateLimit(req, {

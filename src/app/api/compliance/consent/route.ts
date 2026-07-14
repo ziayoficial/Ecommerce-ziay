@@ -32,6 +32,14 @@ const CreateConsentSchema = z.object({
   proofPayload: z.record(z.string(), z.unknown()).optional(),
 })
 
+/**
+ * POST /api/compliance/consent
+ *
+ * Registra un consentimiento (Ley 1581 de 2012 — protección de datos personales).
+ *
+ * @security Requires authentication + tenant access (dataSubject tenant match)
+ * @returns Created consent record
+ */
 export const POST = withErrorHandling(async (req: NextRequest) => {
 
   let raw: unknown
@@ -114,6 +122,14 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
 
 // GET /api/compliance/consent?tenantId=X&dataSubjectId=Y
 // Lista los consentimientos de un data subject.
+/**
+ * GET /api/compliance/consent
+ *
+ * Lista los consentimientos de un data subject.
+ *
+ * @security Requires authentication + tenant access
+ * @returns Consent list
+ */
 export const GET = withErrorHandling(async (req: NextRequest) => {
 
   const tenantId = req.nextUrl.searchParams.get('tenantId') || undefined
@@ -154,6 +170,14 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
 // V8 (AUDIT-FINAL-SEC-001): si el dataSubject es un customer, verificamos
 // que pertenece al tenant del caller (defense-in-depth además del guard
 // de tenant sobre el consent record).
+/**
+ * DELETE /api/compliance/consent
+ *
+ * Revoca un consentimiento (granted=false, revokedAt=now).
+ *
+ * @security Requires authentication + tenant access
+ * @returns Revoked consent summary
+ */
 export const DELETE = withErrorHandling(async (req: NextRequest) => {
 
   const id = req.nextUrl.searchParams.get('id')

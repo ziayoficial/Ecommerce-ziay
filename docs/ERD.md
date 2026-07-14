@@ -2,6 +2,8 @@
 
 This document describes the core data model of ZIAY (Comercio Conversacional + Atribución Inteligente). The Prisma schema (`prisma/schema.prisma`) defines **68 models**, of which **60 are tenant-scoped** (carry a `tenantId` FK) and **8 are global** (`Setting`, `Tenant`, `AuditLog`, etc.).
 
+> **Auto-generated ERD:** `bunx prisma generate` now emits an SVG diagram at [`docs/erd.svg`](./erd.svg) via [`prisma-erd-generator`](https://github.com/kevinswiber/prisma-erd-generator) + [`@mermaid-js/mermaid-cli`](https://github.com/mermaid-js/mermaid-cli). The SVG is the canonical visual reference; the Mermaid block below is a hand-curated overview of the key models.
+
 The diagram below shows the key models and their relationships. It is intended as a navigation aid — for the canonical definition, always consult `prisma/schema.prisma`.
 
 ## Core Models
@@ -60,7 +62,7 @@ Every tenant-scoped model carries a `tenantId` foreign key pointing to `Tenant.i
 - `Tenant` — the root entity (slug, name, currency, country).
 - `User` — login identity (email + password hash + role). Each user belongs to a tenant (except `platform-admin`).
 - `Setting` — key/value config (global app settings, not tenant-scoped).
-- `AuditLog` — append-only event log (action + entity + entityId + meta + tenantId optional). Used for webhook dedup, compliance trail, and verifiable intents.
+- `AuditLog` — append-only event log (action + entity + entityId + metadata + tenantId optional). Used for webhook dedup, compliance trail, and verifiable intents. (The `meta` column was dropped in Sprint 5D — all reads + writes now use `metadata`.)
 - `WebhookEvent` — durable idempotency log for webhook dedup.
 - `ApiKey` — hashed API tokens for service-to-service auth.
 - `McpSession` — MCP JSON-RPC session state (per agent).

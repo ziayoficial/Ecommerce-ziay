@@ -24,6 +24,14 @@ const SendToChatSchema = z.object({
 // user used to be able to send a product message to any conversation of
 // any tenant (similar to /api/conversations POST but with a product
 // attachment).
+/**
+ * POST /api/catalog/send-to-chat
+ *
+ * Send a product card to an active conversation (chat-up sell flow).
+ *
+ * @security Requires authentication + tenant access
+ * @returns Send confirmation
+ */
 export const POST = withErrorHandling(async (req: NextRequest) => {
 
     const raw = await req.json()

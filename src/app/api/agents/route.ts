@@ -8,6 +8,14 @@ import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 // Cached for 1 hour — the agent registry is a static compile-time constant
 // (AGENT_NAMES / AGENT_LABELS) so the only thing that ever invalidates this
 // cache is a server restart.
+/**
+ * GET /api/agents
+ *
+ * List all available Saramantha agents. Cached 1 hour.
+ *
+ * @security Requires authentication
+ * @returns Agent list + count
+ */
 export const GET = withErrorHandling(async () => {
 
   const { error } = await requireAuth()

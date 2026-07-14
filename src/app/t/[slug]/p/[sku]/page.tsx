@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
+import Image from 'next/image'
 import { db } from '@/lib/db'
 import { formatCurrency } from '@/lib/format'
 import { safeJsonLd } from '@/lib/seo/json-ld'
@@ -217,10 +218,13 @@ export default async function ProductDetailPage({ params }: PageProps) {
           <div className="relative">
             <div className="aspect-square w-full overflow-hidden rounded-xl border bg-muted">
               {product.imageUrl ? (
-                <img
+                <Image
                   src={product.imageUrl}
                   alt={product.name}
+                  width={400}
+                  height={400}
                   className="h-full w-full object-cover"
+                  unoptimized
                 />
               ) : (
                 <div className="flex h-full w-full items-center justify-center text-muted-foreground">

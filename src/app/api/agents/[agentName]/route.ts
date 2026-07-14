@@ -12,6 +12,9 @@ import { calculateCost, type TokenUsage } from '@/lib/llm/costs'
 // FIX-AI-AGENTS-001 — defensas y validación de salida para los 26 agentes.
 import { parseAgentOutput, hasOutputSchema } from '@/lib/agents/schemas'
 import { wrapUserInput, ANTI_INJECTION_PREFIX } from '@/lib/agents/sanitize'
+// SPRINT-AI-AGENTS-003 §3 — check de presupuesto diario por tenant antes
+// de la llamada LLM. Si el tenant excedió su budget, se rechaza con 429.
+import { checkBudgetBeforeCall } from '@/lib/llm/budget'
 import { emitToTenant } from '@/lib/chat-emit'
 // SPRINT-ADOPT-ERRORHANDLER-001 — wrapper funnels unhandled exceptions
 // through Sentry + pino. The inner try/catch around the LLM call is
@@ -196,6 +199,18 @@ export const POST = withErrorHandling(
   // FIX-SECURITY-AUTH-001 (#30) — tenant gate before the LLM call.
   const { error } = await requireTenantAccess(ctx.tenantId)
   if (error) return error
+
+  // SPRINT-AI-AGENTS-003 §3 — verificar el presupuesto diario del tenant
+  // antes de la llamada LLM. Si excedió el budget, devolvemos 429 para que
+  // el cliente sepa que debe esperar al reset diario (o contactar al admin
+  // para subir el budget vía /api/llm/budget).
+  const budgetCheck = await checkBudgetBeforeCall(ctx.tenantId)
+  if (!budgetCheck.allowed) {
+    return NextResponse.json(
+      { error: budgetCheck.message, code: 'BUDGET_EXCEEDED' },
+      { status: 429 },
+    )
+  }
 
   // Persist image identification result for vision agent (after the call)
   // (Done below if agentName === 'vision')

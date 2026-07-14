@@ -26,6 +26,14 @@ import { orderService } from '@/lib/services'
 // unhandled exception is funneled through Sentry + the structured pino
 // logger. The previous manual `try/catch` boilerplate (captureError +
 // NextResponse.json 500) is now the wrapper's responsibility.
+/**
+ * GET /api/orders
+ *
+ * List orders with cursor-based pagination. Filter by status/mode/search.
+ *
+ * @security Requires authentication + tenant access (resolveTenantId)
+ * @returns Paginated orders + nextCursor + hasMore
+ */
 export const GET = withErrorHandling(async (req: NextRequest) => {
   const tenantIdParam = req.nextUrl.searchParams.get('tenantId') || undefined
   const { error, tenantId } = await resolveTenantId(tenantIdParam)

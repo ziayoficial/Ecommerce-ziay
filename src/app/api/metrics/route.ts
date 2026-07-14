@@ -31,6 +31,14 @@ export const revalidate = 0
 // nginx) instead of exposing it publicly. See docs/DR-RUNBOOK.md.
 // ───────────────────────────────────────────────────────────────────────────
 
+/**
+ * GET /api/metrics
+ *
+ * Prometheus-style metrics endpoint (counters + histograms).
+ *
+ * @security Public (intended for scraping)
+ * @returns Prometheus text-format metrics
+ */
 export const GET = withErrorHandling(async () => {
 
   const metrics: string[] = []

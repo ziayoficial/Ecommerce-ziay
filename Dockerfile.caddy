@@ -1,0 +1,23 @@
+# ───────────────────────────────────────────────────────────────────────────
+# Custom Caddy image with rate-limit plugin
+# Sprint 5C / Document §B3: Caddyfile uses the `rate_limit` directive which is
+# NOT part of the standard Caddy binary — it requires the caddy-ratelimit
+# module built in via `xcaddy`. This Dockerfile produces a Caddy 2 alpine
+# image with that module baked in so the Caddyfile validates and the
+# directive is honoured at runtime.
+#
+# Build context must include the Caddyfile so it can be COPYed into the
+# final image (docker-compose.yml also bind-mounts ./Caddyfile for live
+# edits without a rebuild — but the baked-in copy guarantees a working
+# default if the mount is absent).
+# ───────────────────────────────────────────────────────────────────────────
+
+FROM caddy:2-builder AS builder
+
+RUN xcaddy build \
+    --with github.com/mholt/caddy-ratelimit
+
+FROM caddy:2-alpine
+
+COPY --from=builder /usr/bin/caddy /usr/bin/caddy
+COPY Caddyfile /etc/caddy/Caddyfile

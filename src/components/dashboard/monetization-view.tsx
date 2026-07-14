@@ -14,7 +14,7 @@ import { cn } from '@/lib/utils'
 import { useTenantId } from '@/hooks/use-tenant'
 import { t } from '@/lib/i18n'
 import {
-  DollarSign, TrendingUp, Wallet, Receipt, Clock, AlertTriangle, CheckCircle2, RefreshCw, AlertCircle,
+  DollarSign, TrendingUp, Receipt, Clock, AlertTriangle, CheckCircle2, RefreshCw, AlertCircle,
 } from 'lucide-react'
 
 type MonetizationData = {
@@ -39,7 +39,7 @@ export function MonetizationView() {
   const tenantId = useTenantId()
   const [data, setData] = useState<MonetizationData | null>(null)
   const [entries, setEntries] = useState<CommissionEntry[]>([])
-  const [totals, setTotals] = useState<{ gmv: number; comisionTotal: number; reconocida: number; pendiente: number } | null>(null)
+  const [_totals, setTotals] = useState<{ gmv: number; comisionTotal: number; reconocida: number; pendiente: number } | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)

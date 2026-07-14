@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireTenantAccess } from '@/lib/auth-helpers'
-import { captureError } from '@/lib/capture-error'
 import { getLogger } from '@/lib/logger'
 import { db } from '@/lib/db'
 import {
@@ -13,18 +12,17 @@ import {
   verifyVC,
   type W3CVerifiableCredential,
 } from '@/lib/crypto/signing'
+import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 
 const log = getLogger('api/ap2/mandates/[id]')
 
 // GET /api/ap2/mandates/[id]
 // Devuelve el mandato + VC + estado de verificación de firma.
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export const GET = withErrorHandling(async (_req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },) => {
+
   const { id } = await params
 
-  try {
     const mandate = await db.aP2Mandate.findUnique({
       where: { id },
       include: { parentMandate: true, childMandates: true },
@@ -83,14 +81,9 @@ export async function GET(
         signatoryDid: mandate.signatoryDid,
       },
     })
-  } catch (err) {
-    captureError(err as Error, { path: '/api/ap2/mandates/[id]', method: 'GET' })
-    return NextResponse.json(
-      { error: 'No se pudo obtener el mandato' },
-      { status: 500 },
-    )
-  }
-}
+  
+
+})
 
 // PATCH /api/ap2/mandates/[id]
 // Avanza el estado (active → consumed) o actualiza orderId / paymentRef.
@@ -101,10 +94,9 @@ const PatchSchema = z.object({
   paymentRef: z.string().optional(),
 })
 
-export async function PATCH(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export const PATCH = withErrorHandling(async (req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },) => {
+
   const { id } = await params
   let raw: unknown
   try {
@@ -123,7 +115,6 @@ export async function PATCH(
     )
   }
 
-  try {
     const existing = await db.aP2Mandate.findUnique({ where: { id } })
     if (!existing) {
       return NextResponse.json(
@@ -160,14 +151,9 @@ export async function PATCH(
         paymentRef: updated.paymentRef,
       },
     })
-  } catch (err) {
-    captureError(err as Error, { path: '/api/ap2/mandates/[id]', method: 'PATCH' })
-    return NextResponse.json(
-      { error: 'No se pudo actualizar el mandato' },
-      { status: 500 },
-    )
-  }
-}
+  
+
+})
 
 // Re-export para que el endpoint /revoke pueda reutilizar helpers.
 export const _internal = { computeHash, getOrCreateTenantKeypair, createW3CVC, signVC }

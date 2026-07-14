@@ -1,23 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireAuth } from '@/lib/auth-helpers'
-import { captureError } from '@/lib/capture-error'
 import { getLogger } from '@/lib/logger'
 import { db } from '@/lib/db'
+import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 
 const log = getLogger('api/governance/decisions/[id]')
 
 // GET /api/governance/decisions/[id]
 // Devuelve un DecisionLog específico.
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export const GET = withErrorHandling(async (_req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },) => {
+
   const { id } = await params
   const { error } = await requireAuth()
   if (error) return error
 
-  try {
     const decision = await db.decisionLog.findUnique({ where: { id } })
     if (!decision) {
       return NextResponse.json(
@@ -59,17 +57,9 @@ export async function GET(
         createdAt: decision.createdAt,
       },
     })
-  } catch (err) {
-    captureError(err as Error, {
-      path: '/api/governance/decisions/[id]',
-      method: 'GET',
-    })
-    return NextResponse.json(
-      { error: 'No se pudo obtener el DecisionLog' },
-      { status: 500 },
-    )
-  }
-}
+  
+
+})
 
 // PATCH /api/governance/decisions/[id]
 // Marca un DecisionLog como revisado por humano (approve/reject/modify).
@@ -80,10 +70,9 @@ const PatchSchema = z.object({
   note: z.string().max(500).optional(),
 })
 
-export async function PATCH(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export const PATCH = withErrorHandling(async (req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },) => {
+
   const { id } = await params
   const { session: authSession, error } = await requireAuth()
   if (error) return error
@@ -117,7 +106,6 @@ export async function PATCH(
   }
   const body = parsed.data
 
-  try {
     const existing = await db.decisionLog.findUnique({ where: { id } })
     if (!existing) {
       return NextResponse.json(
@@ -154,12 +142,7 @@ export async function PATCH(
         action: 'governance.decision.reviewed',
         entity: 'DecisionLog',
         entityId: existing.id,
-        meta: JSON.stringify({
-          agentName: existing.agentName,
-          humanDecision: body.humanDecision,
-          note: body.note ?? null,
-        }),
-        metadata: JSON.stringify({  // TD-AUDITLOG-META-RENAME
+        metadata: JSON.stringify({
           agentName: existing.agentName,
           humanDecision: body.humanDecision,
           note: body.note ?? null,
@@ -179,17 +162,9 @@ export async function PATCH(
       humanReviewerId: updated.humanReviewerId,
       humanReviewedAt: updated.humanReviewedAt,
     })
-  } catch (err) {
-    captureError(err as Error, {
-      path: '/api/governance/decisions/[id]',
-      method: 'PATCH',
-    })
-    return NextResponse.json(
-      { error: 'No se pudo actualizar el DecisionLog' },
-      { status: 500 },
-    )
-  }
-}
+  
+
+})
 
 function safeJson(s: string): unknown {
   try {

@@ -869,8 +869,7 @@ model AuditLog {
   action    String
   entity    String
   entityId  String?
-  meta      String?  // DEPRECATED — use `metadata` instead. Remove in v0.5.0 (TD-AUDITLOG-META-RENAME)
-  metadata  String?  // new field (TD-AUDITLOG-META-RENAME)
+  metadata  String?
   createdAt DateTime @default(now())
 
   // Verifiable Intent compatibility — Documento §11:

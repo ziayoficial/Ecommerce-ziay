@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireTenantAccess } from '@/lib/auth-helpers'
 import { rateLimit } from '@/lib/middleware/rate-limit'
-import { captureError } from '@/lib/capture-error'
 import { getLogger } from '@/lib/logger'
 import { db } from '@/lib/db'
 import {
@@ -13,6 +12,7 @@ import {
 } from '@/lib/adapters/local-payments'
 import { isCurrencyCode, getCurrencyForCountry } from '@/lib/i18n/currency'
 import { calculateTax } from '@/lib/i18n/tax'
+import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 
 const log = getLogger('api/payments/local')
 
@@ -78,7 +78,8 @@ const CreateLocalPaymentSchema = z.object({
   customerPhone: z.string().optional(),
 })
 
-export async function POST(req: NextRequest) {
+export const POST = withErrorHandling(async (req: NextRequest) => {
+
   const limited = rateLimit(req, {
     max: 30,
     windowMs: 60_000,
@@ -155,7 +156,6 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  try {
     // ── Resolve or create the Customer ──────────────────────────────────
     let customerId = body.customerId
     if (!customerId && (body.customerName || body.customerPhone)) {
@@ -280,18 +280,6 @@ export async function POST(req: NextRequest) {
       },
       { status: 201 },
     )
-  } catch (err) {
-    log.error(
-      { err, tenantId: body.tenantId, method },
-      'local payment creation failed',
-    )
-    captureError(err as Error, { path: '/api/payments/local', method: 'POST' })
-    return NextResponse.json(
-      {
-        error: 'Local payment creation failed',
-        detail: err instanceof Error ? err.message : 'unknown error',
-      },
-      { status: 500 },
-    )
-  }
-}
+  
+
+})

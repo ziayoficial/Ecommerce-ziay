@@ -197,7 +197,7 @@ async function enableRedisAdapter(): Promise<void> {
     })
 
     io.adapter(createAdapter(pubClient, subClient))
-    console.log('[chat-service] Redis adapter enabled — multi-instance ready')
+    console.warn('[chat-service] Redis adapter enabled — multi-instance ready')
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     console.warn(
@@ -296,7 +296,7 @@ io.on('connection', (socket: Socket) => {
   }
   const tenantRoom = `tenant:${tenantId}`
   socket.join(tenantRoom)
-  console.log(
+  console.warn(
     `[chat-service] agent connected: ${socket.id} (tenant=${tenantId}, user=${socket.data.userId ?? 'unknown'})`,
   )
 
@@ -314,7 +314,7 @@ io.on('connection', (socket: Socket) => {
       timestamp: new Date().toISOString(),
     }
     io.to(tenantRoom).emit('message:new', outbound)
-    console.log(`[chat-service] outbound -> conv ${data.conversationId}: ${data.body.slice(0, 60)}`)
+    console.warn(`[chat-service] outbound -> conv ${data.conversationId}: ${data.body.slice(0, 60)}`)
 
     // Simulate a customer inbound reply after 3-6s (demo)
     const delay = 3000 + Math.random() * 3000
@@ -332,7 +332,7 @@ io.on('connection', (socket: Socket) => {
         lastMessageAt: inbound.timestamp,
         unreadCount: 1,
       })
-      console.log(`[chat-service] inbound  <- conv ${data.conversationId}: ${reply}`)
+      console.warn(`[chat-service] inbound  <- conv ${data.conversationId}: ${reply}`)
     }, delay)
   })
 
@@ -349,7 +349,7 @@ io.on('connection', (socket: Socket) => {
   })
 
   socket.on('disconnect', () => {
-    console.log(`[chat-service] agent disconnected: ${socket.id} (tenant=${tenantId})`)
+    console.warn(`[chat-service] agent disconnected: ${socket.id} (tenant=${tenantId})`)
   })
 })
 
@@ -442,7 +442,7 @@ enableRedisAdapter()
   })
   .finally(() => {
     httpServer.listen(PORT, () => {
-      console.log(`✅ ZIAY chat-service running on port ${PORT}`)
+      console.warn(`✅ ZIAY chat-service running on port ${PORT}`)
     })
   })
 

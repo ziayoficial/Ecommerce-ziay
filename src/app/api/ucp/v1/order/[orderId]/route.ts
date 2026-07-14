@@ -1,20 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-helpers'
-import { captureError } from '@/lib/capture-error'
 import { db } from '@/lib/db'
+import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 
 // GET /api/ucp/v1/order/[orderId]
 // Devuelve el estado del pedido en formato UCP (para que el agente consulte
 // fulfillment). Documento §10.1: "Order" capability.
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: Promise<{ orderId: string }> },
-) {
+export const GET = withErrorHandling(async (_req: NextRequest,
+  { params }: { params: Promise<{ orderId: string }> },) => {
+
   const { orderId } = await params
   const { error } = await requireAuth()
   if (error) return error
 
-  try {
     const order = await db.order.findUnique({
       where: { id: orderId },
       include: {
@@ -82,17 +80,9 @@ export async function GET(
         })),
       },
     })
-  } catch (err) {
-    captureError(err as Error, {
-      path: '/api/ucp/v1/order/[orderId]',
-      method: 'GET',
-    })
-    return NextResponse.json(
-      { error: 'No se pudo obtener el pedido' },
-      { status: 500 },
-    )
-  }
-}
+  
+
+})
 
 function mapToUcpStatus(orderStatus: string, paymentStatus: string): string {
   if (orderStatus === 'cancelled') return 'cancelled'

@@ -233,14 +233,14 @@ describe('logisticsService.persistShipmentGuide', () => {
       },
     })
 
-    // AuditLog.create with the canonical action + JSON meta
+    // AuditLog.create with the canonical action + JSON metadata
     expect(db.auditLog.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         tenantId: 'ten-1',
         action: 'shipping_guide_generated',
         entity: 'shipment',
         entityId: 'ship-1',
-        meta: expect.stringContaining('"numero_guia":"GUIDE-001"'),
+        metadata: expect.stringContaining('"numero_guia":"GUIDE-001"'),
       }),
     })
 

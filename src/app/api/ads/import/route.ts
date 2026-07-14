@@ -3,10 +3,10 @@ import { z } from 'zod'
 import { requireTenantAccess } from '@/lib/auth-helpers'
 import { rateLimit } from '@/lib/middleware/rate-limit'
 import { getAdPlatformAdapter } from '@/lib/adapters/ads-registry'
-import { captureError } from '@/lib/capture-error'
 import { getLogger } from '@/lib/logger'
 import { db } from '@/lib/db'
 import { adsService } from '@/lib/services'
+import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 
 const log = getLogger('api/ads/import')
 
@@ -47,7 +47,8 @@ const AdsImportSchema = z.object({
 // loop. The tenantId filter moves the safety check into the WHERE clause
 // (previously done in the loop body) — same security posture, fewer round
 // trips. Response shape unchanged.
-export async function POST(req: NextRequest) {
+export const POST = withErrorHandling(async (req: NextRequest) => {
+
   const limited = rateLimit(req, {
     max: 20,
     windowMs: 60_000,
@@ -85,7 +86,6 @@ export async function POST(req: NextRequest) {
 
   void session // session available for future audit; unused for now
 
-  try {
     const campaignPerf = await adapter.fetchCampaignPerformance(
       String(dateStart),
       String(dateEnd),
@@ -188,18 +188,6 @@ export async function POST(req: NextRequest) {
       adsProcessed,
       spendUpserted: spendRows.length,
     })
-  } catch (err) {
-    log.error(
-      { err, tenantId, platform, dateStart, dateEnd },
-      'ads import failed',
-    )
-    captureError(err as Error, { path: '/api/ads/import', method: 'POST' })
-    return NextResponse.json(
-      {
-        error: 'Import failed',
-        detail: err instanceof Error ? err.message : 'unknown error',
-      },
-      { status: 500 },
-    )
-  }
-}
+  
+
+})

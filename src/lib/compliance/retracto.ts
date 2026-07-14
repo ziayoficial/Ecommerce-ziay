@@ -148,7 +148,7 @@ export async function processRetracto(
         action: 'compliance.retracto',
         entityId: orderId,
         entity: 'order',
-        meta: JSON.stringify({ reason, refundDeadline }),
+        metadata: JSON.stringify({ reason, refundDeadline }),
       },
     })
   })

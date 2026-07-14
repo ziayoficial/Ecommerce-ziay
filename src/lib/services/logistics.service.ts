@@ -274,14 +274,7 @@ export const logisticsService = {
           action: 'shipping_guide_generated',
           entity: 'shipment',
           entityId: shipment.id,
-          meta: JSON.stringify({
-            orderId: input.orderId,
-            numero_guia: input.numeroGuia,
-            transportadora: input.transportadora,
-            transportadoraCanonica: input.transportadoraCanonica,
-            tarifa: input.tarifa,
-          }),
-          metadata: JSON.stringify({  // TD-AUDITLOG-META-RENAME
+          metadata: JSON.stringify({
             orderId: input.orderId,
             numero_guia: input.numeroGuia,
             transportadora: input.transportadora,

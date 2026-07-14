@@ -33,9 +33,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireTenantAccess } from '@/lib/auth-helpers'
 import { db } from '@/lib/db'
 import { enqueue, isInlineMode } from '@/lib/queue'
+import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 
-export async function POST(req: NextRequest) {
-  try {
+export const POST = withErrorHandling(async (req: NextRequest) => {
+
     const body = await req.json()
     const { tenantId } = body as { tenantId?: string }
 
@@ -84,9 +85,7 @@ export async function POST(req: NextRequest) {
 
     let synced = 0
     let fuente = 'whatsapp_catalog'
-    // TD-AUDITLOG-META-RENAME — prefer `metadata`, fall back to `meta` for rows
-    // written before the dual-write migration.
-    const rawMeta = audit?.metadata ?? audit?.meta
+    const rawMeta = audit?.metadata
     if (rawMeta) {
       try {
         const meta = JSON.parse(rawMeta) as {
@@ -110,8 +109,6 @@ export async function POST(req: NextRequest) {
       fuenteSincronizacion: fuente,
       synced,
     })
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Unknown error'
-    return NextResponse.json({ error: message }, { status: 500 })
-  }
-}
+  
+
+})

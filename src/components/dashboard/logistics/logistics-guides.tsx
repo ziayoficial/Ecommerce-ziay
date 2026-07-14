@@ -7,7 +7,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { cn } from '@/lib/utils'
 import { shortDate } from '@/lib/format'
 import { toast } from 'sonner'
 import { AlertTriangle, ChevronRight } from 'lucide-react'

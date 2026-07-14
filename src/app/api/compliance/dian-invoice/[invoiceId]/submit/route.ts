@@ -15,14 +15,13 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole, requireTenantAccess } from '@/lib/auth-helpers'
-import { captureError } from '@/lib/capture-error'
 import { db } from '@/lib/db'
 import { submitToDian } from '@/lib/compliance/dian-invoicing'
+import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 
-export async function POST(
-  _req: NextRequest,
-  { params }: { params: Promise<{ invoiceId: string }> },
-) {
+export const POST = withErrorHandling(async (_req: NextRequest,
+  { params }: { params: Promise<{ invoiceId: string }> },) => {
+
   // ── Auth: admin only — regulated DIAN submission ────────────────────
   const { error: roleErr } = await requireRole(['admin'])
   if (roleErr) return roleErr
@@ -52,22 +51,12 @@ export async function POST(
   const { error } = await requireTenantAccess(invoice.tenantId)
   if (error) return error
 
-  try {
     const result = await submitToDian(invoiceId)
     return NextResponse.json({
       invoiceId,
       ...result,
       dianStatus: result.accepted ? 'accepted' : 'pending_submission',
     })
-  } catch (err) {
-    captureError(err as Error, {
-      path: '/api/compliance/dian-invoice/submit',
-      method: 'POST',
-      invoiceId,
-    })
-    return NextResponse.json(
-      { error: 'No se pudo enviar la factura a DIAN' },
-      { status: 500 },
-    )
-  }
-}
+  
+
+})

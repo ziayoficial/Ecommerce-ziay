@@ -2,13 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { randomUUID } from 'crypto'
 import { requireTenantAccess } from '@/lib/auth-helpers'
-import { captureError } from '@/lib/capture-error'
 import { getLogger } from '@/lib/logger'
 import { db } from '@/lib/db'
 import {
   computeHash,
   getOrCreateTenantKeypair,
 } from '@/lib/crypto/signing'
+import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 
 const log = getLogger('api/ucp/v1/identity-linking')
 
@@ -43,7 +43,8 @@ const LinkingSchema = z.object({
   ts: z.number().int().positive(),
 })
 
-export async function POST(req: NextRequest) {
+export const POST = withErrorHandling(async (req: NextRequest) => {
+
   let raw: unknown
   try {
     raw = await req.json()
@@ -67,7 +68,6 @@ export async function POST(req: NextRequest) {
   const { error } = await requireTenantAccess(body.tenantId)
   if (error) return error
 
-  try {
     // 2) Anti-replay: ts debe estar dentro de los últimos 5 minutos.
     const skewMs = Math.abs(Date.now() - body.ts)
     if (skewMs > 5 * 60 * 1000) {
@@ -160,17 +160,9 @@ export async function POST(req: NextRequest) {
       },
       { status: 201 },
     )
-  } catch (err) {
-    captureError(err as Error, {
-      path: '/api/ucp/v1/identity-linking',
-      method: 'POST',
-    })
-    return NextResponse.json(
-      { error: 'No se pudo vincular la identidad' },
-      { status: 500 },
-    )
-  }
-}
+  
+
+})
 
 // ── helpers ──────────────────────────────────────────────────────────────
 

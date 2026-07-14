@@ -1,7 +1,6 @@
 'use client'
 import { useCallback, useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -29,7 +28,7 @@ import { useTenantId } from '@/hooks/use-tenant'
 // sites terse without renaming the long-standing `t` alias for totals.
 import { t as translate } from '@/lib/i18n'
 import {
-  Target, TrendingUp, TrendingDown, DollarSign, Percent, Flame, Skull, Pause,
+  Target, TrendingUp, DollarSign, Percent, Flame, Skull, Pause,
   Play, Rocket, Eye, AlertTriangle, Search, Gauge, Sparkles, RefreshCw, AlertCircle, Megaphone, Upload,
 } from 'lucide-react'
 

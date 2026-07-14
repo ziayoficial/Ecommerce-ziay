@@ -199,9 +199,14 @@ services:
       retries: 3
       start_period: 15s
 
-  # ── 10. Caddy (reverse proxy + automatic HTTPS) ──────────────────────────
+  # ── 10. Caddy (reverse proxy + automatic HTTPS + rate-limit) ─────────────
+  # Sprint 5C: switched from the upstream `caddy:2-alpine` image to a custom
+  # build (Dockerfile.caddy) that bakes in the mholt/caddy-ratelimit module
+  # so the `rate_limit` directive in Caddyfile is honoured at runtime.
   caddy:
-    image: caddy:2-alpine
+    build:
+      context: .
+      dockerfile: Dockerfile.caddy
     restart: unless-stopped
     networks: [commerceflow]
     depends_on:

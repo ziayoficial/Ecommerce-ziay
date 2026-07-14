@@ -4,6 +4,7 @@ import net from 'net'
 import { db } from '@/lib/db'
 import { withCache } from '@/lib/cache'
 import { isRedisAvailable } from '@/lib/redis'
+import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 
 // GET /api/health — reports status of all integrations + runtime metrics.
 // SPRINT5-FINAL-001 · Part 3 (enhanced with latency / runtime / disk / socket)
@@ -29,7 +30,8 @@ interface Check {
   latency_ms?: number
 }
 
-export async function GET(req: NextRequest) {
+export const GET = withErrorHandling(async (req: NextRequest) => {
+
   const tenantId = req.nextUrl.searchParams.get('tenantId') || undefined
 
   // Integration checks are cached; runtime metrics are recomputed each call.
@@ -48,7 +50,8 @@ export async function GET(req: NextRequest) {
   // serving traffic, just degraded.
   const httpStatus = status === 'error' ? 503 : 200
   return NextResponse.json({ status, summary, checks, runtime, timestamp }, { status: httpStatus })
-}
+
+})
 
 async function runHealthChecks(tenantId: string | undefined) {
   const checks: Check[] = []

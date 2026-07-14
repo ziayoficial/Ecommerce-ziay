@@ -34,6 +34,7 @@ import { db } from '@/lib/db'
 import { requireTenantAccess } from '@/lib/auth-helpers'
 import { getLogger } from '@/lib/logger'
 import { novedadesService } from '@/lib/services'
+import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 
 const log = getLogger('api:novedades')
 
@@ -106,7 +107,8 @@ const CaseActionSchema = z.discriminatedUnion('action', [
 // GET
 // ───────────────────────────────────────────────────────────────────────────
 
-export async function GET(req: NextRequest) {
+export const GET = withErrorHandling(async (req: NextRequest) => {
+
   const sp = req.nextUrl.searchParams
   const tenantId = sp.get('tenantId')
   if (!tenantId) {
@@ -176,13 +178,15 @@ export async function GET(req: NextRequest) {
     nextCursor,
     hasMore: hasNext,
   })
-}
+
+})
 
 // ───────────────────────────────────────────────────────────────────────────
 // POST — create case
 // ───────────────────────────────────────────────────────────────────────────
 
-export async function POST(req: NextRequest) {
+export const POST = withErrorHandling(async (req: NextRequest) => {
+
   const sp = req.nextUrl.searchParams
   const tenantId = sp.get('tenantId')
   if (!tenantId) {
@@ -245,13 +249,15 @@ export async function POST(req: NextRequest) {
     'case created',
   )
   return NextResponse.json({ case: newCase }, { status: 201 })
-}
+
+})
 
 // ───────────────────────────────────────────────────────────────────────────
 // PATCH — action dispatch
 // ───────────────────────────────────────────────────────────────────────────
 
-export async function PATCH(req: NextRequest) {
+export const PATCH = withErrorHandling(async (req: NextRequest) => {
+
   const sp = req.nextUrl.searchParams
   const tenantId = sp.get('tenantId')
   if (!tenantId) {
@@ -406,4 +412,5 @@ export async function PATCH(req: NextRequest) {
     default:
       return NextResponse.json({ error: `Unknown action: ${action}` }, { status: 400 })
   }
-}
+
+})

@@ -23,8 +23,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireTenantAccess } from '@/lib/auth-helpers'
-import { captureError } from '@/lib/capture-error'
 import { novedadesService } from '@/lib/services'
+import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 
 const CreateRedeliverySchema = z.object({
   guideNumber: z.string().min(1),
@@ -84,7 +84,8 @@ const RedeliveryActionSchema = z.discriminatedUnion('action', [
 // GET
 // ───────────────────────────────────────────────────────────────────────────
 
-export async function GET(req: NextRequest) {
+export const GET = withErrorHandling(async (req: NextRequest) => {
+
   const sp = req.nextUrl.searchParams
   const tenantId = sp.get('tenantId')
   if (!tenantId) {
@@ -95,7 +96,6 @@ export async function GET(req: NextRequest) {
 
   const status = sp.get('status') || undefined
 
-  try {
     const { requests, statsMap } = await novedadesService.getRedeliveryRequests(tenantId, status)
     return NextResponse.json({
       stats: {
@@ -107,20 +107,16 @@ export async function GET(req: NextRequest) {
       },
       requests,
     })
-  } catch (err) {
-    captureError(err as Error, { path: '/api/redelivery', method: 'GET', tenantId })
-    return NextResponse.json(
-      { error: 'Internal server error', message: err instanceof Error ? err.message : 'Unknown error' },
-      { status: 500 },
-    )
-  }
-}
+  
+
+})
 
 // ───────────────────────────────────────────────────────────────────────────
 // POST — create redelivery request
 // ───────────────────────────────────────────────────────────────────────────
 
-export async function POST(req: NextRequest) {
+export const POST = withErrorHandling(async (req: NextRequest) => {
+
   const sp = req.nextUrl.searchParams
   const tenantId = sp.get('tenantId')
   if (!tenantId) {
@@ -145,7 +141,6 @@ export async function POST(req: NextRequest) {
   }
   const { guideNumber, customerPhone, customerName, originalAddress, newAddress, reason } = parseResult.data
 
-  try {
     const { request, attempt } = await novedadesService.createRedeliveryRequest({
       tenantId,
       guideNumber: String(guideNumber),
@@ -156,20 +151,16 @@ export async function POST(req: NextRequest) {
       reason: String(reason),
     })
     return NextResponse.json({ request, attempt }, { status: 201 })
-  } catch (err) {
-    captureError(err as Error, { path: '/api/redelivery', method: 'POST', tenantId })
-    return NextResponse.json(
-      { error: 'Internal server error', message: err instanceof Error ? err.message : 'Unknown error' },
-      { status: 500 },
-    )
-  }
-}
+  
+
+})
 
 // ───────────────────────────────────────────────────────────────────────────
 // PATCH — action dispatch
 // ───────────────────────────────────────────────────────────────────────────
 
-export async function PATCH(req: NextRequest) {
+export const PATCH = withErrorHandling(async (req: NextRequest) => {
+
   const sp = req.nextUrl.searchParams
   const tenantId = sp.get('tenantId')
   if (!tenantId) {
@@ -205,7 +196,6 @@ export async function PATCH(req: NextRequest) {
 
   const latestAttempt = existing.attempts[0] || null
 
-  try {
     switch (action) {
       case 'confirm_address': {
         const { newAddress } = body
@@ -266,11 +256,6 @@ export async function PATCH(req: NextRequest) {
       default:
         return NextResponse.json({ error: `Unknown action: ${action}` }, { status: 400 })
     }
-  } catch (err) {
-    captureError(err as Error, { path: '/api/redelivery', method: 'PATCH', tenantId, action })
-    return NextResponse.json(
-      { error: 'Internal server error', message: err instanceof Error ? err.message : 'Unknown error' },
-      { status: 500 },
-    )
-  }
-}
+  
+
+})

@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { requireAuth, requireTenantAccess } from '@/lib/auth-helpers'
-import { captureError } from '@/lib/capture-error'
 import { monetizationService } from '@/lib/services'
+import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 
 // TD-2: Zod schema for commission POST.
 const CommissionPostSchema = z.object({
@@ -23,14 +23,14 @@ const CommissionPostSchema = z.object({
 // handler (commission recognition upsert) is left inline — its two-moment
 // recognition logic doesn't have a 1:1 service method yet. Response shape
 // is unchanged.
-export async function GET(req: NextRequest) {
+export const GET = withErrorHandling(async (req: NextRequest) => {
+
   const tenantId = req.nextUrl.searchParams.get('tenantId')
   if (!tenantId) return NextResponse.json({ error: 'tenantId required' }, { status: 400 })
 
   const { error } = await requireTenantAccess(tenantId)
   if (error) return error
 
-  try {
     const { entries, totals } = await monetizationService.getCommissions(tenantId)
 
     return NextResponse.json({
@@ -50,14 +50,9 @@ export async function GET(req: NextRequest) {
       })),
       totals,
     })
-  } catch (err) {
-    captureError(err as Error, { path: '/api/monetization/commission', method: 'GET' })
-    return NextResponse.json(
-      { error: 'Internal server error', message: err instanceof Error ? err.message : 'Unknown error' },
-      { status: 500 },
-    )
-  }
-}
+  
+
+})
 
 // POST /api/monetization/commission
 // Body: { orderId, etapaReconocimiento: 'datos_completados' | 'despachado' }
@@ -66,12 +61,12 @@ export async function GET(req: NextRequest) {
 // V6 (AUDIT-FINAL-SEC-001): verificamos que el caller pertenezca al tenant
 // del order (requireTenantAccess). Previamente cualquier usuario authed
 // podía crear/actualizar commission entries para cualquier order.
-export async function POST(req: NextRequest) {
+export const POST = withErrorHandling(async (req: NextRequest) => {
+
   // Auth primero — necesitamos la sesión para errores 401 tempranos.
   const { error: authErr } = await requireAuth()
   if (authErr) return authErr
 
-  try {
     const raw = await req.json()
     const parseResult = CommissionPostSchema.safeParse(raw)
     if (!parseResult.success) {
@@ -130,11 +125,6 @@ export async function POST(req: NextRequest) {
     })
 
     return NextResponse.json({ entry })
-  } catch (err) {
-    captureError(err as Error, { path: '/api/monetization/commission', method: 'POST' })
-    return NextResponse.json(
-      { error: 'Internal server error', message: err instanceof Error ? err.message : 'Unknown error' },
-      { status: 500 },
-    )
-  }
-}
+  
+
+})

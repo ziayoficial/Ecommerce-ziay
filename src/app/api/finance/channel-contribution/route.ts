@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireTenantAccess } from '@/lib/auth-helpers'
-import { captureError } from '@/lib/capture-error'
 import { getLogger } from '@/lib/logger'
 import { getChannelContributions } from '@/lib/services/channel-cost.service'
+import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 
 const log = getLogger('api:finance:channel-contribution')
 
@@ -22,7 +22,8 @@ const log = getLogger('api:finance:channel-contribution')
 // super-user view).
 //
 // SPRINT-FINANCE-META-001
-export async function GET(req: NextRequest) {
+export const GET = withErrorHandling(async (req: NextRequest) => {
+
   const tenantId = req.nextUrl.searchParams.get('tenantId')
   if (!tenantId) {
     return NextResponse.json(
@@ -62,7 +63,6 @@ export async function GET(req: NextRequest) {
   const { error } = await requireTenantAccess(tenantId)
   if (error) return error
 
-  try {
     const contributions = await getChannelContributions(
       tenantId,
       startDate,
@@ -78,21 +78,9 @@ export async function GET(req: NextRequest) {
       endDate: endDate.toISOString(),
       channels: contributions,
     })
-  } catch (err) {
-    captureError(err as Error, {
-      path: '/api/finance/channel-contribution',
-      method: 'GET',
-      tenantId,
-    })
-    return NextResponse.json(
-      {
-        error: 'No se pudo generar el reporte de contribución por canal',
-        message: err instanceof Error ? err.message : 'Unknown error',
-      },
-      { status: 500 },
-    )
-  }
-}
+  
+
+})
 
 /**
  * Parse a `YYYY-MM-DD` string into a `Date` at 00:00:00.000 local time.

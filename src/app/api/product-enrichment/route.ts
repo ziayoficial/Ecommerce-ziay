@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireTenantAccess } from '@/lib/auth-helpers'
-import { captureError } from '@/lib/capture-error'
 import { rateLimit } from '@/lib/middleware/rate-limit'
 import { catalogService } from '@/lib/services'
 import { enrichProductImage } from '@/lib/vision/pipeline'
 import { getLogger } from '@/lib/logger'
+import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 
 const log = getLogger('api/product-enrichment')
 
@@ -22,7 +22,8 @@ const EnrichSchema = z.object({
 // (enrichments, products, enrichedSkus) to `catalogService.getEnrichments`
 // + `catalogService.getActiveProductsForEnrichment`. Response shape
 // unchanged.
-export async function GET(req: NextRequest) {
+export const GET = withErrorHandling(async (req: NextRequest) => {
+
   const tenantId = req.nextUrl.searchParams.get('tenantId')
   if (!tenantId) {
     return NextResponse.json(
@@ -33,7 +34,6 @@ export async function GET(req: NextRequest) {
   const { error } = await requireTenantAccess(tenantId)
   if (error) return error
 
-  try {
     const [{ enrichments, enrichedSkus }, products] = await Promise.all([
       catalogService.getEnrichments(tenantId),
       catalogService.getActiveProductsForEnrichment(tenantId),
@@ -50,14 +50,9 @@ export async function GET(req: NextRequest) {
       }))
 
     return NextResponse.json({ enrichments, pending })
-  } catch (err) {
-    captureError(err as Error, { path: '/api/product-enrichment', method: 'GET', tenantId })
-    return NextResponse.json(
-      { error: 'Internal server error', message: err instanceof Error ? err.message : 'Unknown error' },
-      { status: 500 },
-    )
-  }
-}
+  
+
+})
 
 // POST /api/product-enrichment
 // Body: { tenantId, sku }
@@ -67,7 +62,8 @@ export async function GET(req: NextRequest) {
 // SPRINT8-SERVICES-REST-001 — migrated the `db.product.findUnique` lookup
 // to `catalogService.getProductBySku` + the `db.productEnrichment.upsert`
 // to `catalogService.upsertEnrichment`. Response shape unchanged.
-export async function POST(req: NextRequest) {
+export const POST = withErrorHandling(async (req: NextRequest) => {
+
   const limited = rateLimit(req, {
     max: 30,
     windowMs: 60_000,
@@ -105,7 +101,6 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  try {
     const vlm = await enrichProductImage(
       product.imageUrl,
       product.name,
@@ -143,17 +138,6 @@ export async function POST(req: NextRequest) {
         description_seo: vlm.description_seo,
       },
     })
-  } catch (err) {
-    log.error(
-      { err, tenantId, sku: product.sku, imageUrl: product.imageUrl },
-      'VLM enrichment failed',
-    )
-    return NextResponse.json(
-      {
-        error: 'Enrichment failed',
-        detail: err instanceof Error ? err.message : 'unknown error',
-      },
-      { status: 500 },
-    )
-  }
-}
+  
+
+})

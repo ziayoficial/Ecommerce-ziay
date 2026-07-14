@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { randomUUID } from 'crypto'
-import { captureError } from '@/lib/capture-error'
 import { getLogger } from '@/lib/logger'
 import { db } from '@/lib/db'
 import { verifyAcpBearer } from '@/lib/acp/bearer'
+import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 
 const log = getLogger('api/acp/v1/checkout')
 
@@ -92,7 +92,8 @@ const PAYMENT_METHOD_TO_HANDLER: Record<string, string> = {
  *          400 / 401 (token inválido o expirado) / 422 (SKUs faltantes /
  *          topes excedidos) / 500 (error interno).
  */
-export async function POST(req: NextRequest) {
+export const POST = withErrorHandling(async (req: NextRequest) => {
+
   let raw: unknown
   try {
     raw = await req.json()
@@ -112,7 +113,6 @@ export async function POST(req: NextRequest) {
   }
   const body = parsed.data
 
-  try {
     // ── 1. Validar el user_auth_token como AP2 Intent Mandate firmado ──
     // V4 (AUDIT-FINAL-SEC-001): el token ya NO es el mandate ID en crudo —
     // es `{mandateId}.{ed25519(mandateId)}` firmado por la clave del tenant.
@@ -282,14 +282,6 @@ export async function POST(req: NextRequest) {
       },
       { status: 201 },
     )
-  } catch (err) {
-    captureError(err as Error, {
-      path: '/api/acp/v1/checkout',
-      method: 'POST',
-    })
-    return NextResponse.json(
-      { error: 'No se pudo iniciar el checkout ACP' },
-      { status: 500 },
-    )
-  }
-}
+  
+
+})

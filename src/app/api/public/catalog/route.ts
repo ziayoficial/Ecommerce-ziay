@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { rateLimit } from '@/lib/middleware/rate-limit'
+import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 
 // GET /api/public/catalog?slug=X — catálogo público de un tenant para SSR del
 // storefront /t/[slug]. NO requiere auth.
 //
 // Devuelve los productos activos del tenant + datos básicos del tenant
 // (slug, marca, plataformaCatalogo).
-export async function GET(req: NextRequest) {
+export const GET = withErrorHandling(async (req: NextRequest) => {
+
   const limited = rateLimit(req, {
     max: 120,
     windowMs: 60_000,
@@ -67,4 +69,5 @@ export async function GET(req: NextRequest) {
     },
     products,
   })
-}
+
+})

@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { resolveTenantId } from '@/lib/auth-helpers'
-import { captureError } from '@/lib/capture-error'
 import { db } from '@/lib/db'
+import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 
 // POST /api/compliance/dsr
 // Data Subject Request (Ley 1581 de 2012 — habeas data).
@@ -20,7 +20,8 @@ const DsrSchema = z.object({
   dataSubjectType: z.enum(['customer', 'user', 'lead']).default('customer'),
 })
 
-export async function POST(req: NextRequest) {
+export const POST = withErrorHandling(async (req: NextRequest) => {
+
   let raw: unknown
   try {
     raw = await req.json()
@@ -42,7 +43,6 @@ export async function POST(req: NextRequest) {
   const { error } = await resolveTenantId(body.tenantId)
   if (error) return error
 
-  try {
     if (body.requestType === 'access' || body.requestType === 'portability') {
       const bundle = await collectPersonalData(
         body.tenantId,
@@ -97,17 +97,9 @@ export async function POST(req: NextRequest) {
       { error: 'Tipo de solicitud no soportado' },
       { status: 400 },
     )
-  } catch (err) {
-    captureError(err as Error, {
-      path: '/api/compliance/dsr',
-      method: 'POST',
-    })
-    return NextResponse.json(
-      { error: 'No se pudo procesar la solicitud DSR' },
-      { status: 500 },
-    )
-  }
-}
+  
+
+})
 
 // ── helpers ──────────────────────────────────────────────────────────────
 

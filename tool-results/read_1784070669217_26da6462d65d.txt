@@ -1,0 +1,465 @@
+     1→// CommerceFlow OS — Seed v2 (multi-tenant + Saramantha real data)
+     2→// 4 tenants Indisutex: Saramantha, Sublimados Majestic, Lovely Pijamas, Sueño de Reina
+     3→// Run: bun run db:seed
+     4→import { db } from '../src/lib/db'
+     5→import * as bcrypt from 'bcryptjs'
+     6→
+     7→const daysAgo = (n: number, h = 0, m = 0) => {
+     8→  const d = new Date(); d.setDate(d.getDate() - n); d.setHours(h, m, 0, 0); return d
+     9→}
+    10→const pick = <T,>(arr: T[], i: number) => arr[i % arr.length]
+    11→const rand = (seed: number, min: number, max: number) => {
+    12→  const x = Math.sin(seed) * 10000; const r = x - Math.floor(x)
+    13→  return Math.round(min + r * (max - min))
+    14→}
+    15→
+    16→async function main() {
+    17→  console.log('🌱 Seeding CommerceFlow OS v2 (multi-tenant + Saramantha real data)...')
+    18→
+    19→  // ── 4 Tenants (Indisutex SAS brands) ─────────────────────────────
+    20→  const saramantha = await db.tenant.upsert({
+    21→    where: { slug: 'saramantha' }, update: {},
+    22→    create: {
+    23→      id: 'ten-saramantha', slug: 'saramantha',
+    24→      nombreNegocio: 'Saramantha', marca: 'Saramantha',
+    25→      plataformaCatalogo: 'whatsapp_catalog', bdCatalogo: 'supabase_nuestro',
+    26→      proveedorIa: 'zai', proveedorLogistico: 'dropi',
+    27→      wabaId: 'waba_saramantha', tonoMarca: 'Tutea, certeza total, sin disculpas. Cierra con acción. Máx 20 palabras por mensaje, 2 emojis.',
+    28→      nombreAsesora: 'Sara', politicaPago: 'híbrido: prepay 5% off > $250k, COD debajo con $8k COP recargo',
+    29→      preguntaPerfil: '¿Para ti o para surtir tu negocio?',
+    30→      planMonetizacion: 'catalogo_incluido', feeBaseMensual: 350000, comisionPctInicial: 4.5,
+    31→    },
+    32→  })
+    33→  const majestic = await db.tenant.upsert({
+    34→    where: { slug: 'majestic' }, update: {},
+    35→    create: {
+    36→      id: 'ten-majestic', slug: 'majestic',
+    37→      nombreNegocio: 'Sublimados Majestic', marca: 'Majestic',
+    38→      plataformaCatalogo: 'whatsapp_catalog', proveedorIa: 'zai', proveedorLogistico: 'dropi',
+    39→      wabaId: 'waba_majestic', tonoMarca: 'Cercano, juvenil, emojis moderados.',
+    40→      nombreAsesora: 'Majé', politicaPago: 'híbrido', preguntaPerfil: '¿Para ti o para venta?',
+    41→      planMonetizacion: 'conecta', feeBaseMensual: 250000, comisionPctInicial: 4.5,
+    42→    },
+    43→  })
+    44→  const lovely = await db.tenant.upsert({
+    45→    where: { slug: 'lovely' }, update: {},
+    46→    create: {
+    47→      id: 'ten-lovely', slug: 'lovely',
+    48→      nombreNegocio: 'Lovely Pijamas', marca: 'Lovely',
+    49→      plataformaCatalogo: 'whatsapp_catalog', proveedorIa: 'zai', proveedorLogistico: '99envios',
+    50→      wabaId: 'waba_lovely', tonoMarca: 'Dulce, femenino, max 2 emojis.',
+    51→      nombreAsesora: 'Valentina', politicaPago: 'cod', preguntaPerfil: '¿Para regalo o para ti?',
+    52→      planMonetizacion: 'completo', feeBaseMensual: 500000, comisionPctInicial: 4.5,
+    53→    },
+    54→  })
+    55→  const reina = await db.tenant.upsert({
+    56→    where: { slug: 'reina' }, update: {},
+    57→    create: {
+    58→      id: 'ten-reina', slug: 'reina',
+    59→      nombreNegocio: 'Sueño de Reina', marca: 'Reina',
+    60→      plataformaCatalogo: 'whatsapp_catalog', proveedorIa: 'zai', proveedorLogistico: 'aveonline',
+    61→      wabaId: 'waba_reina', tonoMarca: 'Elegante, formal, sin emojis excesivos.',
+    62→      nombreAsesora: 'Reina', politicaPago: 'advance', preguntaPerfil: '¿Para ti o para regalar?',
+    63→      planMonetizacion: 'catalogo_incluido', feeBaseMensual: 350000, comisionPctInicial: 4.5,
+    64→    },
+    65→  })
+    66→
+    67→  // Plus the original demo tenant for the international Messenger/IG case
+    68→  const intl = await db.tenant.upsert({
+    69→    where: { slug: 'intl' }, update: {},
+    70→    create: {
+    71→      id: 'ten-intl', slug: 'intl',
+    72→      nombreNegocio: 'CommerceFlow Demo INTL', marca: 'Demo',
+    73→      plataformaCatalogo: 'catalogo_nuestro', proveedorIa: 'zai', proveedorLogistico: 'dropi',
+    74→      tonoMarca: 'Bilingüe ES/EN, friendly, emojis moderate.',
+    75→      nombreAsesora: 'Lucía', politicaPago: 'advance',
+    76→      preguntaPerfil: '¿Para ti o para tu tienda?',
+    77→      planMonetizacion: 'conecta', feeBaseMensual: 250000, comisionPctInicial: 4.5,
+    78→    },
+    79→  })
+    80→
+    81→  // ── Users (1 admin per tenant + shared agents) ────────────────────
+    82→  // Existing demo users (commerceflow.co domain) — preserve IDs, add auth.
+    83→  const demoPasswordHash = await bcrypt.hash('demo123', 10)
+    84→  await db.user.upsert({ where: { email: 'valentina@commerceflow.co' },
+    85→    update: { passwordHash: demoPasswordHash, status: 'active' },
+    86→    create: { id: 'user-valentina', tenantId: saramantha.id, email: 'valentina@commerceflow.co', name: 'Valentina Restrepo', role: 'admin', passwordHash: demoPasswordHash, status: 'active' }})
+    87→  await db.user.upsert({ where: { email: 'camila@commerceflow.co' },
+    88→    update: { passwordHash: demoPasswordHash, status: 'active' },
+    89→    create: { id: 'user-camila', tenantId: saramantha.id, email: 'camila@commerceflow.co', name: 'Camila Torres', role: 'agent', passwordHash: demoPasswordHash, status: 'active' }})
+    90→  await db.user.upsert({ where: { email: 'sebastian@commerceflow.co' },
+    91→    update: { passwordHash: demoPasswordHash, status: 'active' },
+    92→    create: { id: 'user-sebastian', tenantId: saramantha.id, email: 'sebastian@commerceflow.co', name: 'Sebastián Marín', role: 'trafficker', passwordHash: demoPasswordHash, status: 'active' }})
+    93→
+    94→  // ── Auth demo users (canonical @saramantha.co / @trafficker.co) ──
+    95→  // These are the credentials advertised on the /login page:
+    96→  //   valentina@saramantha.co / demo123   → admin  · Saramantha
+    97→  //   camila@saramantha.co    / demo123   → agent  · Saramantha
+    98→  //   sebastian@trafficker.co / demo123   → trafficker (platform, no tenant)
+    99→  await db.user.upsert({ where: { email: 'valentina@saramantha.co' },
+   100→    update: { passwordHash: demoPasswordHash, status: 'active', tenantId: saramantha.id, role: 'admin', name: 'Valentina Restrepo' },
+   101→    create: { id: 'user-valentina-sara', tenantId: saramantha.id, email: 'valentina@saramantha.co', name: 'Valentina Restrepo', role: 'admin', passwordHash: demoPasswordHash, status: 'active' }})
+   102→  await db.user.upsert({ where: { email: 'camila@saramantha.co' },
+   103→    update: { passwordHash: demoPasswordHash, status: 'active', tenantId: saramantha.id, role: 'agent', name: 'Camila Torres' },
+   104→    create: { id: 'user-camila-sara', tenantId: saramantha.id, email: 'camila@saramantha.co', name: 'Camila Torres', role: 'agent', passwordHash: demoPasswordHash, status: 'active' }})
+   105→  await db.user.upsert({ where: { email: 'sebastian@trafficker.co' },
+   106→    update: { passwordHash: demoPasswordHash, status: 'active', tenantId: null, role: 'trafficker', name: 'Sebastián Marín' },
+   107→    create: { id: 'user-sebastian-traf', tenantId: null, email: 'sebastian@trafficker.co', name: 'Sebastián Marín', role: 'trafficker', passwordHash: demoPasswordHash, status: 'active' }})
+   108→
+   109→  // ── Channels ─────────────────────────────────────────────────────
+   110→  // Saramantha: WhatsApp CO + Messenger INTL + Instagram
+   111→  const waSara = await db.channel.upsert({ where: { id: 'ch-wa-sara' }, update: {},
+   112→    create: { id: 'ch-wa-sara', tenantId: saramantha.id, type: 'whatsapp', name: 'WhatsApp Saramantha CO', displayName: 'WhatsApp · Saramantha', accountId: '+573001112233', verified: true, country: 'CO', paymentStrategy: 'hybrid', requirePrepayMin: 250000, prepayDiscountPct: 5, codFee: 8000 }})
+   113→  const msgSara = await db.channel.upsert({ where: { id: 'ch-msg-sara' }, update: {},
+   114→    create: { id: 'ch-msg-sara', tenantId: saramantha.id, type: 'messenger', name: 'Messenger Saramantha INTL', displayName: 'Messenger · INTL', verified: true, paymentStrategy: 'advance', prepayDiscountPct: 7 }})
+   115→  const igSara = await db.channel.upsert({ where: { id: 'ch-ig-sara' }, update: {},
+   116→    create: { id: 'ch-ig-sara', tenantId: saramantha.id, type: 'instagram', name: 'Instagram Saramantha', displayName: 'Instagram · Saramantha', verified: true, paymentStrategy: 'hybrid', requirePrepayMin: 80, prepayDiscountPct: 5, codFee: 4 }})
+   117→
+   118→  await db.channel.upsert({ where: { id: 'ch-wa-majestic' }, update: {},
+   119→    create: { id: 'ch-wa-majestic', tenantId: majestic.id, type: 'whatsapp', name: 'WhatsApp Majestic', displayName: 'WhatsApp · Majestic', accountId: '+573009988776', verified: true, country: 'CO', paymentStrategy: 'hybrid', requirePrepayMin: 200000, prepayDiscountPct: 5, codFee: 8000 }})
+   120→  await db.channel.upsert({ where: { id: 'ch-wa-lovely' }, update: {},
+   121→    create: { id: 'ch-wa-lovely', tenantId: lovely.id, type: 'whatsapp', name: 'WhatsApp Lovely', displayName: 'WhatsApp · Lovely', accountId: '+573004433221', verified: true, country: 'CO', paymentStrategy: 'cod', codFee: 8000 }})
+   122→  await db.channel.upsert({ where: { id: 'ch-wa-reina' }, update: {},
+   123→    create: { id: 'ch-wa-reina', tenantId: reina.id, type: 'whatsapp', name: 'WhatsApp Reina', displayName: 'WhatsApp · Reina', accountId: '+573007766554', verified: true, country: 'CO', paymentStrategy: 'advance', prepayDiscountPct: 6 }})
+   124→
+   125→  // INTL tenant
+   126→  const waIntl = await db.channel.upsert({ where: { id: 'ch-wa-intl' }, update: {},
+   127→    create: { id: 'ch-wa-intl', tenantId: intl.id, type: 'whatsapp', name: 'WhatsApp INTL', displayName: 'WhatsApp · INTL', verified: true, country: null, paymentStrategy: 'cod', codFee: 60 }})
+   128→  const msgIntl = await db.channel.upsert({ where: { id: 'ch-msg-intl' }, update: {},
+   129→    create: { id: 'ch-msg-intl', tenantId: intl.id, type: 'messenger', name: 'Messenger INTL', displayName: 'Messenger · INTL', verified: true, paymentStrategy: 'advance', prepayDiscountPct: 7 }})
+   130→  const igIntl = await db.channel.upsert({ where: { id: 'ch-ig-intl' }, update: {},
+   131→    create: { id: 'ch-ig-intl', tenantId: intl.id, type: 'instagram', name: 'Instagram INTL', displayName: 'Instagram · INTL', verified: true, paymentStrategy: 'hybrid', requirePrepayMin: 80, prepayDiscountPct: 5, codFee: 4 }})
+   132→
+   133→  // ── Saramantha: REAL catalog (Short Tira, Pantalón, Batola + designs) ─
+   134→  console.log('  → Saramantha real catalog...')
+   135→  const pShort = await db.product.upsert({ where: { tenantId_sku: { tenantId: saramantha.id, sku: 'PIJ-SHORT-TIRA-001' } }, update: {},
+   136→    create: { tenantId: saramantha.id, sku: 'PIJ-SHORT-TIRA-001', name: 'Short Tira', description: 'Short de pijama tela fría, tiras ajustables', price: 16500, cost: 7400, stock: 480, imageUrl: 'https://images.unsplash.com/photo-1571513722275-4b41940f54b8?w=400', categoria: 'short', diseno: 'liso', imagenMetadataVisible: true, fuenteSincronizacion: 'whatsapp_catalog' }})
+   137→  const pPant = await db.product.upsert({ where: { tenantId_sku: { tenantId: saramantha.id, sku: 'PIJ-PANT-TIRA-002' } }, update: {},
+   138→    create: { tenantId: saramantha.id, sku: 'PIJ-PANT-TIRA-002', name: 'Pantalón Tira', description: 'Pantalón tejido plano, elástico', price: 19000, cost: 8600, stock: 320, imageUrl: 'https://images.unsplash.com/photo-1591047139829-d91aecb6caea?w=400', categoria: 'pantalon', diseno: 'liso', imagenMetadataVisible: true, fuenteSincronizacion: 'whatsapp_catalog' }})
+   139→  const pBatola = await db.product.upsert({ where: { tenantId_sku: { tenantId: saramantha.id, sku: 'PIJ-BATOLA-003' } }, update: {},
+   140→    create: { tenantId: saramantha.id, sku: 'PIJ-BATOLA-003', name: 'Batola', description: 'Batola fresca de descanso', price: 23000, cost: 10500, stock: 240, imageUrl: 'https://images.unsplash.com/photo-1571513722275-4b41940f54b8?w=400', categoria: 'batola', diseno: 'liso', imagenMetadataVisible: true, fuenteSincronizacion: 'whatsapp_catalog' }})
+   141→  // Variants with designs (Stitch, Hello Kitty)
+   142→  await db.product.upsert({ where: { tenantId_sku: { tenantId: saramantha.id, sku: 'PIJ-SHORT-STITCH-001' } }, update: {},
+   143→    create: { tenantId: saramantha.id, sku: 'PIJ-SHORT-STITCH-001', name: 'Short Tira Stitch', description: 'Short Tira estampado Stitch', price: 18500, cost: 8400, stock: 180, imageUrl: 'https://images.unsplash.com/photo-1571513722275-4b41940f54b8?w=400', categoria: 'short', diseno: 'Stitch', imagenMetadataVisible: true, fuenteSincronizacion: 'whatsapp_catalog' }})
+   144→  await db.product.upsert({ where: { tenantId_sku: { tenantId: saramantha.id, sku: 'PIJ-SHORT-HELLO-001' } }, update: {},
+   145→    create: { tenantId: saramantha.id, sku: 'PIJ-SHORT-HELLO-001', name: 'Short Tira Hello Kitty', description: 'Short Tira estampado Hello Kitty', price: 18500, cost: 8400, stock: 150, imageUrl: 'https://images.unsplash.com/photo-1571513722275-4b41940f54b8?w=400', categoria: 'short', diseno: 'Hello Kitty', imagenMetadataVisible: true, fuenteSincronizacion: 'whatsapp_catalog' }})
+   146→  await db.product.upsert({ where: { tenantId_sku: { tenantId: saramantha.id, sku: 'PIJ-PANT-STITCH-002' } }, update: {},
+   147→    create: { tenantId: saramantha.id, sku: 'PIJ-PANT-STITCH-002', name: 'Pantalón Tira Stitch', description: 'Pantalón estampado Stitch', price: 21000, cost: 9600, stock: 140, imageUrl: 'https://images.unsplash.com/photo-1591047139829-d91aecb6caea?w=400', categoria: 'pantalon', diseno: 'Stitch', imagenMetadataVisible: true, fuenteSincronizacion: 'whatsapp_catalog' }})
+   148→  await db.product.upsert({ where: { tenantId_sku: { tenantId: saramantha.id, sku: 'PIJ-BATOLA-STITCH-003' } }, update: {},
+   149→    create: { tenantId: saramantha.id, sku: 'PIJ-BATOLA-STITCH-003', name: 'Batola Stitch', description: 'Batola estampada Stitch', price: 25000, cost: 11500, stock: 90, imageUrl: 'https://images.unsplash.com/photo-1571513722275-4b41940f54b8?w=400', categoria: 'batola', diseno: 'Stitch', imagenMetadataVisible: true, fuenteSincronizacion: 'whatsapp_catalog' }})
+   150→
+   151→  // Volume prices (Saramantha §15: 43% pedidos 12+ unidades, AOV $137k)
+   152→  const volTiers = [
+   153→    { tipo: 'mayorista', min: 6, max: 11, pct: 0.92 },
+   154→    { tipo: 'mayorista', min: 12, max: 35, pct: 0.83 },
+   155→    { tipo: 'mayorista', min: 36, max: 999, pct: 0.75 },
+   156→    { tipo: 'emprendedor', min: 3, max: 5, pct: 0.95 },
+   157→    { tipo: 'emprendedor', min: 6, max: 11, pct: 0.90 },
+   158→    { tipo: 'detal', min: 1, max: 2, pct: 1.0 },
+   159→    { tipo: 'regalo', min: 1, max: 2, pct: 1.0 },
+   160→  ]
+   161→  for (const p of [pShort, pPant, pBatola]) {
+   162→    for (const t of volTiers) {
+   163→      await db.volumePrice.create({ data: { tenantId: saramantha.id, productId: p.id, sku: p.sku, tipoCliente: t.tipo, cantidadMinima: t.min, cantidadMaxima: t.max, precioUnitario: Math.round(p.price * t.pct) }})
+   164→    }
+   165→  }
+   166→
+   167→  // Sales speeches by profile
+   168→  await db.salesSpeech.upsert({ where: { tenantId_perfil: { tenantId: saramantha.id, perfil: 'mayorista' } }, update: {},
+   169→    create: { tenantId: saramantha.id, perfil: 'mayorista', aperturaTexto: '¡Hola! Sara de Saramantha. Para surtir tienda tienes precio mayorista desde 6 unidades. ¿Qué tema buscas?', pruebaSocial: 'Llegamos a 240 tiendas en 12 ciudades esta temporada.' }})
+   170→  await db.salesSpeech.upsert({ where: { tenantId_perfil: { tenantId: saramantha.id, perfil: 'emprendedor' } }, update: {},
+   171→    create: { tenantId: saramantha.id, perfil: 'emprendedor', aperturaTexto: '¡Hola! Empiezas tu emprendimiento. Te llevo combo desde 3 unidades con precio emprendedor.', pruebaSocial: '+180 emprendedores arrancaron con Saramantha este año.' }})
+   172→  await db.salesSpeech.upsert({ where: { tenantId_perfil: { tenantId: saramantha.id, perfil: 'detal' } }, update: {},
+   173→    create: { tenantId: saramantha.id, perfil: 'detal', aperturaTexto: '¡Hola! Para ti, precio unitario. ¿Stitch, Hello Kitty o liso?', pruebaSocial: '+5.000 clientes felices con su pijama.' }})
+   174→  await db.salesSpeech.upsert({ where: { tenantId_perfil: { tenantId: saramantha.id, perfil: 'regalo' } }, update: {},
+   175→    create: { tenantId: saramantha.id, perfil: 'regalo', aperturaTexto: '¡Hola! Para regalo te recomiendo Short + Pantalón del mismo tema. ¿Qué le gusta a la persona?', pruebaSocial: 'El combo Stitch es nuestro regalo más pedido.' }})
+   176→
+   177→  // Objections
+   178→  for (const o of [
+   179→    { tipo: 'desconfianza', resp: 'Entiendo. Llevamos 3 años, sede en Itagüí, pago contra entrega si prefieres. ¿Bogotá, Cali o Medellín?', gatillo: 'prueba_social' },
+   180→    { tipo: 'precio', resp: 'El precio mayorista baja 17% desde 12 unidades. ¿Cuántas querías?', gatillo: 'escasez' },
+   181→    { tipo: 'talla', resp: 'Tenemos S, M, L. Si no sirve, cambio sin costo en 7 días.', gatillo: 'garantia' },
+   182→    { tipo: 'lo_pienso', resp: 'Claro. Te guardo el precio 24h. ¿Stitch o Hello Kitty te gustó más?', gatillo: 'urgencia' },
+   183→    { tipo: 'producto_no_disponible', resp: 'Ese tema se agotó pero llegó Stitch nuevo ayer. ¿Te lo muestro?', gatillo: 'sustitucion' },
+   184→  ]) {
+   185→    await db.objection.upsert({ where: { tenantId_tipoObjecion: { tenantId: saramantha.id, tipoObjecion: o.tipo } }, update: {},
+   186→      create: { tenantId: saramantha.id, tipoObjecion: o.tipo, respuestaBase: o.resp, gatilloMentalAsociado: o.gatillo }})
+   187→  }
+   188→
+   189→  // Themes (Stitch, Hello Kitty)
+   190→  await db.themeDesign.upsert({ where: { tenantId_tema: { tenantId: saramantha.id, tema: 'Stitch' } }, update: {},
+   191→    create: { tenantId: saramantha.id, tema: 'Stitch', nombreDiseno: 'Stitch', skusAsociados: 'PIJ-SHORT-STITCH-001,PIJ-PANT-STITCH-002,PIJ-BATOLA-STITCH-003' }})
+   192→  await db.themeDesign.upsert({ where: { tenantId_tema: { tenantId: saramantha.id, tema: 'Hello Kitty' } }, update: {},
+   193→    create: { tenantId: saramantha.id, tema: 'Hello Kitty', nombreDiseno: 'Hello Kitty', skusAsociados: 'PIJ-SHORT-HELLO-001' }})
+   194→
+   195→  // Category combos (familia = mínimo 3 prendas)
+   196→  await db.categoryCombo.upsert({ where: { tenantId_categoria: { tenantId: saramantha.id, categoria: 'familia' } }, update: {},
+   197→    create: { tenantId: saramantha.id, categoria: 'familia', skusRecomendados: 'PIJ-SHORT-TIRA-001,PIJ-PANT-TIRA-002,PIJ-BATOLA-003' }})
+   198→
+   199→  // ── Carriers (canonical + 6 variants of Interrapidísimo) ─────────
+   200→  await db.carrier.upsert({ where: { tenantId_nombreCanonico: { tenantId: saramantha.id, nombreCanonico: 'Interrapidísimo' } }, update: {},
+   201→    create: { tenantId: saramantha.id, nombreCanonico: 'Interrapidísimo', variantes: 'Interrapidisimo,interrapidisimo,Interrapidicimo,Interrapidismo,Interrapidísimo,Interapidisimo', cobertura: 'nacional' }})
+   202→  await db.carrier.upsert({ where: { tenantId_nombreCanonico: { tenantId: saramantha.id, nombreCanonico: 'TCC' } }, update: {},
+   203→    create: { tenantId: saramantha.id, nombreCanonico: 'TCC', variantes: 'TCC,tcc,Transportadora TCC', cobertura: 'nacional' }})
+   204→  await db.carrier.upsert({ where: { tenantId_nombreCanonico: { tenantId: saramantha.id, nombreCanonico: 'Coordinadora' } }, update: {},
+   205→    create: { tenantId: saramantha.id, nombreCanonico: 'Coordinadora', variantes: 'Coordinadora,coordinadora,Coordinadora Mercantil', cobertura: 'nacional' }})
+   206→  await db.carrier.upsert({ where: { tenantId_nombreCanonico: { tenantId: saramantha.id, nombreCanonico: 'Servientrega' } }, update: {},
+   207→    create: { tenantId: saramantha.id, nombreCanonico: 'Servientrega', variantes: 'Servientrega,servientrega', cobertura: 'nacional' }})
+   208→  await db.carrier.upsert({ where: { tenantId_nombreCanonico: { tenantId: saramantha.id, nombreCanonico: 'Envía' } }, update: {},
+   209→    create: { tenantId: saramantha.id, nombreCanonico: 'Envía', variantes: 'Envia,Envía,envia', cobertura: 'nacional' }})
+   210→
+   211→  // ── Ad Platforms + Campaigns + Ads (Meta, Google, TikTok) ────────
+   212→  const meta = await db.adPlatform.upsert({ where: { name: 'meta' }, update: {}, create: { id: 'ap-meta', name: 'meta', displayName: 'Meta Ads', accountId: 'act_102455', active: true }})
+   213→  const google = await db.adPlatform.upsert({ where: { name: 'google' }, update: {}, create: { id: 'ap-google', name: 'google', displayName: 'Google Ads', accountId: '123-456-7890', active: true }})
+   214→  const tiktok = await db.adPlatform.upsert({ where: { name: 'tiktok' }, update: {}, create: { id: 'ap-tiktok', name: 'tiktok', displayName: 'TikTok Ads', accountId: 'tt_act_9981', active: true }})
+   215→
+   216→  // Saramantha campaigns
+   217→  const campSaraGlow = await db.campaign.upsert({ where: { id: 'camp-sara-familia' }, update: {},
+   218→    create: { id: 'camp-sara-familia', tenantId: saramantha.id, platformId: meta.id, externalId: 'meta_camp_sara_familia', name: 'CO · Pijama Familia · Sales', objective: 'sales', budgetDaily: 180000, currency: 'COP', status: 'active', country: 'CO' }})
+   219→  const campSaraStitch = await db.campaign.upsert({ where: { id: 'camp-sara-stitch' }, update: {},
+   220→    create: { id: 'camp-sara-stitch', tenantId: saramantha.id, platformId: meta.id, externalId: 'meta_camp_sara_stitch', name: 'CO · Stitch · Sales', objective: 'sales', budgetDaily: 120000, currency: 'COP', status: 'active', country: 'CO' }})
+   221→  const campSaraPerder = await db.campaign.upsert({ where: { id: 'camp-sara-coll' }, update: {},
+   222→    create: { id: 'camp-sara-coll', tenantId: saramantha.id, platformId: meta.id, externalId: 'meta_camp_sara_perdedor', name: 'CO · Batola liso (perdedor)', objective: 'sales', budgetDaily: 90000, currency: 'COP', status: 'active', country: 'CO' }})
+   223→  const campSaraTT = await db.campaign.upsert({ where: { id: 'camp-sara-tt' }, update: {},
+   224→    create: { id: 'camp-sara-tt', tenantId: saramantha.id, platformId: tiktok.id, externalId: 'tt_camp_sara_spark', name: 'CO · Saramantha TikTok Spark', objective: 'sales', budgetDaily: 110000, currency: 'COP', status: 'active', country: 'CO' }})
+   225→  const campSaraG = await db.campaign.upsert({ where: { id: 'camp-sara-g' }, update: {},
+   226→    create: { id: 'camp-sara-g', tenantId: saramantha.id, platformId: google.id, externalId: 'g_camp_sara_search', name: 'CO · Search Brand', objective: 'traffic', budgetDaily: 60000, currency: 'COP', status: 'active', country: 'CO' }})
+   227→
+   228→  // INTL tenant campaigns (Messenger focus)
+   229→  const campIntlMsg = await db.campaign.upsert({ where: { id: 'camp-intl-msg' }, update: {},
+   230→    create: { id: 'camp-intl-msg', tenantId: intl.id, platformId: meta.id, externalId: 'meta_camp_intl_msg', name: 'INTL · Messenger · Sales', objective: 'sales', budgetDaily: 45, currency: 'USD', status: 'active', country: null }})
+   231→
+   232→  const ads = [
+   233→    { id: 'ad-sara-fam-1', ext: 'meta_220101_fam_carousel', name: 'Familia · Carrusel UGC', camp: campSaraGlow.id, status: 'active', creative: 'video_ugc_01' },
+   234→    { id: 'ad-sara-fam-2', ext: 'meta_220102_fam_static', name: 'Familia · Estático antes/después', camp: campSaraGlow.id, status: 'active', creative: 'static_ba_01' },
+   235→    { id: 'ad-sara-fam-3', ext: 'meta_220103_fam_reel', name: 'Familia · Reel influencer', camp: campSaraGlow.id, status: 'active', creative: 'reel_inf_01' },
+   236→    { id: 'ad-sara-stitch-1', ext: 'meta_220201_stitch_video', name: 'Stitch · Video 30s', camp: campSaraStitch.id, status: 'active', creative: 'video_stitch' },
+   237→    { id: 'ad-sara-coll-1', ext: 'meta_220301_batola_carousel', name: 'Batola liso · Carrusel (perdedor)', camp: campSaraPerder.id, status: 'active', creative: 'carousel_liso' },
+   238→    { id: 'ad-sara-coll-2', ext: 'meta_220302_batola_static', name: 'Batola liso · Estático precio (perdedor)', camp: campSaraPerder.id, status: 'active', creative: 'static_price' },
+   239→    { id: 'ad-sara-tt-1', ext: 'tt_220401_sara_spark', name: 'Saramantha · Spark Ad creator', camp: campSaraTT.id, status: 'active', creative: 'spark_01' },
+   240→    { id: 'ad-sara-g-1', ext: 'g_220501_sara_kwd', name: 'Keyword · pijama mayorista', camp: campSaraG.id, status: 'active', creative: 'rsa_sara' },
+   241→    { id: 'ad-intl-msg-1', ext: 'meta_220601_intl_msg', name: 'INTL · Messenger video producto', camp: campIntlMsg.id, status: 'active', creative: 'video_intl' },
+   242→  ]
+   243→  for (const a of ads) {
+   244→    await db.ad.upsert({ where: { externalId: a.ext }, update: {},
+   245→      create: { id: a.id, externalId: a.ext, campaignId: a.camp, name: a.name, creative: a.creative, status: a.status }})
+   246→  }
+   247→
+   248→  // Ad spend (14 days)
+   249→  console.log('  → generating ad spend (14 days)...')
+   250→  const profiles: Record<string, { spend: number, conv: number }> = {
+   251→    'ad-sara-fam-1': { spend: 14000, conv: 3 }, 'ad-sara-fam-2': { spend: 9000, conv: 2 },
+   252→    'ad-sara-fam-3': { spend: 12000, conv: 2 }, 'ad-sara-stitch-1': { spend: 11000, conv: 2 },
+   253→    'ad-sara-coll-1': { spend: 11000, conv: 0 }, 'ad-sara-coll-2': { spend: 8000, conv: 0 },
+   254→    'ad-sara-tt-1': { spend: 9500, conv: 1 }, 'ad-sara-g-1': { spend: 5000, conv: 1 },
+   255→    'ad-intl-msg-1': { spend: 4, conv: 1 },
+   256→  }
+   257→  for (let d = 13; d >= 0; d--) {
+   258→    for (const a of ads) {
+   259→      const p = profiles[a.id]
+   260→      const daySpend = p.spend + rand(d + a.id.length, -p.spend * 0.3, p.spend * 0.4)
+   261→      const dayConv = Math.max(0, p.conv + (rand(d + a.id.length * 2, -1, 2)))
+   262→      const imp = rand(d, 800, 4500); const clk = Math.round(imp * (0.012 + (rand(d, 0, 8) / 1000)))
+   263→      await db.adSpend.upsert({ where: { adId_date: { adId: a.id, date: daysAgo(d) } }, update: {},
+   264→        create: { adId: a.id, date: daysAgo(d), spend: Math.round(daySpend), impressions: imp, clicks: clk, convReported: dayConv }})
+   265→    }
+   266→  }
+   267→
+   268→  // ── Saramantha customers + conversations (real-ish based on §15) ─
+   269→  console.log('  → Saramantha conversations + 239-pedido summary...')
+   270→  // Sample customers across cities (§15: Bogotá 14, Cali 7, Pasto 7, Medellín 6, Neiva 6, Popayán 6, Florencia 4, Apartadó 4)
+   271→  const cities = ['Bogotá', 'Cali', 'Pasto', 'Medellín', 'Neiva', 'Popayán', 'Florencia', 'Apartadó']
+   272→  const saraCustomers = []
+   273→  for (let i = 0; i < 12; i++) {
+   274→    const city = pick(cities, i)
+   275→    const c = await db.customer.create({ data: {
+   276→      tenantId: saramantha.id,
+   277→      name: ['Diana Cárdenas', 'Andrés Gómez', 'Mariana López', 'Carlos Ramírez', 'Luisa Fernández', 'Pedro Castillo', 'Ana Molina', 'Jorge Ríos', 'Elena Vargas', 'Raúl Peña', 'Sofía Castro', 'Diego Moreno'][i],
+   278→      phone: `+5731${rand(i, 1000000, 9999999)}`,
+   279→      country: 'CO', city,
+   280→      perfilDetectado: i % 3 === 0 ? 'mayorista' : i % 3 === 1 ? 'emprendedor' : 'detal',
+   281→      tags: i % 3 === 0 ? 'mayorista' : i % 3 === 1 ? 'emprendedor' : 'detal',
+   282→      lifetimeValue: rand(i, 50000, 500000), ordersCount: rand(i, 1, 5),
+   283→    }})
+   284→    saraCustomers.push(c)
+   285→  }
+   286→
+   287→  // INTL customers (Messenger)
+   288→  const intlCustomers = await Promise.all([
+   289→    db.customer.create({ data: { tenantId: intl.id, name: 'Jessica Müller', psid: 'messenger_psid_8841', country: 'DE', city: 'Berlin', perfilDetectado: 'detal', tags: 'intl' }}),
+   290→    db.customer.create({ data: { tenantId: intl.id, name: 'Sofía Fernández', psid: 'messenger_psid_2093', country: 'ES', city: 'Madrid', perfilDetectado: 'detal', tags: 'intl,repeat' }}),
+   291→    db.customer.create({ data: { tenantId: intl.id, name: 'Ricardo Mendoza', phone: '+525511448899', country: 'MX', city: 'CDMX', perfilDetectado: 'detal', tags: 'cod,mx' }}),
+   292→  ])
+   293→
+   294→  // Conversations
+   295→  const convos = [
+   296→    { id: 'conv-sara-001', tenant: saramantha.id, cust: saraCustomers[0].id, ch: waSara.id, status: 'open', priority: 'high', perfil: 'mayorista', sourceAd: 'ad-sara-fam-1', sourceCampaign: campSaraGlow.name, msgs: [
+   297→      { dir: 'inbound', body: 'Hola! Vi el anuncio de pijama familia. Para surtir mi tienda.', t: 12 },
+   298→      { dir: 'outbound', body: '¡Hola Diana! Sara de Saramantha 💛 Para surtir tienda tienes precio mayorista desde 6 und. ¿Qué tema buscas?', t: 11 },
+   299→      { dir: 'inbound', body: 'Stitch, lo tienes?', t: 10 },
+   300→      { dir: 'outbound', body: 'Sí 👀 Short, Pantalón y Batola en Stitch. ¿Cuántas de cada uno?', t: 9 },
+   301→      { dir: 'inbound', body: '6 short + 6 pantalón', t: 8 },
+   302→      { dir: 'outbound', body: '6 Short Stitch + 6 Pantalón Stitch: pagas $224.400 → vendes $468.000 → margen $243.600 💰 ¿Confirmas ciudad y dirección?', t: 7 },
+   303→    ]},
+   304→    { id: 'conv-sara-002', tenant: saramantha.id, cust: saraCustomers[1].id, ch: waSara.id, status: 'pending', priority: 'normal', perfil: 'emprendedor', sourceAd: 'ad-sara-tt-1', sourceCampaign: campSaraTT.name, msgs: [
+   305→      { dir: 'inbound', body: 'Buenas, quieren contra entrega en Bogotá?', t: 8 },
+   306→      { dir: 'outbound', body: 'Hola Andrés 👋 Sí, contra entrega en Bogotá. ¿Qué tema te gusta?', t: 7 },
+   307→    ]},
+   308→    { id: 'conv-sara-003', tenant: saramantha.id, cust: saraCustomers[2].id, ch: waSara.id, status: 'open', priority: 'urgent', perfil: 'mayorista', sourceAd: 'ad-sara-fam-2', sourceCampaign: campSaraGlow.name, msgs: [
+   309→      { dir: 'inbound', body: 'Mi pedido CF-100040 no llegó, ya pasaron 3 días', t: 5 },
+   310→    ]},
+   311→    { id: 'conv-sara-004', tenant: saramantha.id, cust: saraCustomers[3].id, ch: waSara.id, status: 'open', priority: 'normal', perfil: 'detal', sourceAd: 'ad-sara-stitch-1', sourceCampaign: campSaraStitch.name, msgs: [
+   312→      { dir: 'inbound', body: 'Quiero 2 short de Stitch para regalo', t: 4 },
+   313→    ]},
+   314→    { id: 'conv-intl-001', tenant: intl.id, cust: intlCustomers[0].id, ch: msgIntl.id, status: 'open', priority: 'normal', perfil: 'detal', sourceAd: 'ad-intl-msg-1', sourceCampaign: campIntlMsg.name, msgs: [
+   315→      { dir: 'inbound', body: 'Hi! Do you ship to Germany?', t: 6 },
+   316→      { dir: 'outbound', body: 'Hi Jessica! Yes, we ship to EU 🇪🇺. Prepayment required for international orders.', t: 5 },
+   317→    ]},
+   318→    { id: 'conv-intl-002', tenant: intl.id, cust: intlCustomers[1].id, ch: msgIntl.id, status: 'resolved', priority: 'low', perfil: 'detal', sourceAd: 'ad-intl-msg-1', sourceCampaign: campIntlMsg.name, msgs: [
+   319→      { dir: 'inbound', body: 'Hola, ¿hacen envíos a Madrid?', t: 9 },
+   320→      { dir: 'outbound', body: '¡Hola Sofía! Sí, enviamos a toda la UE. Pago anticipado por carrito.', t: 8 },
+   321→      { dir: 'inbound', body: 'Perfecto, ya compré por la web. Gracias!', t: 7 },
+   322→    ]},
+   323→  ]
+   324→
+   325→  for (const c of convos) {
+   326→    await db.conversation.upsert({ where: { id: c.id }, update: {},
+   327→      create: {
+   328→        id: c.id, tenantId: c.tenant, customerId: c.cust, channelId: c.ch,
+   329→        status: c.status, priority: c.priority, perfilConversacion: c.perfil,
+   330→        sourceAdId: c.sourceAd, sourceCampaign: c.sourceCampaign,
+   331→        lastMessageAt: daysAgo(0, c.msgs[c.msgs.length-1]?.t || 1),
+   332→        unreadCount: c.status === 'open' ? 1 : 0,
+   333→      }
+   334→    })
+   335→    for (const m of c.msgs) {
+   336→      await db.message.create({ data: { tenantId: c.tenant, conversationId: c.id, direction: m.dir, body: m.body, type: 'text', status: m.dir === 'inbound' ? 'delivered' : 'read', createdAt: daysAgo(0, m.t) }})
+   337→    }
+   338→  }
+   339→
+   340→  // ── Orders: simulate the 239-pedido summary (we create ~15 representative) ─
+   341→  console.log('  → generating orders (239-pedido summary, 15 representative)...')
+   342→  // Embudo (§15.1): 73.2% "Llamar para confirmar", 1.3% "Despachado"
+   343→  const orderStatuses = [
+   344→    ...Array(10).fill('pending_confirmation'), // 73% Llamar para confirmar
+   345→    ...Array(2).fill('intent_cancelacion'),
+   346→    ...Array(1).fill('datos_completados'),
+   347→    ...Array(1).fill('oficina'),
+   348→    ...Array(1).fill('despachado'),
+   349→  ]
+   350→  const orders = []
+   351→  for (let i = 0; i < 15; i++) {
+   352→    const cust = saraCustomers[i % saraCustomers.length]
+   353→    const status = orderStatuses[i]
+   354→    const items = [
+   355→      { p: pShort, q: rand(i, 6, 12), diseno: i % 2 === 0 ? 'Stitch' : 'liso' },
+   356→    ]
+   357→    if (i % 3 === 0) items.push({ p: pPant, q: rand(i, 6, 12), diseno: 'Stitch' })
+   358→    const subtotal = items.reduce((s, it) => s + it.p.price * it.q, 0)
+   359→    const discount = i % 2 === 0 ? subtotal * 0.05 : 0
+   360→    const codFee = i % 3 === 0 ? 8000 : 0
+   361→    const total = subtotal - discount + codFee
+   362→    const num = `CF-${100040 + i}`
+   363→    const ad = pick(['ad-sara-fam-1', 'ad-sara-fam-2', 'ad-sara-stitch-1', 'ad-sara-tt-1', 'ad-sara-g-1'], i)
+   364→    const camp = ad.startsWith('ad-sara-fam') ? campSaraGlow.name : ad.startsWith('ad-sara-stitch') ? campSaraStitch.name : ad.startsWith('ad-sara-tt') ? campSaraTT.name : campSaraG.name
+   365→    const plat = ad.startsWith('ad-sara-tt') ? 'tiktok' : ad.startsWith('ad-sara-g') ? 'google' : 'meta'
+   366→    const da = i + 1
+   367→    const paymentMode = i % 3 === 0 ? 'advance' : i % 3 === 1 ? 'cod' : 'hybrid'
+   368→    const paymentStatus = paymentMode === 'advance' ? 'paid' : paymentMode === 'cod' ? (status === 'despachado' || status === 'oficina' ? 'paid' : 'cod_pending') : 'partial'
+   369→    const o = await db.order.upsert({ where: { number: num }, update: {},
+   370→      create: {
+   371→        id: `ord-sara-${i}`, tenantId: saramantha.id, number: num,
+   372→        customerId: cust.id, conversationId: null, channelId: waSara.id,
+   373→        status, paymentMode, paymentStatus,
+   374→        subtotal, discount, codFee, total, currency: 'COP',
+   375→        country: 'CO', city: cust.city, address: '—',
+   376→        origen: 'agente_whatsapp',
+   377→        imagenReferenciaUrl: items[0].p.imageUrl,
+   378→        sourceAdId: ad, sourceCampaign: camp, sourcePlatform: plat, clickId: `clk_${i}`,
+   379→        attributedAt: daysAgo(da), paidAt: paymentStatus === 'paid' ? daysAgo(da) : null,
+   380→        createdAt: daysAgo(da),
+   381→      }
+   382→    })
+   383→    for (const it of items) {
+   384→      await db.orderItem.create({ data: { orderId: o.id, productId: it.p.id, name: it.p.name, unitPrice: it.p.price, cost: it.p.cost, quantity: it.q, diseno: it.diseno }})
+   385→    }
+   386→    // Order events
+   387→    await db.orderEvent.create({ data: { orderId: o.id, type: 'created', createdAt: daysAgo(da) }})
+   388→    if (['datos_completados', 'oficina', 'despachado'].includes(status)) {
+   389→      await db.orderEvent.create({ data: { orderId: o.id, type: 'confirmed', createdAt: daysAgo(da - 1) }})
+   390→    }
+   391→    if (status === 'despachado') {
+   392→      await db.orderEvent.create({ data: { orderId: o.id, type: 'shipped', createdAt: daysAgo(da - 2) }})
+   393→      // Shipment (§15.2: 17/239 had carrier filled, 6 variants of Interrapidísimo)
+   394→      await db.shipment.create({ data: {
+   395→        tenantId: saramantha.id, orderId: o.id, proveedor: 'dropi',
+   396→        numeroGuia: `DROP-${1000 + i}`, transportadora: pick(['Interrapidisimo', 'interrapidisimo', 'Interrapidicimo'], i),
+   397→        transportadoraCanonica: 'Interrapidísimo', tarifa: 12000, tiempoEstimadoDias: 3,
+   398→        estado: 'en_transito', createdAt: daysAgo(da - 2),
+   399→      }})
+   400→      // Commission entry (§17.7: 100% recognition at Despachado)
+   401→      const comisionPct = 4.5
+   402→      const comisionTotal = total * comisionPct / 100
+   403→      await db.commissionEntry.create({ data: {
+   404→        tenantId: saramantha.id, orderId: o.id, gmv: total, comisionPct,
+   405→        comisionTotal, reconocidaPct: 100, reconocidaMonto: comisionTotal,
+   406→        etapaReconocimiento: 'despachado', reconocidaAt: daysAgo(da - 2),
+   407→      }})
+   408→    } else if (status === 'datos_completados') {
+   409→      // §17.7: 50% recognition at Datos completados
+   410→      const comisionPct = 4.5
+   411→      const comisionTotal = total * comisionPct / 100
+   412→      await db.commissionEntry.create({ data: {
+   413→        tenantId: saramantha.id, orderId: o.id, gmv: total, comisionPct,
+   414→        comisionTotal, reconocidaPct: 50, reconocidaMonto: comisionTotal * 0.5,
+   415→        etapaReconocimiento: 'datos_completados', reconocidaAt: daysAgo(da - 1),
+   416→      }})
+   417→    }
+   418→    orders.push(o)
+   419→  }
+   420→
+   421→  // INTL orders
+   422→  await db.order.upsert({ where: { number: 'CF-200001' }, update: {},
+   423→    create: {
+   424→      id: 'ord-intl-1', tenantId: intl.id, number: 'CF-200001',
+   425→      customerId: intlCustomers[1].id, conversationId: 'conv-intl-002', channelId: msgIntl.id,
+   426→      status: 'delivered', paymentMode: 'advance', paymentStatus: 'paid',
+   427→      subtotal: 48, discount: 3, codFee: 0, total: 48, currency: 'EUR',
+   428→      country: 'ES', city: 'Madrid', origen: 'agente_whatsapp',
+   429→      sourceAdId: 'ad-intl-msg-1', sourceCampaign: campIntlMsg.name, sourcePlatform: 'meta', clickId: 'fbclk_700',
+   430→      attributedAt: daysAgo(8), paidAt: daysAgo(8), createdAt: daysAgo(8),
+   431→    }
+   432→  })
+   433→
+   434→  // ── Invoice for current period (Saramantha) ──────────────────────
+   435→  const saraOrders = await db.order.findMany({ where: { tenantId: saramantha.id } })
+   436→  const gmvSara = saraOrders.reduce((s, o) => s + o.total, 0)
+   437→  const tramo = gmvSara < 10000000 ? '0-10M' : gmvSara < 40000000 ? '10-40M' : '40M+'
+   438→  const pct = tramo === '0-10M' ? 4.5 : tramo === '10-40M' ? 3 : 1.75
+   439→  const comisionTotal = gmvSara * pct / 100
+   440→  await db.invoice.create({ data: {
+   441→    tenantId: saramantha.id, periodo: '2026-07',
+   442→    gmvTotal: gmvSara, feeBase: 350000, comisionTotal, tramoAplicado: tramo,
+   443→    total: 350000 + comisionTotal, estado: 'emitida', emitidaAt: new Date(),
+   444→  }})
+   445→
+   446→  // ── Settings + automation rules ──────────────────────────────────
+   447→  await db.setting.upsert({ where: { key: 'default_currency' }, update: {}, create: { key: 'default_currency', value: 'COP' }})
+   448→  await db.setting.upsert({ where: { key: 'roas_kill_threshold' }, update: {}, create: { key: 'roas_kill_threshold', value: '0.8' }})
+   449→  await db.setting.upsert({ where: { key: 'cpa_target' }, update: {}, create: { key: 'cpa_target', value: '35000' }})
+   450→  await db.setting.upsert({ where: { key: 'cod_max_order_value' }, update: {}, create: { key: 'cod_max_order_value', value: '250000' }})
+   451→
+   452→  await db.automationRule.upsert({ where: { id: 'rule-bienvenida' }, update: {},
+   453→    create: { id: 'rule-bienvenida', tenantId: saramantha.id, name: 'Bienvenida WhatsApp Sara', trigger: 'new_conversation', condition: '{"channel":"whatsapp"}', action: 'auto_reply', active: true }})
+   454→  await db.automationRule.upsert({ where: { id: 'rule-kill' }, update: {},
+   455→    create: { id: 'rule-kill', tenantId: saramantha.id, name: 'Pausar anuncios con ROAS < 0.8', trigger: 'ad_underperforming', condition: '{"roas_lt":0.8,"spend_gt":50000}', action: 'pause_ad', active: true }})
+   456→
+   457→  console.log('✅ Seed v2 complete.')
+   458→  console.log(`   Tenants: 5 (4 Indisutex + 1 INTL) | Channels: 9 | Products: 7 Saramantha`)
+   459→  console.log(`   Customers: 15 | Conversations: 6 | Orders: 16 (Saramantha embudo 73% pending)`)
+   460→  console.log(`   Ads: 9 | Carriers canonical: 5 (Interrapidísimo + 6 variants)`)
+   461→  console.log(`   Commission entries: ${['despachado', 'datos_completados'].length}`)
+   462→}
+   463→
+   464→main().catch((e) => { console.error(e); process.exit(1) }).finally(async () => { await db.$disconnect() })
+   465→

@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireAuth, requireTenantAccess } from '@/lib/auth-helpers'
-import { captureError } from '@/lib/capture-error'
 import { db } from '@/lib/db'
 import { recordIdentityVerification } from '@/lib/compliance/kyc-gate'
 import { verifyTOTP } from '@/lib/totp'
+import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 
 // POST /api/compliance/kyc/[id]/verify
 // Completa una verificación KYC (status pending → verified | failed).
@@ -35,10 +35,9 @@ const VerifySchema = z.object({
   providerSignature: z.string().optional(),
 })
 
-export async function POST(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export const POST = withErrorHandling(async (req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },) => {
+
   const { id } = await params
 
   // 1) Auth + tenant scoping — requireTenantAccess internally calls
@@ -67,7 +66,6 @@ export async function POST(
   }
   const body = parsed.data
 
-  try {
     const existing = await db.identityVerification.findUnique({
       where: { id },
     })
@@ -187,14 +185,6 @@ export async function POST(
       verifiedAt: updated.verifiedAt,
       expiresAt: updated.expiresAt,
     })
-  } catch (err) {
-    captureError(err as Error, {
-      path: '/api/compliance/kyc/[id]/verify',
-      method: 'POST',
-    })
-    return NextResponse.json(
-      { error: 'No se pudo completar la verificación' },
-      { status: 500 },
-    )
-  }
-}
+  
+
+})

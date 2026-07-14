@@ -1,18 +1,13 @@
 import { NextResponse } from "next/server";
-import { captureError } from '@/lib/capture-error'
 import { requireAuth } from '@/lib/auth-helpers'
+import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 
-export async function GET() {
+export const GET = withErrorHandling(async () => {
+
   const { error } = await requireAuth()
   if (error) return error
 
-  try {
     return NextResponse.json({ message: "ZIAY API", status: "ok" });
-  } catch (err) {
-    captureError(err as Error, { path: '/api', method: 'GET' })
-    return NextResponse.json(
-      { error: 'Internal server error', message: err instanceof Error ? err.message : 'Unknown error' },
-      { status: 500 },
-    )
-  }
-}
+  
+
+})

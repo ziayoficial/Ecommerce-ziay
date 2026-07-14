@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireTenantAccess } from '@/lib/auth-helpers'
-import { captureError } from '@/lib/capture-error'
 import { marketplaceService } from '@/lib/services'
+import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 
 // Marketplace — MarketplaceListing, LeadShareConfig, LeadReferral.
 //
@@ -17,7 +17,8 @@ import { marketplaceService } from '@/lib/services'
 // myListings, leadConfig, sentReferrals, receivedReferrals, tenant) +
 // the per-listing brand hydration + the three POST actions to
 // `marketplaceService`. Response shapes unchanged.
-export async function GET(req: NextRequest) {
+export const GET = withErrorHandling(async (req: NextRequest) => {
+
   const tenantId = req.nextUrl.searchParams.get('tenantId')
   if (!tenantId) {
     return NextResponse.json({ error: 'tenantId is required' }, { status: 400 })
@@ -25,7 +26,6 @@ export async function GET(req: NextRequest) {
   const { error } = await requireTenantAccess(tenantId)
   if (error) return error
 
-  try {
     const [listings, myListings, leadConfig, referrals, currentTenant] = await Promise.all([
       marketplaceService.getListings(tenantId),
       marketplaceService.getMyListings(tenantId),
@@ -68,14 +68,9 @@ export async function GET(req: NextRequest) {
         receivedReferrals: referrals.received.length,
       },
     })
-  } catch (err) {
-    captureError(err as Error, { path: '/api/marketplace', method: 'GET', tenantId })
-    return NextResponse.json(
-      { error: 'Internal server error', message: err instanceof Error ? err.message : 'Unknown error' },
-      { status: 500 },
-    )
-  }
-}
+  
+
+})
 
 const PublishListingSchema = z.object({
   action: z.literal('publish_listing'),
@@ -110,7 +105,8 @@ const MarketplaceBodySchema = z.discriminatedUnion('action', [
   CreateReferralSchema,
 ])
 
-export async function POST(req: NextRequest) {
+export const POST = withErrorHandling(async (req: NextRequest) => {
+
   let raw: unknown
   try {
     raw = await req.json()
@@ -136,7 +132,6 @@ export async function POST(req: NextRequest) {
   const { error } = await requireTenantAccess(tenantId)
   if (error) return error
 
-  try {
     if (action === 'publish_listing') {
       const listing = await marketplaceService.publishListing({
         tenantId: body.tenantId,
@@ -173,10 +168,6 @@ export async function POST(req: NextRequest) {
       commission: typeof body.commission === 'number' ? body.commission : undefined,
     })
     return NextResponse.json({ ok: true, referral })
-  } catch (e) {
-    return NextResponse.json(
-      { error: 'Operation failed', detail: (e as Error).message },
-      { status: 500 },
-    )
-  }
-}
+  
+
+})

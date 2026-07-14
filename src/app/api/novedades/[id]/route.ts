@@ -14,8 +14,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireAuth } from '@/lib/auth-helpers'
-import { captureError } from '@/lib/capture-error'
 import { novedadesService } from '@/lib/services'
+import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 
 const CaseUpdateSchema = z
   .object({
@@ -55,10 +55,9 @@ async function getCaseOrFail(id: string) {
   return { session, error: null, caseRow }
 }
 
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export const GET = withErrorHandling(async (_req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },) => {
+
   const { id } = await params
   const { error, caseRow } = await getCaseOrFail(id)
   if (error) return error
@@ -87,12 +86,12 @@ export async function GET(
     evidence: caseRow.evidence,
     messages: caseRow.messages,
   })
-}
 
-export async function PATCH(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+})
+
+export const PATCH = withErrorHandling(async (req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },) => {
+
   const { id } = await params
   const { error, caseRow } = await getCaseOrFail(id)
   if (error) return error
@@ -130,14 +129,8 @@ export async function PATCH(
     return NextResponse.json({ error: 'No updatable fields supplied' }, { status: 400 })
   }
 
-  try {
     const updated = await novedadesService.updateCaseFields(caseRow.id, data)
     return NextResponse.json({ case: updated })
-  } catch (err) {
-    captureError(err as Error, { path: '/api/novedades/[id]', method: 'PATCH', id })
-    return NextResponse.json(
-      { error: 'Internal server error', message: err instanceof Error ? err.message : 'Unknown error' },
-      { status: 500 },
-    )
-  }
-}
+  
+
+})

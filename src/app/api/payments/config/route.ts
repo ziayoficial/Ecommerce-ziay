@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireAuth } from '@/lib/auth-helpers'
 import { db } from '@/lib/db'
-import { captureError } from '@/lib/capture-error'
+import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 
 // Payment strategy config per channel.
 //
@@ -48,10 +48,11 @@ function maskIfCredential(key: string, value: string): string {
   return value
 }
 
-export async function GET() {
+export const GET = withErrorHandling(async () => {
+
   const { session, error } = await requireAuth()
   if (error) return error
-  try {
+
     // FIX-SECURITY-AUTH-001 — derive tenantId from the session, not the query.
     // Platform admins with no tenantId get an empty list — they must use a
     // tenant-scoped admin route to inspect a specific tenant.
@@ -90,20 +91,16 @@ export async function GET() {
       })),
       global,
     })
-  } catch (err) {
-    captureError(err as Error, { path: '/api/payments/config', method: 'GET' })
-    return NextResponse.json(
-      { error: 'Internal server error', message: err instanceof Error ? err.message : 'Unknown error' },
-      { status: 500 },
-    )
-  }
-}
+  
+
+})
 
 // Update a channel's payment strategy + a whitelist of global Setting keys.
-export async function PATCH(req: NextRequest) {
+export const PATCH = withErrorHandling(async (req: NextRequest) => {
+
   const { session, error } = await requireAuth()
   if (error) return error
-  try {
+
     const tenantId = session?.user?.tenantId ?? null
     if (!tenantId) {
       return NextResponse.json(
@@ -183,11 +180,6 @@ export async function PATCH(req: NextRequest) {
     }
 
     return NextResponse.json({ channel: updated })
-  } catch (err) {
-    captureError(err as Error, { path: '/api/payments/config', method: 'PATCH' })
-    return NextResponse.json(
-      { error: 'Internal server error', message: err instanceof Error ? err.message : 'Unknown error' },
-      { status: 500 },
-    )
-  }
-}
+  
+
+})

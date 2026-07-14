@@ -47,7 +47,7 @@ export function OrchestratorView() {
   const [scenarioId, setScenarioId] = useState<ScenarioId>('mayorista_familia')
   const [running, setRunning] = useState<'full' | 'step' | null>(null)
   const [timeline, setTimeline] = useState<TimelineEntry[]>([])
-  const [stepReplies, setStepReplies] = useState<Partial<Record<OrchestratorStepId, StepReply>>>({})
+  const [_stepReplies, setStepReplies] = useState<Partial<Record<OrchestratorStepId, StepReply>>>({})
   const [currentStep, setCurrentStep] = useState<OrchestratorStepId>('profile')
   const [completedSteps, setCompletedSteps] = useState<Set<OrchestratorStepId>>(new Set())
   const [error, setError] = useState<string | null>(null)
@@ -155,7 +155,7 @@ export function OrchestratorView() {
     return <div className="p-8 text-center text-sm text-muted-foreground">Selecciona un tenant para usar el orquestador</div>
   }
 
-  const currentIndex = ORCHESTRATOR_STEPS.findIndex(s => s.id === currentStep)
+  const _currentIndex = ORCHESTRATOR_STEPS.findIndex(s => s.id === currentStep)
   const progressPct = Math.round((completedSteps.size / ORCHESTRATOR_STEPS.length) * 100)
 
   return (

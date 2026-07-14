@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireTenantAccess } from '@/lib/auth-helpers'
-import { captureError } from '@/lib/capture-error'
 import { getLogger } from '@/lib/logger'
 import { recordDailyChannelCosts } from '@/lib/services/channel-cost.service'
+import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 
 const log = getLogger('api:finance:channel-cost:sync')
 
@@ -35,7 +35,8 @@ const SyncSchema = z.object({
     .optional(),
 })
 
-export async function POST(req: NextRequest) {
+export const POST = withErrorHandling(async (req: NextRequest) => {
+
   let raw: unknown
   try {
     raw = await req.json()
@@ -87,7 +88,6 @@ export async function POST(req: NextRequest) {
     targetDate = new Date()
   }
 
-  try {
     await recordDailyChannelCosts(body.tenantId, targetDate)
     const dayBucket = new Date(targetDate)
     dayBucket.setHours(0, 0, 0, 0)
@@ -101,21 +101,9 @@ export async function POST(req: NextRequest) {
       date: dayBucket.toISOString(),
       channels: 4, // whatsapp | messenger | instagram | tiktok
     })
-  } catch (err) {
-    captureError(err as Error, {
-      path: '/api/finance/channel-cost/sync',
-      method: 'POST',
-      tenantId: body.tenantId,
-    })
-    return NextResponse.json(
-      {
-        error: 'No se pudo sincronizar los costos del canal',
-        message: err instanceof Error ? err.message : 'Unknown error',
-      },
-      { status: 500 },
-    )
-  }
-}
+  
+
+})
 
 /** Parse `YYYY-MM-DD` to a `Date` at 00:00:00 local; null on roll-over. */
 function parseDayStart(s: string): Date | null {

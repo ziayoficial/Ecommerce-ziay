@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-helpers'
 import { db } from '@/lib/db'
 import { withCache } from '@/lib/cache'
-import { captureError } from '@/lib/capture-error'
+import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 
 // GET /api/tenants — list all tenants (for the switcher in the topbar).
 // Cached for 5 minutes under `tenants:active` — tenants rarely change and
@@ -16,30 +16,25 @@ import { captureError } from '@/lib/capture-error'
 // — the cache key already encodes the only meaningful input. A future
 // `tenant.service.ts` would only make sense if tenant CRUD lands.
 // TODO: migrate to service layer when tenant CRUD is added.
-export async function GET() {
+export const GET = withErrorHandling(async () => {
+
   const { error } = await requireAuth()
   if (error) return error
 
-  try {
-    const payload = await withCache(
-      'tenants:active',
-      5 * 60_000,
-      () => db.tenant.findMany({
-        where: { activo: true },
-        orderBy: { nombreNegocio: 'asc' },
-        select: {
-          id: true, slug: true, nombreNegocio: true, marca: true,
-          planMonetizacion: true, proveedorIa: true, proveedorLogistico: true,
-          plataformaCatalogo: true, politicaPago: true,
-        },
-      }),
-    )
-    return NextResponse.json({ tenants: payload })
-  } catch (err) {
-    captureError(err as Error, { path: '/api/tenants', method: 'GET' })
-    return NextResponse.json(
-      { error: 'Internal server error', message: err instanceof Error ? err.message : 'Unknown error' },
-      { status: 500 },
-    )
-  }
-}
+  const payload = await withCache(
+    'tenants:active',
+    5 * 60_000,
+    () => db.tenant.findMany({
+      where: { activo: true },
+      orderBy: { nombreNegocio: 'asc' },
+      select: {
+        id: true, slug: true, nombreNegocio: true, marca: true,
+        planMonetizacion: true, proveedorIa: true, proveedorLogistico: true,
+        plataformaCatalogo: true, politicaPago: true,
+      },
+    }),
+  )
+  return NextResponse.json({ tenants: payload })
+
+
+})

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { captureError } from '@/lib/capture-error'
 import { db } from '@/lib/db'
 import { verifyAcpBearer } from '@/lib/acp/bearer'
+import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 
 // GET /api/acp/v1/orders/[id]
 // Devuelve el estado del pedido en formato ACP (ChatGPT / Copilot).
@@ -43,10 +43,9 @@ function extractBearerToken(req: NextRequest): string | null {
  *          404 (pedido no encontrado) /
  *          403 (tenant mismatch) / 500 (error interno).
  */
-export async function GET(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export const GET = withErrorHandling(async (req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },) => {
+
   const { id: orderId } = await params
 
   const token = extractBearerToken(req)
@@ -57,7 +56,6 @@ export async function GET(
     )
   }
 
-  try {
     // Validar el bearer firmado + cargar el mandate.
     const bearer = await verifyAcpBearer(token)
     if (!bearer) {
@@ -149,17 +147,9 @@ export async function GET(
       updated_at: order.updatedAt,
       paid_at: order.paidAt,
     })
-  } catch (err) {
-    captureError(err as Error, {
-      path: '/api/acp/v1/orders/[id]',
-      method: 'GET',
-    })
-    return NextResponse.json(
-      { error: 'No se pudo obtener el pedido' },
-      { status: 500 },
-    )
-  }
-}
+  
+
+})
 
 function mapToAcpStatus(orderStatus: string, paymentStatus: string): string {
   if (orderStatus === 'cancelled') return 'cancelled'

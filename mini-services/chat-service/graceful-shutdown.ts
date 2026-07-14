@@ -29,13 +29,13 @@ export function setupGracefulShutdown({ httpServer, io }: ShutdownTargets): void
   const shutdown = (signal: string) => {
     if (isShuttingDown) return
     isShuttingDown = true
-    console.log(`[chat-service] Graceful shutdown started (signal=${signal})`)
+    console.warn(`[chat-service] Graceful shutdown started (signal=${signal})`)
 
     // 1. Close socket.io first — disconnects every connected client cleanly
     //    so they can reconnect to another instance immediately.
     try {
       io.close(() => {
-        console.log('[chat-service] socket.io closed')
+        console.warn('[chat-service] socket.io closed')
       })
     } catch (err) {
       console.error('[chat-service] Error closing socket.io:', err)
@@ -46,8 +46,8 @@ export function setupGracefulShutdown({ httpServer, io }: ShutdownTargets): void
     //    speaks WebSocket).
     try {
       httpServer.close(() => {
-        console.log('[chat-service] HTTP server closed')
-        console.log('[chat-service] Graceful shutdown complete')
+        console.warn('[chat-service] HTTP server closed')
+        console.warn('[chat-service] Graceful shutdown complete')
         process.exit(0)
       })
     } catch (err) {

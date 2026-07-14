@@ -9,6 +9,7 @@ import {
   type CredentialField,
   type IntegrationConfig,
 } from '@/lib/adapters/credential-fields'
+import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 
 // ───────────────────────────────────────────────────────────────────────────
 // Credential management endpoint — stores integration credentials in the
@@ -124,7 +125,8 @@ function parseCredValue(value: string | null | undefined): Record<string, string
 // Returns all saved credentials for the caller's tenant, masked, grouped
 // by integration id.
 // ───────────────────────────────────────────────────────────────────────────
-export async function GET() {
+export const GET = withErrorHandling(async () => {
+
   const { session, error } = await requireAuth()
   if (error) return error
 
@@ -165,7 +167,8 @@ export async function GET() {
   }
 
   return NextResponse.json({ integrations })
-}
+
+})
 
 // ───────────────────────────────────────────────────────────────────────────
 // POST /api/integrations/credentials
@@ -176,7 +179,8 @@ export async function GET() {
 //   - Empty-string field values are stored (so users can clear a field)
 //   - Returns masked values for the saved integration
 // ───────────────────────────────────────────────────────────────────────────
-export async function POST(req: NextRequest) {
+export const POST = withErrorHandling(async (req: NextRequest) => {
+
   const { session, error } = await requireAuth()
   if (error) return error
 
@@ -245,7 +249,8 @@ export async function POST(req: NextRequest) {
     configured: isIntegrationConfigured(config, merged),
     fields: maskAllFields(config, merged),
   })
-}
+
+})
 
 // ───────────────────────────────────────────────────────────────────────────
 // DELETE /api/integrations/credentials
@@ -253,7 +258,8 @@ export async function POST(req: NextRequest) {
 //   { integration: "mercadopago" }                       → remove whole integration
 //   { integration: "mercadopago", field: "accessToken" } → remove a single field
 // ───────────────────────────────────────────────────────────────────────────
-export async function DELETE(req: NextRequest) {
+export const DELETE = withErrorHandling(async (req: NextRequest) => {
+
   const { session, error } = await requireAuth()
   if (error) return error
 
@@ -321,7 +327,8 @@ export async function DELETE(req: NextRequest) {
     fields: {},
     deleted: 'all',
   })
-}
+
+})
 
 // ───────────────────────────────────────────────────────────────────────────
 // Optional route — expose the registry to the client so the UI can render
@@ -329,8 +336,10 @@ export async function DELETE(req: NextRequest) {
 // directly by the client component (`@/lib/adapters/credential-fields`),
 // but this endpoint is handy for diagnostics / future admin tools.
 // ───────────────────────────────────────────────────────────────────────────
-export async function PUT() {
+export const PUT = withErrorHandling(async () => {
+
   const { error } = await requireAuth()
   if (error) return error
   return NextResponse.json({ registry: INTEGRATION_REGISTRY })
-}
+
+})

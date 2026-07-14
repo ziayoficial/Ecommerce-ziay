@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireTenantAccess } from '@/lib/auth-helpers'
-import { captureError } from '@/lib/capture-error'
 import { getLogger } from '@/lib/logger'
 import { db } from '@/lib/db'
+import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 
 const log = getLogger('api/ap2/mandates/[id]/revoke')
 
@@ -17,10 +17,9 @@ const RevokeSchema = z.object({
   reason: z.string().min(1).max(500).optional(),
 })
 
-export async function PATCH(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export const PATCH = withErrorHandling(async (req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },) => {
+
   const { id } = await params
   let raw: unknown = {}
   try {
@@ -36,7 +35,6 @@ export async function PATCH(
     )
   }
 
-  try {
     const existing = await db.aP2Mandate.findUnique({ where: { id } })
     if (!existing) {
       return NextResponse.json(
@@ -99,14 +97,6 @@ export async function PATCH(
       revokedAt: now,
       reason,
     })
-  } catch (err) {
-    captureError(err as Error, {
-      path: '/api/ap2/mandates/[id]/revoke',
-      method: 'PATCH',
-    })
-    return NextResponse.json(
-      { error: 'No se pudo revocar el mandato' },
-      { status: 500 },
-    )
-  }
-}
+  
+
+})

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireAuth } from '@/lib/auth-helpers'
-import { captureError } from '@/lib/capture-error'
 import { getLogger } from '@/lib/logger'
 import { db } from '@/lib/db'
 import {
@@ -19,6 +18,7 @@ import {
   checkEscalationRules,
   normalizeUcpCartToItems,
 } from '@/lib/governance/mandate-enforcement'
+import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 
 const log = getLogger('api/ucp/v1/checkout/[sessionId]')
 
@@ -42,15 +42,13 @@ const log = getLogger('api/ucp/v1/checkout/[sessionId]')
  *          401 / 403 (tenant mismatch) / 404 (sesión no encontrada) /
  *          500 (error interno).
  */
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: Promise<{ sessionId: string }> },
-) {
+export const GET = withErrorHandling(async (_req: NextRequest,
+  { params }: { params: Promise<{ sessionId: string }> },) => {
+
   const { sessionId } = await params
   const { error } = await requireAuth()
   if (error) return error
 
-  try {
     const session = await db.ucpCheckoutSession.findUnique({
       where: { sessionId },
     })
@@ -87,17 +85,9 @@ export async function GET(
       orderId: session.orderId,
       expiresAt: session.expiresAt,
     })
-  } catch (err) {
-    captureError(err as Error, {
-      path: '/api/ucp/v1/checkout/[sessionId]',
-      method: 'GET',
-    })
-    return NextResponse.json(
-      { error: 'No se pudo obtener la sesión' },
-      { status: 500 },
-    )
-  }
-}
+  
+
+})
 
 // PATCH /api/ucp/v1/checkout/[sessionId]
 // Avanza la máquina de estados.
@@ -184,10 +174,9 @@ const PatchSchema = z.object({
  *          404 (sesión no encontrada) / 409 (transición inválida) /
  *          500 (error interno).
  */
-export async function PATCH(
-  req: NextRequest,
-  { params }: { params: Promise<{ sessionId: string }> },
-) {
+export const PATCH = withErrorHandling(async (req: NextRequest,
+  { params }: { params: Promise<{ sessionId: string }> },) => {
+
   const { sessionId } = await params
   const { error } = await requireAuth()
   if (error) return error
@@ -210,7 +199,6 @@ export async function PATCH(
   }
   const body = parsed.data
 
-  try {
     const session = await db.ucpCheckoutSession.findUnique({
       where: { sessionId },
     })
@@ -722,14 +710,6 @@ export async function PATCH(
       { error: 'Transición no implementada' },
       { status: 400 },
     )
-  } catch (err) {
-    captureError(err as Error, {
-      path: '/api/ucp/v1/checkout/[sessionId]',
-      method: 'PATCH',
-    })
-    return NextResponse.json(
-      { error: 'No se pudo avanzar la sesión de checkout' },
-      { status: 500 },
-    )
-  }
-}
+  
+
+})

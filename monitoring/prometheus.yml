@@ -1,0 +1,29 @@
+# Prometheus scrape config for ZIAY
+# SPRINT-MONITORING-002 · M-11 — Prometheus server config. Together with
+# alerts.yml (referenced via `rule_files`) this is everything Prometheus
+# needs to scrape the app + chat service and evaluate the alert rules.
+#
+# Run: `prometheus --config.file=monitoring/prometheus.yml`
+# Reload: `POST /-/reload` (or SIGHUP) — Prometheus hot-reloads the
+# rule files without dropping scrape state.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - alerts.yml
+
+scrape_configs:
+  - job_name: 'ziay-app'
+    metrics_path: '/api/metrics'
+    static_configs:
+      - targets: ['localhost:3000']
+        labels:
+          service: 'ziay'
+          env: 'production'
+
+  - job_name: 'ziay-chat-service'
+    static_configs:
+      - targets: ['localhost:3003']
+        labels:
+          service: 'chat-service'

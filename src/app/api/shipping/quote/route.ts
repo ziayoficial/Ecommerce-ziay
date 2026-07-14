@@ -21,6 +21,7 @@ import { z } from 'zod'
 import { requireTenantAccess } from '@/lib/auth-helpers'
 import { getLogisticsAdapter } from '@/lib/adapters/registry'
 import { db } from '@/lib/db'
+import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 
 // TD-2: Zod schema for shipping quote POST.
 const ShippingQuoteSchema = z.object({
@@ -30,8 +31,8 @@ const ShippingQuoteSchema = z.object({
   cantidad_unidades: z.number().optional(),
 }).passthrough()
 
-export async function POST(req: NextRequest) {
-  try {
+export const POST = withErrorHandling(async (req: NextRequest) => {
+
     const raw = await req.json()
     const parseResult = ShippingQuoteSchema.safeParse(raw)
     if (!parseResult.success) {
@@ -64,15 +65,7 @@ export async function POST(req: NextRequest) {
         tenantId,
         action: 'shipping_quote',
         entity: 'shipment',
-        meta: JSON.stringify({
-          ciudad,
-          pais: paisNorm,
-          cantidad_unidades: cantidad,
-          tarifa: quote.tarifa,
-          tiempo_estimado_dias: quote.tiempo_estimado_dias,
-          transportadora: quote.transportadora,
-        }),
-        metadata: JSON.stringify({  // TD-AUDITLOG-META-RENAME
+        metadata: JSON.stringify({
           ciudad,
           pais: paisNorm,
           cantidad_unidades: cantidad,
@@ -91,8 +84,6 @@ export async function POST(req: NextRequest) {
       cantidad_unidades: cantidad,
       quote,
     })
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Unknown error'
-    return NextResponse.json({ error: message }, { status: 500 })
-  }
-}
+  
+
+})

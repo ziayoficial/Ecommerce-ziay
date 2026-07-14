@@ -18,7 +18,6 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
-import { Switch } from '@/components/ui/switch'
 import { useTenantId } from '@/hooks/use-tenant'
 import { cn } from '@/lib/utils'
 import { timeAgo } from '@/lib/format'
@@ -56,7 +55,7 @@ export function ChannelsManager() {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingChannel, setEditingChannel] = useState<Channel | null>(null)
-  const [showTokens, setShowTokens] = useState<Record<string, boolean>>({})
+  const [_showTokens, setShowTokens] = useState<Record<string, boolean>>({})
   const [confirmDeactivate, setConfirmDeactivate] = useState<Channel | null>(null)
 
   const load = useCallback(async (showRefreshing = false) => {
@@ -86,7 +85,7 @@ export function ChannelsManager() {
   const openNew = () => { setEditingChannel(null); setDialogOpen(true) }
   const openEdit = (c: Channel) => { setEditingChannel(c); setDialogOpen(true) }
 
-  const toggleToken = (id: string) => setShowTokens(prev => ({ ...prev, [id]: !prev[id] }))
+  const _toggleToken = (id: string) => setShowTokens(prev => ({ ...prev, [id]: !prev[id] }))
 
   if (loading) return (
     <section aria-label="Canales">

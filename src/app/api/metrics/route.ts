@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -30,7 +31,8 @@ export const revalidate = 0
 // nginx) instead of exposing it publicly. See docs/DR-RUNBOOK.md.
 // ───────────────────────────────────────────────────────────────────────────
 
-export async function GET() {
+export const GET = withErrorHandling(async () => {
+
   const metrics: string[] = []
 
   // DB connection check — always run first so that if the DB is down, the
@@ -105,4 +107,5 @@ export async function GET() {
       'Cache-Control': 'no-cache, no-store',
     },
   })
-}
+
+})

@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { requireTenantAccess } from '@/lib/auth-helpers'
 import { rateLimit } from '@/lib/middleware/rate-limit'
 import { getLogger } from '@/lib/logger'
+import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 
 const log = getLogger('api/remarketing')
 
@@ -72,13 +73,7 @@ async function assertMarketingConsent(
         action: 'remarketing.skipped_no_consent',
         entity: 'customer',
         entityId: customerId,
-        meta: JSON.stringify({
-          reason:
-            'No ConsentRecord with purpose=marketing, granted=true, revokedAt=null',
-          legalBasis:
-            'Ley 1581 de 2012 Art 10 + Meta Cloud API marketing opt-in policy',
-        }),
-        metadata: JSON.stringify({  // TD-AUDITLOG-META-RENAME
+        metadata: JSON.stringify({
           reason:
             'No ConsentRecord with purpose=marketing, granted=true, revokedAt=null',
           legalBasis:
@@ -165,7 +160,8 @@ const PatchBodySchema = z.discriminatedUnion('action', [
 
 // GET /api/remarketing?tenantId=X
 // Devuelve las RemarketingCampaign del tenant + mensajes pendientes + stats.
-export async function GET(req: NextRequest) {
+export const GET = withErrorHandling(async (req: NextRequest) => {
+
   const tenantId = req.nextUrl.searchParams.get('tenantId')
   if (!tenantId) {
     return NextResponse.json(
@@ -209,7 +205,8 @@ export async function GET(req: NextRequest) {
   for (const s of statsRows) stats[s.status] = s._count._all
 
   return NextResponse.json({ campaigns, pendingMessages, stats })
-}
+
+})
 
 // POST /api/remarketing
 // Acciones (body.action):
@@ -219,7 +216,8 @@ export async function GET(req: NextRequest) {
 //     Genera mensajes automáticos para carritos abandonados / no-respuesta / post-purchase
 //     según el trigger. Para abandoned_cart, busca ConversationalCart en estado
 //     'building' sin update reciente y los programa.
-export async function POST(req: NextRequest) {
+export const POST = withErrorHandling(async (req: NextRequest) => {
+
   const limited = rateLimit(req, {
     max: 60,
     windowMs: 60_000,
@@ -260,12 +258,14 @@ export async function POST(req: NextRequest) {
         { status: 400 },
       )
   }
-}
+
+})
 
 // PATCH /api/remarketing
 // Body: { action: 'toggle_active', campaignId, active }
 //    or { action: 'mark_message', messageId, status }
-export async function PATCH(req: NextRequest) {
+export const PATCH = withErrorHandling(async (req: NextRequest) => {
+
   const limited = rateLimit(req, {
     max: 120,
     windowMs: 60_000,
@@ -312,7 +312,8 @@ export async function PATCH(req: NextRequest) {
     },
   })
   return NextResponse.json({ message: updated })
-}
+
+})
 
 // ────────────────────────────────────────────────────────────
 // Action handlers
@@ -356,11 +357,7 @@ async function scheduleMessage(tenantId: string, body: z.infer<typeof ScheduleSc
           tenantId,
           action: 'remarketing.skipped_no_customer',
           entity: 'customer',
-          meta: JSON.stringify({
-            phone: String(customerPhone),
-            reason: 'No Customer row linked to this phone — cannot verify marketing consent',
-          }),
-          metadata: JSON.stringify({  // TD-AUDITLOG-META-RENAME
+          metadata: JSON.stringify({
             phone: String(customerPhone),
             reason: 'No Customer row linked to this phone — cannot verify marketing consent',
           }),

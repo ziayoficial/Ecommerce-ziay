@@ -2,11 +2,13 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { rateLimit } from '@/lib/middleware/rate-limit'
 import { NextRequest } from 'next/server'
+import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 
 // GET /api/public/tenants — directorio público de tiendas activas.
 // NO requiere auth. Devuelve solo { slug, nombreNegocio, marca } para SSR
 // del storefront público /t/[slug].
-export async function GET(req: NextRequest) {
+export const GET = withErrorHandling(async (req: NextRequest) => {
+
   const limited = rateLimit(req, {
     max: 60,
     windowMs: 60_000,
@@ -35,4 +37,5 @@ export async function GET(req: NextRequest) {
       plataformaCatalogo: t.plataformaCatalogo,
     })),
   })
-}
+
+})

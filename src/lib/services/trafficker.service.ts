@@ -467,14 +467,7 @@ export const traffickerService = {
             action: 'sale_failed_with_compensation',
             entity: 'trafficker_sale',
             entityId: sale.id,
-            meta: JSON.stringify({
-              saleId: sale.id,
-              traffickerId: sale.traffickerId,
-              reason,
-              compensationPct,
-              compensationAmount,
-            }),
-            metadata: JSON.stringify({  // TD-AUDITLOG-META-RENAME
+            metadata: JSON.stringify({
               saleId: sale.id,
               traffickerId: sale.traffickerId,
               reason,

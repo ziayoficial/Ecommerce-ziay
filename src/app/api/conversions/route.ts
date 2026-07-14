@@ -5,6 +5,7 @@ import { captureError } from '@/lib/capture-error'
 import { getLogger } from '@/lib/logger'
 import { enqueue, isInlineMode } from '@/lib/queue'
 import { conversionsService } from '@/lib/services'
+import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 
 const log = getLogger('api:conversions')
 
@@ -33,7 +34,8 @@ const FireSchema = z.object({
 // SPRINT8-SERVICES-REST-001 — migrated the `db.conversionEvent` /
 // `db.pixelConfig` reads + writes to `conversionsService`. Response shapes
 // unchanged.
-export async function GET(req: NextRequest) {
+export const GET = withErrorHandling(async (req: NextRequest) => {
+
   const tenantId = req.nextUrl.searchParams.get('tenantId')
   if (!tenantId) {
     return NextResponse.json({ error: 'tenantId is required' }, { status: 400 })
@@ -41,21 +43,16 @@ export async function GET(req: NextRequest) {
   const { error } = await requireTenantAccess(tenantId)
   if (error) return error
 
-  try {
     const { events, stats } = await conversionsService.getEvents(tenantId)
     return NextResponse.json({ events, stats })
-  } catch (err) {
-    captureError(err as Error, { path: '/api/conversions', method: 'GET', tenantId })
-    return NextResponse.json(
-      { error: 'Internal server error', message: err instanceof Error ? err.message : 'Unknown error' },
-      { status: 500 },
-    )
-  }
-}
+  
+
+})
 
 type FirePayload = z.infer<typeof FireSchema>
 
-export async function POST(req: NextRequest) {
+export const POST = withErrorHandling(async (req: NextRequest) => {
+
   let raw: unknown
   try {
     raw = await req.json()
@@ -167,4 +164,5 @@ export async function POST(req: NextRequest) {
     status: aggregateStatus,
     queued: !isInlineMode(),
   })
-}
+
+})

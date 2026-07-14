@@ -1,0 +1,52 @@
+{
+  "dashboard": {
+    "title": "ZIAY Overview",
+    "panels": [
+      {
+        "title": "Database Status",
+        "type": "stat",
+        "targets": [{ "expr": "ziay_db_connected" }],
+        "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 }
+      },
+      {
+        "title": "Orders Today",
+        "type": "stat",
+        "targets": [{ "expr": "ziay_orders_today" }],
+        "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 }
+      },
+      {
+        "title": "Open Conversations",
+        "type": "stat",
+        "targets": [{ "expr": "ziay_conversations_open" }],
+        "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 }
+      },
+      {
+        "title": "Pending Withdrawals",
+        "type": "stat",
+        "targets": [{ "expr": "ziay_withdrawals_pending" }],
+        "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 }
+      },
+      {
+        "title": "Memory Usage (MB)",
+        "type": "timeseries",
+        "targets": [{ "expr": "ziay_node_memory_rss_bytes / 1024 / 1024" }],
+        "gridPos": { "h": 8, "w": 24, "x": 0, "y": 4 }
+      },
+      {
+        "title": "Tenants Count",
+        "type": "stat",
+        "targets": [{ "expr": "ziay_tenants_total" }],
+        "gridPos": { "h": 4, "w": 12, "x": 0, "y": 12 }
+      },
+      {
+        "title": "Uptime (hours)",
+        "type": "stat",
+        "targets": [{ "expr": "ziay_node_uptime_seconds / 3600" }],
+        "gridPos": { "h": 4, "w": 12, "x": 12, "y": 12 }
+      }
+    ],
+    "schemaVersion": 27,
+    "version": 1,
+    "refresh": "30s"
+  }
+}

@@ -338,12 +338,7 @@ registerJobHandler('catalog-sync', async (payload) => {
         tenantId,
         action: 'catalog_sync',
         entity: 'product',
-        meta: JSON.stringify({
-          plataforma: tenant.plataformaCatalogo,
-          fuente,
-          synced: syncedCount,
-        }),
-        metadata: JSON.stringify({  // TD-AUDITLOG-META-RENAME
+        metadata: JSON.stringify({
           plataforma: tenant.plataformaCatalogo,
           fuente,
           synced: syncedCount,

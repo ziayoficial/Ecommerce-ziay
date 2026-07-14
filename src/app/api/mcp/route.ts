@@ -5,6 +5,7 @@ import { requireAuth } from '@/lib/auth-helpers'
 import { captureError } from '@/lib/capture-error'
 import { getLogger } from '@/lib/logger'
 import { db } from '@/lib/db'
+import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 
 const log = getLogger('api/mcp')
 
@@ -230,7 +231,8 @@ const TOOL_DEFINITIONS = [
  *          aplicativos); auth errors usan 401 / 403 / 400 / 500 para
  *          ayudar al cliente MCP a distinguirlos.
  */
-export async function POST(req: NextRequest) {
+export const POST = withErrorHandling(async (req: NextRequest) => {
+
   let body: JsonRpcRequest
   try {
     body = (await req.json()) as JsonRpcRequest
@@ -271,7 +273,8 @@ export async function POST(req: NextRequest) {
   }
 
   return rpcError(id, METHOD_NOT_FOUND)
-}
+
+})
 
 // ───────────────────────────────────────────────────────────────────────────
 // tools/call dispatcher

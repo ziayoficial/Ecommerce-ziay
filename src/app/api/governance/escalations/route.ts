@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { resolveTenantId, requireAuth } from '@/lib/auth-helpers'
-import { captureError } from '@/lib/capture-error'
 import { getLogger } from '@/lib/logger'
 import { db } from '@/lib/db'
+import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 
 const log = getLogger('api/governance/escalations')
 
@@ -11,7 +11,8 @@ const log = getLogger('api/governance/escalations')
 // Lista las sesiones de checkout UCP en estado `requires_escalation` del
 // tenant. Documento §11 pilar #2: "Reglas de escalamiento a humano" — el
 // operador humano consulta esta cola para aprobar/rechazar cada caso.
-export async function GET(req: NextRequest) {
+export const GET = withErrorHandling(async (req: NextRequest) => {
+
   const tenantIdParam = req.nextUrl.searchParams.get('tenantId') || undefined
   if (!tenantIdParam) {
     return NextResponse.json(
@@ -22,7 +23,6 @@ export async function GET(req: NextRequest) {
   const { error, tenantId } = await resolveTenantId(tenantIdParam)
   if (error) return error
 
-  try {
     const sessions = await db.ucpCheckoutSession.findMany({
       where: {
         // Platform admins (no tenantId on session) → list across tenants
@@ -53,17 +53,9 @@ export async function GET(req: NextRequest) {
         cart: s.cart ? JSON.parse(s.cart) : null,
       })),
     })
-  } catch (err) {
-    captureError(err as Error, {
-      path: '/api/governance/escalations',
-      method: 'GET',
-    })
-    return NextResponse.json(
-      { error: 'No se pudo listar las escalaciones' },
-      { status: 500 },
-    )
-  }
-}
+  
+
+})
 
 // POST /api/governance/escalations
 // Aprueba o rechaza una escalación.
@@ -76,7 +68,8 @@ const DecisionSchema = z.object({
   reason: z.string().min(1).max(500).optional(),
 })
 
-export async function POST(req: NextRequest) {
+export const POST = withErrorHandling(async (req: NextRequest) => {
+
   const { session: authSession } = await requireAuth()
   if (!authSession?.user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -111,7 +104,6 @@ export async function POST(req: NextRequest) {
   }
   const body = parsed.data
 
-  try {
     const existing = await db.ucpCheckoutSession.findUnique({
       where: { sessionId: body.sessionId },
     })
@@ -155,13 +147,7 @@ export async function POST(req: NextRequest) {
           action: 'governance.escalation.approved',
           entity: 'UcpCheckoutSession',
           entityId: existing.id,
-          meta: JSON.stringify({
-            sessionId: existing.sessionId,
-            reason,
-            previousState: 'requires_escalation',
-            newState: 'ready_for_complete',
-          }),
-          metadata: JSON.stringify({  // TD-AUDITLOG-META-RENAME
+          metadata: JSON.stringify({
             sessionId: existing.sessionId,
             reason,
             previousState: 'requires_escalation',
@@ -193,13 +179,7 @@ export async function POST(req: NextRequest) {
         action: 'governance.escalation.rejected',
         entity: 'UcpCheckoutSession',
         entityId: existing.id,
-        meta: JSON.stringify({
-          sessionId: existing.sessionId,
-          reason,
-          previousState: 'requires_escalation',
-          newState: 'failed',
-        }),
-        metadata: JSON.stringify({  // TD-AUDITLOG-META-RENAME
+        metadata: JSON.stringify({
           sessionId: existing.sessionId,
           reason,
           previousState: 'requires_escalation',
@@ -217,14 +197,6 @@ export async function POST(req: NextRequest) {
       decision: 'reject',
       reason,
     })
-  } catch (err) {
-    captureError(err as Error, {
-      path: '/api/governance/escalations',
-      method: 'POST',
-    })
-    return NextResponse.json(
-      { error: 'No se pudo procesar la decisión de escalación' },
-      { status: 500 },
-    )
-  }
-}
+  
+
+})

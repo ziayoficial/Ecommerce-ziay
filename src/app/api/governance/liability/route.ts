@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireTenantAccess } from '@/lib/auth-helpers'
-import { captureError } from '@/lib/capture-error'
 import { getLogger } from '@/lib/logger'
 import { db } from '@/lib/db'
 import {
   determineLiability,
   LIABILITY_POLICY,
 } from '@/lib/governance/mandate-enforcement'
+import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 
 const log = getLogger('api/governance/liability')
 
@@ -33,7 +33,8 @@ const LiabilitySchema = z.object({
   withinBounds: z.boolean(),
 })
 
-export async function POST(req: NextRequest) {
+export const POST = withErrorHandling(async (req: NextRequest) => {
+
   let raw: unknown
   try {
     raw = await req.json()
@@ -55,7 +56,6 @@ export async function POST(req: NextRequest) {
   const { error } = await requireTenantAccess(body.tenantId)
   if (error) return error
 
-  try {
     const [intent, cartMandate] = await Promise.all([
       db.aP2Mandate.findUnique({ where: { id: body.intentMandateId } }),
       db.aP2Mandate.findUnique({ where: { id: body.cartMandateId } }),
@@ -142,16 +142,7 @@ export async function POST(req: NextRequest) {
         action: 'governance.liability.determined',
         entity: 'AP2Mandate',
         entityId: intent.id,
-        meta: JSON.stringify({
-          intentMandateId: intent.id,
-          cartMandateId: cartMandate.id,
-          orderTotal: body.orderTotal,
-          withinBounds: body.withinBounds,
-          hasValidMandate,
-          mandateRevokedBeforeCart,
-          liabilityParty,
-        }),
-        metadata: JSON.stringify({  // TD-AUDITLOG-META-RENAME
+        metadata: JSON.stringify({
           intentMandateId: intent.id,
           cartMandateId: cartMandate.id,
           orderTotal: body.orderTotal,
@@ -180,14 +171,6 @@ export async function POST(req: NextRequest) {
       intentMandateId: intent.id,
       cartMandateId: cartMandate.id,
     })
-  } catch (err) {
-    captureError(err as Error, {
-      path: '/api/governance/liability',
-      method: 'POST',
-    })
-    return NextResponse.json(
-      { error: 'No se pudo determinar la responsabilidad' },
-      { status: 500 },
-    )
-  }
-}
+  
+
+})

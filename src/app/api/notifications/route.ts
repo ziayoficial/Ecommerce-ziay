@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireTenantAccess } from '@/lib/auth-helpers'
-import { captureError } from '@/lib/capture-error'
 import { notificationService } from '@/lib/services'
+import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 
 const CreateNotificationSchema = z.object({
   action: z.literal('create'),
@@ -57,7 +57,8 @@ const NotificationBodySchema = z.discriminatedUnion('action', [
 // SPRINT8-SERVICES-REST-001 — migrated every CustomerNotification + the
 // GuideTracking lookup (used by `auto_generate`) to `notificationService`.
 // Response shapes unchanged.
-export async function GET(req: NextRequest) {
+export const GET = withErrorHandling(async (req: NextRequest) => {
+
   const tenantId = req.nextUrl.searchParams.get('tenantId')
   if (!tenantId) {
     return NextResponse.json({ error: 'tenantId is required' }, { status: 400 })
@@ -67,19 +68,14 @@ export async function GET(req: NextRequest) {
 
   const status = req.nextUrl.searchParams.get('status') || undefined
 
-  try {
-    const { notifications, stats } = await notificationService.getNotifications(tenantId, status)
-    return NextResponse.json({ notifications, stats })
-  } catch (err) {
-    captureError(err as Error, { path: '/api/notifications', method: 'GET', tenantId })
-    return NextResponse.json(
-      { error: 'Internal server error', message: err instanceof Error ? err.message : 'Unknown error' },
-      { status: 500 },
-    )
-  }
-}
+  const { notifications, stats } = await notificationService.getNotifications(tenantId, status)
+  return NextResponse.json({ notifications, stats })
 
-export async function POST(req: NextRequest) {
+
+})
+
+export const POST = withErrorHandling(async (req: NextRequest) => {
+
   let raw: unknown
   try {
     raw = await req.json()
@@ -101,46 +97,41 @@ export async function POST(req: NextRequest) {
   const { error } = await requireTenantAccess(tenantId)
   if (error) return error
 
-  try {
-    if (action === 'create') {
-      const { customerPhone, customerName, type, channel, body: msgBody, scheduledAt } = body
-      const notification = await notificationService.createNotification({
-        tenantId,
-        customerPhone,
-        customerName: customerName ?? null,
-        type,
-        channel: channel || 'whatsapp',
-        body: msgBody,
-        scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
-      })
-      return NextResponse.json({ ok: true, notification })
-    }
-
-    if (action === 'auto_generate') {
-      const created = await notificationService.autoGenerateShippingUpdates(tenantId)
-      return NextResponse.json({ ok: true, generated: created.length, notifications: created })
-    }
-
-    if (action === 'mark_sent') {
-      const updated = await notificationService.updateStatus(body.id, 'sent')
-      return NextResponse.json({ ok: true, notification: updated })
-    }
-
-    if (action === 'mark_delivered') {
-      const updated = await notificationService.updateStatus(body.id, 'delivered')
-      return NextResponse.json({ ok: true, notification: updated })
-    }
-
-    // cancel_pending — bulk-cancel all pending notifications older than X
-    // minutes (default 60). Useful when a queued batch becomes stale.
-    const olderThanMinutes = Number(body.olderThanMinutes ?? 60)
-    const cutoff = new Date(Date.now() - olderThanMinutes * 60 * 1000)
-    const cancelled = await notificationService.cancelPendingBefore(tenantId, cutoff)
-    return NextResponse.json({ ok: true, cancelled })
-  } catch (e) {
-    return NextResponse.json(
-      { error: 'Operation failed', detail: (e as Error).message },
-      { status: 500 },
-    )
+  if (action === 'create') {
+    const { customerPhone, customerName, type, channel, body: msgBody, scheduledAt } = body
+    const notification = await notificationService.createNotification({
+      tenantId,
+      customerPhone,
+      customerName: customerName ?? null,
+      type,
+      channel: channel || 'whatsapp',
+      body: msgBody,
+      scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
+    })
+    return NextResponse.json({ ok: true, notification })
   }
-}
+
+  if (action === 'auto_generate') {
+    const created = await notificationService.autoGenerateShippingUpdates(tenantId)
+    return NextResponse.json({ ok: true, generated: created.length, notifications: created })
+  }
+
+  if (action === 'mark_sent') {
+    const updated = await notificationService.updateStatus(body.id, 'sent')
+    return NextResponse.json({ ok: true, notification: updated })
+  }
+
+  if (action === 'mark_delivered') {
+    const updated = await notificationService.updateStatus(body.id, 'delivered')
+    return NextResponse.json({ ok: true, notification: updated })
+  }
+
+  // cancel_pending — bulk-cancel all pending notifications older than X
+  // minutes (default 60). Useful when a queued batch becomes stale.
+  const olderThanMinutes = Number(body.olderThanMinutes ?? 60)
+  const cutoff = new Date(Date.now() - olderThanMinutes * 60 * 1000)
+  const cancelled = await notificationService.cancelPendingBefore(tenantId, cutoff)
+  return NextResponse.json({ ok: true, cancelled })
+
+
+})

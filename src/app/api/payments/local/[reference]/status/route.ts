@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-helpers'
-import { captureError } from '@/lib/capture-error'
-import { getLogger } from '@/lib/logger'
 import { db } from '@/lib/db'
-
-const log = getLogger('api/payments/local/[reference]/status')
+import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /api/payments/local/[reference]/status
@@ -30,14 +27,12 @@ const log = getLogger('api/payments/local/[reference]/status')
 // SPRINT-MULTICOUNTRY-001 — study §18 LATAM expansion.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: Promise<{ reference: string }> },
-) {
+export const GET = withErrorHandling(async (_req: NextRequest,
+  { params }: { params: Promise<{ reference: string }> },) => {
+
   const { session, error: authErr } = await requireAuth()
   if (authErr) return authErr
 
-  try {
     const { reference } = await params
     if (!reference) {
       return NextResponse.json(
@@ -91,21 +86,6 @@ export async function GET(
       currency: order.currency,
       countryCode: order.countryCode,
     })
-  } catch (err) {
-    log.error(
-      { err },
-      'local payment status poll failed',
-    )
-    captureError(err as Error, {
-      path: '/api/payments/local/[reference]/status',
-      method: 'GET',
-    })
-    return NextResponse.json(
-      {
-        error: 'Status poll failed',
-        detail: err instanceof Error ? err.message : 'unknown error',
-      },
-      { status: 500 },
-    )
-  }
-}
+  
+
+})

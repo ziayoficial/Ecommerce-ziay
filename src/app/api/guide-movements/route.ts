@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireTenantAccess } from '@/lib/auth-helpers'
-import { captureError } from '@/lib/capture-error'
 import { rateLimit } from '@/lib/middleware/rate-limit'
 import { logisticsService } from '@/lib/services'
+import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 
 const GuideMovementSchema = z.object({
   tenantId: z.string().min(1),
@@ -19,7 +19,8 @@ const GuideMovementSchema = z.object({
 //
 // SPRINT8-SERVICES-REST-001 — migrated `db.guideMovement.findMany` to
 // `logisticsService.getGuideMovements`. Response shape unchanged.
-export async function GET(req: NextRequest) {
+export const GET = withErrorHandling(async (req: NextRequest) => {
+
   const tenantId = req.nextUrl.searchParams.get('tenantId')
   const guideNumber = req.nextUrl.searchParams.get('guideNumber')
   if (!tenantId) {
@@ -31,17 +32,11 @@ export async function GET(req: NextRequest) {
   const { error } = await requireTenantAccess(tenantId)
   if (error) return error
 
-  try {
     const movements = await logisticsService.getGuideMovements(tenantId, guideNumber || undefined)
     return NextResponse.json({ movements })
-  } catch (err) {
-    captureError(err as Error, { path: '/api/guide-movements', method: 'GET', tenantId })
-    return NextResponse.json(
-      { error: 'Internal server error', message: err instanceof Error ? err.message : 'Unknown error' },
-      { status: 500 },
-    )
-  }
-}
+  
+
+})
 
 // POST /api/guide-movements
 // Body: { tenantId, guideNumber, eventType, location?, description?, carrierName? }
@@ -52,7 +47,8 @@ export async function GET(req: NextRequest) {
 // `logisticsService.createGuideMovement`. The service preserves the
 // best-effort semantics (Shipment update failure is non-fatal). Response
 // shape unchanged.
-export async function POST(req: NextRequest) {
+export const POST = withErrorHandling(async (req: NextRequest) => {
+
   const limited = rateLimit(req, {
     max: 120,
     windowMs: 60_000,
@@ -80,7 +76,6 @@ export async function POST(req: NextRequest) {
   const { error } = await requireTenantAccess(tenantId)
   if (error) return error
 
-  try {
     const movement = await logisticsService.createGuideMovement({
       tenantId,
       guideNumber: String(guideNumber),
@@ -90,11 +85,6 @@ export async function POST(req: NextRequest) {
       carrierName: carrierName ?? null,
     })
     return NextResponse.json({ movement })
-  } catch (err) {
-    captureError(err as Error, { path: '/api/guide-movements', method: 'POST', tenantId })
-    return NextResponse.json(
-      { error: 'Internal server error', message: err instanceof Error ? err.message : 'Unknown error' },
-      { status: 500 },
-    )
-  }
-}
+  
+
+})

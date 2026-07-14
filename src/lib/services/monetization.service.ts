@@ -240,16 +240,7 @@ export const monetizationService = {
             action: 'invoice_generated',
             entity: 'invoice',
             entityId: invoice.id,
-            meta: JSON.stringify({
-              tenantId,
-              periodo: period,
-              gmv,
-              tramo: tramo.label,
-              comisionPct: tramo.pct,
-              comisionTotal,
-              orderCount: validOrders.length,
-            }),
-            metadata: JSON.stringify({  // TD-AUDITLOG-META-RENAME
+            metadata: JSON.stringify({
               tenantId,
               periodo: period,
               gmv,

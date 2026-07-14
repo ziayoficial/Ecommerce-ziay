@@ -422,7 +422,7 @@ describe('monetizationService.generateInvoice', () => {
         action: 'invoice_generated',
         entity: 'invoice',
         entityId: 'inv-new',
-        meta: expect.stringContaining('"tenantId":"ten-1"'),
+        metadata: expect.stringContaining('"tenantId":"ten-1"'),
       }),
     })
 

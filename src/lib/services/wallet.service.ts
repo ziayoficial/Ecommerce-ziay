@@ -300,15 +300,7 @@ export const walletService = {
             action: 'withdrawal_processed',
             entity: 'withdrawal',
             entityId: input.withdrawalId,
-            meta: JSON.stringify({
-              withdrawalId: input.withdrawalId,
-              traffickerId: input.traffickerId,
-              amount: input.amount,
-              balanceBefore: input.balanceBefore,
-              balanceAfter: input.balanceAfter,
-              processedBy: 'wallet_api',
-            }),
-            metadata: JSON.stringify({  // TD-AUDITLOG-META-RENAME
+            metadata: JSON.stringify({
               withdrawalId: input.withdrawalId,
               traffickerId: input.traffickerId,
               amount: input.amount,

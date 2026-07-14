@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { logger } from '@/lib/logger'
+import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 
 // ───────────────────────────────────────────────────────────────────────────
 // SPRINT-MONITORING-DR-001 · M-10 — Web Vitals ingestion endpoint.
@@ -33,7 +34,8 @@ const WebVitalSchema = z.object({
   page: z.string().min(1).max(512).optional().default('/'),
 })
 
-export async function POST(req: NextRequest) {
+export const POST = withErrorHandling(async (req: NextRequest) => {
+
   let body: unknown
   try {
     body = await req.json()
@@ -71,4 +73,5 @@ export async function POST(req: NextRequest) {
   )
 
   return NextResponse.json({ ok: true }, { status: 202 })
-}
+
+})

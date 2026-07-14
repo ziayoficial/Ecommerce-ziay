@@ -30,26 +30,6 @@ const EXPECTED_NAV = [
   { id: 'settings', label: /Configuración|Configuracion/i },
 ] as const
 
-// One stable content marker per view. The marker must appear in the rendered
-// output (heading, KPI label, button text) once the view has finished loading.
-// We keep these loose enough to survive minor copy edits.
-const VIEW_MARKERS: Record<string, RegExp> = {
-  overview: /ROAS|CPA|GMV|ventas|pedidos|ingresos|conversi/i,
-  messenger: /WhatsApp|Mensajería|Mensajeria|conversaci|hilo|bandeja/i,
-  catalog: /catálogo|catalogo|producto|sku/i,
-  orders: /pedido|orden|pago|anticipado|contra entrega/i,
-  kanban: /kanban|etapa|columna|pipeline/i,
-  orchestrator: /orquestad|agente|pipeline|step/i,
-  ads: /atribución|atribucion|pauta|roas|cpa|campaña|campana/i,
-  monetization: /monetizaci|monetizac|comisi|gmv|comisión|comision/i,
-  wallet: /saldo disponible|wallet|retiro|2fa|cuenta|no se pudo cargar la wallet/i,
-  logistics: /inteligencia logística|inteligencia logistica|score|transportadora|carrier|guía|guia|no se pudo/i,
-  marketplace: /marketplace cross-brand|marketplace|listing|referral|afiliad|publicar|catálogo compartido/i,
-  novedades: /novedad|incidencia|tab|escalaci|re-?entrega|reporte/i,
-  integrations: /integraci|shopify|woocommerce|dropi|supabase|99envios|conectar|conecta/i,
-  settings: /configuraci|estrateg|tenant|plan|país|pais/i,
-}
-
 test.beforeEach(async ({ page }) => {
   await signIn(page)
 })

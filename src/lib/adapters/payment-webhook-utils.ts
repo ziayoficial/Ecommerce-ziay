@@ -26,9 +26,7 @@ export async function safeAudit(
   entityId?: string,
 ): Promise<void> {
   try {
-    // TD-AUDITLOG-META-RENAME — dual-write `meta` + `metadata` so reads can
-    // migrate to `metadata` while legacy `meta` readers still work.
-    await db.auditLog.create({ data: { action, entity, meta, metadata: meta, entityId } })
+    await db.auditLog.create({ data: { action, entity, metadata: meta, entityId } })
   } catch (err) {
     log.error({ action, err: err instanceof Error ? err.message : String(err) }, 'auditLog persistence failed')
   }

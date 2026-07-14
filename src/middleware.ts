@@ -51,6 +51,12 @@ const PUBLIC_PATTERNS: Array<RegExp | string> = [
   // here mid-checkout. The page itself is static; consent submission goes
   // through the (auth-protected) /api/compliance/consent endpoint.
   /^\/compliance\/parental-consent(?:\/.*)?$/,
+  // SPRINT-MONITORING-002 · M-11 — public status page. Shows current
+  // health of DB + chat-service in Spanish (no auth, no PII, no
+  // per-tenant data). Indexed so customers / partners can monitor
+  // uptime. The page itself is server-rendered (force-dynamic) with a
+  // 30s ISR revalidate so a status-page flood can't DDoS the DB.
+  /^\/status(?:\/.*)?$/,
   /^\/api\/auth(?:\/.*)?$/,
   /^\/api\/webhooks(?:\/.*)?$/,
   /^\/api\/health(?:\/.*)?$/,

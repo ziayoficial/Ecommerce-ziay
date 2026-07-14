@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireTenantAccess, resolveTenantId } from '@/lib/auth-helpers'
-import { captureError } from '@/lib/capture-error'
 import { getLogger } from '@/lib/logger'
 import { db } from '@/lib/db'
 import {
@@ -11,6 +10,7 @@ import {
   computeHash,
   type W3CVerifiableCredential,
 } from '@/lib/crypto/signing'
+import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 
 const log = getLogger('api/ap2/mandates')
 
@@ -37,7 +37,8 @@ const CreateIntentSchema = z.object({
   expiresAt: z.string().datetime().optional(),
 })
 
-export async function POST(req: NextRequest) {
+export const POST = withErrorHandling(async (req: NextRequest) => {
+
   let raw: unknown
   try {
     raw = await req.json()
@@ -60,7 +61,6 @@ export async function POST(req: NextRequest) {
   const { error } = await requireTenantAccess(body.tenantId)
   if (error) return error
 
-  try {
     const { privateKey, did } = await getOrCreateTenantKeypair(body.tenantId)
 
     const expiresAt = body.expiresAt ? new Date(body.expiresAt) : null
@@ -107,18 +107,14 @@ export async function POST(req: NextRequest) {
       },
       { status: 201 },
     )
-  } catch (err) {
-    captureError(err as Error, { path: '/api/ap2/mandates', method: 'POST' })
-    return NextResponse.json(
-      { error: 'No se pudo crear el mandato' },
-      { status: 500 },
-    )
-  }
-}
+  
+
+})
 
 // GET /api/ap2/mandates?tenantId=X&userId=Y&type=intent&status=active
 // Lista los mandatos del tenant, opcionalmente filtrados.
-export async function GET(req: NextRequest) {
+export const GET = withErrorHandling(async (req: NextRequest) => {
+
   const tenantIdParam = req.nextUrl.searchParams.get('tenantId') || undefined
   if (!tenantIdParam) {
     return NextResponse.json(
@@ -129,7 +125,6 @@ export async function GET(req: NextRequest) {
   const { error, tenantId } = await resolveTenantId(tenantIdParam)
   if (error) return error
 
-  try {
     const userId = req.nextUrl.searchParams.get('userId') || undefined
     const type = req.nextUrl.searchParams.get('type') || undefined
     const status = req.nextUrl.searchParams.get('status') || undefined
@@ -164,14 +159,9 @@ export async function GET(req: NextRequest) {
         revokedReason: m.revokedReason,
       })),
     })
-  } catch (err) {
-    captureError(err as Error, { path: '/api/ap2/mandates', method: 'GET' })
-    return NextResponse.json(
-      { error: 'No se pudo listar los mandatos' },
-      { status: 500 },
-    )
-  }
-}
+  
+
+})
 
 // Helper export para que otras rutas puedan reusar el tipo.
 export type { W3CVerifiableCredential }

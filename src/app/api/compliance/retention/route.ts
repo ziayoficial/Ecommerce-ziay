@@ -8,6 +8,7 @@ import {
   type RetentionResult,
 } from '@/lib/compliance/retention'
 import { db } from '@/lib/db'
+import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 
 // ───────────────────────────────────────────────────────────────────────────
 // /api/compliance/retention
@@ -24,11 +25,11 @@ import { db } from '@/lib/db'
 
 // GET /api/compliance/retention
 // Public to admins (any role with `admin`). Returns the policy + stats.
-export async function GET(_req: NextRequest) {
+export const GET = withErrorHandling(async (_req: NextRequest) => {
+
   const { error } = await requireRole(['admin'])
   if (error) return error
 
-  try {
     // Aggregate counts of each data type currently in the DB — surfaces how
     // much data is approaching its retention cutoff.
     const [
@@ -74,17 +75,9 @@ export async function GET(_req: NextRequest) {
       },
       lastRun: null, // TODO: persist last run to a Setting/audit row.
     })
-  } catch (err) {
-    captureError(err as Error, {
-      path: '/api/compliance/retention',
-      method: 'GET',
-    })
-    return NextResponse.json(
-      { error: 'No se pudo obtener la política de retención' },
-      { status: 500 },
-    )
-  }
-}
+  
+
+})
 
 // POST /api/compliance/retention
 // Triggers a retention sweep. Admin-only.
@@ -94,11 +87,11 @@ export async function GET(_req: NextRequest) {
 // keys so future optional filters don't 400 the caller.
 const RetentionSweepSchema = z.object({}).passthrough()
 
-export async function POST(req: NextRequest) {
+export const POST = withErrorHandling(async (req: NextRequest) => {
+
   const { error } = await requireRole(['admin'])
   if (error) return error
 
-  try {
     const raw = await req.json().catch(() => ({}))
     const parsed = RetentionSweepSchema.safeParse(raw)
     if (!parsed.success) {
@@ -118,8 +111,7 @@ export async function POST(req: NextRequest) {
         data: {
           action: 'compliance.retention_sweep',
           entity: 'compliance',
-          meta: JSON.stringify(result),
-          metadata: JSON.stringify(result),  // TD-AUDITLOG-META-RENAME
+          metadata: JSON.stringify(result),
         },
       })
     } catch (auditErr) {
@@ -131,14 +123,6 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({ ok: true, result }, { status: 200 })
-  } catch (err) {
-    captureError(err as Error, {
-      path: '/api/compliance/retention',
-      method: 'POST',
-    })
-    return NextResponse.json(
-      { error: 'No se pudo ejecutar el barrido de retención' },
-      { status: 500 },
-    )
-  }
-}
+  
+
+})

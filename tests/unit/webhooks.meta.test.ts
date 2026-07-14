@@ -302,7 +302,7 @@ describe('Meta webhook · entry parsing', () => {
       expect.objectContaining({
         data: expect.objectContaining({
           action: 'webhook.meta.inbound',
-          meta: expect.stringContaining('leadgen'),
+          metadata: expect.stringContaining('leadgen'),
         }),
       }),
     )
@@ -330,7 +330,7 @@ describe('Meta webhook · entry parsing', () => {
       expect.objectContaining({
         data: expect.objectContaining({
           action: 'webhook.meta.inbound',
-          meta: expect.stringContaining('messaging'),
+          metadata: expect.stringContaining('messaging'),
         }),
       }),
     )

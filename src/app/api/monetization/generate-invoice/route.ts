@@ -19,8 +19,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireTenantAccess } from '@/lib/auth-helpers'
-import { captureError } from '@/lib/capture-error'
 import { monetizationService } from '@/lib/services'
+import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 
 // TD-2: Zod schema for invoice generation POST.
 const GenerateInvoiceSchema = z.object({
@@ -28,8 +28,8 @@ const GenerateInvoiceSchema = z.object({
   periodo: z.string().optional(),
 }).passthrough()
 
-export async function POST(req: NextRequest) {
-  try {
+export const POST = withErrorHandling(async (req: NextRequest) => {
+
     const raw = await req.json()
     const parseResult = GenerateInvoiceSchema.safeParse(raw)
     if (!parseResult.success) {
@@ -47,11 +47,6 @@ export async function POST(req: NextRequest) {
     const { invoice, details } = await monetizationService.generateInvoice(tenantId, periodo)
 
     return NextResponse.json({ invoice, details })
-  } catch (err) {
-    captureError(err as Error, { path: '/api/monetization/generate-invoice', method: 'POST' })
-    return NextResponse.json(
-      { error: 'Internal server error', message: err instanceof Error ? err.message : 'Unknown error' },
-      { status: 500 },
-    )
-  }
-}
+  
+
+})

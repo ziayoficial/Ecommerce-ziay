@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireTenantAccess } from '@/lib/auth-helpers'
-import { captureError } from '@/lib/capture-error'
 import { catalogService } from '@/lib/services'
+import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 
 // TD-2: Zod schema for catalog send-to-chat POST.
 const SendToChatSchema = z.object({
@@ -24,8 +24,8 @@ const SendToChatSchema = z.object({
 // user used to be able to send a product message to any conversation of
 // any tenant (similar to /api/conversations POST but with a product
 // attachment).
-export async function POST(req: NextRequest) {
-  try {
+export const POST = withErrorHandling(async (req: NextRequest) => {
+
     const raw = await req.json()
     const parseResult = SendToChatSchema.safeParse(raw)
     if (!parseResult.success) {
@@ -52,11 +52,6 @@ export async function POST(req: NextRequest) {
       message,
       product: { sku: product.sku, name: product.name, imageUrl: product.imageUrl, price: product.price },
     })
-  } catch (err) {
-    captureError(err as Error, { path: '/api/catalog/send-to-chat', method: 'POST' })
-    return NextResponse.json(
-      { error: 'Internal server error', message: err instanceof Error ? err.message : 'Unknown error' },
-      { status: 500 },
-    )
-  }
-}
+  
+
+})

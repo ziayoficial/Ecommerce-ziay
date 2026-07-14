@@ -6,6 +6,37 @@
 2. **Commit:** Conventional Commits (`feat:`, `fix:`, `docs:`, `refactor:`)
 3. **PR:** Squash-merge to `main`
 
+## Pre-commit Hook (Sprint 5C)
+
+The repository ships a git hook at `.githooks/pre-commit` that runs before
+every commit is created. It is wired up via `core.hooksPath` (run once per
+clone — see `git config core.hooksPath .githooks`).
+
+What the hook does:
+
+1. **Type check** — `npx tsc --noEmit --incremental` (uses the TS build cache,
+   so the first commit is slow but subsequent commits are fast). Fails the
+   commit on type errors.
+2. **Lint staged files** — `bunx eslint <staged .ts/.tsx files>` with the
+   `no-unused-vars` rule promoted to `error`. Lint warnings are
+   **non-blocking** (the hook prints a `⚠️` but the commit still succeeds).
+
+To bypass the hook for a one-off commit (e.g. WIP snapshot):
+
+```bash
+git commit --no-verify -m "chore: WIP snapshot"
+```
+
+To re-enable the hook on a fresh clone:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+If lint/tsc results ever look stale (false positives after a branch switch or
+schema change), run `scripts/clean-cache.sh` to wipe `tsconfig.tsbuildinfo`,
+`.eslintcache`, `.next/cache` and `node_modules/.vite`.
+
 ## Before Submitting a PR
 
 - [ ] `bun run lint` passes

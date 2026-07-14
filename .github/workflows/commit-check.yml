@@ -1,0 +1,31 @@
+name: Commit Check
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize]
+
+jobs:
+  conventional-commits:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check commit messages
+        run: |
+          # Get all commit messages in the PR
+          COMMITS=$(git log --format='%s' origin/main..HEAD)
+
+          for commit in $COMMITS; do
+            # Check if it matches Conventional Commits format
+            # Format: type(scope): description  OR  type: description
+            if ! echo "$commit" | grep -qE '^(feat|fix|docs|style|refactor|test|chore|perf|ci|build|revert)(\(.+\))?: .+'; then
+              echo "❌ Commit does not follow Conventional Commits: $commit"
+              echo "Expected format: type(scope): description"
+              echo "Types: feat, fix, docs, style, refactor, test, chore, perf, ci, build, revert"
+              exit 1
+            fi
+          done
+
+          echo "✅ All commits follow Conventional Commits"

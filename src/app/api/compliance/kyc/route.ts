@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { resolveTenantId } from '@/lib/auth-helpers'
-import { captureError } from '@/lib/capture-error'
 import {
   requireIdentityVerification,
   getActiveVerification,
   type KycTriggerType,
 } from '@/lib/compliance/kyc-gate'
+import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 
 // POST /api/compliance/kyc
 // Inicia una verificación de identidad (Ley 2573 de 2026).
@@ -30,7 +30,8 @@ const InitiateSchema = z.object({
   orderAmount: z.number().nonnegative().optional(),
 })
 
-export async function POST(req: NextRequest) {
+export const POST = withErrorHandling(async (req: NextRequest) => {
+
   let raw: unknown
   try {
     raw = await req.json()
@@ -52,7 +53,6 @@ export async function POST(req: NextRequest) {
   const { error } = await resolveTenantId(body.tenantId)
   if (error) return error
 
-  try {
     const result = await requireIdentityVerification(
       body.tenantId,
       body.userId,
@@ -75,18 +75,14 @@ export async function POST(req: NextRequest) {
       },
       { status: 202 },
     )
-  } catch (err) {
-    captureError(err as Error, { path: '/api/compliance/kyc', method: 'POST' })
-    return NextResponse.json(
-      { error: 'No se pudo iniciar la verificación' },
-      { status: 500 },
-    )
-  }
-}
+  
+
+})
 
 // GET /api/compliance/kyc?tenantId=X&userId=Y
 // Devuelve el estado KYC vigente para el usuario (o null si no tiene).
-export async function GET(req: NextRequest) {
+export const GET = withErrorHandling(async (req: NextRequest) => {
+
   const tenantId = req.nextUrl.searchParams.get('tenantId') || undefined
   const userId = req.nextUrl.searchParams.get('userId') || undefined
 
@@ -100,7 +96,6 @@ export async function GET(req: NextRequest) {
   const { error } = await resolveTenantId(tenantId)
   if (error) return error
 
-  try {
     const active = await getActiveVerification(tenantId, userId)
     if (!active) {
       return NextResponse.json({ verified: false, verification: null })
@@ -117,11 +112,6 @@ export async function GET(req: NextRequest) {
         triggerRef: active.triggerRef,
       },
     })
-  } catch (err) {
-    captureError(err as Error, { path: '/api/compliance/kyc', method: 'GET' })
-    return NextResponse.json(
-      { error: 'No se pudo obtener el estado KYC' },
-      { status: 500 },
-    )
-  }
-}
+  
+
+})

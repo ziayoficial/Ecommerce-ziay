@@ -98,7 +98,7 @@ export async function POST(req: NextRequest) {
     // silently accepted), warn + allow in dev. FIX-REALTIME-WEBHOOKS-001 · R3.
     if (process.env.NODE_ENV === 'production') {
       await db.auditLog.create({
-        data: { action: 'webhook.wa.no_secret', entity: 'Webhook', meta: 'META_APP_SECRET missing in production', metadata: 'META_APP_SECRET missing in production' /* TD-AUDITLOG-META-RENAME */ },
+        data: { action: 'webhook.wa.no_secret', entity: 'Webhook', metadata: 'META_APP_SECRET missing in production' },
       })
       return NextResponse.json({ error: 'Webhook secret not configured' }, { status: 500 })
     }
@@ -110,7 +110,7 @@ export async function POST(req: NextRequest) {
 
   if (!sigValid) {
     await db.auditLog.create({
-      data: { action: 'webhook.wa.invalid_sig', entity: 'Webhook', meta: rawBody.slice(0, 1000), metadata: rawBody.slice(0, 1000) /* TD-AUDITLOG-META-RENAME */ },
+      data: { action: 'webhook.wa.invalid_sig', entity: 'Webhook', metadata: rawBody.slice(0, 1000) },
     })
     return NextResponse.json({ error: 'invalid signature' }, { status: 403 })
   }
@@ -148,8 +148,7 @@ export async function POST(req: NextRequest) {
       data: {
         action: 'webhook.wa.non_message',
         entity: 'Webhook',
-        meta: JSON.stringify(body).slice(0, 1000),
-        metadata: JSON.stringify(body).slice(0, 1000),  // TD-AUDITLOG-META-RENAME
+        metadata: JSON.stringify(body).slice(0, 1000),
         entityId: webhookId,
       },
     })
@@ -161,15 +160,7 @@ export async function POST(req: NextRequest) {
     data: {
       action: 'webhook.wa.inbound',
       entity: 'Webhook',
-      meta: JSON.stringify({
-        from: parsed.from,
-        messageId: parsed.messageId,
-        type: parsed.type,
-        text: parsed.text.slice(0, 200),
-        ctwClickId: parsed.ctwClickId,
-        phoneNumberId: parsed.phoneNumberId,
-      }),
-      metadata: JSON.stringify({  // TD-AUDITLOG-META-RENAME
+      metadata: JSON.stringify({
         from: parsed.from,
         messageId: parsed.messageId,
         type: parsed.type,
@@ -423,7 +414,7 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     // Best-effort: capture + ACK 200. Meta must not retry forever on a
     // transient DB error — we already wrote the audit log row above so
-    // the message is recoverable from AuditLog.meta.
+    // the message is recoverable from AuditLog.metadata.
     captureError(err as Error, {
       action: 'webhook.wa.process',
       tenantId,

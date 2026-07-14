@@ -3,7 +3,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { TOTP, Secret } from 'otpauth'
-import { generateTOTPSecret, verifyTOTP, generateBackupCodes, hashBackupCodes, verifyBackupCode } from '@/lib/totp'
+import { generateTOTPSecret, verifyTOTP, generateBackupCodes } from '@/lib/totp'
 
 describe('generateTOTPSecret', () => {
   it('returns an object with secret + uri', () => {

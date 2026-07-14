@@ -1,16 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { resolveTenantId } from '@/lib/auth-helpers'
-import { captureError } from '@/lib/capture-error'
 import { getLogger } from '@/lib/logger'
 import { db } from '@/lib/db'
+import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 
 const log = getLogger('api/governance/decisions')
 
 // GET /api/governance/decisions?tenantId=X&agentName=Y&orderId=Z&conversationId=W
 // Lista los DecisionLog del tenant, opcionalmente filtrados.
 // Documento §11 pilar #4: "Trazabilidad de decisiones del agente".
-export async function GET(req: NextRequest) {
+export const GET = withErrorHandling(async (req: NextRequest) => {
+
   const tenantIdParam = req.nextUrl.searchParams.get('tenantId') || undefined
   if (!tenantIdParam) {
     return NextResponse.json(
@@ -21,7 +22,6 @@ export async function GET(req: NextRequest) {
   const { error, tenantId } = await resolveTenantId(tenantIdParam)
   if (error) return error
 
-  try {
     const agentName = req.nextUrl.searchParams.get('agentName') || undefined
     const orderId = req.nextUrl.searchParams.get('orderId') || undefined
     const conversationId =
@@ -74,17 +74,9 @@ export async function GET(req: NextRequest) {
         createdAt: d.createdAt,
       })),
     })
-  } catch (err) {
-    captureError(err as Error, {
-      path: '/api/governance/decisions',
-      method: 'GET',
-    })
-    return NextResponse.json(
-      { error: 'No se pudo listar las decisiones' },
-      { status: 500 },
-    )
-  }
-}
+  
+
+})
 
 // POST /api/governance/decisions
 // Crea un DecisionLog. Llamado internamente por el runner del agente
@@ -109,7 +101,8 @@ const CreateSchema = z.object({
   liabilityParty: z.string().optional(),
 })
 
-export async function POST(req: NextRequest) {
+export const POST = withErrorHandling(async (req: NextRequest) => {
+
   let raw: unknown
   try {
     raw = await req.json()
@@ -131,7 +124,6 @@ export async function POST(req: NextRequest) {
   const { error } = await resolveTenantId(body.tenantId)
   if (error) return error
 
-  try {
     const created = await db.decisionLog.create({
       data: {
         tenantId: body.tenantId,
@@ -166,17 +158,9 @@ export async function POST(req: NextRequest) {
       },
       { status: 201 },
     )
-  } catch (err) {
-    captureError(err as Error, {
-      path: '/api/governance/decisions',
-      method: 'POST',
-    })
-    return NextResponse.json(
-      { error: 'No se pudo crear el decision log' },
-      { status: 500 },
-    )
-  }
-}
+  
+
+})
 
 function safeJson(s: string): unknown {
   try {

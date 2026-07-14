@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { captureError } from '@/lib/capture-error'
 import { getLogger } from '@/lib/logger'
 import { db } from '@/lib/db'
 import { getPaymentAdapter } from '@/lib/adapters/payment-registry'
 import { verifyAcpBearer } from '@/lib/acp/bearer'
+import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 
 const log = getLogger('api/acp/v1/refunds')
 
@@ -73,7 +73,8 @@ function extractBearerToken(req: NextRequest): string | null {
  *          422 (orden no pagada, falta paymentRef, monto > total,
  *               pasarela no soportada) / 502 (gateway rechazó el reembolso).
  */
-export async function POST(req: NextRequest) {
+export const POST = withErrorHandling(async (req: NextRequest) => {
+
   const token = extractBearerToken(req)
   if (!token) {
     return NextResponse.json(
@@ -101,7 +102,6 @@ export async function POST(req: NextRequest) {
   }
   const body = parsed.data
 
-  try {
     // Validar el bearer firmado + cargar el mandate.
     const bearer = await verifyAcpBearer(token)
     if (!bearer) {
@@ -239,18 +239,7 @@ export async function POST(req: NextRequest) {
         action: 'acp.refund.initiated',
         entity: 'Order',
         entityId: order.id,
-        meta: JSON.stringify({
-          gateway: order.paymentGateway,
-          paymentRef: order.paymentRef,
-          amount: refundAmount,
-          currency: order.currency,
-          reason: body.reason,
-          partial: body.amount !== undefined,
-          agentDid: 'acp',
-          intentMandateId: mandate.id,
-          gatewayRefundId: result.paymentId ?? null,
-        }),
-        metadata: JSON.stringify({  // TD-AUDITLOG-META-RENAME
+        metadata: JSON.stringify({
           gateway: order.paymentGateway,
           paymentRef: order.paymentRef,
           amount: refundAmount,
@@ -285,14 +274,6 @@ export async function POST(req: NextRequest) {
       },
       { status: 201 },
     )
-  } catch (err) {
-    captureError(err as Error, {
-      path: '/api/acp/v1/refunds',
-      method: 'POST',
-    })
-    return NextResponse.json(
-      { error: 'No se pudo procesar el reembolso' },
-      { status: 500 },
-    )
-  }
-}
+  
+
+})

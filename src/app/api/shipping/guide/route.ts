@@ -21,9 +21,9 @@ import { z } from 'zod'
 import { requireTenantAccess } from '@/lib/auth-helpers'
 import { getLogisticsAdapter } from '@/lib/adapters/registry'
 import { normalizeCarrierName } from '@/lib/carriers'
-import { captureError } from '@/lib/capture-error'
 import { db } from '@/lib/db'
 import { logisticsService } from '@/lib/services'
+import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 
 // TD-2: Zod schema for shipping guide POST.
 const ShippingGuideSchema = z.object({
@@ -31,8 +31,8 @@ const ShippingGuideSchema = z.object({
   orderId: z.string().min(1),
 }).passthrough()
 
-export async function POST(req: NextRequest) {
-  try {
+export const POST = withErrorHandling(async (req: NextRequest) => {
+
     const raw = await req.json()
     const parseResult = ShippingGuideSchema.safeParse(raw)
     if (!parseResult.success) {
@@ -129,9 +129,6 @@ export async function POST(req: NextRequest) {
         status: 'shipped',
       },
     })
-  } catch (err) {
-    captureError(err as Error, { path: '/api/shipping/guide', method: 'POST' })
-    const message = err instanceof Error ? err.message : 'Unknown error'
-    return NextResponse.json({ error: message }, { status: 500 })
-  }
-}
+  
+
+})

@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-helpers'
-import { captureError } from '@/lib/capture-error'
 import { db } from '@/lib/db'
 import {
   reconstructAuditLogVC,
   signAuditLog,
 } from '@/lib/crypto/audit-signing'
+import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 
 // GET /api/audit/[id]/verifiable
 // Devuelve la fila AuditLog como W3C Verifiable Credential.
@@ -22,15 +22,13 @@ import {
 //
 // SPRINT-PROTOCOLS-TRINITY-001.
 
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export const GET = withErrorHandling(async (_req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },) => {
+
   const { id } = await params
   const { error } = await requireAuth()
   if (error) return error
 
-  try {
     const log = await db.auditLog.findUnique({ where: { id } })
     if (!log) {
       return NextResponse.json(
@@ -77,14 +75,6 @@ export async function GET(
         },
       },
     )
-  } catch (err) {
-    captureError(err as Error, {
-      path: '/api/audit/[id]/verifiable',
-      method: 'GET',
-    })
-    return NextResponse.json(
-      { error: 'No se pudo emitir el verifiable credential' },
-      { status: 500 },
-    )
-  }
-}
+  
+
+})

@@ -14,7 +14,7 @@ const rand = (seed: number, min: number, max: number) => {
 }
 
 async function main() {
-  console.log('🌱 Seeding CommerceFlow OS v2 (multi-tenant + Saramantha real data)...')
+  console.warn('🌱 Seeding CommerceFlow OS v2 (multi-tenant + Saramantha real data)...')
 
   // ── 4 Tenants (Indisutex SAS brands) ─────────────────────────────
   const saramantha = await db.tenant.upsert({
@@ -110,9 +110,9 @@ async function main() {
   // Saramantha: WhatsApp CO + Messenger INTL + Instagram
   const waSara = await db.channel.upsert({ where: { id: 'ch-wa-sara' }, update: {},
     create: { id: 'ch-wa-sara', tenantId: saramantha.id, type: 'whatsapp', name: 'WhatsApp Saramantha CO', displayName: 'WhatsApp · Saramantha', accountId: '+573001112233', verified: true, country: 'CO', paymentStrategy: 'hybrid', requirePrepayMin: 250000, prepayDiscountPct: 5, codFee: 8000 }})
-  const msgSara = await db.channel.upsert({ where: { id: 'ch-msg-sara' }, update: {},
+  const _msgSara = await db.channel.upsert({ where: { id: 'ch-msg-sara' }, update: {},
     create: { id: 'ch-msg-sara', tenantId: saramantha.id, type: 'messenger', name: 'Messenger Saramantha INTL', displayName: 'Messenger · INTL', verified: true, paymentStrategy: 'advance', prepayDiscountPct: 7 }})
-  const igSara = await db.channel.upsert({ where: { id: 'ch-ig-sara' }, update: {},
+  const _igSara = await db.channel.upsert({ where: { id: 'ch-ig-sara' }, update: {},
     create: { id: 'ch-ig-sara', tenantId: saramantha.id, type: 'instagram', name: 'Instagram Saramantha', displayName: 'Instagram · Saramantha', verified: true, paymentStrategy: 'hybrid', requirePrepayMin: 80, prepayDiscountPct: 5, codFee: 4 }})
 
   await db.channel.upsert({ where: { id: 'ch-wa-majestic' }, update: {},
@@ -123,15 +123,15 @@ async function main() {
     create: { id: 'ch-wa-reina', tenantId: reina.id, type: 'whatsapp', name: 'WhatsApp Reina', displayName: 'WhatsApp · Reina', accountId: '+573007766554', verified: true, country: 'CO', paymentStrategy: 'advance', prepayDiscountPct: 6 }})
 
   // INTL tenant
-  const waIntl = await db.channel.upsert({ where: { id: 'ch-wa-intl' }, update: {},
+  const _waIntl = await db.channel.upsert({ where: { id: 'ch-wa-intl' }, update: {},
     create: { id: 'ch-wa-intl', tenantId: intl.id, type: 'whatsapp', name: 'WhatsApp INTL', displayName: 'WhatsApp · INTL', verified: true, country: null, paymentStrategy: 'cod', codFee: 60 }})
   const msgIntl = await db.channel.upsert({ where: { id: 'ch-msg-intl' }, update: {},
     create: { id: 'ch-msg-intl', tenantId: intl.id, type: 'messenger', name: 'Messenger INTL', displayName: 'Messenger · INTL', verified: true, paymentStrategy: 'advance', prepayDiscountPct: 7 }})
-  const igIntl = await db.channel.upsert({ where: { id: 'ch-ig-intl' }, update: {},
+  const _igIntl = await db.channel.upsert({ where: { id: 'ch-ig-intl' }, update: {},
     create: { id: 'ch-ig-intl', tenantId: intl.id, type: 'instagram', name: 'Instagram INTL', displayName: 'Instagram · INTL', verified: true, paymentStrategy: 'hybrid', requirePrepayMin: 80, prepayDiscountPct: 5, codFee: 4 }})
 
   // ── Saramantha: REAL catalog (Short Tira, Pantalón, Batola + designs) ─
-  console.log('  → Saramantha real catalog...')
+  console.warn('  → Saramantha real catalog...')
   const pShort = await db.product.upsert({ where: { tenantId_sku: { tenantId: saramantha.id, sku: 'PIJ-SHORT-TIRA-001' } }, update: {},
     create: { tenantId: saramantha.id, sku: 'PIJ-SHORT-TIRA-001', name: 'Short Tira', description: 'Short de pijama tela fría, tiras ajustables', price: 16500, cost: 7400, stock: 480, imageUrl: 'https://images.unsplash.com/photo-1571513722275-4b41940f54b8?w=400', categoria: 'short', diseno: 'liso', imagenMetadataVisible: true, fuenteSincronizacion: 'whatsapp_catalog' }})
   const pPant = await db.product.upsert({ where: { tenantId_sku: { tenantId: saramantha.id, sku: 'PIJ-PANT-TIRA-002' } }, update: {},
@@ -246,7 +246,7 @@ async function main() {
   }
 
   // Ad spend (14 days)
-  console.log('  → generating ad spend (14 days)...')
+  console.warn('  → generating ad spend (14 days)...')
   const profiles: Record<string, { spend: number, conv: number }> = {
     'ad-sara-fam-1': { spend: 14000, conv: 3 }, 'ad-sara-fam-2': { spend: 9000, conv: 2 },
     'ad-sara-fam-3': { spend: 12000, conv: 2 }, 'ad-sara-stitch-1': { spend: 11000, conv: 2 },
@@ -266,7 +266,7 @@ async function main() {
   }
 
   // ── Saramantha customers + conversations (real-ish based on §15) ─
-  console.log('  → Saramantha conversations + 239-pedido summary...')
+  console.warn('  → Saramantha conversations + 239-pedido summary...')
   // Sample customers across cities (§15: Bogotá 14, Cali 7, Pasto 7, Medellín 6, Neiva 6, Popayán 6, Florencia 4, Apartadó 4)
   const cities = ['Bogotá', 'Cali', 'Pasto', 'Medellín', 'Neiva', 'Popayán', 'Florencia', 'Apartadó']
   const saraCustomers = []
@@ -338,7 +338,7 @@ async function main() {
   }
 
   // ── Orders: simulate the 239-pedido summary (we create ~15 representative) ─
-  console.log('  → generating orders (239-pedido summary, 15 representative)...')
+  console.warn('  → generating orders (239-pedido summary, 15 representative)...')
   // Embudo (§15.1): 73.2% "Llamar para confirmar", 1.3% "Despachado"
   const orderStatuses = [
     ...Array(10).fill('pending_confirmation'), // 73% Llamar para confirmar
@@ -454,11 +454,11 @@ async function main() {
   await db.automationRule.upsert({ where: { id: 'rule-kill' }, update: {},
     create: { id: 'rule-kill', tenantId: saramantha.id, name: 'Pausar anuncios con ROAS < 0.8', trigger: 'ad_underperforming', condition: '{"roas_lt":0.8,"spend_gt":50000}', action: 'pause_ad', active: true }})
 
-  console.log('✅ Seed v2 complete.')
-  console.log(`   Tenants: 5 (4 Indisutex + 1 INTL) | Channels: 9 | Products: 7 Saramantha`)
-  console.log(`   Customers: 15 | Conversations: 6 | Orders: 16 (Saramantha embudo 73% pending)`)
-  console.log(`   Ads: 9 | Carriers canonical: 5 (Interrapidísimo + 6 variants)`)
-  console.log(`   Commission entries: ${['despachado', 'datos_completados'].length}`)
+  console.warn('✅ Seed v2 complete.')
+  console.warn(`   Tenants: 5 (4 Indisutex + 1 INTL) | Channels: 9 | Products: 7 Saramantha`)
+  console.warn(`   Customers: 15 | Conversations: 6 | Orders: 16 (Saramantha embudo 73% pending)`)
+  console.warn(`   Ads: 9 | Carriers canonical: 5 (Interrapidísimo + 6 variants)`)
+  console.warn(`   Commission entries: ${['despachado', 'datos_completados'].length}`)
 }
 
 main().catch((e) => { console.error(e); process.exit(1) }).finally(async () => { await db.$disconnect() })

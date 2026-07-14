@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { resolveTenantId, requireAuth, requireTenantAccess } from '@/lib/auth-helpers'
-import { captureError } from '@/lib/capture-error'
 import { db } from '@/lib/db'
 import { computeHash } from '@/lib/crypto/signing'
+import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 
 // POST /api/compliance/consent
 // Registra un consentimiento (Ley 1581 de 2012).
@@ -32,7 +32,8 @@ const CreateConsentSchema = z.object({
   proofPayload: z.record(z.string(), z.unknown()).optional(),
 })
 
-export async function POST(req: NextRequest) {
+export const POST = withErrorHandling(async (req: NextRequest) => {
+
   let raw: unknown
   try {
     raw = await req.json()
@@ -54,7 +55,6 @@ export async function POST(req: NextRequest) {
   const { error } = await resolveTenantId(body.tenantId)
   if (error) return error
 
-  try {
     // V8: si el dataSubject es un customer, verificar que pertenece al
     // tenant del caller. Para `user` / `lead` no hay un check directo de
     // tenant (los users pueden ser platform users, los leads no tienen
@@ -108,21 +108,14 @@ export async function POST(req: NextRequest) {
       },
       { status: 201 },
     )
-  } catch (err) {
-    captureError(err as Error, {
-      path: '/api/compliance/consent',
-      method: 'POST',
-    })
-    return NextResponse.json(
-      { error: 'No se pudo registrar el consentimiento' },
-      { status: 500 },
-    )
-  }
-}
+  
+
+})
 
 // GET /api/compliance/consent?tenantId=X&dataSubjectId=Y
 // Lista los consentimientos de un data subject.
-export async function GET(req: NextRequest) {
+export const GET = withErrorHandling(async (req: NextRequest) => {
+
   const tenantId = req.nextUrl.searchParams.get('tenantId') || undefined
   const dataSubjectId = req.nextUrl.searchParams.get('dataSubjectId') || undefined
 
@@ -136,7 +129,6 @@ export async function GET(req: NextRequest) {
   const { error } = await resolveTenantId(tenantId)
   if (error) return error
 
-  try {
     const records = await db.consentRecord.findMany({
       where: { tenantId, dataSubjectId },
       orderBy: { createdAt: 'desc' },
@@ -152,17 +144,9 @@ export async function GET(req: NextRequest) {
         revokeReason: r.revokeReason,
       })),
     })
-  } catch (err) {
-    captureError(err as Error, {
-      path: '/api/compliance/consent',
-      method: 'GET',
-    })
-    return NextResponse.json(
-      { error: 'No se pudo listar los consentimientos' },
-      { status: 500 },
-    )
-  }
-}
+  
+
+})
 
 // DELETE /api/compliance/consent?id=Z&reason=...
 // Revoca un consentimiento (granted=false, revokedAt=now).
@@ -170,7 +154,8 @@ export async function GET(req: NextRequest) {
 // V8 (AUDIT-FINAL-SEC-001): si el dataSubject es un customer, verificamos
 // que pertenece al tenant del caller (defense-in-depth además del guard
 // de tenant sobre el consent record).
-export async function DELETE(req: NextRequest) {
+export const DELETE = withErrorHandling(async (req: NextRequest) => {
+
   const id = req.nextUrl.searchParams.get('id')
   const reason = req.nextUrl.searchParams.get('reason') || 'Revocado por el titular'
 
@@ -184,7 +169,6 @@ export async function DELETE(req: NextRequest) {
   const { error } = await requireAuth()
   if (error) return error
 
-  try {
     const existing = await db.consentRecord.findUnique({ where: { id } })
     if (!existing) {
       return NextResponse.json(
@@ -228,14 +212,6 @@ export async function DELETE(req: NextRequest) {
       revokedAt: updated.revokedAt,
       reason: updated.revokeReason,
     })
-  } catch (err) {
-    captureError(err as Error, {
-      path: '/api/compliance/consent',
-      method: 'DELETE',
-    })
-    return NextResponse.json(
-      { error: 'No se pudo revocar el consentimiento' },
-      { status: 500 },
-    )
-  }
-}
+  
+
+})

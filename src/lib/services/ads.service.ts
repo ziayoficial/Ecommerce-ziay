@@ -88,11 +88,7 @@ export const adsService = {
             action: `ad.${patch.action || 'update'}`,
             entity: 'Ad',
             entityId: id,
-            meta: JSON.stringify({
-              reason: patch.reason,
-              status: updated.status,
-            }),
-            metadata: JSON.stringify({  // TD-AUDITLOG-META-RENAME
+            metadata: JSON.stringify({
               reason: patch.reason,
               status: updated.status,
             }),

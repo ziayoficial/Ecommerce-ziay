@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { isRedisAvailable } from '@/lib/redis'
+import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 
 // GET /api/health/ready — readiness probe (Kubernetes / load balancer).
 // Verifica que la DB responda a un SELECT 1. Si REDIS_URL está configurada,
@@ -8,7 +9,8 @@ import { isRedisAvailable } from '@/lib/redis'
 //
 // Nota: Redis es opcional — si no está configurado, no afecta la readiness.
 // Solo falla si REDIS_URL está seteada pero el ping falla (Redis caído).
-export async function GET() {
+export const GET = withErrorHandling(async () => {
+
   const headers = { 'Cache-Control': 'no-store' }
 
   // 1. Database must be reachable.
@@ -34,4 +36,5 @@ export async function GET() {
   }
 
   return NextResponse.json({ status: 'ready' }, { headers })
-}
+
+})

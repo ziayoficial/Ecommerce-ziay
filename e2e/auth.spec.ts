@@ -70,7 +70,7 @@ test.describe('Authentication flows', () => {
     expect(page.url()).toMatch(/\/login/)
   })
 
-  test('logout redirects to /login', async ({ page, context }) => {
+  test('logout redirects to /login', async ({ page }) => {
     // First, sign in via the form to establish a session cookie.
     await signInViaForm(page)
     await page.waitForURL('**/', { timeout: 30_000 })

@@ -3,9 +3,9 @@ import { z } from 'zod'
 import { requireTenantAccess } from '@/lib/auth-helpers'
 import { getPaymentAdapter } from '@/lib/adapters/payment-registry'
 import { rateLimit } from '@/lib/middleware/rate-limit'
-import { captureError } from '@/lib/capture-error'
 import { getLogger } from '@/lib/logger'
 import { orderService } from '@/lib/services'
+import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 
 const log = getLogger('api/payments/create-link')
 
@@ -33,7 +33,8 @@ const CreateLinkSchema = z.object({
 // call. The order lookup uses `getOrderById` because the existing service
 // method already scopes by tenant + includes the same relations. Response
 // shape unchanged.
-export async function POST(req: NextRequest) {
+export const POST = withErrorHandling(async (req: NextRequest) => {
+
   const limited = rateLimit(req, {
     max: 30,
     windowMs: 60_000,
@@ -73,7 +74,6 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  try {
     const result = await adapter.createPaymentLink({
       amount: Number(amount),
       currency: String(currency),
@@ -125,18 +125,6 @@ export async function POST(req: NextRequest) {
       },
       { status: 200 },
     )
-  } catch (err) {
-    log.error(
-      { err, tenantId, orderId, gateway },
-      'payment link creation failed',
-    )
-    captureError(err as Error, { path: '/api/payments/create-link', method: 'POST' })
-    return NextResponse.json(
-      {
-        error: 'Payment link creation failed',
-        detail: err instanceof Error ? err.message : 'unknown error',
-      },
-      { status: 500 },
-    )
-  }
-}
+  
+
+})

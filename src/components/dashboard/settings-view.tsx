@@ -15,6 +15,7 @@ import { Switch } from '@/components/ui/switch'
 import { formatCurrency, timeAgo } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
+import { t } from '@/lib/i18n'
 import { ChannelsManager } from './channels-manager'
 import {
   CreditCard, Truck, Percent, Save, Shield, Zap, Globe, KeyRound, Bot,
@@ -168,7 +169,7 @@ export function SettingsView() {
         </div>
         <Button variant="outline" size="sm" onClick={() => loadData(true)} disabled={refreshing} className="gap-1.5 h-9 px-3">
           <RefreshCw className={cn('size-3.5', refreshing && 'animate-spin')} />
-          {refreshing ? 'Actualizando…' : 'Refrescar'}
+          {refreshing ? t('common.refreshing') : t('common.refresh')}
         </Button>
       </div>
 
@@ -267,7 +268,7 @@ export function SettingsView() {
                       {ch.paymentStrategy === 'hybrid' && `⚖️ Híbrido: > ${formatCurrency(ch.requirePrepayMin || 0)} sugiere prepago con ${ch.prepayDiscountPct || 0}% off.`}
                     </p>
                     <Button type="submit" size="sm" variant="outline" disabled={saving === ch.id} className="gap-1.5">
-                      <Save className="size-3.5" /> {saving === ch.id ? 'Guardando...' : 'Guardar'}
+                      <Save className="size-3.5" /> {saving === ch.id ? t('common.saving_data') : t('common.save')}
                     </Button>
                   </div>
                 </form>
@@ -324,7 +325,7 @@ export function SettingsView() {
                 <Switch checked={autoKill} onCheckedChange={setAutoKill} />
               </div>
               <Button type="submit" disabled={saving === 'global'} className="gap-1.5">
-                <Save className="size-3.5" /> {saving === 'global' ? 'Guardando...' : 'Guardar umbrales'}
+                <Save className="size-3.5" /> {saving === 'global' ? t('common.saving_data') : 'Guardar umbrales'}
               </Button>
             </form>
           </CardContent>

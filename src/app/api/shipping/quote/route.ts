@@ -72,6 +72,14 @@ export async function POST(req: NextRequest) {
           tiempo_estimado_dias: quote.tiempo_estimado_dias,
           transportadora: quote.transportadora,
         }),
+        metadata: JSON.stringify({  // TD-AUDITLOG-META-RENAME
+          ciudad,
+          pais: paisNorm,
+          cantidad_unidades: cantidad,
+          tarifa: quote.tarifa,
+          tiempo_estimado_dias: quote.tiempo_estimado_dias,
+          transportadora: quote.transportadora,
+        }),
       },
     })
 

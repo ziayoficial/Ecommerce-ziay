@@ -610,6 +610,11 @@ export async function PATCH(
           total: totals.total ?? 0,
           currency: 'COP',
           origen: 'ucp_agent',
+          // SPRINT-DIAN-RETRACTO-001 · P1-2 — Derecho al retracto (Ley 1480
+          // Art 47): 5 calendar days from creation for online purchases.
+          // Stamped at order creation so `processRetracto()` doesn't have
+          // to recompute the deadline each call.
+          retractoWindowUntil: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000),
           ...(attribution.conversationId ? { conversationId: attribution.conversationId } : {}),
           ...(attribution.clickId ? { clickId: attribution.clickId } : {}),
           ...(attribution.sourceAdId ? { sourceAdId: attribution.sourceAdId } : {}),

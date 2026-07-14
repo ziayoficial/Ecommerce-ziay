@@ -23,6 +23,7 @@ import { useTenantId } from '@/hooks/use-tenant'
 import { cn } from '@/lib/utils'
 import { timeAgo } from '@/lib/format'
 import { toast } from 'sonner'
+import { t } from '@/lib/i18n'
 import {
   Plus, Trash2, Edit2, MessageCircle, Send, Instagram, Phone, Key, CheckCircle2, XCircle,
   Eye, EyeOff, Save, X, AlertCircle, RefreshCw,
@@ -140,7 +141,7 @@ export function ChannelsManager() {
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => void load(true)} disabled={refreshing} className="gap-1.5">
               <RefreshCw className={cn('size-3.5', refreshing && 'animate-spin')} />
-              {refreshing ? 'Actualizando…' : 'Refrescar'}
+              {refreshing ? t('common.refreshing') : t('common.refresh')}
             </Button>
             <Button onClick={openNew} size="sm" className="gap-1.5"><Plus className="size-3.5" /> Nuevo canal</Button>
           </div>
@@ -516,7 +517,7 @@ function ChannelDialog({ open, onOpenChange, channel, tenantId, onSaved }: {
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} className="gap-1.5"><X className="size-3.5" /> Cancelar</Button>
           <Button onClick={save} disabled={saving || !name || !displayName} className="gap-1.5">
-            {saving ? 'Guardando...' : <><Save className="size-3.5" /> Guardar</>}
+            {saving ? t('common.saving_data') : <><Save className="size-3.5" /> {t('common.save')}</>}
           </Button>
         </DialogFooter>
       </DialogContent>

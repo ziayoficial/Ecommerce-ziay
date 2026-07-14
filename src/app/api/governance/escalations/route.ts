@@ -161,6 +161,12 @@ export async function POST(req: NextRequest) {
             previousState: 'requires_escalation',
             newState: 'ready_for_complete',
           }),
+          metadata: JSON.stringify({  // TD-AUDITLOG-META-RENAME
+            sessionId: existing.sessionId,
+            reason,
+            previousState: 'requires_escalation',
+            newState: 'ready_for_complete',
+          }),
         },
       })
       log.info(
@@ -188,6 +194,12 @@ export async function POST(req: NextRequest) {
         entity: 'UcpCheckoutSession',
         entityId: existing.id,
         meta: JSON.stringify({
+          sessionId: existing.sessionId,
+          reason,
+          previousState: 'requires_escalation',
+          newState: 'failed',
+        }),
+        metadata: JSON.stringify({  // TD-AUDITLOG-META-RENAME
           sessionId: existing.sessionId,
           reason,
           previousState: 'requires_escalation',

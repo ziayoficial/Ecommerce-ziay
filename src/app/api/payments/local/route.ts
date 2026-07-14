@@ -200,6 +200,9 @@ export async function POST(req: NextRequest) {
         taxAmount: taxBreakdown?.taxAmount ?? 0,
         taxBreakdown: taxBreakdown ? JSON.stringify(taxBreakdown) : null,
         origen: 'local_payment_api',
+        // SPRINT-DIAN-RETRACTO-001 · P1-2 — Derecho al retracto (Ley 1480
+        // Art 47): 5 calendar days from creation for online purchases.
+        retractoWindowUntil: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000),
       },
     })
 

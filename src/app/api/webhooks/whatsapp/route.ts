@@ -98,7 +98,7 @@ export async function POST(req: NextRequest) {
     // silently accepted), warn + allow in dev. FIX-REALTIME-WEBHOOKS-001 · R3.
     if (process.env.NODE_ENV === 'production') {
       await db.auditLog.create({
-        data: { action: 'webhook.wa.no_secret', entity: 'Webhook', meta: 'META_APP_SECRET missing in production' },
+        data: { action: 'webhook.wa.no_secret', entity: 'Webhook', meta: 'META_APP_SECRET missing in production', metadata: 'META_APP_SECRET missing in production' /* TD-AUDITLOG-META-RENAME */ },
       })
       return NextResponse.json({ error: 'Webhook secret not configured' }, { status: 500 })
     }
@@ -110,7 +110,7 @@ export async function POST(req: NextRequest) {
 
   if (!sigValid) {
     await db.auditLog.create({
-      data: { action: 'webhook.wa.invalid_sig', entity: 'Webhook', meta: rawBody.slice(0, 1000) },
+      data: { action: 'webhook.wa.invalid_sig', entity: 'Webhook', meta: rawBody.slice(0, 1000), metadata: rawBody.slice(0, 1000) /* TD-AUDITLOG-META-RENAME */ },
     })
     return NextResponse.json({ error: 'invalid signature' }, { status: 403 })
   }
@@ -149,6 +149,7 @@ export async function POST(req: NextRequest) {
         action: 'webhook.wa.non_message',
         entity: 'Webhook',
         meta: JSON.stringify(body).slice(0, 1000),
+        metadata: JSON.stringify(body).slice(0, 1000),  // TD-AUDITLOG-META-RENAME
         entityId: webhookId,
       },
     })
@@ -161,6 +162,14 @@ export async function POST(req: NextRequest) {
       action: 'webhook.wa.inbound',
       entity: 'Webhook',
       meta: JSON.stringify({
+        from: parsed.from,
+        messageId: parsed.messageId,
+        type: parsed.type,
+        text: parsed.text.slice(0, 200),
+        ctwClickId: parsed.ctwClickId,
+        phoneNumberId: parsed.phoneNumberId,
+      }),
+      metadata: JSON.stringify({  // TD-AUDITLOG-META-RENAME
         from: parsed.from,
         messageId: parsed.messageId,
         type: parsed.type,
@@ -270,6 +279,74 @@ export async function POST(req: NextRequest) {
         where: { id: conversation.id },
         data: { clickId: parsed.ctwClickId },
       })
+    }
+
+    // ── SPRINT-DIAN-RETRACTO-001 · P1-2 — RETRACTO keyword handler ────
+    // Ley 1480 de 2011 Art 47: el consumidor tiene 5 días calendario para
+    // retractarse de compras no presenciales. Cuando el cliente envía la
+    // palabra clave "RETRACTO" por WhatsApp, buscamos su orden más reciente
+    // y disparamos `processRetracto()`. La confirmación (o el rechazo con
+    // motivo en español) se envía de vuelta por el mismo canal.
+    //
+    // No bloquea el flujo del webhook — si el adapter falla, se loguea y
+    // se continúa con la persistencia normal del mensaje entrante.
+    if (parsed.type === 'text' && parsed.text.toUpperCase().trim() === 'RETRACTO') {
+      try {
+        const recentOrder = await db.order.findFirst({
+          where: { tenantId, customerId: customer.id, status: { not: 'cancelled' } },
+          orderBy: { createdAt: 'desc' },
+          select: { id: true, createdAt: true, number: true },
+        })
+
+        // Lazy import — avoids loading the compliance module on every webhook.
+        const { processRetracto, isWithinRetractoWindow } = await import(
+          '@/lib/compliance/retracto'
+        )
+
+        let replyText: string
+        if (!recentOrder) {
+          replyText =
+            'No encontramos una orden activa asociada a tu número. Si crees que es un error, escríbenos para ayudarte.'
+        } else if (!isWithinRetractoWindow(recentOrder.createdAt)) {
+          replyText =
+            'El plazo de 5 días para retracto (Ley 1480 Art 47) ya venció para tu orden más reciente. Contáctanos para evaluar otras opciones.'
+        } else {
+          const result = await processRetracto(
+            recentOrder.id,
+            tenantId,
+            'Solicitado via WhatsApp',
+          )
+          replyText = result.message
+        }
+
+        // Best-effort reply — never blocks the webhook ACK.
+        const replyAdapter = await getWhatsAppAdapter(tenantId)
+        if (replyAdapter) {
+          replyAdapter.sendText(parsed.from, replyText).catch((err) =>
+            log.warn(
+              { from: parsed.from, err: err instanceof Error ? err.message : String(err) },
+              'retracto reply failed (non-blocking)',
+            ),
+          )
+        }
+
+        log.info(
+          { tenantId, customerId: customer.id, orderId: recentOrder?.id },
+          'RETRACTO keyword processed',
+        )
+      } catch (retractoErr) {
+        // Don't break the webhook — capture + continue. The inbound message
+        // is still persisted below so an agent can intervene manually.
+        captureError(retractoErr as Error, {
+          action: 'webhook.wa.retracto',
+          tenantId,
+          customerId: customer.id,
+        })
+        log.warn(
+          { err: retractoErr instanceof Error ? retractoErr.message : String(retractoErr) },
+          'RETRACTO keyword handler failed — continuing with normal flow',
+        )
+      }
     }
 
     // ── Persist the inbound Message row ────────────────────────────────

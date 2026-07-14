@@ -134,7 +134,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   })
 
   await db.auditLog.create({
-    data: { tenantId, action: 'channel.created', entity: 'Channel', entityId: channel.id, meta: JSON.stringify({ type, name }) }
+    data: { tenantId, action: 'channel.created', entity: 'Channel', entityId: channel.id, meta: JSON.stringify({ type, name }), metadata: JSON.stringify({ type, name }) /* TD-AUDITLOG-META-RENAME */ }
   })
 
   return NextResponse.json({ channel: { id: channel.id, type: channel.type, name: channel.name } })
@@ -185,7 +185,7 @@ export const PATCH = withErrorHandling(async (req: NextRequest) => {
   const channel = await db.channel.update({ where: { id: channelId }, data: updateData })
 
   await db.auditLog.create({
-    data: { tenantId: channel.tenantId, action: 'channel.updated', entity: 'Channel', entityId: channelId, meta: JSON.stringify(Object.keys(updateData)) }
+    data: { tenantId: channel.tenantId, action: 'channel.updated', entity: 'Channel', entityId: channelId, meta: JSON.stringify(Object.keys(updateData)), metadata: JSON.stringify(Object.keys(updateData)) /* TD-AUDITLOG-META-RENAME */ }
   })
 
   return NextResponse.json({ channel: { id: channel.id, name: channel.name, updated: Object.keys(updateData) } })
@@ -215,7 +215,7 @@ export const DELETE = withErrorHandling(async (req: NextRequest) => {
   await db.channel.update({ where: { id: channelId }, data: { active: false } })
 
   await db.auditLog.create({
-    data: { tenantId: channel.tenantId, action: 'channel.deactivated', entity: 'Channel', entityId: channelId, meta: JSON.stringify({ name: channel.name }) }
+    data: { tenantId: channel.tenantId, action: 'channel.deactivated', entity: 'Channel', entityId: channelId, meta: JSON.stringify({ name: channel.name }), metadata: JSON.stringify({ name: channel.name }) /* TD-AUDITLOG-META-RENAME */ }
   })
 
   return NextResponse.json({ ok: true, deactivated: channelId })

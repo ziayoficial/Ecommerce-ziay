@@ -151,6 +151,15 @@ export async function POST(req: NextRequest) {
           mandateRevokedBeforeCart,
           liabilityParty,
         }),
+        metadata: JSON.stringify({  // TD-AUDITLOG-META-RENAME
+          intentMandateId: intent.id,
+          cartMandateId: cartMandate.id,
+          orderTotal: body.orderTotal,
+          withinBounds: body.withinBounds,
+          hasValidMandate,
+          mandateRevokedBeforeCart,
+          liabilityParty,
+        }),
       },
     })
 

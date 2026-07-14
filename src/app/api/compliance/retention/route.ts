@@ -119,6 +119,7 @@ export async function POST(req: NextRequest) {
           action: 'compliance.retention_sweep',
           entity: 'compliance',
           meta: JSON.stringify(result),
+          metadata: JSON.stringify(result),  // TD-AUDITLOG-META-RENAME
         },
       })
     } catch (auditErr) {

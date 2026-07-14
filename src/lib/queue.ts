@@ -343,6 +343,11 @@ registerJobHandler('catalog-sync', async (payload) => {
           fuente,
           synced: syncedCount,
         }),
+        metadata: JSON.stringify({  // TD-AUDITLOG-META-RENAME
+          plataforma: tenant.plataformaCatalogo,
+          fuente,
+          synced: syncedCount,
+        }),
       },
     })
   })

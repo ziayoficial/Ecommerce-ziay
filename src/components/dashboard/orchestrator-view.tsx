@@ -13,6 +13,7 @@ import { cn } from '@/lib/utils'
 import { useTenantId } from '@/hooks/use-tenant'
 import { toast } from 'sonner'
 import { timeAgo } from '@/lib/format'
+import { t } from '@/lib/i18n'
 import {
   ORCHESTRATOR_STEPS, ORCHESTRATOR_SCENARIOS, ORCHESTRATOR_ACCENT,
   OrchestratorStepId, ScenarioId,
@@ -168,9 +169,9 @@ export function OrchestratorView() {
             <span>Sin ejecuciones en esta sesión</span>
           )}
         </div>
-        <Button variant="outline" size="sm" onClick={runFull} disabled={running !== null} className="gap-1.5 h-9 px-3" aria-label="Refrescar">
+        <Button variant="outline" size="sm" onClick={runFull} disabled={running !== null} className="gap-1.5 h-9 px-3" aria-label={t('common.refresh')}>
           <RefreshCw className={cn('size-3.5', running === 'full' && 'animate-spin')} />
-          {running === 'full' ? 'Ejecutando…' : 'Refrescar'}
+          {running === 'full' ? t('common.executing') : t('common.refresh')}
         </Button>
       </div>
 

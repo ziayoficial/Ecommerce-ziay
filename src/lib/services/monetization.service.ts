@@ -249,6 +249,15 @@ export const monetizationService = {
               comisionTotal,
               orderCount: validOrders.length,
             }),
+            metadata: JSON.stringify({  // TD-AUDITLOG-META-RENAME
+              tenantId,
+              periodo: period,
+              gmv,
+              tramo: tramo.label,
+              comisionPct: tramo.pct,
+              comisionTotal,
+              orderCount: validOrders.length,
+            }),
           },
         })
       } catch (auditErr) {

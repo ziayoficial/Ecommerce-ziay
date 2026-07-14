@@ -161,3 +161,91 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* ─────────────────────────────────────────────────────────────────────────── */
+/* SPRINT-POLISH-001 — print stylesheet.
+ *
+ * Targets the operator print flows: orders, invoices, retention reports,
+ * logistics guides. These are typically printed from the dashboard view
+ * (Ctrl+P / Cmd+P) so the styles assume the dashboard shell is present and
+ * hide everything except the main content area.
+ *
+ * Conventions:
+ *   - `.no-print` is the opt-out class — add it to any UI element that
+ *     should NOT appear on paper (sidebar, topbar, action buttons, etc.).
+ *   - Internal links (`href^="/"`, `href^="#"`) don't print their URL —
+ *     only external links get the ` (url)` suffix so the operator can
+ *     follow up on paper.
+ *   - `@page` size is A4 with 1.5cm margins — matches the LATAM paper
+ *     standard (Colombia/Mexico/Brazil all use A4).
+ * ─────────────────────────────────────────────────────────────────────────── */
+@media print {
+  /* Hide non-essential UI */
+  .no-print,
+  .no-print * {
+    display: none !important;
+  }
+
+  /* Show only main content */
+  body {
+    background: white !important;
+    color: black !important;
+  }
+
+  main {
+    padding: 0 !important;
+    max-width: 100% !important;
+  }
+
+  /* Ensure tables fit on page */
+  table {
+    page-break-inside: auto;
+    width: 100% !important;
+    font-size: 10pt !important;
+  }
+
+  tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  /* Expand collapsed sections — `details[open]` is the canonical HTML
+     state; the `open: true` declaration below is a no-op in browsers
+     (invalid CSS is dropped silently) but is preserved per the spec.
+     For real "expand on print" behaviour, add `details { display: block; }`
+     and a small JS hook that sets the `open` attribute before `window.print()`. */
+  details {
+    open: true;
+  }
+
+  /* Remove shadows + borders for print */
+  .shadow,
+  .shadow-md,
+  .shadow-lg,
+  .shadow-xl {
+    box-shadow: none !important;
+  }
+
+  /* Page margins */
+  @page {
+    margin: 1.5cm;
+    size: A4;
+  }
+
+  /* Print URL for links */
+  a[href]:after {
+    content: " (" attr(href) ")";
+    font-size: 10pt;
+    color: #666;
+  }
+
+  /* Don't print URL for internal links */
+  a[href^="/"]:after,
+  a[href^="#"]:after {
+    content: "";
+  }
+}

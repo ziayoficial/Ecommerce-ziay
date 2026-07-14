@@ -84,9 +84,12 @@ export async function POST(req: NextRequest) {
 
     let synced = 0
     let fuente = 'whatsapp_catalog'
-    if (audit?.meta) {
+    // TD-AUDITLOG-META-RENAME — prefer `metadata`, fall back to `meta` for rows
+    // written before the dual-write migration.
+    const rawMeta = audit?.metadata ?? audit?.meta
+    if (rawMeta) {
       try {
-        const meta = JSON.parse(audit.meta) as {
+        const meta = JSON.parse(rawMeta) as {
           plataforma?: string
           fuente?: string
           synced?: number

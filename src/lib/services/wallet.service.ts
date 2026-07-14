@@ -308,6 +308,14 @@ export const walletService = {
               balanceAfter: input.balanceAfter,
               processedBy: 'wallet_api',
             }),
+            metadata: JSON.stringify({  // TD-AUDITLOG-META-RENAME
+              withdrawalId: input.withdrawalId,
+              traffickerId: input.traffickerId,
+              amount: input.amount,
+              balanceBefore: input.balanceBefore,
+              balanceAfter: input.balanceAfter,
+              processedBy: 'wallet_api',
+            }),
           },
         })
         return updated

@@ -19,6 +19,7 @@ import {
 import { formatCurrency, formatNumber, formatPercent, formatMultiplier, shortDate, timeAgo } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useTenantId } from '@/hooks/use-tenant'
+import { t } from '@/lib/i18n'
 
 // Human-readable tooltip text for each KPI — explains what the metric means.
 const KPI_HELP = {
@@ -228,7 +229,7 @@ export function OverviewView() {
         </div>
         <Button variant="outline" size="sm" onClick={() => fetchData(true)} disabled={refreshing} className="gap-1.5 h-9 px-3">
           <RefreshCw className={cn('size-3.5', refreshing && 'animate-spin')} />
-          {refreshing ? 'Actualizando…' : 'Refrescar'}
+          {refreshing ? t('common.refreshing') : t('common.refresh')}
         </Button>
       </div>
 

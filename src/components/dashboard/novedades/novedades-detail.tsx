@@ -28,6 +28,7 @@ import {
 
 import { timeAgo } from '@/lib/format'
 import { cn } from '@/lib/utils'
+import { t } from '@/lib/i18n'
 
 import {
   CASE_TYPE_META, caseStatusMeta, evidenceTypeMeta, messageRoleMeta,
@@ -316,7 +317,7 @@ export function CaseDetailPanel({
                   <AlertTriangle className="size-4 text-rose-500" /> Escalar
                 </Button>
                 <Button size="sm" variant="ghost" onClick={doClose} disabled={busy}>
-                  <XCircle className="size-4" /> Cerrar
+                  <XCircle className="size-4" /> {t('common.close_dialog')}
                 </Button>
               </div>
             </>

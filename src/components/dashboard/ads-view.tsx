@@ -22,6 +22,12 @@ import { formatCurrency, formatNumber, formatPercent, formatMultiplier, shortDat
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { useTenantId } from '@/hooks/use-tenant'
+// SPRINT-POLISH-001: aliased to `translate` because this file already uses
+// a local one-letter `const t = data.totals` at line ~188 — a bare `import { t }`
+// would be shadowed by that local and `t('common.refresh')` would call
+// `data.totals(...)` (a runtime TypeError). The alias keeps the i18n call
+// sites terse without renaming the long-standing `t` alias for totals.
+import { t as translate } from '@/lib/i18n'
 import {
   Target, TrendingUp, TrendingDown, DollarSign, Percent, Flame, Skull, Pause,
   Play, Rocket, Eye, AlertTriangle, Search, Gauge, Sparkles, RefreshCw, AlertCircle, Megaphone, Upload,
@@ -204,9 +210,9 @@ export function AdsView() {
             <span>Datos de muestra</span>
           )}
         </div>
-        <Button variant="outline" size="sm" onClick={() => load(true)} disabled={refreshing} className="gap-1.5 h-9 px-3" aria-label="Refrescar">
+        <Button variant="outline" size="sm" onClick={() => load(true)} disabled={refreshing} className="gap-1.5 h-9 px-3" aria-label={translate('common.refresh')}>
           <RefreshCw className={cn('size-3.5', refreshing && 'animate-spin')} />
-          {refreshing ? 'Actualizando…' : 'Refrescar'}
+          {refreshing ? translate('common.refreshing') : translate('common.refresh')}
         </Button>
       </div>
 

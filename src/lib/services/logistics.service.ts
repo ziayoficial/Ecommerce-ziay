@@ -281,6 +281,13 @@ export const logisticsService = {
             transportadoraCanonica: input.transportadoraCanonica,
             tarifa: input.tarifa,
           }),
+          metadata: JSON.stringify({  // TD-AUDITLOG-META-RENAME
+            orderId: input.orderId,
+            numero_guia: input.numeroGuia,
+            transportadora: input.transportadora,
+            transportadoraCanonica: input.transportadoraCanonica,
+            tarifa: input.tarifa,
+          }),
         },
       })
       return { shipment, eventNote }

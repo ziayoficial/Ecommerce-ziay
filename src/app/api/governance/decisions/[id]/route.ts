@@ -159,6 +159,11 @@ export async function PATCH(
           humanDecision: body.humanDecision,
           note: body.note ?? null,
         }),
+        metadata: JSON.stringify({  // TD-AUDITLOG-META-RENAME
+          agentName: existing.agentName,
+          humanDecision: body.humanDecision,
+          note: body.note ?? null,
+        }),
       },
     })
 

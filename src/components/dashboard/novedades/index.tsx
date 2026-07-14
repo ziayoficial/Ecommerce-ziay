@@ -31,6 +31,7 @@ import {
 import { useTenantId } from '@/hooks/use-tenant'
 import { cn } from '@/lib/utils'
 import { timeAgo } from '@/lib/format'
+import { t } from '@/lib/i18n'
 
 import {
   type CaseRow, type CaseDetail, type RedeliveryRequest, StatCard,
@@ -201,7 +202,7 @@ export function NovedadesView() {
         </div>
         <Button variant="outline" size="sm" onClick={() => void loadCases(true)} disabled={refreshing} className="gap-1.5 h-9 px-3">
           <RefreshCw className={cn('size-3.5', refreshing && 'animate-spin')} />
-          {refreshing ? 'Actualizando…' : 'Refrescar'}
+          {refreshing ? t('common.refreshing') : t('common.refresh')}
         </Button>
       </div>
 

@@ -92,6 +92,10 @@ export const adsService = {
               reason: patch.reason,
               status: updated.status,
             }),
+            metadata: JSON.stringify({  // TD-AUDITLOG-META-RENAME
+              reason: patch.reason,
+              status: updated.status,
+            }),
           },
         })
       } catch (auditErr) {

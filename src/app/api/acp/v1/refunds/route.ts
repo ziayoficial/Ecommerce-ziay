@@ -250,6 +250,17 @@ export async function POST(req: NextRequest) {
           intentMandateId: mandate.id,
           gatewayRefundId: result.paymentId ?? null,
         }),
+        metadata: JSON.stringify({  // TD-AUDITLOG-META-RENAME
+          gateway: order.paymentGateway,
+          paymentRef: order.paymentRef,
+          amount: refundAmount,
+          currency: order.currency,
+          reason: body.reason,
+          partial: body.amount !== undefined,
+          agentDid: 'acp',
+          intentMandateId: mandate.id,
+          gatewayRefundId: result.paymentId ?? null,
+        }),
       },
     })
 

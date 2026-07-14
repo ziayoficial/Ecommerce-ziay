@@ -440,6 +440,16 @@ model Order {
   paymentGateway   String?
   paymentRef       String?
   paidAt           DateTime?
+  // ── SPRINT-DIAN-RETRACTO-001 · P1-2 — Derecho al retracto (Ley 1480 de
+  // 2011 Art 47) — 5 calendar days cooling-off period for online purchases.
+  // Set at order creation; `processRetracto()` enforces the window.
+  retractoWindowUntil DateTime?
+  // ── SPRINT-DIAN-RETRACTO-001 · cancellation metadata ──
+  // `cancelReason` stores the consumer-supplied or system reason for the
+  // cancellation (retracto, fraud, out-of-stock, etc.); `cancelledAt` is
+  // the timestamp so retention + reporting can compute cancellation latency.
+  cancelReason     String?
+  cancelledAt      DateTime?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
@@ -794,8 +804,25 @@ model Invoice {
   pagadaAt        DateTime?
   createdAt       DateTime @default(now())
 
-  tenant Tenant @relation(fields: [tenantId], references: [id])
+  // ── SPRINT-DIAN-RETRACTO-001 · P1-1 — DIAN electronic invoicing
+  // (Decreto 745 de 2014). The existing fields above model the SaaS platform
+  // billing invoice (commission over GMV per tenant per period — `periodo`
+  // is the natural key). The fields below model the customer-facing DIAN
+  // factura electrónica: each non-null `orderId` row is a separate invoice
+  // for a customer's order. The two uses coexist on the same model —
+  // platform-billing rows have `periodo` set + `orderId IS NULL`, while
+  // DIAN customer-facing rows have `orderId` set + `periodo = ''`.
+  // Future refactor: split into `PlatformInvoice` + `DianInvoice`.
+  orderId          String? @unique // customer Order this DIAN invoice covers
+  invoiceNumber    String? // consecutivo (e.g. "SETP-0001") — DIAN numeración
+  cufe             String? // Código Único de Factura Electrónica (SHA-384)
+  dianStatus       String? @default("pending") // "pending" | "pending_submission" | "accepted" | "rejected" | "error"
+  dianValidationUrl String? // DIAN public validation URL (QR target)
+  amount           Float? // total amount the invoice is for (DIAN total)
+  issuedAt         DateTime? // when the DIAN invoice was generated
+  metadata         String? // JSON — full DianInvoiceData payload for replay/PDF
 
+  tenant Tenant @relation(fields: [tenantId], references: [id])
   // FIX-1-DB-001 — previously zero @@index (billing/invoicing queries).
   // Hot paths: tenant invoice list (tenantId), monthly period lookup
   // (tenantId + periodo), status funnel (estado), time series (createdAt).
@@ -803,6 +830,7 @@ model Invoice {
   @@index([tenantId, periodo])
   @@index([estado])
   @@index([createdAt])
+  @@index([dianStatus])
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -841,7 +869,8 @@ model AuditLog {
   action    String
   entity    String
   entityId  String?
-  meta      String?
+  meta      String?  // DEPRECATED — use `metadata` instead. Remove in v0.5.0 (TD-AUDITLOG-META-RENAME)
+  metadata  String?  // new field (TD-AUDITLOG-META-RENAME)
   createdAt DateTime @default(now())
 
   // Verifiable Intent compatibility — Documento §11:

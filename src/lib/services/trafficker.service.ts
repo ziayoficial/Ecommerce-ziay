@@ -474,6 +474,13 @@ export const traffickerService = {
               compensationPct,
               compensationAmount,
             }),
+            metadata: JSON.stringify({  // TD-AUDITLOG-META-RENAME
+              saleId: sale.id,
+              traffickerId: sale.traffickerId,
+              reason,
+              compensationPct,
+              compensationAmount,
+            }),
           },
         })
 

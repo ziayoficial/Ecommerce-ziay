@@ -7,7 +7,7 @@
 //   3. The `t()` fallback chain (locale → es-CO → key).
 //   4. `getLocale()` env-var resolution + defaulting.
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { describe, it, expect, afterEach } from 'vitest'
 import { t, getLocale, getAvailableLocales, type Locale } from '@/lib/i18n'
 
 const LOCALES: Locale[] = ['es-CO', 'es-MX', 'en-US']

@@ -25,6 +25,10 @@ export const AUDIT_LOG_VC_SCHEMA = 'https://ziay.co/schemas/audit-log-v1.json'
 /**
  * Construye el credentialSubject de un AuditLog a partir de la fila.
  * El orden de campos es determinista para que el hash sea reproducible.
+ *
+ * TD-AUDITLOG-META-RENAME — prefiere `metadata` y cae a `meta` (legacy).
+ * El credentialSubject siempre emite el campo como `meta` para preservar
+ * compatibilidad con el schema VC `audit-log-v1.json` ya firmado.
  */
 export function buildAuditLogCredentialSubject(log: {
   action: string
@@ -34,7 +38,9 @@ export function buildAuditLogCredentialSubject(log: {
   tenantId: string | null
   createdAt: Date
   meta: string | null
+  metadata?: string | null
 }): Record<string, unknown> {
+  const rawMeta = log.metadata ?? log.meta
   return {
     action: log.action,
     entity: log.entity,
@@ -42,7 +48,7 @@ export function buildAuditLogCredentialSubject(log: {
     userId: log.userId,
     tenantId: log.tenantId,
     createdAt: log.createdAt.toISOString(),
-    meta: log.meta ? safeJsonParse(log.meta) : null,
+    meta: rawMeta ? safeJsonParse(rawMeta) : null,
   }
 }
 
@@ -67,6 +73,7 @@ export function buildAuditLogVC(
     tenantId: string | null
     createdAt: Date
     meta: string | null
+    metadata?: string | null
   },
   issuerDid: string,
 ): W3CVerifiableCredential {

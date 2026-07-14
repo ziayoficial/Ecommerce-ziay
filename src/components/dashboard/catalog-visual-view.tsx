@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useTenantId } from '@/hooks/use-tenant'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
+import { t } from '@/lib/i18n'
 import { formatCurrency, timeAgo } from '@/lib/format'
 import { Search, Sparkles, MessageSquare, X, Filter, Grid3x3, List, Send, Zap, Tag, Package, Eye, Bot, RefreshCw, AlertCircle } from 'lucide-react'
 
@@ -177,9 +178,9 @@ export function CatalogVisualView() {
             <span>Datos de muestra</span>
           )}
         </div>
-        <Button variant="outline" size="sm" onClick={() => load(true)} disabled={refreshing} className="gap-1.5 h-9 px-3" aria-label="Refrescar">
+        <Button variant="outline" size="sm" onClick={() => load(true)} disabled={refreshing} className="gap-1.5 h-9 px-3" aria-label={t('common.refresh')}>
           <RefreshCw className={cn('size-3.5', refreshing && 'animate-spin')} />
-          {refreshing ? 'Actualizando…' : 'Refrescar'}
+          {refreshing ? t('common.refreshing') : t('common.refresh')}
         </Button>
       </div>
 

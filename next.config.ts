@@ -1,5 +1,14 @@
 import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs";
+// SPRINT-POLISH-001 — bundle analyzer. Conditional wrapper: only active when
+// ANALYZE=true so it never affects normal `next build`/`next dev`. The wrapper
+// is applied BEFORE Sentry (Sentry stays outermost) so Sentry sees the final
+// config object.
+import bundleAnalyzer from "@next/bundle-analyzer";
+
+const withBundleAnalyzer = bundleAnalyzer({
+  enabled: process.env.ANALYZE === "true",
+});
 
 const nextConfig: NextConfig = {
   output: "standalone",
@@ -55,7 +64,28 @@ const nextConfig: NextConfig = {
 //     `sourcemaps.disable` is the official replacement.
 // ───────────────────────────────────────────────────────────────────────────
 
-export default withSentryConfig(nextConfig, {
+// ───────────────────────────────────────────────────────────────────────────
+// SPRINT-POLISH-001 · Bundle analyzer.
+//
+// Wraps the Next.js config with `@next/bundle-analyzer` when `ANALYZE=true`.
+// When enabled, the build emits two interactive treemap HTML reports
+// (`.next/analyze/client.html` + `.next/analyze/server.html`) so we can see
+// exactly which modules are shipping in each bundle — useful for catching
+// accidental barrel imports (e.g. `import * from 'lucide-react'` pulling
+// 1.5k icons) and for sizing the impact of new dependencies before merge.
+//
+// Wrapper order: `withBundleAnalyzer` is applied FIRST, then `withSentryConfig`
+// is applied to the result. Sentry stays outermost (matches the existing
+// contract from SPRINT-MONITORING-DR-001 · M-2) so it sees the final config
+// object including any analyzer-injected webpack rules.
+//
+// Run with: `bun run analyze` (script in package.json) or
+// `ANALYZE=true bun run build`.
+// ───────────────────────────────────────────────────────────────────────────
+
+const config = withBundleAnalyzer(nextConfig);
+
+export default withSentryConfig(config, {
   // Upload source maps in production
   silent: true,
   org: process.env.SENTRY_ORG,

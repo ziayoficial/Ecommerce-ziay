@@ -12,6 +12,7 @@ import {
 import { formatCurrency, formatPercent, shortDate, timeAgo } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useTenantId } from '@/hooks/use-tenant'
+import { t } from '@/lib/i18n'
 import {
   DollarSign, TrendingUp, Wallet, Receipt, Clock, AlertTriangle, CheckCircle2, RefreshCw, AlertCircle,
 } from 'lucide-react'
@@ -129,9 +130,9 @@ export function MonetizationView() {
             <span>Datos de muestra</span>
           )}
         </div>
-        <Button variant="outline" size="sm" onClick={() => load(true)} disabled={refreshing} className="gap-1.5 h-9 px-3" aria-label="Refrescar">
+        <Button variant="outline" size="sm" onClick={() => load(true)} disabled={refreshing} className="gap-1.5 h-9 px-3" aria-label={t('common.refresh')}>
           <RefreshCw className={cn('size-3.5', refreshing && 'animate-spin')} />
-          {refreshing ? 'Actualizando…' : 'Refrescar'}
+          {refreshing ? t('common.refreshing') : t('common.refresh')}
         </Button>
       </div>
 

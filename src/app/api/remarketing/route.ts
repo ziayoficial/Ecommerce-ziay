@@ -78,6 +78,12 @@ async function assertMarketingConsent(
           legalBasis:
             'Ley 1581 de 2012 Art 10 + Meta Cloud API marketing opt-in policy',
         }),
+        metadata: JSON.stringify({  // TD-AUDITLOG-META-RENAME
+          reason:
+            'No ConsentRecord with purpose=marketing, granted=true, revokedAt=null',
+          legalBasis:
+            'Ley 1581 de 2012 Art 10 + Meta Cloud API marketing opt-in policy',
+        }),
       },
     })
   } catch (auditErr) {
@@ -351,6 +357,10 @@ async function scheduleMessage(tenantId: string, body: z.infer<typeof ScheduleSc
           action: 'remarketing.skipped_no_customer',
           entity: 'customer',
           meta: JSON.stringify({
+            phone: String(customerPhone),
+            reason: 'No Customer row linked to this phone — cannot verify marketing consent',
+          }),
+          metadata: JSON.stringify({  // TD-AUDITLOG-META-RENAME
             phone: String(customerPhone),
             reason: 'No Customer row linked to this phone — cannot verify marketing consent',
           }),

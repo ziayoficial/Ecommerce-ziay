@@ -1,10 +1,65 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { db } from '@/lib/db'
 import { requireTenantAccess } from '@/lib/auth-helpers'
 import { rateLimit } from '@/lib/middleware/rate-limit'
 import { getLogger } from '@/lib/logger'
 
 const log = getLogger('api/remarketing')
+
+// ───────────────────────────────────────────────────────────────────────────
+// Body schemas (per-action discriminated unions for POST and PATCH)
+// ───────────────────────────────────────────────────────────────────────────
+
+const CreateCampaignSchema = z.object({
+  action: z.literal('create_campaign'),
+  tenantId: z.string().min(1),
+  name: z.string().min(1),
+  trigger: z.enum(['abandoned_cart', 'no_response', 'post_purchase']),
+  template: z.string().min(1),
+})
+
+const ScheduleSchema = z.object({
+  action: z.literal('schedule'),
+  tenantId: z.string().min(1),
+  campaignId: z.string().min(1),
+  customerPhone: z.string().min(1),
+  customerName: z.string().nullable().optional(),
+  scheduledAt: z.string().min(1),
+  body: z.string().nullable().optional(),
+})
+
+const AutoGenerateSchema = z.object({
+  action: z.literal('auto_generate'),
+  tenantId: z.string().min(1),
+  trigger: z.enum(['abandoned_cart', 'no_response', 'post_purchase']).optional(),
+  daysAgo: z.union([z.number(), z.string()]).optional(),
+})
+
+const PostBodySchema = z.discriminatedUnion('action', [
+  CreateCampaignSchema,
+  ScheduleSchema,
+  AutoGenerateSchema,
+])
+
+const ToggleActiveSchema = z.object({
+  action: z.literal('toggle_active'),
+  tenantId: z.string().min(1),
+  campaignId: z.string().min(1),
+  active: z.boolean(),
+})
+
+const MarkMessageSchema = z.object({
+  action: z.literal('mark_message'),
+  tenantId: z.string().min(1),
+  messageId: z.string().min(1),
+  status: z.enum(['pending', 'sent', 'delivered', 'failed']),
+})
+
+const PatchBodySchema = z.discriminatedUnion('action', [
+  ToggleActiveSchema,
+  MarkMessageSchema,
+])
 
 // Remarketing — abandoned-cart / no-response / post-purchase flows.
 //
@@ -84,20 +139,22 @@ export async function POST(req: NextRequest) {
   })
   if (limited) return limited
 
-  let body: any
+  let raw: unknown
   try {
-    body = await req.json()
+    raw = await req.json()
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
-  const { action, tenantId } = body ?? {}
-  if (!action || !tenantId) {
+  const parseResult = PostBodySchema.safeParse(raw)
+  if (!parseResult.success) {
     return NextResponse.json(
-      { error: 'action and tenantId are required' },
+      { error: 'Invalid body', details: parseResult.error.flatten() },
       { status: 400 },
     )
   }
+  const body = parseResult.data
+  const { action, tenantId } = body
 
   const { error } = await requireTenantAccess(tenantId)
   if (error) return error
@@ -128,31 +185,28 @@ export async function PATCH(req: NextRequest) {
   })
   if (limited) return limited
 
-  let body: any
+  let raw: unknown
   try {
-    body = await req.json()
+    raw = await req.json()
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
-  const { action, tenantId } = body ?? {}
-  if (!action || !tenantId) {
+  const parseResult = PatchBodySchema.safeParse(raw)
+  if (!parseResult.success) {
     return NextResponse.json(
-      { error: 'action and tenantId are required' },
+      { error: 'Invalid body', details: parseResult.error.flatten() },
       { status: 400 },
     )
   }
+  const body = parseResult.data
+  const { action, tenantId } = body
+
   const { error } = await requireTenantAccess(tenantId)
   if (error) return error
 
   if (action === 'toggle_active') {
     const { campaignId, active } = body
-    if (!campaignId || typeof active !== 'boolean') {
-      return NextResponse.json(
-        { error: 'campaignId and active (boolean) are required' },
-        { status: 400 },
-      )
-    }
     const updated = await db.remarketingCampaign.update({
       where: { id: campaignId },
       data: { active },
@@ -160,56 +214,24 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ campaign: updated })
   }
 
-  if (action === 'mark_message') {
-    const { messageId, status } = body
-    if (!messageId || !status) {
-      return NextResponse.json(
-        { error: 'messageId and status are required' },
-        { status: 400 },
-      )
-    }
-    const valid = ['pending', 'sent', 'delivered', 'failed']
-    if (!valid.includes(status)) {
-      return NextResponse.json(
-        { error: `status must be one of: ${valid.join(', ')}` },
-        { status: 400 },
-      )
-    }
-    const updated = await db.remarketingMessage.update({
-      where: { id: messageId },
-      data: {
-        status,
-        sentAt: status === 'sent' || status === 'delivered' ? new Date() : undefined,
-      },
-    })
-    return NextResponse.json({ message: updated })
-  }
-
-  return NextResponse.json(
-    { error: `Unknown action: ${action}` },
-    { status: 400 },
-  )
+  // mark_message
+  const { messageId, status } = body
+  const updated = await db.remarketingMessage.update({
+    where: { id: messageId },
+    data: {
+      status,
+      sentAt: status === 'sent' || status === 'delivered' ? new Date() : undefined,
+    },
+  })
+  return NextResponse.json({ message: updated })
 }
 
 // ────────────────────────────────────────────────────────────
 // Action handlers
 // ────────────────────────────────────────────────────────────
 
-async function createCampaign(tenantId: string, body: any) {
+async function createCampaign(tenantId: string, body: z.infer<typeof CreateCampaignSchema>) {
   const { name, trigger, template } = body
-  if (!name || !trigger || !template) {
-    return NextResponse.json(
-      { error: 'name, trigger, template are required' },
-      { status: 400 },
-    )
-  }
-  const validTriggers = ['abandoned_cart', 'no_response', 'post_purchase']
-  if (!validTriggers.includes(trigger)) {
-    return NextResponse.json(
-      { error: `trigger must be one of: ${validTriggers.join(', ')}` },
-      { status: 400 },
-    )
-  }
   const campaign = await db.remarketingCampaign.create({
     data: { tenantId, name, trigger, template },
   })
@@ -217,16 +239,8 @@ async function createCampaign(tenantId: string, body: any) {
   return NextResponse.json({ campaign })
 }
 
-async function scheduleMessage(tenantId: string, body: any) {
+async function scheduleMessage(tenantId: string, body: z.infer<typeof ScheduleSchema>) {
   const { campaignId, customerPhone, customerName, scheduledAt } = body
-  if (!campaignId || !customerPhone || !scheduledAt) {
-    return NextResponse.json(
-      {
-        error: 'campaignId, customerPhone, scheduledAt are required',
-      },
-      { status: 400 },
-    )
-  }
   // Verify campaign belongs to tenant
   const campaign = await db.remarketingCampaign.findFirst({
     where: { id: campaignId, tenantId },
@@ -249,7 +263,7 @@ async function scheduleMessage(tenantId: string, body: any) {
   return NextResponse.json({ message })
 }
 
-async function autoGenerate(tenantId: string, body: any) {
+async function autoGenerate(tenantId: string, body: z.infer<typeof AutoGenerateSchema>) {
   const trigger = body.trigger ?? 'abandoned_cart'
   const daysAgo = Number(body.daysAgo ?? 1)
   const since = new Date()

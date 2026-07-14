@@ -73,11 +73,34 @@ export async function POST(req: NextRequest) {
     const reconocidaPct = etapaReconocimiento === 'despachado' ? 100 : etapaReconocimiento === 'datos_completados' ? 50 : 0
     const reconocidaMonto = comisionTotal * reconocidaPct / 100
 
-    // Upsert — one entry per order
-    const existing = await db.commissionEntry.findFirst({ where: { orderId }})
-    const entry = existing
-      ? await db.commissionEntry.update({ where: { id: existing.id }, data: { reconocidaPct, reconocidaMonto, etapaReconocimiento, reconocidaAt: new Date() }})
-      : await db.commissionEntry.create({ data: { tenantId: tenant.id, orderId, gmv, comisionPct: pct, comisionTotal, reconocidaPct, reconocidaMonto, etapaReconocimiento, reconocidaAt: new Date() }})
+    // Upsert — one entry per order. `orderId @unique` (added in FIX-1-DB-001)
+    // lets us replace the racy `findFirst + update/create` with a true `upsert`,
+    // closing the window where 2 concurrent requests could both pass findFirst
+    // and both create duplicate entries.
+    //
+    // Preserve original behavior: on UPDATE we only touch the recognition fields
+    // (reconocidaPct/Monto/etapa/At) — gmv/comisionPct/comisionTotal stay as the
+    // values captured at first create. On CREATE we persist the full snapshot.
+    const entry = await db.commissionEntry.upsert({
+      where: { orderId },
+      update: {
+        reconocidaPct,
+        reconocidaMonto,
+        etapaReconocimiento,
+        reconocidaAt: new Date(),
+      },
+      create: {
+        tenantId: tenant.id,
+        orderId,
+        gmv,
+        comisionPct: pct,
+        comisionTotal,
+        reconocidaPct,
+        reconocidaMonto,
+        etapaReconocimiento,
+        reconocidaAt: new Date(),
+      },
+    })
 
     return NextResponse.json({ entry })
   } catch (err) {

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { requireTenantAccess } from '@/lib/auth-helpers'
 import { captureError } from '@/lib/capture-error'
 import { rateLimit } from '@/lib/middleware/rate-limit'
@@ -7,6 +8,11 @@ import { enrichProductImage } from '@/lib/vision/pipeline'
 import { getLogger } from '@/lib/logger'
 
 const log = getLogger('api/product-enrichment')
+
+const EnrichSchema = z.object({
+  tenantId: z.string().min(1),
+  sku: z.string().min(1),
+})
 
 // GET /api/product-enrichment?tenantId=X
 // Devuelve los ProductEnrichment del tenant + los productos que aún no tienen
@@ -69,20 +75,21 @@ export async function POST(req: NextRequest) {
   })
   if (limited) return limited
 
-  let body: any
+  let raw: unknown
   try {
-    body = await req.json()
+    raw = await req.json()
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
-  const { tenantId, sku } = body ?? {}
-  if (!tenantId || !sku) {
+  const parseResult = EnrichSchema.safeParse(raw)
+  if (!parseResult.success) {
     return NextResponse.json(
-      { error: 'tenantId and sku are required' },
+      { error: 'Invalid body', details: parseResult.error.flatten() },
       { status: 400 },
     )
   }
+  const { tenantId, sku } = parseResult.data
 
   const { error } = await requireTenantAccess(tenantId)
   if (error) return error

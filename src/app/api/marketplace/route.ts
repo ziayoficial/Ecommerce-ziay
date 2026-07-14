@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { requireTenantAccess } from '@/lib/auth-helpers'
 import { captureError } from '@/lib/capture-error'
 import { marketplaceService } from '@/lib/services'
@@ -76,45 +77,59 @@ export async function GET(req: NextRequest) {
   }
 }
 
-type PublishListingPayload = {
-  tenantId: string
-  sku: string
-  name: string
-  price: number
-  imageUrl?: string | null
-  productId?: string | null
-}
+const PublishListingSchema = z.object({
+  action: z.literal('publish_listing'),
+  tenantId: z.string().min(1),
+  sku: z.string().min(1),
+  name: z.string().min(1),
+  price: z.number(),
+  imageUrl: z.string().nullable().optional(),
+  productId: z.string().nullable().optional(),
+})
 
-type UpdateConfigPayload = {
-  tenantId: string
-  shareLeads: boolean
-  commissionPct: number
-}
+const UpdateConfigSchema = z.object({
+  action: z.literal('update_config'),
+  tenantId: z.string().min(1),
+  shareLeads: z.boolean(),
+  commissionPct: z.number(),
+})
 
-type CreateReferralPayload = {
-  fromTenantId: string
-  toTenantId: string
-  customerPhone: string
-  customerName?: string | null
-  reason: string
-  commission?: number
-}
+const CreateReferralSchema = z.object({
+  action: z.literal('create_referral'),
+  fromTenantId: z.string().min(1),
+  toTenantId: z.string().min(1),
+  customerPhone: z.string().min(1),
+  customerName: z.string().nullable().optional(),
+  reason: z.string().min(1),
+  commission: z.number().optional(),
+})
+
+const MarketplaceBodySchema = z.discriminatedUnion('action', [
+  PublishListingSchema,
+  UpdateConfigSchema,
+  CreateReferralSchema,
+])
 
 export async function POST(req: NextRequest) {
-  let body: any
+  let raw: unknown
   try {
-    body = await req.json()
+    raw = await req.json()
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
-  const action = body?.action as string | undefined
-  if (!action || !['publish_listing', 'update_config', 'create_referral'].includes(action)) {
-    return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
+  const parseResult = MarketplaceBodySchema.safeParse(raw)
+  if (!parseResult.success) {
+    return NextResponse.json(
+      { error: 'Invalid body', details: parseResult.error.flatten() },
+      { status: 400 },
+    )
   }
+  const body = parseResult.data
+  const action = body.action
 
   const tenantId =
-    action === 'create_referral' ? body?.fromTenantId : body?.tenantId
+    action === 'create_referral' ? body.fromTenantId : body.tenantId
   if (!tenantId) {
     return NextResponse.json({ error: 'tenantId is required' }, { status: 400 })
   }
@@ -123,60 +138,39 @@ export async function POST(req: NextRequest) {
 
   try {
     if (action === 'publish_listing') {
-      const p = body as PublishListingPayload
-      if (!p.sku || !p.name || typeof p.price !== 'number') {
-        return NextResponse.json(
-          { error: 'sku, name, price are required' },
-          { status: 400 },
-        )
-      }
       const listing = await marketplaceService.publishListing({
-        tenantId: p.tenantId,
-        sku: p.sku,
-        name: p.name,
-        price: p.price,
-        imageUrl: p.imageUrl ?? null,
-        productId: p.productId ?? null,
+        tenantId: body.tenantId,
+        sku: body.sku,
+        name: body.name,
+        price: body.price,
+        imageUrl: body.imageUrl ?? null,
+        productId: body.productId ?? null,
       })
       return NextResponse.json({ ok: true, listing })
     }
 
     if (action === 'update_config') {
-      const p = body as UpdateConfigPayload
-      if (typeof p.shareLeads !== 'boolean' || typeof p.commissionPct !== 'number') {
-        return NextResponse.json(
-          { error: 'shareLeads (bool) and commissionPct (number) are required' },
-          { status: 400 },
-        )
-      }
-      const config = await marketplaceService.upsertLeadConfig(p.tenantId, {
-        shareLeads: p.shareLeads,
-        commissionPct: p.commissionPct,
+      const config = await marketplaceService.upsertLeadConfig(body.tenantId, {
+        shareLeads: body.shareLeads,
+        commissionPct: body.commissionPct,
       })
       return NextResponse.json({ ok: true, config })
     }
 
     // create_referral
-    const p = body as CreateReferralPayload
-    if (!p.fromTenantId || !p.toTenantId || !p.customerPhone || !p.reason) {
-      return NextResponse.json(
-        { error: 'fromTenantId, toTenantId, customerPhone, reason are required' },
-        { status: 400 },
-      )
-    }
-    if (p.fromTenantId === p.toTenantId) {
+    if (body.fromTenantId === body.toTenantId) {
       return NextResponse.json(
         { error: 'fromTenantId and toTenantId must differ' },
         { status: 400 },
       )
     }
     const referral = await marketplaceService.createReferral({
-      fromTenantId: p.fromTenantId,
-      toTenantId: p.toTenantId,
-      customerPhone: p.customerPhone,
-      customerName: p.customerName ?? null,
-      reason: p.reason,
-      commission: typeof p.commission === 'number' ? p.commission : undefined,
+      fromTenantId: body.fromTenantId,
+      toTenantId: body.toTenantId,
+      customerPhone: body.customerPhone,
+      customerName: body.customerName ?? null,
+      reason: body.reason,
+      commission: typeof body.commission === 'number' ? body.commission : undefined,
     })
     return NextResponse.json({ ok: true, referral })
   } catch (e) {

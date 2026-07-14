@@ -22,6 +22,7 @@
 // route (they're cryptographic, not DB-bound). Response shapes unchanged.
 
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { requireAuth } from '@/lib/auth-helpers'
 import { generateTOTPSecret, verifyTOTP, hashBackupCodes } from '@/lib/totp'
 import { rateLimit } from '@/lib/middleware/rate-limit'
@@ -30,6 +31,63 @@ import { getLogger } from '@/lib/logger'
 import { walletService, traffickerService } from '@/lib/services'
 
 const log = getLogger('api:wallet')
+
+// ───────────────────────────────────────────────────────────────────────────
+// Body schemas (per-action discriminated union)
+// ───────────────────────────────────────────────────────────────────────────
+
+const Setup2faSchema = z.object({
+  action: z.literal('setup_2fa'),
+})
+
+const Verify2faSchema = z.object({
+  action: z.literal('verify_2fa'),
+  token: z.string(),
+})
+
+const RegisterAccountSchema = z.object({
+  action: z.literal('register_account'),
+  accountType: z.enum(['bank', 'nequi', 'daviplata', 'paypal', 'wise']),
+  accountHolder: z.string().min(1),
+  accountNumber: z.string().min(1),
+  bankName: z.string().nullable().optional(),
+  documentType: z.string().nullable().optional(),
+  documentNumber: z.string().nullable().optional(),
+  isDefault: z.boolean().optional(),
+})
+
+const RequestWithdrawalSchema = z.object({
+  action: z.literal('request_withdrawal'),
+  walletAccountId: z.string().min(1),
+  amount: z.union([z.number(), z.string()]),
+  totpToken: z.string().optional(),
+})
+
+const ProcessWithdrawalSchema = z.object({
+  action: z.literal('process_withdrawal'),
+  withdrawalId: z.string().min(1),
+  externalReference: z.string().nullable().optional(),
+})
+
+const RecordTransactionSchema = z.object({
+  action: z.literal('record_transaction'),
+  direction: z.enum(['inbound', 'outbound']),
+  type: z.string().min(1),
+  category: z.string().optional(),
+  amount: z.union([z.number(), z.string()]),
+  description: z.string().nullable().optional(),
+  reference: z.string().nullable().optional(),
+  referenceType: z.string().nullable().optional(),
+})
+
+const WalletBodySchema = z.discriminatedUnion('action', [
+  Setup2faSchema,
+  Verify2faSchema,
+  RegisterAccountSchema,
+  RequestWithdrawalSchema,
+  ProcessWithdrawalSchema,
+  RecordTransactionSchema,
+])
 
 // ───────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -191,17 +249,23 @@ export async function POST(req: NextRequest) {
   if (error) return error
   if (!trafficker) return NextResponse.json({ error: 'No trafficker' }, { status: 400 })
 
-  let body: any
+  let raw: unknown
   try {
-    body = await req.json()
+    raw = await req.json()
   } catch (err) {
     captureError(err, { action: 'wallet:parse' })
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
-  const action = body?.action as string | undefined
-  if (!action) {
-    return NextResponse.json({ error: 'Missing action' }, { status: 400 })
+
+  const parseResult = WalletBodySchema.safeParse(raw)
+  if (!parseResult.success) {
+    return NextResponse.json(
+      { error: 'Invalid body', details: parseResult.error.flatten() },
+      { status: 400 },
+    )
   }
+  const body = parseResult.data
+  const action = body.action
 
   try {
     switch (action) {
@@ -257,16 +321,6 @@ export async function POST(req: NextRequest) {
           accountType, accountHolder, accountNumber, bankName,
           documentType, documentNumber, isDefault,
         } = body
-        if (!accountType || !accountHolder || !accountNumber) {
-          return NextResponse.json(
-            { error: 'accountType, accountHolder, accountNumber are required' },
-            { status: 400 },
-          )
-        }
-        const validTypes = ['bank', 'nequi', 'daviplata', 'paypal', 'wise']
-        if (!validTypes.includes(accountType)) {
-          return NextResponse.json({ error: 'Invalid accountType' }, { status: 400 })
-        }
         const account = await walletService.registerWalletAccount({
           traffickerId: trafficker.id,
           accountType,
@@ -284,7 +338,7 @@ export async function POST(req: NextRequest) {
       case 'request_withdrawal': {
         const { walletAccountId, amount, totpToken } = body
         const amt = Number(amount)
-        if (!walletAccountId || !amt || amt <= 0) {
+        if (!amt || amt <= 0) {
           return NextResponse.json(
             { error: 'walletAccountId and a positive amount are required' },
             { status: 400 },
@@ -339,12 +393,6 @@ export async function POST(req: NextRequest) {
       // ── Process (complete) a withdrawal — admin/finance operation ────────
       case 'process_withdrawal': {
         const { withdrawalId, externalReference } = body
-        if (!withdrawalId) {
-          return NextResponse.json(
-            { error: 'withdrawalId required' },
-            { status: 400 },
-          )
-        }
         const w = await walletService.getWithdrawalRequest(withdrawalId)
         if (!w || w.traffickerId !== trafficker.id) {
           return NextResponse.json(
@@ -388,15 +436,6 @@ export async function POST(req: NextRequest) {
       case 'record_transaction': {
         const { direction, type, category, amount, description, reference, referenceType } = body
         const amt = Number(amount)
-        if (!direction || !type || !amt) {
-          return NextResponse.json(
-            { error: 'direction, type, amount are required' },
-            { status: 400 },
-          )
-        }
-        if (!['inbound', 'outbound'].includes(direction)) {
-          return NextResponse.json({ error: 'Invalid direction' }, { status: 400 })
-        }
         const signedAmount = direction === 'inbound' ? Math.abs(amt) : -Math.abs(amt)
         const balanceBefore = trafficker.walletBalance
         const balanceAfter = balanceBefore + signedAmount

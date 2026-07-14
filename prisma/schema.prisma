@@ -115,6 +115,12 @@ model User {
   tenant        Tenant?          @relation(fields: [tenantId], references: [id])
   assignedConv  Conversation[]   @relation("AgentConvos")
   auditLogs     AuditLog[]
+
+  // FIX-PEND-DB-QUEUES-001 — partial-index gap (AUDIT-GAP-4-DB).
+  // Hot paths: tenant member list (tenantId), login lookup (email — already
+  // @unique but explicit @@index follows the Trafficker.email convention).
+  @@index([tenantId])
+  @@index([email])
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -154,6 +160,13 @@ model Channel {
 
   tenant        Tenant        @relation(fields: [tenantId], references: [id])
   conversations Conversation[]
+
+  // FIX-PEND-DB-QUEUES-001 — partial-index gap (AUDIT-GAP-4-DB).
+  // Hot paths: tenant channel list (tenantId), channel-type filtering
+  // (whatsapp | messenger | instagram | telegram), active-only toggles.
+  @@index([tenantId])
+  @@index([type])
+  @@index([active])
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -182,6 +195,14 @@ model Customer {
   tenant        Tenant         @relation(fields: [tenantId], references: [id])
   conversations Conversation[]
   orders        Order[]
+
+  // FIX-PEND-DB-QUEUES-001 — partial-index gap (AUDIT-GAP-4-DB).
+  // Hot paths: tenant customer list (tenantId), email/phone customer lookup
+  // (both fields are optional String? — indexing NULLs is cheap in PG/SQLite
+  // and supports the customer-merge feature that finds dupes by phone/email).
+  @@index([tenantId])
+  @@index([email])
+  @@index([phone])
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -278,6 +299,13 @@ model Product {
   volumePrices VolumePrice[]
 
   @@unique([tenantId, sku])
+
+  // FIX-PEND-DB-QUEUES-001 — partial-index gap (AUDIT-GAP-4-DB).
+  // The composite @@unique([tenantId, sku]) already serves (tenantId, sku)
+  // and (tenantId) prefix queries, but an explicit @@index([tenantId]) keeps
+  // the query planner honest for tenant-only product scans (catalog view).
+  // `sku` alone is NOT indexed — cross-tenant sku lookups don't happen.
+  @@index([tenantId])
 }
 
 model Order {
@@ -491,6 +519,13 @@ model Campaign {
   tenant   Tenant      @relation(fields: [tenantId], references: [id])
   platform AdPlatform  @relation(fields: [platformId], references: [id])
   ads      Ad[]
+
+  // FIX-PEND-DB-QUEUES-001 — partial-index gap (AUDIT-GAP-4-DB).
+  // Hot paths: tenant campaign list (tenantId), status filtering (active |
+  // paused | archived). `traffickerId` does NOT exist on Campaign (it lives
+  // on TraffickerCampaign) — skip per task spec.
+  @@index([tenantId])
+  @@index([status])
 }
 
 model Ad {
@@ -509,6 +544,16 @@ model Ad {
   spend       AdSpend[]
   attributions Attribution[]
   orders      Order[]
+
+  // FIX-PEND-DB-QUEUES-001 — partial-index gap (AUDIT-GAP-4-DB).
+  // Ad has no tenantId (tenant-scoped via Campaign.campaignId). Index the FK
+  // (campaignId), auto-kill status sweep (status), and externalId (already
+  // @unique but explicit @@index follows the Trafficker.email convention so
+  // ad-platform sync lookups hit an index even after the unique constraint
+  // is dropped in a future schema migration).
+  @@index([campaignId])
+  @@index([status])
+  @@index([externalId])
 }
 
 model AdSpend {

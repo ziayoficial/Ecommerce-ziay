@@ -144,56 +144,62 @@ export class WhatsappCatalogAdapter implements EcommerceAdapter {
     // El envío del `order_card` al cliente se haría en una capa de mensajería posterior
     // (POST /{phoneNumberId}/messages con type=order).
     const orderNumber = `WA-${Date.now().toString(36).toUpperCase()}`
-    const order = await db.order.create({
-      data: {
-        tenantId: this.tenantId,
-        number: orderNumber,
-        customerId: datos.contacto_id,
-        status: 'new',
-        paymentMode: 'hybrid',
-        paymentStatus: 'unpaid',
-        subtotal: datos.valor,
-        total: datos.valor,
-        currency: 'COP',
-        country: datos.direccion.pais ?? null,
-        city: datos.direccion.ciudad ?? null,
-        address: datos.direccion.direccion ?? null,
-        imagenReferenciaUrl: datos.imagen_referencia_url ?? null,
-        origen: 'agente_whatsapp',
-      },
-    })
-
-    if (datos.items.length > 0) {
-      const products = await db.product.findMany({
-        where: { tenantId: this.tenantId, sku: { in: datos.items.map(i => i.sku) } },
+    // Lookup de productos fuera del tx (read-only); el resto va en una sola tx
+    // para que order + items + event sean atómicos.
+    const products = datos.items.length > 0
+      ? await db.product.findMany({
+          where: { tenantId: this.tenantId, sku: { in: datos.items.map(i => i.sku) } },
+        })
+      : []
+    return await db.$transaction(async (tx) => {
+      const order = await tx.order.create({
+        data: {
+          tenantId: this.tenantId,
+          number: orderNumber,
+          customerId: datos.contacto_id,
+          status: 'new',
+          paymentMode: 'hybrid',
+          paymentStatus: 'unpaid',
+          subtotal: datos.valor,
+          total: datos.valor,
+          currency: 'COP',
+          country: datos.direccion.pais ?? null,
+          city: datos.direccion.ciudad ?? null,
+          address: datos.direccion.direccion ?? null,
+          imagenReferenciaUrl: datos.imagen_referencia_url ?? null,
+          origen: 'agente_whatsapp',
+        },
       })
-      const itemsData = datos.items.map(i => {
-        const prod = products.find(p => p.sku === i.sku)
-        return {
-          orderId: order.id,
-          productId: prod?.id ?? 'unknown',
-          name: prod?.name ?? i.sku,
-          unitPrice: prod?.price ?? 0,
-          cost: prod?.cost ?? 0,
-          quantity: i.cantidad,
-          diseno: prod?.diseno ?? null,
+
+      if (datos.items.length > 0) {
+        const itemsData = datos.items.map(i => {
+          const prod = products.find(p => p.sku === i.sku)
+          return {
+            orderId: order.id,
+            productId: prod?.id ?? 'unknown',
+            name: prod?.name ?? i.sku,
+            unitPrice: prod?.price ?? 0,
+            cost: prod?.cost ?? 0,
+            quantity: i.cantidad,
+            diseno: prod?.diseno ?? null,
+          }
+        }).filter(it => it.productId !== 'unknown')
+        if (itemsData.length > 0) {
+          await tx.orderItem.createMany({ data: itemsData })
         }
-      }).filter(it => it.productId !== 'unknown')
-      if (itemsData.length > 0) {
-        await db.orderItem.createMany({ data: itemsData })
       }
-    }
 
-    await db.orderEvent.create({
-      data: { orderId: order.id, type: 'created', note: 'Pedido creado vía WhatsApp Catalog adapter' },
+      await tx.orderEvent.create({
+        data: { orderId: order.id, type: 'created', note: 'Pedido creado vía WhatsApp Catalog adapter' },
+      })
+
+      return {
+        order_id: order.id,
+        estado: order.status,
+        // El seguimiento real lo provee el LogisticsAdapter una vez generada la guía.
+        url_seguimiento: undefined,
+      }
     })
-
-    return {
-      order_id: order.id,
-      estado: order.status,
-      // El seguimiento real lo provee el LogisticsAdapter una vez generada la guía.
-      url_seguimiento: undefined,
-    }
   }
 
   async actualizarInventario(sku: string, cantidad: number): Promise<ActualizarInventarioResult> {

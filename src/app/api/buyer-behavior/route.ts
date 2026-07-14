@@ -1,8 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { requireTenantAccess } from '@/lib/auth-helpers'
 import { captureError } from '@/lib/capture-error'
 import { rateLimit } from '@/lib/middleware/rate-limit'
 import { logisticsService } from '@/lib/services'
+
+const BuyerBehaviorSchema = z.object({
+  tenantId: z.string().min(1),
+  phone: z.string().min(1),
+  riskLevel: z.enum(['normal', 'caution', 'high_risk', 'blacklist']),
+  patternDetails: z.string().nullable().optional(),
+})
 
 // GET /api/buyer-behavior?tenantId=X
 // Devuelve los BuyerBehavior del tenant + conteos por nivel de riesgo.
@@ -50,31 +58,24 @@ export async function POST(req: NextRequest) {
   })
   if (limited) return limited
 
-  let body: any
+  let raw: unknown
   try {
-    body = await req.json()
+    raw = await req.json()
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
-  const { tenantId, phone, riskLevel, patternDetails } = body ?? {}
-  if (!tenantId || !phone || !riskLevel) {
+  const parseResult = BuyerBehaviorSchema.safeParse(raw)
+  if (!parseResult.success) {
     return NextResponse.json(
-      { error: 'tenantId, phone, riskLevel are required' },
+      { error: 'Invalid body', details: parseResult.error.flatten() },
       { status: 400 },
     )
   }
+  const { tenantId, phone, riskLevel, patternDetails } = parseResult.data
 
   const { error } = await requireTenantAccess(tenantId)
   if (error) return error
-
-  const validLevels = ['normal', 'caution', 'high_risk', 'blacklist']
-  if (!validLevels.includes(riskLevel)) {
-    return NextResponse.json(
-      { error: `riskLevel must be one of: ${validLevels.join(', ')}` },
-      { status: 400 },
-    )
-  }
 
   try {
     const { behavior, alert } = await logisticsService.upsertBuyerBehavior({

@@ -42,8 +42,8 @@ function ProcessWithdrawalButton({ id, onDone }: { id: string; onDone: () => voi
       }
       toast.success('Retiro procesado correctamente')
       onDone()
-    } catch (e: any) {
-      toast.error(e?.message || 'Error al procesar')
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Error al procesar')
     } finally {
       setBusy(false)
     }

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { requireAuth } from '@/lib/auth-helpers'
 import { rateLimit } from '@/lib/middleware/rate-limit'
 import { captureError } from '@/lib/capture-error'
@@ -6,6 +7,66 @@ import { getLogger } from '@/lib/logger'
 import { walletService, traffickerService } from '@/lib/services'
 
 const log = getLogger('api/trafficker')
+
+// ───────────────────────────────────────────────────────────────────────────
+// Body schemas (per-action discriminated union)
+// ───────────────────────────────────────────────────────────────────────────
+
+const RegisterTraffickerSchema = z.object({
+  action: z.literal('register'),
+  email: z.string().min(1),
+  name: z.string().min(1),
+  phone: z.string().nullable().optional(),
+})
+
+const CreateCampaignSchema = z.object({
+  action: z.literal('create_campaign'),
+  traffickerId: z.string().min(1),
+  tenantId: z.string().min(1),
+  name: z.string().min(1),
+  platform: z.enum(['meta', 'google', 'tiktok']),
+  budget: z.union([z.number(), z.string()]),
+  startDate: z.string().nullable().optional(),
+  endDate: z.string().nullable().optional(),
+})
+
+const RegisterSaleSchema = z.object({
+  action: z.literal('register_sale'),
+  traffickerId: z.string().min(1),
+  tenantId: z.string().min(1),
+  campaignId: z.string().min(1),
+  orderId: z.string().nullable().optional(),
+  amount: z.union([z.number(), z.string()]),
+  commission: z.union([z.number(), z.string()]),
+})
+
+const ConfirmSaleSchema = z.object({
+  action: z.literal('confirm_sale'),
+  saleId: z.string().min(1),
+})
+
+const FailSaleSchema = z.object({
+  action: z.literal('fail_sale'),
+  saleId: z.string().min(1),
+  reason: z.string().optional(),
+})
+
+const WithdrawSchema = z.object({
+  action: z.literal('withdraw'),
+  traffickerId: z.string().min(1),
+  amount: z.union([z.number(), z.string()]),
+  walletAccountId: z.string().min(1),
+  totpCode: z.string().optional(),
+})
+
+const TraffickerBodySchema = z.discriminatedUnion('action', [
+  RegisterTraffickerSchema,
+  CreateCampaignSchema,
+  RegisterSaleSchema,
+  ConfirmSaleSchema,
+  FailSaleSchema,
+  WithdrawSchema,
+])
 
 // GET /api/trafficker?traffickerId=X
 // Devuelve el perfil del trafficker + wallet balance + campaigns + sales +
@@ -89,17 +150,22 @@ export async function POST(req: NextRequest) {
   const { error } = await requireAuth()
   if (error) return error
 
-  let body: any
+  let raw: unknown
   try {
-    body = await req.json()
+    raw = await req.json()
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
-  const { action } = body ?? {}
-  if (!action) {
-    return NextResponse.json({ error: 'action is required' }, { status: 400 })
+  const parseResult = TraffickerBodySchema.safeParse(raw)
+  if (!parseResult.success) {
+    return NextResponse.json(
+      { error: 'Invalid body', details: parseResult.error.flatten() },
+      { status: 400 },
+    )
   }
+  const body = parseResult.data
+  const action = body.action
 
   try {
     switch (action) {
@@ -143,17 +209,11 @@ const COMPENSATION_RATES: Record<string, number> = {
   product_damaged: 0.25,    // 25% of commission
 }
 
-async function registerTrafficker(body: any) {
+async function registerTrafficker(body: z.infer<typeof RegisterTraffickerSchema>) {
   const { email, name, phone } = body
-  if (!email || !name) {
-    return NextResponse.json(
-      { error: 'email and name are required' },
-      { status: 400 },
-    )
-  }
   // Pre-check for duplicate email — service create would throw, but a
   // friendly 409 with the existing row is more useful.
-  const existing = await traffickerService.getTraffickerByEmail(String(email))
+  const existing = await traffickerService.getTraffickerByEmail(email)
   if (existing) {
     return NextResponse.json(
       { error: 'A trafficker with that email already exists', trafficker: existing },
@@ -161,32 +221,15 @@ async function registerTrafficker(body: any) {
     )
   }
   const trafficker = await traffickerService.createTrafficker({
-    email: String(email),
-    name: String(name),
+    email,
+    name,
     phone: phone ?? null,
   })
   return NextResponse.json({ trafficker })
 }
 
-async function createCampaign(body: any) {
-  const { traffickerId, tenantId, name, platform, budget, startDate, endDate } =
-    body
-  if (!traffickerId || !tenantId || !name || !platform || budget == null) {
-    return NextResponse.json(
-      {
-        error:
-          'traffickerId, tenantId, name, platform, budget are required',
-      },
-      { status: 400 },
-    )
-  }
-  const validPlatforms = ['meta', 'google', 'tiktok']
-  if (!validPlatforms.includes(platform)) {
-    return NextResponse.json(
-      { error: `platform must be one of: ${validPlatforms.join(', ')}` },
-      { status: 400 },
-    )
-  }
+async function createCampaign(body: z.infer<typeof CreateCampaignSchema>) {
+  const { traffickerId, tenantId, name, platform, budget, startDate, endDate } = body
   // Verify trafficker exists and is active
   const trafficker = await traffickerService.getTraffickerById(traffickerId)
   if (!trafficker) {
@@ -207,24 +250,8 @@ async function createCampaign(body: any) {
   return NextResponse.json({ campaign })
 }
 
-async function registerSale(body: any) {
-  const { traffickerId, tenantId, campaignId, orderId, amount, commission } =
-    body
-  if (
-    !traffickerId ||
-    !tenantId ||
-    !campaignId ||
-    amount == null ||
-    commission == null
-  ) {
-    return NextResponse.json(
-      {
-        error:
-          'traffickerId, tenantId, campaignId, amount, commission are required',
-      },
-      { status: 400 },
-    )
-  }
+async function registerSale(body: z.infer<typeof RegisterSaleSchema>) {
+  const { traffickerId, tenantId, campaignId, orderId, amount, commission } = body
   // Verify campaign belongs to this trafficker
   const campaign = await traffickerService.getCampaignForTrafficker(campaignId, traffickerId, tenantId)
   if (!campaign) {
@@ -244,14 +271,8 @@ async function registerSale(body: any) {
   return NextResponse.json({ sale })
 }
 
-async function confirmSale(body: any) {
+async function confirmSale(body: z.infer<typeof ConfirmSaleSchema>) {
   const { saleId } = body
-  if (!saleId) {
-    return NextResponse.json(
-      { error: 'saleId is required' },
-      { status: 400 },
-    )
-  }
   const sale = await traffickerService.getSaleWithCampaign(saleId)
   if (!sale) {
     return NextResponse.json({ error: 'Sale not found' }, { status: 404 })
@@ -271,14 +292,8 @@ async function confirmSale(body: any) {
   return NextResponse.json(result)
 }
 
-async function failSale(body: any) {
+async function failSale(body: z.infer<typeof FailSaleSchema>) {
   const { saleId, reason } = body
-  if (!saleId) {
-    return NextResponse.json(
-      { error: 'saleId is required' },
-      { status: 400 },
-    )
-  }
 
   const validReasons = Object.keys(COMPENSATION_RATES)
   const failReason = reason && validReasons.includes(reason) ? reason : 'seller_no_ship'
@@ -303,16 +318,8 @@ async function failSale(body: any) {
   return NextResponse.json(result)
 }
 
-async function withdraw(body: any) {
+async function withdraw(body: z.infer<typeof WithdrawSchema>) {
   const { traffickerId, amount, walletAccountId, totpCode } = body
-  if (!traffickerId || amount == null || !walletAccountId) {
-    return NextResponse.json(
-      {
-        error: 'traffickerId, amount, walletAccountId are required',
-      },
-      { status: 400 },
-    )
-  }
   const trafficker = await traffickerService.getTraffickerById(traffickerId)
   if (!trafficker) {
     return NextResponse.json(

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { requireAuth } from '@/lib/auth-helpers'
 import { rateLimit } from '@/lib/middleware/rate-limit'
 import { getAdPlatformAdapter } from '@/lib/adapters/ads-registry'
@@ -8,6 +9,13 @@ import { db } from '@/lib/db'
 import { adsService } from '@/lib/services'
 
 const log = getLogger('api/ads/import')
+
+const AdsImportSchema = z.object({
+  tenantId: z.string().min(1),
+  platform: z.string().min(1),
+  dateStart: z.string().min(1),
+  dateEnd: z.string().min(1),
+})
 
 // POST /api/ads/import — importa spend/impressions/clicks/conversions de una
 // plataforma de pauta (google | tiktok) para un tenant y un rango de fechas,
@@ -48,20 +56,21 @@ export async function POST(req: NextRequest) {
   const { session, error } = await requireAuth()
   if (error) return error
 
-  let body: any
+  let raw: unknown
   try {
-    body = await req.json()
+    raw = await req.json()
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
-  const { tenantId, platform, dateStart, dateEnd } = body ?? {}
-  if (!tenantId || !platform || !dateStart || !dateEnd) {
+  const parseResult = AdsImportSchema.safeParse(raw)
+  if (!parseResult.success) {
     return NextResponse.json(
-      { error: 'tenantId, platform, dateStart, dateEnd are required' },
+      { error: 'Invalid body', details: parseResult.error.flatten() },
       { status: 400 },
     )
   }
+  const { tenantId, platform, dateStart, dateEnd } = parseResult.data
 
   const adapter = getAdPlatformAdapter(String(platform), String(tenantId))
   if (!adapter) {

@@ -38,11 +38,13 @@ type ConvListItem = {
 
 type ConvDetail = {
   id: string; status: string; priority: string
-  customer: { id: string; name: string; phone?: string; country?: string; city?: string; address?: string; tags?: string }
+  customer: { id: string; name: string; phone?: string; country?: string; city?: string; address?: string; tags?: string; perfilDetectado?: string }
   channel: { id: string; type: string; displayName: string; paymentStrategy: string; prepayDiscountPct?: number; codFee?: number; requirePrepayMin?: number }
   assignee: { id: string; name: string } | null
   messages: { id: string; direction: string; body: string; type: string; mediaUrl?: string | null; createdAt: string; aiSuggested?: boolean }[]
   orders: { id: string; number: string; status: string; paymentMode: string; total: number; currency: string; items: { name: string; quantity: number }[] }[]
+  perfilConversacion?: string
+  sourceCampaign?: string
 }
 
 const channelMeta = (type: string) => {
@@ -172,7 +174,7 @@ export function MessengerView() {
       // Use the 10-agent system if agentName is specified, else fallback to generic ai-reply
       const endpoint = agentName && agentName !== 'generic' ? `/api/agents/${agentName}` : '/api/ai-reply'
       const body = agentName && agentName !== 'generic'
-        ? { tenantId, conversationId: activeId, customerId: active?.customer.id, perfil: (active as any)?.perfilConversacion || (active?.customer as any)?.perfilDetectado }
+        ? { tenantId, conversationId: activeId, customerId: active?.customer.id, perfil: active?.perfilConversacion || active?.customer?.perfilDetectado }
         : { conversationId: activeId }
       const res = await fetch(endpoint, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -604,7 +606,7 @@ export function MessengerView() {
               <div>
                 <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Atribución</div>
                 <div className="space-y-1.5 text-xs">
-                  <div className="flex justify-between"><span className="text-muted-foreground">Campaña</span><span className="font-medium text-right">{(active as any).sourceCampaign || 'Orgánico'}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Campaña</span><span className="font-medium text-right">{active.sourceCampaign || 'Orgánico'}</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">Canal</span><span className="font-medium">{active.channel.displayName}</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">Estrategia pago</span>
                     <Badge variant="outline" className="text-[10px] h-4">{active.channel.paymentStrategy}</Badge>

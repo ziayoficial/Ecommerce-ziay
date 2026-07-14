@@ -38,29 +38,53 @@ export const monetizationService = {
       const tenant = await db.tenant.findUnique({ where: { id: tenantId } })
       if (!tenant) return null
 
-      const orders = await db.order.findMany({
-        where: { tenantId, origen: 'agente_whatsapp' },
-        include: { commissionEntries: true },
-      })
+      const periodo = new Date().toISOString().slice(0, 7)
+      const orderWhere = { tenantId, origen: 'agente_whatsapp' as const }
 
-      const gmv = orders.reduce((s, o) => s + o.total, 0)
-      const gmvPaid = orders
-        .filter((o) => o.paymentStatus === 'paid')
-        .reduce((s, o) => s + o.total, 0)
+      // AUDIT-GAP-4-DB N+1 #4/#5: previously loaded ALL tenant orders into memory
+      // and JS-reduced on `o.total` + `commissionEntries[].reconocidaMonto`.
+      // Push all sums/counts/groupBy to the DB — 4 parallel aggregate queries + 1 invoice lookup.
+      const [gmvAgg, gmvPaidAgg, reconocidaAgg, statusGroups, invoice] = await Promise.all([
+        // gmv = sum(o.total) over all agente_whatsapp orders
+        db.order.aggregate({
+          where: orderWhere,
+          _sum: { total: true },
+          _count: true,
+        }),
+        // gmvPaid = sum(o.total) where paymentStatus='paid'
+        db.order.aggregate({
+          where: { ...orderWhere, paymentStatus: 'paid' },
+          _sum: { total: true },
+        }),
+        // reconocida = sum(commissionEntry.reconocidaMonto) for entries on
+        // agente_whatsapp orders (relation filter preserves the original scope).
+        db.commissionEntry.aggregate({
+          where: { tenantId, order: { origen: 'agente_whatsapp' } },
+          _sum: { reconocidaMonto: true },
+        }),
+        // embudo counts by status (single groupBy replaces 4 array.filter().length)
+        db.order.groupBy({
+          by: ['status'],
+          where: orderWhere,
+          _count: { _all: true },
+        }),
+        db.invoice.findFirst({
+          where: { tenantId, periodo },
+          orderBy: { createdAt: 'desc' },
+        }),
+      ])
+
+      const gmv = gmvAgg._sum.total ?? 0
+      const ordenes = gmvAgg._count
+      const gmvPaid = gmvPaidAgg._sum.total ?? 0
+      const reconocida = reconocidaAgg._sum.reconocidaMonto ?? 0
 
       const tramo = getTramo(gmv)
       const comisionCalculada = (gmv * tramo.pct) / 100
-      const reconocida = orders.reduce(
-        (s, o) => s + o.commissionEntries.reduce((ss, ce) => ss + ce.reconocidaMonto, 0),
-        0,
-      )
       const pendiente = comisionCalculada - reconocida
 
-      const periodo = new Date().toISOString().slice(0, 7)
-      const invoice = await db.invoice.findFirst({
-        where: { tenantId, periodo },
-        orderBy: { createdAt: 'desc' },
-      })
+      const countByStatus = (status: string) =>
+        statusGroups.find((g) => g.status === status)?._count._all ?? 0
 
       return {
         tenant: {
@@ -71,7 +95,7 @@ export const monetizationService = {
         periodo,
         gmv: Math.round(gmv),
         gmvPaid: Math.round(gmvPaid),
-        ordenes: orders.length,
+        ordenes,
         tramo: tramo.label,
         comisionPct: tramo.pct,
         comisionCalculada: Math.round(comisionCalculada),
@@ -88,10 +112,12 @@ export const monetizationService = {
             }
           : null,
         embudo: {
-          pendiente_confirmacion: orders.filter((o) => o.status === 'pending_confirmation').length,
-          datos_completados: orders.filter((o) => o.status === 'datos_completados').length,
-          despachado: orders.filter((o) => o.status === 'despachado').length,
-          intento_cancelacion: orders.filter((o) => o.status === 'intent_cancelacion').length,
+          pendiente_confirmacion: countByStatus('pending_confirmation'),
+          datos_completados: countByStatus('datos_completados'),
+          despachado: countByStatus('despachado'),
+          // Note: status value is 'intent_cancelacion' (no "o"); object key keeps
+          // the original 'intento_cancelacion' name for API-shape compatibility.
+          intento_cancelacion: countByStatus('intent_cancelacion'),
         },
       }
     } catch (err) {

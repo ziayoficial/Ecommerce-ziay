@@ -5059,3 +5059,297 @@ Stage Summary:
 - Lint + tsc + 180 tests: todo verde
 - Build de producción compila exitosamente
 - Verificación visual con Agent Browser bloqueada por OOM del sandbox (limitación del entorno, no del código)
+
+---
+Task ID: FIX-PEND-DB-QUEUES-001
+Agent: senior-backend-engineer
+Task: @@index on 6 HIGH models + 3 pixel URLs env-overridable
+
+Work Log:
+
+- Read worklog tail (last task was UI-AUDIT-VLM-001, dashboard VLM audit + 30 visual fixes). Confirmed scope: (1) prisma schema @@index additions + migration.sql append, (2) queue.ts hardcoded pixel/CAPI URLs. No src/components/, no tests, no migration file edits except append to `2_core_indexes/migration.sql`.
+
+**Part 1 — schema.prisma @@index additions (6 HIGH-priority models):**
+
+Read `prisma/schema.prisma` to verify field names on each of the 6 models (the audit had noted field-naming drift on Shipment.estado/transportadoraCanonica/numeroGuia, so I wanted to be sure the 6 HIGH models didn't have similar drift — they don't):
+
+- `User` (lines 99-118): has `tenantId String?` (optional, platform-level users have no tenant), `email String @unique`. No `traffickerId` (that's on `TraffickerCampaign`).
+- `Channel` (lines 123-157): has `tenantId String`, `type String`, `active Boolean @default(true)`.
+- `Customer` (lines 162-185): has `tenantId String`, `email String?` (nullable), `phone String?` (nullable). The task said "if exists" for both — both exist.
+- `Product` (lines 253-281): has `tenantId String`, `sku String` — but `sku` is part of composite `@@unique([tenantId, sku])`, NOT a standalone `@unique`. The task hint ("likely already @unique, check first") was wrong — `sku` alone is not unique. Decision: skip `@@index([sku])` because the composite unique already covers (tenantId, sku) AND (tenantId) prefix queries; cross-tenant sku-only lookups don't happen in the codebase (verified by grep on `where: { sku:` — all callsites pass `tenantId_sku:` composite).
+- `Campaign` (lines 477-494): has `tenantId String`, `status String`. `traffickerId` does NOT exist on Campaign (it lives on `TraffickerCampaign` — verified lines 940-957). Task said "if exists" — skip.
+- `Ad` (lines 496-512): has `campaignId String`, `status String`, `externalId String @unique`. NO `tenantId` field (Ad is tenant-scoped via `Campaign.tenantId`). The audit's framing "they have @@unique but no @@index on tenantId" doesn't strictly apply to Ad — Ad has `@unique` on `externalId` but no `tenantId` at all. Decision: skip `@@index([tenantId])` for Ad (field doesn't exist), but add the 3 indexes the task explicitly requested (campaignId, status, externalId). `@@index([externalId])` is redundant with `@unique` but follows the existing `Trafficker.email` convention (verified at schema line 937: `Trafficker.email String @unique` AND `@@index([email])`).
+
+Added 14 `@@index` entries across the 6 models:
+- User: `@@index([tenantId])`, `@@index([email])`
+- Channel: `@@index([tenantId])`, `@@index([type])`, `@@index([active])`
+- Customer: `@@index([tenantId])`, `@@index([email])`, `@@index([phone])`
+- Product: `@@index([tenantId])`
+- Campaign: `@@index([tenantId])`, `@@index([status])`
+- Ad: `@@index([campaignId])`, `@@index([status])`, `@@index([externalId])`
+
+Each model got a `// FIX-PEND-DB-QUEUES-001 — partial-index gap (AUDIT-GAP-4-DB).` comment block explaining the hot paths and any skip rationale.
+
+**Part 1b — migration.sql append (`prisma/migrations/2_core_indexes/migration.sql`):**
+
+Appended section "12-17. HIGH-PRIORITY PARTIAL-INDEX GAP (AUDIT-GAP-4-DB · FIX-PEND-DB-QUEUES-001)" with 14 idempotent `CREATE INDEX IF NOT EXISTS` statements mirroring the schema additions:
+- `User_tenantId_idx`, `User_email_idx`
+- `Channel_tenantId_idx`, `Channel_type_idx`, `Channel_active_idx`
+- `Customer_tenantId_idx`, `Customer_email_idx`, `Customer_phone_idx`
+- `Product_tenantId_idx`
+- `Campaign_tenantId_idx`, `Campaign_status_idx`
+- `Ad_campaignId_idx`, `Ad_status_idx`, `Ad_externalId_idx`
+
+Index names follow the existing convention in this file (e.g. `Conversation_tenantId_idx`, `Order_customerId_idx`) — `<Model>_<field>_idx` for single-column, `<Model>_<field1>_<field2>_idx` for composite. Did NOT touch sections 1-11 (only appended below section 11 ATTRIBUTION).
+
+**Part 1c — `bun run db:push` applied:**
+
+`prisma db push` ran successfully in 41ms against the SQLite dev DB (`file:/home/z/my-project/db/custom.db`). Verified all 14 new indexes exist in SQLite via `SELECT name FROM sqlite_master WHERE type='index' AND name LIKE '<Model>_%'` — all 14 present:
+- `User_email_idx`, `User_tenantId_idx` (+ existing `User_email_key` from `@unique`)
+- `Channel_active_idx`, `Channel_tenantId_idx`, `Channel_type_idx`
+- `Customer_email_idx`, `Customer_phone_idx`, `Customer_tenantId_idx`
+- `Product_tenantId_idx` (+ existing `Product_tenantId_sku_key` from `@@unique`)
+- `Campaign_status_idx`, `Campaign_tenantId_idx`
+- `Ad_campaignId_idx`, `Ad_status_idx`, `Ad_externalId_idx` (+ existing `Ad_externalId_key` from `@unique`)
+
+**Part 2 — queue.ts hardcoded pixel/CAPI URLs (3 fixes):**
+
+Read `src/lib/queue.ts` (494 lines). The 3 hardcoded URLs were at lines 417, 447, 474 (task hint said ~396/426/453 — close, off by ~20 lines due to the header comment block). All 3 are in the CAPI firing helpers (`fireMeta`, `fireGoogle`, `fireTikTok`) called from the `capi-fire` job handler.
+
+Replaced each with `process.env.<VAR> ?? '<default>'`:
+- Line 417 → `process.env.FB_PIXEL_API_BASE ?? 'https://graph.facebook.com/v19.0'` + template literal `${fbBaseUrl}/${pixel.pixelId}/events?access_token=...`
+- Line 447 → `process.env.GA4_MP_API_BASE ?? 'https://www.google-analytics.com'` + `${ga4BaseUrl}/mp/collect?measurement_id=...`
+- Line 474 → `process.env.TIKTOK_EVENTS_API_BASE ?? 'https://business-api.tiktok.com'` + `${tiktokBaseUrl}/open_api/v1.3/event/track/`
+
+**Note on FB API version:** the task spec's example showed `v18.0` and the .env.example template value is `v18.0`, but the actual code uses `v19.0`. I used `v19.0` as the code default to preserve existing behavior (changing API versions could trigger deprecation warnings or removed fields). The .env.example follows the task spec literally with `v18.0` — if a developer copies .env.example → .env, they'll explicitly opt into v18.0 (also a valid Graph API version). The 0.0.0.0 default in code is v19.0; the .env.example value is v18.0; both work; documented here for the reviewer.
+
+**Part 2b — .env.example creation:**
+
+`.env.example` did NOT exist (only `.env` with `DATABASE_URL=file:/home/z/my-project/db/custom.db`). Created `.env.example` with:
+- A header comment explaining it's a template + that `DATABASE_URL` lives in `.env` already (referenced by `prisma/schema.prisma` header).
+- The 3 new env vars verbatim from the task spec (with the `# Pixel / CAPI endpoints (override for proxy/sandbox)` comment header):
+  ```
+  FB_PIXEL_API_BASE=https://graph.facebook.com/v18.0
+  GA4_MP_API_BASE=https://www.google-analytics.com
+  TIKTOK_EVENTS_API_BASE=https://business-api.tiktok.com
+  ```
+
+Did NOT add `DATABASE_URL` to `.env.example` because the task spec said "Add new env vars" (referring to the 3 pixel URLs) — adding DATABASE_URL would be out of scope. The header comment instead points developers to the `prisma/schema.prisma` header for the DATABASE_URL DSN formats.
+
+**Verification:**
+- `cd /home/z/my-project && bunx prisma validate` → "The schema at prisma/schema.prisma is valid 🚀" ✅
+- `cd /home/z/my-project && bun run db:push` → "🚀 Your database is now in sync with your Prisma schema. Done in 41ms" ✅ (Prisma Client regenerated in 659ms)
+- `cd /home/z/my-project && bun run lint` → exit 0 (clean, no output) ✅
+- `cd /home/z/my-project && npx tsc --noEmit` → exit 0 (clean, no output) ✅
+- `cd /home/z/my-project && bunx vitest run` → 10 test files / 180 tests passed (3.03s) ✅
+- Spot-checked that no hardcoded pixel/CAPI URLs remain in queue.ts: `rg 'https?://' src/lib/queue.ts` returns only the 3 `?? 'https://...'` fallback defaults (expected — those are the env-var defaults, not hardcoded call sites). ✅
+- Spot-checked all 14 new indexes exist in SQLite via Prisma `$queryRawUnsafe` against `sqlite_master` (see Part 1c). ✅
+
+**Scope respected:**
+- No files under `src/components/` touched: ✅ (only `src/lib/queue.ts`)
+- No test files touched: ✅ (vitest ran the existing 180 tests unchanged)
+- No existing migration file edits except append to `2_core_indexes/migration.sql`: ✅ (appended sections 12-17 below existing section 11 ATTRIBUTION; did NOT modify sections 1-11)
+- `.env.example` was created (didn't exist) rather than appended to — documented in work log because the task spec assumed it existed.
+
+Stage Summary:
+
+- **Files modified (4):**
+  - `prisma/schema.prisma` — added 14 `@@index` entries across 6 HIGH-priority models (User, Channel, Customer, Product, Campaign, Ad). Each model got a `// FIX-PEND-DB-QUEUES-001` comment block explaining hot paths and skip rationale (e.g. Campaign has no `traffickerId` field, Ad has no `tenantId` field, Product's `sku` is covered by the composite `@@unique([tenantId, sku])`).
+  - `prisma/migrations/2_core_indexes/migration.sql` — appended sections 12-17 with 14 idempotent `CREATE INDEX IF NOT EXISTS` statements mirroring the schema additions. Index names follow the existing file convention (`<Model>_<field>_idx`).
+  - `src/lib/queue.ts` — replaced 3 hardcoded pixel/CAPI URLs (lines 417, 447, 474) with `process.env.<VAR> ?? '<default>'` pattern. Defaults preserve current behavior (FB v19.0, GA4 `https://www.google-analytics.com`, TikTok `https://business-api.tiktok.com`).
+  - `.env.example` — created (file didn't exist) with the 3 new env vars verbatim from the task spec + a header comment pointing to `prisma/schema.prisma` for `DATABASE_URL` formats.
+- **Indexes added (14):**
+  - User: `User_tenantId_idx`, `User_email_idx`
+  - Channel: `Channel_tenantId_idx`, `Channel_type_idx`, `Channel_active_idx`
+  - Customer: `Customer_tenantId_idx`, `Customer_email_idx`, `Customer_phone_idx`
+  - Product: `Product_tenantId_idx`
+  - Campaign: `Campaign_tenantId_idx`, `Campaign_status_idx`
+  - Ad: `Ad_campaignId_idx`, `Ad_status_idx`, `Ad_externalId_idx`
+- **Verification:** `prisma validate` ✅ · `db:push` ✅ (41ms, Prisma Client regenerated) · `bun run lint` ✅ exit 0 · `npx tsc --noEmit` ✅ exit 0 · `bunx vitest run` ✅ 180/180 tests pass · all 14 indexes confirmed present in SQLite via `sqlite_master` query.
+- **Notes for reviewer:**
+  - FB API version: code default is `v19.0` (preserves current behavior); `.env.example` template value is `v18.0` per task spec. Both are valid Graph API versions. The discrepancy is intentional — code preserves behavior, .env.example follows the task spec literally.
+  - `Ad` model has no `tenantId` field — task said "Add `@@index([tenantId])` to each" but Ad is tenant-scoped via `Campaign.campaignId`. Skipped tenantId index for Ad, added the 3 explicitly-requested indexes (campaignId, status, externalId).
+  - `Product.sku` is part of composite `@@unique([tenantId, sku])` — task hint ("likely already @unique, check first") was incorrect; sku is NOT standalone `@unique`. Skipped `@@index([sku])` because the composite unique already covers (tenantId, sku) prefix queries and cross-tenant sku-only lookups don't happen in the codebase.
+  - `Campaign.traffickerId` does NOT exist (lives on `TraffickerCampaign`) — skipped per task spec ("if exists").
+  - `.env.example` did not exist prior to this task — created it (rather than appended) because the task spec assumed the file already existed. The file is now usable as a template for the 3 pixel/CAPI env vars; `DATABASE_URL` is intentionally omitted (it lives in `.env` and is documented in `prisma/schema.prisma` header).
+
+---
+Task ID: FIX-PEND-BACKEND-001
+Agent: senior-backend-architect
+Task: integrations-credentials truncation + 4 adapter $transaction + monetization N+1 + commission upsert
+
+Work Log:
+- Read worklog tail (lines 4911–5061) for FIX-UI-A/B/C-001, UI-AUDIT-VLM-001,
+  FIX-1-DB-001, and AUDIT-GAP-4-DB context. Confirmed FIX-1-DB-001 added
+  `@@unique([orderId])` on `CommissionEntry` and listed 4 follow-up items —
+  this task closes 4 of them (upsert, getGMV aggregate, getKPIs aggregate,
+  4-adapter $transaction).
+
+### Item 1 — integrations-credentials.tsx truncation (P1)
+- `src/components/dashboard/integrations/integrations-credentials.tsx`:
+  - Grepped `line-clamp-2` and `max-w-56` — found exactly 2 matches (lines 333, 385).
+  - Line 333: credential description `<div className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2">` → `line-clamp-3` (lets "Set XAI_API_KEY to enable" type help text wrap to 3 lines instead of clipping at 2).
+  - Line 385: webhook URL helpText `<p className="text-xs max-w-56">` → `<p className="break-all font-mono text-xs max-w-full">` (long webhook URLs no longer clip; `break-all` ensures even long path segments wrap, `font-mono` makes the URL visually distinct, `max-w-full` removes the 14rem cap so the tooltip can use its full width).
+
+### Item 2 — 4 adapter `crearPedido` wrapped in `$transaction` (P0, AUDIT-GAP-4-DB §3 #1–#4)
+Read each adapter to find all `crearPedido` variants. 3 of the 4 adapters have a
+2-method split (`crearPedido` for live HTTP + `localCrearPedido` fallback);
+supabase-catalog has only the local variant (crearPedido delegates to it).
+Wrapped all 5 write-blocks in `db.$transaction(async (tx) => { ... })`:
+
+- `src/lib/adapters/woocommerce.ts` (2 methods wrapped):
+  - `crearPedido` (live HTTP): the WC `POST /orders` HTTP call stays OUTSIDE
+    the tx (external side effect — not rollback-able); only the 3 DB writes
+    (`order.create` + `orderItem.createMany` + `orderEvent.create`) are
+    wrapped in `db.$transaction`. `products` was already fetched before the
+    HTTP call (line 163) — reused inside the tx via closure.
+  - `localCrearPedido` (fallback): moved the `product.findMany` read OUT of
+    the tx (read-only, no rollback needed) and wrapped the 3 writes in tx.
+- `src/lib/adapters/shopify.ts` (2 methods wrapped): same pattern as woocommerce.
+- `src/lib/adapters/supabase-catalog.ts` (1 method — `localCrearPedido`, which
+  `crearPedido` delegates to): wrapped the 3 writes; `product.findMany` moved
+  out of tx.
+- `src/lib/adapters/whatsapp-catalog.ts` (1 method — `crearPedido`, no HTTP,
+  no local fallback split): wrapped the 3 writes; `product.findMany` is now
+  conditional (`datos.items.length > 0 ? db.product.findMany(...) : []`) and
+  moved out of the tx.
+
+All 4 adapters already imported `db` from `@/lib/db` — no import changes
+needed. Response shapes (`{ order_id, estado, url_seguimiento? }`) preserved
+verbatim.
+
+Atomicity guarantee: if `orderItem.createMany` or `orderEvent.create` throws
+after `order.create` succeeds, the tx rolls back the `order.create` too —
+no more orphan orders without items/event.
+
+### Item 3 — monetization + overview N+1 (P1, AUDIT-GAP-4-DB #4/#5/#6)
+
+- `src/lib/services/monetization.service.ts` `getGMV`:
+  - BEFORE: `db.order.findMany({ where: { tenantId, origen: 'agente_whatsapp' }, include: { commissionEntries: true } })` — loaded N orders × M commission entries into memory, then JS-reduced `o.total`, `paymentStatus==='paid'`, `commissionEntries[].reconocidaMonto`, and 4× `array.filter().length` for embudo.
+  - AFTER: 5 parallel DB queries via `Promise.all`:
+    1. `db.order.aggregate({ where: orderWhere, _sum: { total: true }, _count: true })` — gmv + ordenes count.
+    2. `db.order.aggregate({ where: { ...orderWhere, paymentStatus: 'paid' }, _sum: { total: true } })` — gmvPaid.
+    3. `db.commissionEntry.aggregate({ where: { tenantId, order: { origen: 'agente_whatsapp' } }, _sum: { reconocidaMonto: true } })` — reconocida (relation filter preserves the original scope: only commission entries on `agente_whatsapp` orders).
+    4. `db.order.groupBy({ by: ['status'], where: orderWhere, _count: { _all: true } })` — single groupBy replaces 4 `array.filter().length` calls.
+    5. `db.invoice.findFirst(...)` — unchanged.
+  - Preserved the original `intento_cancelacion` key ↔ `intent_cancelacion` status value mismatch (object key has the "o", status string doesn't — kept as-is for API-shape compat).
+  - Response shape unchanged.
+
+- `src/lib/services/overview.service.ts` `getKPIs`:
+  - BEFORE: `db.order.findMany({ where: orderWhere, include: { items: true, sourceAd: true } })` — loaded N orders × M items + N sourceAd JOINs into memory; `sourceAd` was included but never used (dead include). Then JS-reduced `o.total` (revenue), `paidOrders`, `o.items[].cost * quantity` (cogs), per-channel `array.filter().reduce()`, per-day series, plus 3 adSpend reduces.
+  - AFTER: 11 parallel DB queries via `Promise.all`:
+    1. `db.order.aggregate({ where: orderWhere, _sum: { total: true } })` — revenue.
+    2. `db.order.aggregate({ where: { ...orderWhere, paymentStatus: 'paid' }, _sum: { total: true } })` — revenuePaid.
+    3. `db.order.count({ where: orderWhere })` — ordersCount.
+    4. `db.order.groupBy({ by: ['paymentMode'], where: orderWhere, _count: { _all: true } })` — cod/advance counts (replaces 2 `array.filter().length`).
+    5. `db.order.groupBy({ by: ['channelId'], where: orderWhere, _sum: { total: true }, _count: { _all: true } })` — per-channel revenue + order count (replaces the `channels.map(ch => orders.filter(...).reduce(...))` loop).
+    6. `db.channel.findMany({ where: tenantFilter })` — channel metadata (unchanged).
+    7. `db.adSpend.aggregate({ where: adSpendWhere, _sum: { spend: true, impressions: true, clicks: true } })` — replaces 3 adSpend JS-reduces.
+    8. `db.conversation.count(...)` — unchanged.
+    9. `db.orderItem.findMany({ where: { order: orderWhere }, select: { cost: true, quantity: true } })` — cogs: Prisma `aggregate` can't express `SUM(cost * quantity)` (no expression sums), so we load a minimal 2-field payload (no JOINs to Product/Order) and JS-reduce. Original loaded orders WITH items JOINed — now items are a flat 2-column SELECT.
+    10. `db.order.findMany({ where: orderWhere, select: { total: true, createdAt: true } })` — per-day series orders (light 2-field select, no JOINs).
+    11. `db.adSpend.findMany({ where: adSpendWhere, select: { spend: true, date: true } })` — per-day series adSpend (light 2-field select).
+  - Dropped the dead `include: { sourceAd: true }`.
+  - All KPI math (grossProfit, netProfit, roi, roas, cpa, aov, advanceRate, ctr) preserved.
+  - `channelSplit` array shape and order preserved (mapped from `channels`, with `grp?._count._all ?? 0` and `grp?._sum.total ?? 0` for missing channels).
+  - Per-day series shape (`{ date, revenue, spend, orders }[]`) preserved.
+
+### Item 4 — commission route true `upsert` (P2, FIX-1-DB-001 next-action #1)
+- `src/app/api/monetization/commission/route.ts` POST handler:
+  - BEFORE: `findFirst({ where: { orderId } })` → if existing, `update({ where: { id: existing.id }, data: { reconocidaPct, reconocidaMonto, etapaReconocimiento, reconocidaAt } })`; else `create({ data: { tenantId, orderId, gmv, comisionPct, comisionTotal, reconocidaPct, reconocidaMonto, etapaReconocimiento, reconocidaAt } })`. Race: 2 concurrent requests could both pass `findFirst==null` and both `create`, leaving duplicate entries per order (would've thrown a unique constraint error after FIX-1-DB-001 added `@@unique([orderId])`, but the user-facing error would've been a 500).
+  - AFTER: `db.commissionEntry.upsert({ where: { orderId }, update: {...}, create: {...} })` — atomic, race-free.
+  - Preserved the EXACT original behavior: on UPDATE, only `reconocidaPct`/`reconocidaMonto`/`etapaReconocimiento`/`reconocidaAt` are touched — `gmv`/`comisionPct`/`comisionTotal` stay frozen at the values captured at first create (matches the original update path). On CREATE, the full snapshot is persisted.
+  - Response shape `{ entry }` unchanged.
+
+### Verification
+- `cd /home/z/my-project && bun run lint` → exit 0 (clean, no errors).
+- `cd /home/z/my-project && npx tsc --noEmit` → exit 0 (clean, no errors).
+- `cd /home/z/my-project && bunx vitest run` → 180/180 tests pass (10 test files). No regressions.
+
+### Scope respected
+- Only touched: integrations-credentials.tsx (1 file in src/components), 4 adapter files, 2 service files, 1 API route — total 8 source files. No other src/components files touched. No test files touched. No prisma/schema.prisma changes.
+- All API response shapes preserved.
+- All `crearPedido` response shapes (`{ order_id, estado, url_seguimiento? }`) preserved.
+- The `getGMV` / `getKPIs` payload shapes (keys + numeric types) preserved.
+- The commission POST `{ entry }` shape preserved (and now race-free).
+
+Stage Summary:
+- **Files modified (8 source files):**
+  - `src/components/dashboard/integrations/integrations-credentials.tsx` — 2 truncation fixes: `line-clamp-2` → `line-clamp-3` on credential description (line 333); `max-w-56` → `break-all font-mono text-xs max-w-full` on webhook URL helpText (line 385).
+  - `src/lib/adapters/woocommerce.ts` — wrapped `crearPedido` (live HTTP) and `localCrearPedido` (fallback) 3-write sequences in `db.$transaction`. HTTP call stays outside tx.
+  - `src/lib/adapters/shopify.ts` — same 2-method wrap as woocommerce.
+  - `src/lib/adapters/supabase-catalog.ts` — wrapped `localCrearPedido` (the only write-path; `crearPedido` delegates to it).
+  - `src/lib/adapters/whatsapp-catalog.ts` — wrapped `crearPedido` (single write-path, no HTTP, no fallback split).
+  - `src/lib/services/monetization.service.ts` — `getGMV` rewritten: `findMany + include + JS-reduce` → 5 parallel `aggregate`/`groupBy`/`findFirst` queries. Same response shape.
+  - `src/lib/services/overview.service.ts` — `getKPIs` rewritten: `findMany + include(items, sourceAd) + JS-reduce` → 11 parallel `aggregate`/`count`/`groupBy`/light-`findMany` queries. Dropped dead `sourceAd` include. Same response shape.
+  - `src/app/api/monetization/commission/route.ts` — POST `findFirst + update/create` → true `upsert({ where: { orderId } })`. Race closed.
+- **Verification:** `bun run lint` → exit 0; `npx tsc --noEmit` → exit 0; `bunx vitest run` → 180/180 pass.
+- **Atomicity/N+1 risks closed (per AUDIT-GAP-4-DB §3 #1–#4 and N+1 #4/#5/#6, and FIX-1-DB-001 next-action #1):**
+  - §3 #1–#4 (adapter crearPedido atomicity): 4 adapters × 5 wrap-sites all use `db.$transaction` now — no more orphan orders without items/event.
+  - N+1 #4/#5 (getGMV in-memory reduce): replaced with `aggregate` + `groupBy`.
+  - N+1 #6 (getKPIs in-memory reduce): replaced with `aggregate` + `groupBy` + light `findMany` selects (cogs still JS-reduced because Prisma can't `SUM(cost*quantity)`, but on a minimal 2-column payload).
+  - FIX-1-DB-001 next-action #1 (commission upsert race): true `upsert` on `orderId @unique` replaces `findFirst + update/create`.
+
+---
+Task ID: FIX-PEND-TYPES-001
+Agent: senior-typescript-engineer
+Task: Eliminate 40 remaining any types (14 dashboard + 26 API routes via Zod)
+
+Work Log:
+- Read worklog tail (lines 4691–4779) for context — prior FIX-4-CODEQUALITY-001 left 40 `any` types: 14 in `src/components/dashboard/**` (frontend scope) + 26 `let body: any` / `body: any` in `src/app/api/**` (Zod migration). Pre-flight baseline: `rg ": any\b|as any\b" src/ --type ts | wc -l` → **40**. `zod` already installed (`"zod": "^4.0.2"`).
+- **Part A — Dashboard `any` cleanup (14 → 0):**
+  - `src/components/dashboard/wallet/index.tsx` (5): 5× `catch (e: any) { toast.error(e?.message || ...) }` → `catch (e: unknown) { toast.error(e instanceof Error ? e.message : '...') }`. Same pattern for `setErrMessage(e?.message || 'Failed to load wallet')`. Files: load(), openTwoFactor(), verifyTwoFactor(), submitWithdrawal(), submitAccount().
+  - `src/components/dashboard/novedades/novedades-dialogs.tsx` (2): 2× `catch (e: any)` (CreateCaseDialog + CreateRedeliveryDialog submit handlers) → `catch (e: unknown)` with `e instanceof Error ? e.message : '...'` fallback.
+  - `src/components/dashboard/novedades/novedades-detail.tsx` (2): `patch = async (body: any, successMsg)` → `patch = async (body: Record<string, unknown>, successMsg)` (callers pass inline object literals, all valid as `Record<string, unknown>`). Plus `catch (e: any)` → `catch (e: unknown)`.
+  - `src/components/dashboard/novedades/novedades-redelivery.tsx` (2): same pattern as novedades-detail — `patch = async (body: any, msg)` → `Record<string, unknown>` + `catch (e: any)` → `catch (e: unknown)`.
+  - `src/components/dashboard/messenger-view.tsx` (2): two `(active as any)?.perfilConversacion || (active?.customer as any)?.perfilDetectado` and `(active as any).sourceCampaign` casts. Root cause: `ConvDetail` type was missing `perfilConversacion`, `sourceCampaign`, and `customer.perfilDetectado` fields (the API returns them but the local type didn't declare them). Fixed by extending the `ConvDetail` interface with `perfilConversacion?: string`, `sourceCampaign?: string`, and `customer.perfilDetectado?: string` — now the casts are unnecessary and the `as any` is gone.
+  - `src/components/dashboard/wallet/wallet-withdrawals.tsx` (1): `catch (e: any)` in `ProcessWithdrawalButton.handle()` → `catch (e: unknown)`.
+- **Part B — API routes `body: any` → Zod (26 → 0):**
+  - Confirmed `zod` already in `package.json` (`^4.0.2`) — no install needed.
+  - Established a consistent migration pattern:
+    1. `let body: any = await req.json()` → `let raw: unknown = await req.json()` (keep try/catch for `Invalid JSON body` 400).
+    2. `const parseResult = SomeSchema.safeParse(raw)` → on failure return 400 with `{ error: 'Invalid body', details: parseResult.error.flatten() }`.
+    3. `const body = parseResult.data` (typed, no `any`).
+    4. For multi-action routes: `z.discriminatedUnion('action', [...])` with per-action inferred types for handler function signatures (`body: z.infer<typeof SomeSchema>`).
+  - **Single-schema routes (7 files, 7 `body: any`):**
+    - `src/app/api/ads/import/route.ts` — `AdsImportSchema` `{ tenantId, platform, dateStart, dateEnd }`.
+    - `src/app/api/buyer-behavior/route.ts` — `BuyerBehaviorSchema` `{ tenantId, phone, riskLevel: enum, patternDetails? }` (replaced manual `validLevels` array check with `z.enum`).
+    - `src/app/api/conversions/route.ts` — `FireSchema` `{ tenantId, eventType, value?, currency? }` (replaced the `type FirePayload` manual declaration with `z.infer<typeof FireSchema>`).
+    - `src/app/api/guide-movements/route.ts` — `GuideMovementSchema` `{ tenantId, guideNumber, eventType: enum, ... }` (replaced manual `validTypes` array check with `z.enum`).
+    - `src/app/api/payments/create-link/route.ts` — `CreateLinkSchema` `{ tenantId, orderId, gateway, amount: number|string, currency, description? }`.
+    - `src/app/api/product-enrichment/route.ts` — `EnrichSchema` `{ tenantId, sku }`.
+    - `src/app/api/novedades/[id]/route.ts` — `CaseUpdateSchema` (`.strict()` to reject unknown fields) `{ status?, priority?, assignedTo?, resolution?, guideNumber?, carrierName?, description? }`. Replaced the manual `allowed: Record<string, string>` whitelist-and-rekey map with direct field iteration over the validated body (Zod strict + same key names means no aliasing needed).
+  - **Multi-action discriminated-union routes (5 files, 19 `body: any`):**
+    - `src/app/api/trafficker/route.ts` (7): `TraffickerBodySchema = discriminatedUnion('action', [Register, CreateCampaign, RegisterSale, ConfirmSale, FailSale, Withdraw])`. Each per-action handler refactored from `(body: any)` → `(body: z.infer<typeof XSchema>)`. Removed redundant manual validations (e.g. `validPlatforms.includes(platform)` → `z.enum(['meta', 'google', 'tiktok'])`, `!email || !name` → `z.string().min(1)`).
+    - `src/app/api/remarketing/route.ts` (5): `PostBodySchema = discriminatedUnion('action', [CreateCampaign, Schedule, AutoGenerate])` for POST, `PatchBodySchema = discriminatedUnion('action', [ToggleActive, MarkMessage])` for PATCH. The PATCH handler's two-branch dispatch (`toggle_active` + `mark_message`) now relies on TS narrowing via the discriminated union — after the `toggle_active` branch returns, TS narrows `body` to `MarkMessageSchema` so `body.messageId` / `body.status` are typed without a cast.
+    - `src/app/api/novedades/route.ts` (2): `CreateCaseSchema` for POST + `CaseActionSchema = discriminatedUnion('action', [Assign, Resolve, AddEvidence, AddMessage, Escalate, Close])` for PATCH. Replaced the manual `VALID_TYPES.includes(type)` check with `z.enum(VALID_TYPES)` (VALID_TYPES changed to `as const` for `z.enum` compatibility). The `add_evidence` action's `type` field is now `z.enum(['image', 'document', 'video']).optional()` so the `evType` computation simplified from `['image', 'document', 'video'].includes(type ?? '') ? type! : 'image'` to `type ?? 'image'`. The `add_message.authorRole` validation moved from runtime `.includes()` check to `z.enum(['agent', 'carrier', 'customer', 'system']).optional()` so the `authorRole ?? 'agent'` default is now type-safe.
+    - `src/app/api/redelivery/route.ts` (2): `CreateRedeliverySchema` for POST + `RedeliveryActionSchema = discriminatedUnion('action', [ConfirmAddress, Schedule, AssignHuman, Complete, Cancel, AddAttempt])` for PATCH. The `assign_human` action previously had a compound validation `if (!agentNote || !latestAttempt)` — split into Zod validating `agentNote` (min(1)) and the route separately checking `if (!latestAttempt)` for the runtime-only condition.
+    - `src/app/api/wallet/route.ts` (1): `WalletBodySchema = discriminatedUnion('action', [Setup2fa, Verify2fa, RegisterAccount, RequestWithdrawal, ProcessWithdrawal, RecordTransaction])`. Replaced the manual `validTypes = ['bank', 'nequi', 'daviplata', 'paypal', 'wise']` check with `z.enum([...])`, and the `['inbound', 'outbound'].includes(direction)` check with `z.enum(['inbound', 'outbound'])`.
+    - `src/app/api/marketplace/route.ts` (1): `MarketplaceBodySchema = discriminatedUnion('action', [PublishListing, UpdateConfig, CreateReferral])`. Removed the 3 manual `PublishListingPayload`, `UpdateConfigPayload`, `CreateReferralPayload` type declarations (replaced by `z.infer<typeof ...>` where needed; the POST handler uses the discriminated union directly so no separate type aliases are needed). The previous `const p = body as PublishListingPayload` casts are gone — `body` is already typed per branch by the discriminant.
+    - `src/app/api/notifications/route.ts` (1): `NotificationBodySchema = discriminatedUnion('action', [Create, AutoGenerate, MarkSent, MarkDelivered, CancelPending])`. Replaced the `validActions` array + `body?.action as string | undefined` cast with the discriminated union. `olderThanMinutes` is `z.union([z.number(), z.string()]).optional()` to preserve the `Number(...)` coercion behavior.
+- **Part C — `console.error` in dashboard frontend:**
+  - Audit found **10 `console.error` calls** (not 6 as the task brief estimated), all in `catch` blocks of client-side fetch helpers surfacing fetch failures to the browser dev tools. None are `console.log` debug leftovers.
+  - Per task rules ("For frontend components, `console.error` in catch blocks is actually acceptable"), **all 10 are acceptable as-is** — they surface errors in browser dev tools for debugging, which is the correct pattern for client-side components where pino/server-side `logger` is unavailable. No migration to `logger` performed (would break — pino is server-only). No `// eslint-disable-next-line` comments added because lint passes clean without them.
+  - The 10 sites: `novedades/index.tsx:86` (loadCases), `channels-manager.tsx:72` (Channels fetch), `settings-view.tsx:73` (Settings fetch), `messenger-view.tsx:100` (loadConvs), `overview-view.tsx:130` + `:148` (Overview fetch — 2 sites, one in initial load + one in refresh), `kanban-view.tsx:291` (Kanban fetch), `orders-view.tsx:101` (Orders fetch), `logistics/index.tsx:52` (Logistics fetch), `marketplace/index.tsx:65` (Marketplace fetch).
+- **Verification:**
+  - `cd /home/z/my-project && bun run lint` → **exit 0** (clean).
+  - `cd /home/z/my-project && npx tsc --noEmit` → **exit 0** (clean).
+  - `cd /home/z/my-project && bunx vitest run` → **180/180 tests pass** (10 test files, 0 failures).
+  - `cd /home/z/my-project && rg ": any\b|as any\b" src/ --type ts | wc -l` → **0** (was 40, target was < 10).
+- **Scope respected:**
+  - No files under `tests/` or `e2e/` modified. ✓
+  - `prisma/schema.prisma` not modified. ✓
+  - No API response shapes changed — only input validation tightened (Zod `safeParse` returns 400 on invalid input; existing valid inputs continue to flow through unchanged). ✓
+  - No tests needed `.passthrough()` — the only test files are service-unit tests (no API route tests), so the stricter validation didn't break any test suite.
+
+Stage Summary:
+- **Files modified (19 source files):**
+  - **Part A (6 frontend files):** `src/components/dashboard/wallet/index.tsx`, `src/components/dashboard/wallet/wallet-withdrawals.tsx`, `src/components/dashboard/novedades/novedades-dialogs.tsx`, `src/components/dashboard/novedades/novedades-detail.tsx`, `src/components/dashboard/novedades/novedades-redelivery.tsx`, `src/components/dashboard/messenger-view.tsx` (last one gained `perfilConversacion`/`sourceCampaign`/`perfilDetectado` fields on `ConvDetail` so the `as any` casts became unnecessary — no UI change).
+  - **Part B (13 API route files):** `src/app/api/ads/import/route.ts`, `src/app/api/buyer-behavior/route.ts`, `src/app/api/conversions/route.ts`, `src/app/api/guide-movements/route.ts`, `src/app/api/payments/create-link/route.ts`, `src/app/api/product-enrichment/route.ts`, `src/app/api/novedades/[id]/route.ts`, `src/app/api/novedades/route.ts`, `src/app/api/redelivery/route.ts`, `src/app/api/wallet/route.ts`, `src/app/api/marketplace/route.ts`, `src/app/api/notifications/route.ts`, `src/app/api/trafficker/route.ts`, `src/app/api/remarketing/route.ts` (14 files total — `trafficker` had a typo in the audit count, it's 7 across 1 file not 7 files).
+- **`any` count before/after:** 40 → **0** (40-count reduction; exceeds the `< 10` verification target by 10).
+- **`console.error` count:** unchanged (10 in dashboard frontend, all acceptable per task rules — not migrated to `logger` because pino is server-only).
+- **Verification:** `bun run lint` → exit 0; `npx tsc --noEmit` → exit 0; `bunx vitest run` → 180/180 pass; `rg ": any\b|as any\b" src/ --type ts | wc -l` → 0.
+- **Behavior changes (intentional, all in the "stricter input validation" direction):**
+  - API routes now return `400 { error: 'Invalid body', details: parseResult.error.flatten() }` for malformed bodies that previously would have either passed through to the service layer (and possibly thrown) or been silently coerced via `String(body.x)`. Examples: `trafficker` `create_campaign` with `platform: 'facebook'` now 400s at the Zod layer instead of hitting the manual `validPlatforms.includes(platform)` check; `novedades` PATCH with `action: 'unknown'` now 400s from Zod's discriminated union instead of the `default:` switch branch.
+  - The `messenger-view.tsx` `ConvDetail` type now has `perfilConversacion?: string`, `sourceCampaign?: string`, and `customer.perfilDetectado?: string` declared. The runtime behavior is unchanged (the API was already returning these fields; the local type just wasn't declaring them).
+- **No Zod schema uses `.passthrough()`** — all schemas default to strict stripping (Zod's default), which means unknown extra fields are silently dropped. This is safer than `.passthrough()` (which forwards unknown fields to the service layer) and didn't break any existing tests because the only tests are service-unit tests, not API-route tests.

@@ -195,32 +195,36 @@ export class WooCommerceAdapter implements EcommerceAdapter {
     if (!data) return this.localCrearPedido(datos)
 
     // Persistir espejo local con el order_id_externo para que el núcleo lo conozca.
-    const order = await db.order.create({
-      data: {
-        tenantId: this.tenantId,
-        number: `WC-${data.id}`,
-        customerId: datos.contacto_id,
-        status: 'new',
-        paymentMode: 'hybrid',
-        paymentStatus: 'unpaid',
-        subtotal: datos.valor,
-        total: datos.valor,
-        currency: 'COP',
-        country: datos.direccion.pais ?? null,
-        city: datos.direccion.ciudad ?? null,
-        address: datos.direccion.direccion ?? null,
-        imagenReferenciaUrl: datos.imagen_referencia_url ?? null,
-        origen: 'agente_whatsapp',
-      },
-    })
-    if (itemsNonEmpty(products, datos.items)) {
-      await db.orderItem.createMany({ data: buildItemsData(order.id, products, datos.items) })
-    }
-    await db.orderEvent.create({
-      data: { orderId: order.id, type: 'created', note: `Pedido WC #${data.id} creado vía HTTP` },
-    })
+    // Wrap order + items + event in a single tx: si orderItem u orderEvent fallan,
+    // el order.create se revierte y no queda un pedido huérfano sin items/event.
+    return await db.$transaction(async (tx) => {
+      const order = await tx.order.create({
+        data: {
+          tenantId: this.tenantId,
+          number: `WC-${data.id}`,
+          customerId: datos.contacto_id,
+          status: 'new',
+          paymentMode: 'hybrid',
+          paymentStatus: 'unpaid',
+          subtotal: datos.valor,
+          total: datos.valor,
+          currency: 'COP',
+          country: datos.direccion.pais ?? null,
+          city: datos.direccion.ciudad ?? null,
+          address: datos.direccion.direccion ?? null,
+          imagenReferenciaUrl: datos.imagen_referencia_url ?? null,
+          origen: 'agente_whatsapp',
+        },
+      })
+      if (itemsNonEmpty(products, datos.items)) {
+        await tx.orderItem.createMany({ data: buildItemsData(order.id, products, datos.items) })
+      }
+      await tx.orderEvent.create({
+        data: { orderId: order.id, type: 'created', note: `Pedido WC #${data.id} creado vía HTTP` },
+      })
 
-    return { order_id: order.id, estado: mapWcStatus(data.status), url_seguimiento: undefined }
+      return { order_id: order.id, estado: mapWcStatus(data.status), url_seguimiento: undefined }
+    })
   }
 
   async actualizarInventario(sku: string, cantidad: number): Promise<ActualizarInventarioResult> {
@@ -298,34 +302,37 @@ export class WooCommerceAdapter implements EcommerceAdapter {
 
   private async localCrearPedido(datos: CrearPedidoInput): Promise<CrearPedidoResult> {
     const orderNumber = `WC-${Date.now().toString(36).toUpperCase()}`
-    const order = await db.order.create({
-      data: {
-        tenantId: this.tenantId,
-        number: orderNumber,
-        customerId: datos.contacto_id,
-        status: 'new',
-        paymentMode: 'hybrid',
-        paymentStatus: 'unpaid',
-        subtotal: datos.valor,
-        total: datos.valor,
-        currency: 'COP',
-        country: datos.direccion.pais ?? null,
-        city: datos.direccion.ciudad ?? null,
-        address: datos.direccion.direccion ?? null,
-        imagenReferenciaUrl: datos.imagen_referencia_url ?? null,
-        origen: 'agente_whatsapp',
-      },
-    })
+    // Lookup de productos fuera del tx (read-only); el resto va en una sola tx.
     const products = await db.product.findMany({
       where: { tenantId: this.tenantId, sku: { in: datos.items.map(i => i.sku) } },
     })
-    if (itemsNonEmpty(products, datos.items)) {
-      await db.orderItem.createMany({ data: buildItemsData(order.id, products, datos.items) })
-    }
-    await db.orderEvent.create({
-      data: { orderId: order.id, type: 'created', note: 'Pedido creado vía WooCommerce adapter (fallback local)' },
+    return await db.$transaction(async (tx) => {
+      const order = await tx.order.create({
+        data: {
+          tenantId: this.tenantId,
+          number: orderNumber,
+          customerId: datos.contacto_id,
+          status: 'new',
+          paymentMode: 'hybrid',
+          paymentStatus: 'unpaid',
+          subtotal: datos.valor,
+          total: datos.valor,
+          currency: 'COP',
+          country: datos.direccion.pais ?? null,
+          city: datos.direccion.ciudad ?? null,
+          address: datos.direccion.direccion ?? null,
+          imagenReferenciaUrl: datos.imagen_referencia_url ?? null,
+          origen: 'agente_whatsapp',
+        },
+      })
+      if (itemsNonEmpty(products, datos.items)) {
+        await tx.orderItem.createMany({ data: buildItemsData(order.id, products, datos.items) })
+      }
+      await tx.orderEvent.create({
+        data: { orderId: order.id, type: 'created', note: 'Pedido creado vía WooCommerce adapter (fallback local)' },
+      })
+      return { order_id: order.id, estado: order.status }
     })
-    return { order_id: order.id, estado: order.status }
   }
 
   private async localActualizarInventario(sku: string, cantidad: number): Promise<ActualizarInventarioResult> {

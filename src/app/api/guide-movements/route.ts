@@ -1,8 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { requireTenantAccess } from '@/lib/auth-helpers'
 import { captureError } from '@/lib/capture-error'
 import { rateLimit } from '@/lib/middleware/rate-limit'
 import { logisticsService } from '@/lib/services'
+
+const GuideMovementSchema = z.object({
+  tenantId: z.string().min(1),
+  guideNumber: z.string().min(1),
+  eventType: z.enum(['created', 'picked_up', 'in_transit', 'delivered', 'returned', 'exception']),
+  location: z.string().nullable().optional(),
+  description: z.string().nullable().optional(),
+  carrierName: z.string().nullable().optional(),
+})
 
 // GET /api/guide-movements?tenantId=X&guideNumber=Y
 // Devuelve los movimientos (eventos de tracking) de una guía.
@@ -50,39 +60,25 @@ export async function POST(req: NextRequest) {
   })
   if (limited) return limited
 
-  let body: any
+  let raw: unknown
   try {
-    body = await req.json()
+    raw = await req.json()
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
-  const { tenantId, guideNumber, eventType, location, description, carrierName } =
-    body ?? {}
-  if (!tenantId || !guideNumber || !eventType) {
+  const parseResult = GuideMovementSchema.safeParse(raw)
+  if (!parseResult.success) {
     return NextResponse.json(
-      { error: 'tenantId, guideNumber, eventType are required' },
+      { error: 'Invalid body', details: parseResult.error.flatten() },
       { status: 400 },
     )
   }
+  const { tenantId, guideNumber, eventType, location, description, carrierName } =
+    parseResult.data
 
   const { error } = await requireTenantAccess(tenantId)
   if (error) return error
-
-  const validTypes = [
-    'created',
-    'picked_up',
-    'in_transit',
-    'delivered',
-    'returned',
-    'exception',
-  ]
-  if (!validTypes.includes(eventType)) {
-    return NextResponse.json(
-      { error: `eventType must be one of: ${validTypes.join(', ')}` },
-      { status: 400 },
-    )
-  }
 
   try {
     const movement = await logisticsService.createGuideMovement({

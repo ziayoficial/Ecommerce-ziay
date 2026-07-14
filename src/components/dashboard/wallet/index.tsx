@@ -84,8 +84,8 @@ export function WalletView() {
       }
       const j = (await res.json()) as WalletData
       setData(j)
-    } catch (e: any) {
-      setErrMessage(e?.message || 'Failed to load wallet')
+    } catch (e: unknown) {
+      setErrMessage(e instanceof Error ? e.message : 'Failed to load wallet')
       setData(null)
     } finally {
       setLoading(false)
@@ -131,8 +131,8 @@ export function WalletView() {
       setTwoFactorUri(j.uri)
       setTwoFactorBackup(j.backupCodes || [])
       setTwoFactorStage('verify')
-    } catch (e: any) {
-      toast.error(e?.message || 'Error al iniciar 2FA')
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Error al iniciar 2FA')
       setTwoFactorOpen(false)
     } finally {
       setTwoFactorBusy(false)
@@ -158,8 +158,8 @@ export function WalletView() {
       toast.success('2FA activado correctamente')
       setTwoFactorOpen(false)
       void load()
-    } catch (e: any) {
-      toast.error(e?.message || 'Token inválido')
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Token inválido')
     } finally {
       setTwoFactorBusy(false)
     }
@@ -201,8 +201,8 @@ export function WalletView() {
       setWdAmount('')
       setWdTotp('')
       void load()
-    } catch (e: any) {
-      toast.error(e?.message || 'Error al crear retiro')
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Error al crear retiro')
     } finally {
       setWdBusy(false)
     }
@@ -245,8 +245,8 @@ export function WalletView() {
       setAcHolder(''); setAcNumber(''); setAcBank(''); setAcDocNumber('')
       setAcDefault(false)
       void load()
-    } catch (e: any) {
-      toast.error(e?.message || 'Error al registrar cuenta')
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Error al registrar cuenta')
     } finally {
       setAcBusy(false)
     }

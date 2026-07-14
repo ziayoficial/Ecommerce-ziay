@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { requireTenantAccess } from '@/lib/auth-helpers'
 import { captureError } from '@/lib/capture-error'
 import { getLogger } from '@/lib/logger'
@@ -6,6 +7,13 @@ import { enqueue, isInlineMode } from '@/lib/queue'
 import { conversionsService } from '@/lib/services'
 
 const log = getLogger('api:conversions')
+
+const FireSchema = z.object({
+  tenantId: z.string().min(1),
+  eventType: z.string().min(1),
+  value: z.number().nullable().optional(),
+  currency: z.string().optional(),
+})
 
 // Conversions — server-side pixel firing (Meta CAPI, Google MP, Tiktok Events API).
 //
@@ -45,29 +53,26 @@ export async function GET(req: NextRequest) {
   }
 }
 
-type FirePayload = {
-  tenantId: string
-  eventType: string
-  value?: number | null
-  currency?: string
-}
+type FirePayload = z.infer<typeof FireSchema>
 
 export async function POST(req: NextRequest) {
-  let body: any
+  let raw: unknown
   try {
-    body = await req.json()
+    raw = await req.json()
   } catch (err) {
     captureError(err, { action: 'conversions:parse' })
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
-  const { tenantId, eventType } = body as FirePayload
-  if (!tenantId || !eventType) {
+  const parseResult = FireSchema.safeParse(raw)
+  if (!parseResult.success) {
     return NextResponse.json(
-      { error: 'tenantId and eventType are required' },
+      { error: 'Invalid body', details: parseResult.error.flatten() },
       { status: 400 },
     )
   }
+  const body: FirePayload = parseResult.data
+  const { tenantId, eventType } = body
   const { error } = await requireTenantAccess(tenantId)
   if (error) return error
 

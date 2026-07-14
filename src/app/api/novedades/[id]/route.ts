@@ -12,9 +12,22 @@
 // stays tenant-agnostic. Response shapes unchanged.
 
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { requireAuth } from '@/lib/auth-helpers'
 import { captureError } from '@/lib/capture-error'
 import { novedadesService } from '@/lib/services'
+
+const CaseUpdateSchema = z
+  .object({
+    status: z.string().optional(),
+    priority: z.string().optional(),
+    assignedTo: z.string().nullable().optional(),
+    resolution: z.string().nullable().optional(),
+    guideNumber: z.string().nullable().optional(),
+    carrierName: z.string().nullable().optional(),
+    description: z.string().optional(),
+  })
+  .strict()
 
 async function getCaseOrFail(id: string) {
   const { session, error } = await requireAuth()
@@ -85,25 +98,28 @@ export async function PATCH(
   if (error) return error
   if (!caseRow) return NextResponse.json({ error: 'No case' }, { status: 404 })
 
-  let body: any
+  let raw: unknown
   try {
-    body = await req.json()
+    raw = await req.json()
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
-  const allowed: Record<string, string> = {
-    status: 'status',
-    priority: 'priority',
-    assignedTo: 'assignedTo',
-    resolution: 'resolution',
-    guideNumber: 'guideNumber',
-    carrierName: 'carrierName',
-    description: 'description',
+  const parseResult = CaseUpdateSchema.safeParse(raw)
+  if (!parseResult.success) {
+    return NextResponse.json(
+      { error: 'Invalid body', details: parseResult.error.flatten() },
+      { status: 400 },
+    )
   }
+  const body = parseResult.data
+
+  // Map the validated fields to DB column names (the input uses the same
+  // names as the columns here, but `body[k] !== undefined` filtering is
+  // preserved so partial PATCH bodies don't null out unmentioned fields).
   const data: Record<string, unknown> = {}
-  for (const [k, dbKey] of Object.entries(allowed)) {
-    if (body[k] !== undefined) data[dbKey] = body[k]
+  for (const [k, v] of Object.entries(body)) {
+    if (v !== undefined) data[k] = v
   }
   // If status flips to resolved, stamp resolvedAt.
   if (data.status === 'resolved' && !caseRow.resolvedAt) {

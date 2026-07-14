@@ -21,9 +21,64 @@
 // unchanged; transactions now live in the service layer.
 
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { requireTenantAccess } from '@/lib/auth-helpers'
 import { captureError } from '@/lib/capture-error'
 import { novedadesService } from '@/lib/services'
+
+const CreateRedeliverySchema = z.object({
+  guideNumber: z.string().min(1),
+  customerPhone: z.string().min(1),
+  customerName: z.string().min(1),
+  originalAddress: z.string().min(1),
+  newAddress: z.string().nullable().optional(),
+  reason: z.string().min(1),
+})
+
+const ConfirmAddressSchema = z.object({
+  action: z.literal('confirm_address'),
+  redeliveryId: z.string().min(1),
+  newAddress: z.string().min(1),
+})
+
+const ScheduleSchema = z.object({
+  action: z.literal('schedule'),
+  redeliveryId: z.string().min(1),
+  scheduledAt: z.string().nullable().optional(),
+  agentNote: z.string().nullable().optional(),
+})
+
+const AssignHumanSchema = z.object({
+  action: z.literal('assign_human'),
+  redeliveryId: z.string().min(1),
+  agentNote: z.string().min(1),
+})
+
+const CompleteSchema = z.object({
+  action: z.literal('complete'),
+  redeliveryId: z.string().min(1),
+  carrierResponse: z.string().nullable().optional(),
+})
+
+const CancelSchema = z.object({
+  action: z.literal('cancel'),
+  redeliveryId: z.string().min(1),
+  reason: z.string().nullable().optional(),
+})
+
+const AddAttemptSchema = z.object({
+  action: z.literal('add_attempt'),
+  redeliveryId: z.string().min(1),
+})
+
+const RedeliveryActionSchema = z.discriminatedUnion('action', [
+  ConfirmAddressSchema,
+  ScheduleSchema,
+  AssignHumanSchema,
+  CompleteSchema,
+  CancelSchema,
+  AddAttemptSchema,
+])
 
 // ───────────────────────────────────────────────────────────────────────────
 // GET
@@ -74,20 +129,21 @@ export async function POST(req: NextRequest) {
   const { error } = await requireTenantAccess(tenantId)
   if (error) return error
 
-  let body: any
+  let raw: unknown
   try {
-    body = await req.json()
+    raw = await req.json()
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
-  const { guideNumber, customerPhone, customerName, originalAddress, newAddress, reason } = body
-  if (!guideNumber || !customerPhone || !customerName || !originalAddress || !reason) {
+  const parseResult = CreateRedeliverySchema.safeParse(raw)
+  if (!parseResult.success) {
     return NextResponse.json(
-      { error: 'guideNumber, customerPhone, customerName, originalAddress, reason are required' },
+      { error: 'Invalid body', details: parseResult.error.flatten() },
       { status: 400 },
     )
   }
+  const { guideNumber, customerPhone, customerName, originalAddress, newAddress, reason } = parseResult.data
 
   try {
     const { request, attempt } = await novedadesService.createRedeliveryRequest({
@@ -122,17 +178,22 @@ export async function PATCH(req: NextRequest) {
   const { error } = await requireTenantAccess(tenantId)
   if (error) return error
 
-  let body: any
+  let raw: unknown
   try {
-    body = await req.json()
+    raw = await req.json()
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
-  const { action, redeliveryId } = body
-  if (!action || !redeliveryId) {
-    return NextResponse.json({ error: 'action and redeliveryId are required' }, { status: 400 })
+  const parseResult = RedeliveryActionSchema.safeParse(raw)
+  if (!parseResult.success) {
+    return NextResponse.json(
+      { error: 'Invalid body', details: parseResult.error.flatten() },
+      { status: 400 },
+    )
   }
+  const body = parseResult.data
+  const { action, redeliveryId } = body
 
   const existing = await novedadesService.getRedeliveryRequestForUpdate(redeliveryId, tenantId)
   if (!existing) {
@@ -148,9 +209,6 @@ export async function PATCH(req: NextRequest) {
     switch (action) {
       case 'confirm_address': {
         const { newAddress } = body
-        if (!newAddress) {
-          return NextResponse.json({ error: 'newAddress required' }, { status: 400 })
-        }
         const updated = await novedadesService.confirmRedeliveryAddress(redeliveryId, String(newAddress))
         return NextResponse.json({ request: updated })
       }
@@ -169,9 +227,9 @@ export async function PATCH(req: NextRequest) {
 
       case 'assign_human': {
         const { agentNote } = body
-        if (!agentNote || !latestAttempt) {
+        if (!latestAttempt) {
           return NextResponse.json(
-            { error: 'agentNote required and a latest attempt must exist' },
+            { error: 'a latest attempt must exist' },
             { status: 400 },
           )
         }

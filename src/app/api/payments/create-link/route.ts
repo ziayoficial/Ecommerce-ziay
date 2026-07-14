@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { requireTenantAccess } from '@/lib/auth-helpers'
 import { getPaymentAdapter } from '@/lib/adapters/payment-registry'
 import { rateLimit } from '@/lib/middleware/rate-limit'
@@ -7,6 +8,15 @@ import { getLogger } from '@/lib/logger'
 import { orderService } from '@/lib/services'
 
 const log = getLogger('api/payments/create-link')
+
+const CreateLinkSchema = z.object({
+  tenantId: z.string().min(1),
+  orderId: z.string().min(1),
+  gateway: z.string().min(1),
+  amount: z.union([z.number(), z.string()]),
+  currency: z.string().min(1),
+  description: z.string().optional(),
+})
 
 // POST /api/payments/create-link
 // Crea un link de pago en el gateway indicado y actualiza el Order con
@@ -31,23 +41,21 @@ export async function POST(req: NextRequest) {
   })
   if (limited) return limited
 
-  let body: any
+  let raw: unknown
   try {
-    body = await req.json()
+    raw = await req.json()
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
-  const { tenantId, orderId, gateway, amount, currency, description } = body ?? {}
-  if (!tenantId || !orderId || !gateway || amount == null || !currency) {
+  const parseResult = CreateLinkSchema.safeParse(raw)
+  if (!parseResult.success) {
     return NextResponse.json(
-      {
-        error:
-          'tenantId, orderId, gateway, amount, currency are required',
-      },
+      { error: 'Invalid body', details: parseResult.error.flatten() },
       { status: 400 },
     )
   }
+  const { tenantId, orderId, gateway, amount, currency, description } = parseResult.data
 
   const { error } = await requireTenantAccess(tenantId)
   if (error) return error

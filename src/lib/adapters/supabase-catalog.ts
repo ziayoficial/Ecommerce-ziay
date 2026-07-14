@@ -249,38 +249,42 @@ export class SupabaseCatalogAdapter implements EcommerceAdapter {
   private async localCrearPedido(datos: CrearPedidoInput, externalId?: string | null): Promise<CrearPedidoResult> {
     const prefix = this.mode === 'nuestro' ? 'SN' : 'SC'
     const orderNumber = externalId ? `${prefix}-${externalId}` : `${prefix}-${Date.now().toString(36).toUpperCase()}`
-    const order = await db.order.create({
-      data: {
-        tenantId: this.tenantId,
-        number: orderNumber,
-        customerId: datos.contacto_id,
-        status: 'new',
-        paymentMode: 'hybrid',
-        paymentStatus: 'unpaid',
-        subtotal: datos.valor,
-        total: datos.valor,
-        currency: 'COP',
-        country: datos.direccion.pais ?? null,
-        city: datos.direccion.ciudad ?? null,
-        address: datos.direccion.direccion ?? null,
-        imagenReferenciaUrl: datos.imagen_referencia_url ?? null,
-        origen: 'agente_whatsapp',
-      },
-    })
+    // Lookup de productos fuera del tx (read-only); el resto va en una sola tx
+    // para que order + items + event sean atómicos.
     const products = await db.product.findMany({
       where: { tenantId: this.tenantId, sku: { in: datos.items.map(i => i.sku) } },
     })
-    if (itemsNonEmpty(products, datos.items)) {
-      await db.orderItem.createMany({ data: buildItemsData(order.id, products, datos.items) })
-    }
-    await db.orderEvent.create({
-      data: {
-        orderId: order.id,
-        type: 'created',
-        note: `Pedido creado vía SupabaseCatalogAdapter (modo=${this.mode}${this.readOnly ? ', read-only' : ''})`,
-      },
+    return await db.$transaction(async (tx) => {
+      const order = await tx.order.create({
+        data: {
+          tenantId: this.tenantId,
+          number: orderNumber,
+          customerId: datos.contacto_id,
+          status: 'new',
+          paymentMode: 'hybrid',
+          paymentStatus: 'unpaid',
+          subtotal: datos.valor,
+          total: datos.valor,
+          currency: 'COP',
+          country: datos.direccion.pais ?? null,
+          city: datos.direccion.ciudad ?? null,
+          address: datos.direccion.direccion ?? null,
+          imagenReferenciaUrl: datos.imagen_referencia_url ?? null,
+          origen: 'agente_whatsapp',
+        },
+      })
+      if (itemsNonEmpty(products, datos.items)) {
+        await tx.orderItem.createMany({ data: buildItemsData(order.id, products, datos.items) })
+      }
+      await tx.orderEvent.create({
+        data: {
+          orderId: order.id,
+          type: 'created',
+          note: `Pedido creado vía SupabaseCatalogAdapter (modo=${this.mode}${this.readOnly ? ', read-only' : ''})`,
+        },
+      })
+      return { order_id: order.id, estado: order.status }
     })
-    return { order_id: order.id, estado: order.status }
   }
 
   private async localActualizarInventario(sku: string, cantidad: number): Promise<ActualizarInventarioResult> {

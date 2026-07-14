@@ -106,7 +106,7 @@ function RedeliveryCard({ request, onAction, tenantId }: {
 
   const sm = redeliveryStatusMeta(request.status)
 
-  const patch = async (body: any, msg: string) => {
+  const patch = async (body: Record<string, unknown>, msg: string) => {
     setBusy(true)
     try {
       const res = await fetch(`/api/redelivery?tenantId=${tenantId}`, {
@@ -120,8 +120,8 @@ function RedeliveryCard({ request, onAction, tenantId }: {
       }
       toast.success(msg)
       onAction()
-    } catch (e: any) {
-      toast.error(e?.message || 'Error')
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Error')
     } finally {
       setBusy(false)
     }

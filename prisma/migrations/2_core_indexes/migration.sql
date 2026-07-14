@@ -130,3 +130,59 @@ CREATE INDEX IF NOT EXISTS "WalletAccount_verified_idx" ON "WalletAccount"("veri
 -- ─────────────────────────────────────────────────────────────────────────────
 CREATE UNIQUE INDEX IF NOT EXISTS "Attribution_orderId_adId_model_key" ON "Attribution"("orderId", "adId", "model");
 CREATE INDEX IF NOT EXISTS "Attribution_adId_idx" ON "Attribution"("adId");
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- 12-17. HIGH-PRIORITY PARTIAL-INDEX GAP (AUDIT-GAP-4-DB · FIX-PEND-DB-QUEUES-001)
+--
+-- The 10 tables above (sections 1-11) covered the "core commerce" surface.
+-- The audit also flagged 6 HIGH-priority models that had @@unique but NO
+-- @@index on tenantId (or, in Ad's case, no @@index at all on any FK /
+-- status column). These are the highest-traffic read paths after
+-- Conversation/Message:
+--   - User     : tenant member list, login by email
+--   - Channel  : tenant channel list, channel-type filter, active toggle
+--   - Customer : tenant customer list, email/phone customer-merge lookups
+--   - Product  : tenant catalog view (composite @@unique([tenantId, sku])
+--                already covers prefix queries — explicit @@index([tenantId])
+--                is mild redundancy but keeps the query planner honest)
+--   - Campaign : tenant campaign list, status filter
+--   - Ad       : tenant-scoped via Campaign — index campaignId FK + status
+--                sweep + externalId (already @unique but explicit index
+--                follows the Trafficker.email convention so platform-sync
+--                lookups hit an index even if @unique is ever dropped)
+--
+-- All statements idempotent (`IF NOT EXISTS`) — safe to re-run.
+-- ─────────────────────────────────────────────────────────────────────────────
+
+-- 12. USER — tenant member list + login lookup
+CREATE INDEX IF NOT EXISTS "User_tenantId_idx" ON "User"("tenantId");
+CREATE INDEX IF NOT EXISTS "User_email_idx" ON "User"("email");
+
+-- 13. CHANNEL — tenant channel list, channel-type filter, active toggle
+CREATE INDEX IF NOT EXISTS "Channel_tenantId_idx" ON "Channel"("tenantId");
+CREATE INDEX IF NOT EXISTS "Channel_type_idx" ON "Channel"("type");
+CREATE INDEX IF NOT EXISTS "Channel_active_idx" ON "Channel"("active");
+
+-- 14. CUSTOMER — tenant customer list, email/phone customer-merge lookups
+--     (email and phone are nullable — PostgreSQL partial indexes NULLs cheaply;
+--      SQLite indexes NULLs as ordinary values.)
+CREATE INDEX IF NOT EXISTS "Customer_tenantId_idx" ON "Customer"("tenantId");
+CREATE INDEX IF NOT EXISTS "Customer_email_idx" ON "Customer"("email");
+CREATE INDEX IF NOT EXISTS "Customer_phone_idx" ON "Customer"("phone");
+
+-- 15. PRODUCT — tenant catalog view
+--     `@@unique([tenantId, sku])` already serves (tenantId, sku) and (tenantId)
+--     prefix queries; explicit @@index([tenantId]) is mild redundancy.
+--     `sku` alone is NOT indexed — cross-tenant sku lookups don't happen.
+CREATE INDEX IF NOT EXISTS "Product_tenantId_idx" ON "Product"("tenantId");
+
+-- 16. CAMPAIGN — tenant campaign list, status filter
+--     `traffickerId` does NOT exist on Campaign (lives on TraffickerCampaign).
+CREATE INDEX IF NOT EXISTS "Campaign_tenantId_idx" ON "Campaign"("tenantId");
+CREATE INDEX IF NOT EXISTS "Campaign_status_idx" ON "Campaign"("status");
+
+-- 17. AD — campaignId FK, status sweep, externalId (already @unique but
+--     explicit @@index follows Trafficker.email convention)
+CREATE INDEX IF NOT EXISTS "Ad_campaignId_idx" ON "Ad"("campaignId");
+CREATE INDEX IF NOT EXISTS "Ad_status_idx" ON "Ad"("status");
+CREATE INDEX IF NOT EXISTS "Ad_externalId_idx" ON "Ad"("externalId");

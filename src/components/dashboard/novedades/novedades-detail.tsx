@@ -76,7 +76,7 @@ export function CaseDetailPanel({
   const sm = caseStatusMeta(c.status)
   const tm = CASE_TYPE_META[c.type] || CASE_TYPE_META.otro
 
-  const patch = async (body: any, successMsg: string) => {
+  const patch = async (body: Record<string, unknown>, successMsg: string) => {
     setBusy(true)
     try {
       const res = await fetch(`/api/novedades?tenantId=${c.tenantId}`, {
@@ -91,8 +91,8 @@ export function CaseDetailPanel({
       toast.success(successMsg)
       onReload()
       onListReload()
-    } catch (e: any) {
-      toast.error(e?.message || 'Error')
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Error')
     } finally {
       setBusy(false)
     }

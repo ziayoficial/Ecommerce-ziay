@@ -58,8 +58,8 @@ export function CreateCaseDialog({ open, onOpenChange, tenantId, onCreated }: {
       onOpenChange(false)
       setCustomerName(''); setPhone(''); setGuideNumber(''); setDescription('')
       onCreated()
-    } catch (e: any) {
-      toast.error(e?.message || 'Error al crear caso')
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Error al crear caso')
     } finally {
       setBusy(false)
     }
@@ -187,8 +187,8 @@ export function CreateRedeliveryDialog({ open, onOpenChange, tenantId, onCreated
       setGuideNumber(''); setCustomerName(''); setCustomerPhone('')
       setOriginalAddress(''); setNewAddress(''); setReason('')
       onCreated()
-    } catch (e: any) {
-      toast.error(e?.message || 'Error al crear reintento')
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Error al crear reintento')
     } finally {
       setBusy(false)
     }

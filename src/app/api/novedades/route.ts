@@ -29,6 +29,7 @@
 // a 1:1 service method yet). Response shapes are unchanged.
 
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { db } from '@/lib/db'
 import { requireTenantAccess } from '@/lib/auth-helpers'
 import { getLogger } from '@/lib/logger'
@@ -42,8 +43,65 @@ const VALID_TYPES = [
   'direccion_incorrecta',
   'retraso',
   'otro',
-]
-const VALID_STATUSES = ['open', 'assigned', 'resolved', 'escalated', 'closed']
+] as const
+const VALID_STATUSES = ['open', 'assigned', 'resolved', 'escalated', 'closed'] as const
+
+const CreateCaseSchema = z.object({
+  phone: z.string().min(1),
+  customerName: z.string().min(1),
+  guideNumber: z.string().nullable().optional(),
+  carrierName: z.string().nullable().optional(),
+  type: z.enum(VALID_TYPES),
+  priority: z.string().optional(),
+  description: z.string().min(1),
+  orderId: z.string().nullable().optional(),
+})
+
+const AssignSchema = z.object({
+  action: z.literal('assign'),
+  caseId: z.string().min(1),
+  assignedTo: z.string().min(1),
+})
+
+const ResolveSchema = z.object({
+  action: z.literal('resolve'),
+  caseId: z.string().min(1),
+  resolution: z.string().min(1),
+})
+
+const AddEvidenceSchema = z.object({
+  action: z.literal('add_evidence'),
+  caseId: z.string().min(1),
+  url: z.string().min(1),
+  type: z.enum(['image', 'document', 'video']).optional(),
+  uploadedBy: z.string().optional(),
+})
+
+const AddMessageSchema = z.object({
+  action: z.literal('add_message'),
+  caseId: z.string().min(1),
+  body: z.string().min(1),
+  authorRole: z.enum(['agent', 'carrier', 'customer', 'system']).optional(),
+})
+
+const EscalateSchema = z.object({
+  action: z.literal('escalate'),
+  caseId: z.string().min(1),
+})
+
+const CloseSchema = z.object({
+  action: z.literal('close'),
+  caseId: z.string().min(1),
+})
+
+const CaseActionSchema = z.discriminatedUnion('action', [
+  AssignSchema,
+  ResolveSchema,
+  AddEvidenceSchema,
+  AddMessageSchema,
+  EscalateSchema,
+  CloseSchema,
+])
 
 // ───────────────────────────────────────────────────────────────────────────
 // GET
@@ -134,23 +192,22 @@ export async function POST(req: NextRequest) {
   const { error, session } = await requireTenantAccess(tenantId)
   if (error) return error
 
-  let body: any
+  let raw: unknown
   try {
-    body = await req.json()
+    raw = await req.json()
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
-  const { phone, customerName, guideNumber, carrierName, type, priority, description, orderId } = body
-  if (!phone || !customerName || !description || !type) {
+  const parseResult = CreateCaseSchema.safeParse(raw)
+  if (!parseResult.success) {
     return NextResponse.json(
-      { error: 'phone, customerName, description, type are required' },
+      { error: 'Invalid body', details: parseResult.error.flatten() },
       { status: 400 },
     )
   }
-  if (!VALID_TYPES.includes(type)) {
-    return NextResponse.json({ error: `Invalid type: ${type}` }, { status: 400 })
-  }
+  const body = parseResult.data
+  const { phone, customerName, guideNumber, carrierName, type, priority, description, orderId } = body
 
   // Validate that orderId (if provided) belongs to this tenant.
   // (Still a direct `db.order.findUnique` — out of the orderService scope of
@@ -204,17 +261,22 @@ export async function PATCH(req: NextRequest) {
   const { error, session } = await requireTenantAccess(tenantId)
   if (error) return error
 
-  let body: any
+  let raw: unknown
   try {
-    body = await req.json()
+    raw = await req.json()
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
-  const { action, caseId } = body
-  if (!action || !caseId) {
-    return NextResponse.json({ error: 'action and caseId are required' }, { status: 400 })
+  const parseResult = CaseActionSchema.safeParse(raw)
+  if (!parseResult.success) {
+    return NextResponse.json(
+      { error: 'Invalid body', details: parseResult.error.flatten() },
+      { status: 400 },
+    )
   }
+  const body = parseResult.data
+  const { action, caseId } = body
 
   // Ensure the case belongs to the tenant before doing anything.
   const existing = await db.novedadCase.findUnique({ where: { id: caseId } })
@@ -229,9 +291,6 @@ export async function PATCH(req: NextRequest) {
   switch (action) {
     case 'assign': {
       const { assignedTo } = body
-      if (!assignedTo) {
-        return NextResponse.json({ error: 'assignedTo required' }, { status: 400 })
-      }
       // Atomic: case update + audit message.
       const updated = await db.$transaction(async (tx) => {
         const c = await tx.novedadCase.update({
@@ -256,9 +315,6 @@ export async function PATCH(req: NextRequest) {
 
     case 'resolve': {
       const { resolution } = body
-      if (!resolution) {
-        return NextResponse.json({ error: 'resolution required' }, { status: 400 })
-      }
       const updated = await db.$transaction(async (tx) => {
         const c = await tx.novedadCase.update({
           where: { id: caseId },
@@ -284,10 +340,7 @@ export async function PATCH(req: NextRequest) {
 
     case 'add_evidence': {
       const { url, type, uploadedBy } = body
-      if (!url) {
-        return NextResponse.json({ error: 'url required' }, { status: 400 })
-      }
-      const evType = ['image', 'document', 'video'].includes(type) ? type : 'image'
+      const evType = type ?? 'image'
       const evidence = await db.novedadEvidence.create({
         data: {
           caseId,
@@ -301,14 +354,11 @@ export async function PATCH(req: NextRequest) {
 
     case 'add_message': {
       const { body: msgBody, authorRole } = body
-      if (!msgBody) {
-        return NextResponse.json({ error: 'body required' }, { status: 400 })
-      }
       const message = await db.novedadMessage.create({
         data: {
           caseId,
           authorName,
-          authorRole: ['agent', 'carrier', 'customer', 'system'].includes(authorRole) ? authorRole : 'agent',
+          authorRole: authorRole ?? 'agent',
           body: String(msgBody),
         },
       })

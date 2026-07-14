@@ -330,7 +330,7 @@ function CredentialCard({
                 </Badge>
               )}
             </div>
-            <div className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2">{integration.description}</div>
+            <div className="text-[11px] text-muted-foreground mt-0.5 line-clamp-3">{integration.description}</div>
           </div>
           <ChevronDown
             className={cn('size-4 shrink-0 text-muted-foreground transition-transform', expanded && 'rotate-180')}
@@ -382,7 +382,7 @@ function CredentialCard({
                           <span className="text-[10px] text-muted-foreground cursor-help">ⓘ</span>
                         </TooltipTrigger>
                         <TooltipContent>
-                          <p className="text-xs max-w-56">{field.helpText}</p>
+                          <p className="break-all font-mono text-xs max-w-full">{field.helpText}</p>
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>

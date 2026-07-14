@@ -414,7 +414,12 @@ async function fireMeta(
   pixel: { pixelId: string; apiToken: string; testMode: boolean },
   event: CapiEvent,
 ): Promise<{ status: 'sent' | 'failed'; response: string }> {
-  const url = `https://graph.facebook.com/v19.0/${pixel.pixelId}/events?access_token=${pixel.apiToken}`
+  // FIX-PEND-DB-QUEUES-001 — base URL env-overridable for proxy/sandbox.
+  // Default matches the in-code version (v19.0) so existing behavior is
+  // preserved when FB_PIXEL_API_BASE is unset.
+  const fbBaseUrl =
+    process.env.FB_PIXEL_API_BASE ?? 'https://graph.facebook.com/v19.0'
+  const url = `${fbBaseUrl}/${pixel.pixelId}/events?access_token=${pixel.apiToken}`
   const payload = {
     data: [
       {
@@ -444,7 +449,10 @@ async function fireGoogle(
   pixel: { pixelId: string; apiToken: string; testMode: boolean },
   event: CapiEvent,
 ): Promise<{ status: 'sent' | 'failed'; response: string }> {
-  const url = `https://www.google-analytics.com/mp/collect?measurement_id=${pixel.pixelId}&api_secret=${pixel.apiToken}`
+  // FIX-PEND-DB-QUEUES-001 — base URL env-overridable for proxy/sandbox.
+  const ga4BaseUrl =
+    process.env.GA4_MP_API_BASE ?? 'https://www.google-analytics.com'
+  const url = `${ga4BaseUrl}/mp/collect?measurement_id=${pixel.pixelId}&api_secret=${pixel.apiToken}`
   const payload = {
     client_id: 'ziay_os',
     events: [
@@ -471,7 +479,10 @@ async function fireTikTok(
   pixel: { pixelId: string; apiToken: string; testMode: boolean },
   event: CapiEvent,
 ): Promise<{ status: 'sent' | 'failed'; response: string }> {
-  const url = 'https://business-api.tiktok.com/open_api/v1.3/event/track/'
+  // FIX-PEND-DB-QUEUES-001 — base URL env-overridable for proxy/sandbox.
+  const tiktokBaseUrl =
+    process.env.TIKTOK_EVENTS_API_BASE ?? 'https://business-api.tiktok.com'
+  const url = `${tiktokBaseUrl}/open_api/v1.3/event/track/`
   const payload = {
     pixel_code: pixel.pixelId,
     event: event.eventType,

@@ -358,8 +358,25 @@ io.on('connection', (socket: Socket) => {
 // (`wget --spider http://localhost:3003/health`). Does NOT require auth —
 // only reports whether the process is alive and the socket.io server is
 // listening. Returns 200 + JSON body.
+//
+// SPRINT-WHATSAPP-FUNCTIONAL-001 — also exposes an internal `/emit`
+// endpoint that the Next.js WhatsApp webhook can POST to when an inbound
+// message arrives. The webhook runs in the Next.js process (port 3000),
+// not here, so to broadcast the inbound to every dashboard of the same
+// tenant it makes a fire-and-forget fetch to `http://localhost:3003/emit`
+// with `{ tenantId, event, payload }`. This service then does
+// `io.to('tenant:<tenantId>').emit(event, payload)` which fans out to
+// every connected dashboard.
+//
+// The `/emit` endpoint is intentionally UNAUTHENTICATED:
+//   1. It listens on `127.0.0.1` only in production (Caddy doesn't expose
+//      it externally — only the `/socket.io/` path is proxied).
+//   2. The next.js process is the only legitimate caller; an attacker
+//      who can hit `127.0.0.1:3003` already has shell access.
+//   3. The payload is the event name + JSON object — no secrets, no
+//      write-side effects beyond the socket broadcast.
 // ───────────────────────────────────────────────────────────────────────────
-httpServer.on('request', (req: IncomingMessage, res) => {
+httpServer.on('request', async (req: IncomingMessage, res) => {
   if (req.url === '/health' && req.method === 'GET') {
     res.writeHead(200, { 'Content-Type': 'application/json' })
     res.end(
@@ -373,6 +390,38 @@ httpServer.on('request', (req: IncomingMessage, res) => {
     )
     return
   }
+
+  // Internal emit endpoint — used by the Next.js WhatsApp webhook to
+  // fan out inbound messages to all dashboards of a tenant.
+  if (req.url === '/emit' && req.method === 'POST') {
+    try {
+      const chunks: Buffer[] = []
+      for await (const chunk of req) {
+        chunks.push(chunk as Buffer)
+      }
+      const body = JSON.parse(Buffer.concat(chunks).toString('utf8')) as {
+        tenantId?: string
+        event?: string
+        payload?: unknown
+      }
+      if (!body.tenantId || !body.event) {
+        res.writeHead(400, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ error: 'tenantId and event required' }))
+        return
+      }
+      const room = `tenant:${body.tenantId}`
+      io.to(room).emit(body.event, body.payload)
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ ok: true, room, event: body.event }))
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.warn('[chat-service] /emit error:', msg)
+      res.writeHead(400, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'invalid JSON body' }))
+    }
+    return
+  }
+
   // Socket.io owns all other paths — for anything else, 404.
   if (!req.url?.startsWith('/socket.io/')) {
     res.writeHead(404, { 'Content-Type': 'application/json' })

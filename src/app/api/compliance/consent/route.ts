@@ -1,0 +1,201 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
+import { resolveTenantId, requireAuth } from '@/lib/auth-helpers'
+import { captureError } from '@/lib/capture-error'
+import { db } from '@/lib/db'
+import { computeHash } from '@/lib/crypto/signing'
+
+// POST /api/compliance/consent
+// Registra un consentimiento (Ley 1581 de 2012).
+// Body:
+//   { tenantId, dataSubjectId, dataSubjectType, purpose, legalBasis, proofPayload? }
+const CreateConsentSchema = z.object({
+  tenantId: z.string().min(1),
+  dataSubjectId: z.string().min(1),
+  dataSubjectType: z.enum(['customer', 'user', 'lead']),
+  purpose: z.enum([
+    'marketing',
+    'analytics',
+    'ai_processing',
+    'data_sharing',
+  ]),
+  legalBasis: z.enum([
+    'consent',
+    'contract',
+    'legitimate_interest',
+    'legal_obligation',
+  ]),
+  proofPayload: z.record(z.string(), z.unknown()).optional(),
+})
+
+export async function POST(req: NextRequest) {
+  let raw: unknown
+  try {
+    raw = await req.json()
+  } catch {
+    return NextResponse.json(
+      { error: 'Cuerpo JSON inválido' },
+      { status: 400 },
+    )
+  }
+  const parsed = CreateConsentSchema.safeParse(raw)
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: 'Parámetros inválidos', details: parsed.error.flatten() },
+      { status: 400 },
+    )
+  }
+  const body = parsed.data
+
+  const { error } = await resolveTenantId(body.tenantId)
+  if (error) return error
+
+  try {
+    const proofJson = body.proofPayload
+      ? JSON.stringify(body.proofPayload)
+      : null
+    const proofHash = proofJson ? computeHash(proofJson) : null
+
+    const consent = await db.consentRecord.create({
+      data: {
+        tenantId: body.tenantId,
+        dataSubjectId: body.dataSubjectId,
+        dataSubjectType: body.dataSubjectType,
+        purpose: body.purpose,
+        legalBasis: body.legalBasis,
+        granted: true,
+        grantedAt: new Date(),
+        proofHash,
+        proofPayload: proofJson,
+      },
+    })
+
+    return NextResponse.json(
+      {
+        consentId: consent.id,
+        tenantId: consent.tenantId,
+        dataSubjectId: consent.dataSubjectId,
+        purpose: consent.purpose,
+        legalBasis: consent.legalBasis,
+        granted: consent.granted,
+        grantedAt: consent.grantedAt,
+      },
+      { status: 201 },
+    )
+  } catch (err) {
+    captureError(err as Error, {
+      path: '/api/compliance/consent',
+      method: 'POST',
+    })
+    return NextResponse.json(
+      { error: 'No se pudo registrar el consentimiento' },
+      { status: 500 },
+    )
+  }
+}
+
+// GET /api/compliance/consent?tenantId=X&dataSubjectId=Y
+// Lista los consentimientos de un data subject.
+export async function GET(req: NextRequest) {
+  const tenantId = req.nextUrl.searchParams.get('tenantId') || undefined
+  const dataSubjectId = req.nextUrl.searchParams.get('dataSubjectId') || undefined
+
+  if (!tenantId || !dataSubjectId) {
+    return NextResponse.json(
+      { error: 'tenantId y dataSubjectId son requeridos' },
+      { status: 400 },
+    )
+  }
+
+  const { error } = await resolveTenantId(tenantId)
+  if (error) return error
+
+  try {
+    const records = await db.consentRecord.findMany({
+      where: { tenantId, dataSubjectId },
+      orderBy: { createdAt: 'desc' },
+    })
+    return NextResponse.json({
+      consents: records.map(r => ({
+        id: r.id,
+        purpose: r.purpose,
+        legalBasis: r.legalBasis,
+        granted: r.granted,
+        grantedAt: r.grantedAt,
+        revokedAt: r.revokedAt,
+        revokeReason: r.revokeReason,
+      })),
+    })
+  } catch (err) {
+    captureError(err as Error, {
+      path: '/api/compliance/consent',
+      method: 'GET',
+    })
+    return NextResponse.json(
+      { error: 'No se pudo listar los consentimientos' },
+      { status: 500 },
+    )
+  }
+}
+
+// DELETE /api/compliance/consent?id=Z&reason=...
+// Revoca un consentimiento (granted=false, revokedAt=now).
+export async function DELETE(req: NextRequest) {
+  const id = req.nextUrl.searchParams.get('id')
+  const reason = req.nextUrl.searchParams.get('reason') || 'Revocado por el titular'
+
+  if (!id) {
+    return NextResponse.json(
+      { error: 'id es requerido' },
+      { status: 400 },
+    )
+  }
+
+  const { error } = await requireAuth()
+  if (error) return error
+
+  try {
+    const existing = await db.consentRecord.findUnique({ where: { id } })
+    if (!existing) {
+      return NextResponse.json(
+        { error: 'Consentimiento no encontrado' },
+        { status: 404 },
+      )
+    }
+    // Tenant guard.
+    const { session, error: tErr } = await requireAuth()
+    if (tErr) return tErr
+    const userTenantId = session?.user?.tenantId ?? null
+    if (userTenantId && userTenantId !== existing.tenantId) {
+      return NextResponse.json(
+        { error: 'Forbidden: tenant mismatch' },
+        { status: 403 },
+      )
+    }
+
+    const updated = await db.consentRecord.update({
+      where: { id },
+      data: {
+        granted: false,
+        revokedAt: new Date(),
+        revokeReason: reason,
+      },
+    })
+
+    return NextResponse.json({
+      consentId: updated.id,
+      granted: updated.granted,
+      revokedAt: updated.revokedAt,
+      reason: updated.revokeReason,
+    })
+  } catch (err) {
+    captureError(err as Error, {
+      path: '/api/compliance/consent',
+      method: 'DELETE',
+    })
+    return NextResponse.json(
+      { error: 'No se pudo revocar el consentimiento' },
+      { status: 500 },
+    )
+  }
+}

@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { resolveTenantId, requireTenantAccess } from '@/lib/auth-helpers'
 import { captureError } from '@/lib/capture-error'
 import { conversationService } from '@/lib/services'
+import { emitToTenant } from '@/lib/chat-emit'
 
 // GET /api/conversations?tenantId=X&status=Y&channel=Z&q=...&cursor=ID&limit=N
 //
@@ -83,6 +84,13 @@ export async function GET(req: NextRequest) {
 //   - requireTenantAccess(conv.tenantId) — 403 for cross-tenant callers
 //     unless they're platform admins.
 //   - Use conv.tenantId for the message row (kills the hardcoded fallback).
+//
+// SPRINT-WHATSAPP-FUNCTIONAL-001 — POST now routes through
+// `conversationService.sendMessage` so the message is ALSO delivered via
+// the WhatsApp Cloud API adapter when the conversation's channel is
+// `whatsapp`, and `conversation.firstReplyAt` is stamped (TTR). Previously
+// the route only persisted a local Message row — the customer never
+// received the agent's reply on WhatsApp.
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
@@ -92,9 +100,15 @@ export async function POST(req: NextRequest) {
     }
 
     // Fetch the conversation to learn its tenantId — never trust the body.
+    // Also pull the channel type + customerPhone so we can decide whether
+    // to deliver via the WhatsApp adapter and broadcast via socket.
     const conv = await db.conversation.findUnique({
       where: { id: conversationId },
-      select: { tenantId: true },
+      select: {
+        tenantId: true,
+        customerPhone: true,
+        channel: { select: { type: true } },
+      },
     })
     if (!conv) {
       return NextResponse.json({ error: 'conversation not found' }, { status: 404 })
@@ -103,13 +117,29 @@ export async function POST(req: NextRequest) {
     const { error } = await requireTenantAccess(conv.tenantId)
     if (error) return error
 
-    const msg = await db.message.create({
-      data: { tenantId: conv.tenantId, conversationId, direction, body: text, type: 'text', status: 'sent' },
+    // Route through the conversation service so the WhatsApp Cloud API
+    // adapter delivers the message + TTR is recorded. Delivery failures
+    // are caught inside the service — the local Message row is still
+    // persisted (status='failed') so the agent can retry.
+    const msg = await conversationService.sendMessage({
+      tenantId: conv.tenantId,
+      conversationId,
+      body: text,
+      direction,
     })
-    await db.conversation.update({
-      where: { id: conversationId },
-      data: { lastMessageAt: new Date(), unreadCount: 0 },
+
+    // Fire-and-forget realtime broadcast so other dashboards of the same
+    // tenant see the agent's reply instantly. The agent's own dashboard
+    // sees the message via the optimistic UI + the socket echo.
+    emitToTenant(conv.tenantId, 'message:new', {
+      conversationId,
+      customerPhone: conv.customerPhone,
+      direction,
+      body: text,
+      timestamp: new Date().toISOString(),
+      messageId: msg.id,
     })
+
     return NextResponse.json({ message: msg })
   } catch (err) {
     captureError(err as Error, { path: '/api/conversations', method: 'POST' })

@@ -168,6 +168,15 @@ export class WhatsappCatalogAdapter implements EcommerceAdapter {
           address: datos.direccion.direccion ?? null,
           imagenReferenciaUrl: datos.imagen_referencia_url ?? null,
           origen: 'agente_whatsapp',
+          // SPRINT-WHATSAPP-FUNCTIONAL-001 — CTWA attribution inheritance.
+          // When the agent creates an order from a WhatsApp conversation,
+          // stamp the clickId captured by the WA webhook so the CAPI
+          // Purchase event (auto-fired when paid) can close the loop.
+          ...(datos.conversationId ? { conversationId: datos.conversationId } : {}),
+          ...(datos.clickId ? { clickId: datos.clickId, attributedAt: new Date() } : {}),
+          ...(datos.sourceAdId ? { sourceAdId: datos.sourceAdId } : {}),
+          ...(datos.sourceCampaign ? { sourceCampaign: datos.sourceCampaign } : {}),
+          ...(datos.sourcePlatform ? { sourcePlatform: datos.sourcePlatform } : {}),
         },
       })
 

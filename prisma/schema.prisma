@@ -91,6 +91,11 @@ model Tenant {
   commissionEntries     CommissionEntry[]
   invoices              Invoice[]
   auditLogs             AuditLog[]
+  // ── AP2/UCP/Ley 2573/1581 — SPRINT-AGENTIC-PROTOCOLS-001 ──
+  ap2Mandates            AP2Mandate[]
+  ucpCheckoutSessions    UcpCheckoutSession[]
+  identityVerifications  IdentityVerification[]
+  consentRecords         ConsentRecord[]
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -223,6 +228,21 @@ model Conversation {
   utm             String?
   // Saramantha §2: perfil determinado en la conversación
   perfilConversacion String? // mayorista | emprendedor | detal | regalo
+  // SPRINT-WHATSAPP-FUNCTIONAL-001 — CTWA click_id capture + TTR tracking.
+  // `clickId` stores the WhatsApp Click-to-WhatsApp-Ad (CTWA) click id
+  // extracted from inbound message `context.referral.ctwa_click_id` /
+  // `context.cta_url?cta_id=...`. Persisted at the conversation level so
+  // orders created from this conversation inherit it for closed-loop CAPI
+  // attribution (study §14.4).
+  // `customerPhone` is a denormalized E.164 phone used by the WA webhook to
+  // resolve or create a conversation by phone without first joining to
+  // `Customer` (which may not exist yet for first-time leads).
+  // `firstReplyAt` records the timestamp of the first outbound agent reply,
+  // enabling First Response Time (TTR) analytics (study §14.4: conversion
+  // drops >50% if no reply in 15–30 min).
+  clickId          String?
+  customerPhone    String?
+  firstReplyAt     DateTime?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -236,10 +256,13 @@ model Conversation {
   // FIX-1-DB-001 — previously zero @@index (most-read table in the app).
   // Hot paths: messenger inbox (tenantId + status + lastMessageAt DESC),
   // agent assignment dashboard (assigneeId), per-tenant scoping (tenantId).
+  // SPRINT-WHATSAPP-FUNCTIONAL-001 — (tenantId, customerPhone, status) for
+  // the WA webhook's open-conversation lookup by E.164 phone.
   @@index([tenantId])
   @@index([tenantId, status])
   @@index([tenantId, lastMessageAt])
   @@index([assigneeId])
+  @@index([tenantId, customerPhone, status])
 }
 
 model Message {
@@ -253,6 +276,11 @@ model Message {
   status         String   @default("sent")
   aiSuggested    Boolean  @default(false)
   aiConfidence   Float?
+  // SPRINT-WHATSAPP-FUNCTIONAL-001 — WhatsApp Cloud API message ID for
+  // deduplication of inbound webhooks (Meta retries up to ~24h) and for
+  // `markMessageRead` calls. NULL for messages from channels without a
+  // native message ID (e.g. simulated chat-service replies).
+  waMessageId    String?
   // Saramantha §3: embedding for semantic memory (Bytes in SQLite, vector in PG)
   embedding      Bytes?
   createdAt      DateTime @default(now())
@@ -262,10 +290,13 @@ model Message {
   // FIX-1-DB-001 — previously zero @@index (timeline + tenant isolation).
   // Hot paths: message timeline per conversation (conversationId + createdAt),
   // tenant-scoped scans (tenantId), sender-role analytics (direction).
+  // SPRINT-WHATSAPP-FUNCTIONAL-001 — waMessageId index for inbound webhook
+  // dedup queries (Meta retries up to ~24h).
   @@index([conversationId])
   @@index([conversationId, createdAt])
   @@index([tenantId])
   @@index([direction])
+  @@index([waMessageId])
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -1287,4 +1318,137 @@ model CustomerNotification {
 
   @@index([tenantId, status])
   @@index([tenantId, scheduledAt])
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// 17. AP2 / UCP / LEY 2573 / LEY 1581 — Agentic Protocols & Compliance
+// (added by SPRINT-AGENTIC-PROTOCOLS-001 — audit AUDIT-AGENTIC-PROTOCOLS-001)
+// Documento §9 (protocolos), §10 (AP2/UCP), §11 (gobernanza), §12 (regulacro CO).
+// ───────────────────────────────────────────────────────────────────────────
+
+/// AP2 Intent Mandate — lo que el usuario autorizó (W3C VC firmado).
+/// Documento §10.2: "comprar zapatillas, talla 10, menos de $150".
+/// Tres tipos encadenados: intent → cart → payment.
+model AP2Mandate {
+  id                String   @id @default(cuid())
+  tenantId          String
+  type              String   // "intent" | "cart" | "payment"
+  parentMandateId   String?  // Cart enlaza a Intent; Payment enlaza a Cart
+  userId            String?  // para Intent: quién autorizó
+  // W3C Verifiable Credential payload (JSON serializado)
+  vcPayload         String   // VC completo (incluye proof)
+  vcSignature       String   // JWS / firma ed25519 (base64url)
+  signatoryDid      String   // DID del firmante
+  status            String   @default("active") // "active" | "revoked" | "consumed"
+  revokedAt         DateTime?
+  revokedReason     String?
+  // Límites específicos del Intent (solo aplican a type=intent)
+  maxAmount         Float?   // tope de gasto
+  currency          String?  // "COP"
+  categoryLimits    String?  // JSON: { "moda": 500000, "farmacia": 200000 }
+  expiresAt         DateTime?
+  // Recursos vinculados (para Cart / Payment)
+  orderId           String?  // para Cart/Payment: order generado
+  paymentRef        String?  // para Payment: referencia de pasarela
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  tenant            Tenant       @relation(fields: [tenantId], references: [id])
+  parentMandate     AP2Mandate?  @relation("MandateChain", fields: [parentMandateId], references: [id])
+  childMandates     AP2Mandate[] @relation("MandateChain")
+
+  @@index([tenantId, type, status])
+  @@index([parentMandateId])
+  @@index([userId])
+  @@index([orderId])
+  @@index([status, expiresAt])
+}
+
+/// UCP Checkout Session — máquina de estados:
+/// incomplete → requires_escalation → ready_for_complete → completed/failed.
+/// Documento §10.1.
+model UcpCheckoutSession {
+  id              String   @id @default(cuid())
+  tenantId        String
+  sessionId       String   @unique // ID externo compartido con el agente
+  agentDid        String?  // DID del agente llamante
+  intentMandateId String?  // enlace a AP2Mandate type=intent
+  cartMandateId   String?  // enlace a AP2Mandate type=cart
+  paymentMandateId String? // enlace a AP2Mandate type=payment
+  state           String   @default("incomplete") // "incomplete" | "requires_escalation" | "ready_for_complete" | "completed" | "failed"
+  cart            String?  // JSON: items, totals, shipping
+  continuationUrl String?  // URL para escalamiento humano
+  negotiatedCaps  String?  // JSON: capacidades intersecadas
+  paymentHandler  String?  // "com.google.pay" | "com.stripe" etc
+  orderId         String?  // una vez creado el order
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  expiresAt       DateTime?
+
+  tenant          Tenant   @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, state])
+  @@index([agentDid])
+  @@index([orderId])
+}
+
+/// Verificación de identidad bajo Ley 2573 de 2026.
+/// Documento §12.1: verificación trazable para crédito/cuotas; sin evidencia
+/// la empresa asume el 100% de la pérdida ("carga dinámica de la prueba").
+model IdentityVerification {
+  id              String   @id @default(cuid())
+  tenantId        String
+  userId          String?
+  customerId      String?
+  // Método de verificación
+  method          String   // "kyc_provider" | "biometric" | "document" | "2fa_totp"
+  provider        String?  // "onfido" | "jumio" | "local_bank" etc
+  // Resultado
+  status          String   @default("pending") // "pending" | "verified" | "failed" | "expired"
+  verifiedAt      DateTime?
+  expiresAt       DateTime? // KYC usualmente válido por N meses
+  // Evidencia (hash, no datos crudos)
+  evidenceHash    String?  // SHA-256 del bundle de evidencia
+  evidenceUrl     String?  // URL de almacenamiento seguro
+  // Contexto: qué transacción disparó esta verificación
+  triggerType     String?  // "credit_purchase" | "installment_plan" | "high_value_order"
+  triggerRef      String?  // order ID o mandate ID
+  riskScore       Float?   // 0.0 - 1.0
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  tenant          Tenant   @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, status])
+  @@index([userId])
+  @@index([customerId])
+  @@index([status, expiresAt])
+}
+
+/// Registro de consentimiento bajo Ley 1581 de 2012 (habeas data).
+/// Documento §12.2: base legal + mecanismo de revocación.
+model ConsentRecord {
+  id              String   @id @default(cuid())
+  tenantId        String
+  dataSubjectId   String   // customer ID o user ID
+  dataSubjectType String   // "customer" | "user" | "lead"
+  // A qué se consintió
+  purpose         String   // "marketing" | "analytics" | "ai_processing" | "data_sharing"
+  legalBasis      String   // "consent" | "contract" | "legitimate_interest" | "legal_obligation"
+  // Estado del consentimiento
+  granted         Boolean  @default(true)
+  grantedAt       DateTime @default(now())
+  revokedAt       DateTime?
+  revokeReason    String?
+  // Evidencia
+  proofHash       String?  // hash de prueba (IP, timestamp, UI version)
+  proofPayload    String?  // JSON: { ip, userAgent, timestamp, uiVersion }
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  tenant          Tenant   @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, dataSubjectId, purpose])
+  @@index([dataSubjectType, granted])
+  @@index([granted, revokedAt])
 }

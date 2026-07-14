@@ -5,10 +5,15 @@
 // migrate to call this service in a follow-up sprint.
 //
 // SPRINT6-ARCH-001 — service layer.
+// SPRINT-WHATSAPP-FUNCTIONAL-001 — sendMessage now also delivers outbound
+//   via the WhatsApp Cloud API adapter when the conversation's channel is
+//   `whatsapp`, and records TTR (firstReplyAt) on the conversation.
 
 import { db } from '@/lib/db'
 import { getLogger } from '@/lib/logger'
 import { captureError } from '@/lib/capture-error'
+import { getWhatsAppAdapter } from '@/lib/adapters/whatsapp-cloud'
+import { recordFirstReply } from '@/lib/metrics/ttr'
 
 const log = getLogger('service:conversation')
 
@@ -119,11 +124,43 @@ export const conversationService = {
   /**
    * Send (persist) an outbound message into a conversation. Updates
    * `lastMessageAt` + resets unreadCount in the same logical operation.
-   * Note: the actual WhatsApp/Messenger delivery is handled by the
-   * channel adapter layer — this only persists the local message.
+   *
+   * SPRINT-WHATSAPP-FUNCTIONAL-001 — when the conversation's channel is
+   * `whatsapp`, ALSO delivers the message via the WhatsApp Cloud API
+   * adapter (POST /{phoneNumberId}/messages). The persisted `Message`
+   * row's `waMessageId` is updated with the ID Meta echoes back. The
+   * first outbound reply also stamps `conversation.firstReplyAt` for
+   * TTR analytics (study §14.4).
+   *
+   * Delivery failures are non-fatal: the local `Message` row is still
+   * persisted (status='failed') so the agent sees their attempted reply
+   * in the inbox and can retry. The error is captured + logged.
    */
   async sendMessage(input: SendMessageInput) {
     try {
+      // Fetch the conversation + channel to know whether we need to
+      // deliver via the WhatsApp adapter and which customer phone to
+      // send to. Single query — keeps the happy path fast.
+      const conv = await db.conversation.findUnique({
+        where: { id: input.conversationId },
+        select: {
+          id: true,
+          tenantId: true,
+          channelId: true,
+          customerPhone: true,
+          customer: { select: { phone: true } },
+          channel: { select: { type: true } },
+        },
+      })
+      if (!conv) {
+        throw new Error(`Conversación no encontrada: ${input.conversationId}`)
+      }
+
+      const isOutbound = (input.direction ?? 'outbound') === 'outbound'
+
+      // Persist the local Message row first — the agent needs to see
+      // their reply in the inbox immediately, even if the WA delivery
+      // is slow or fails.
       const msg = await db.message.create({
         data: {
           tenantId: input.tenantId,
@@ -137,10 +174,69 @@ export const conversationService = {
           aiConfidence: input.aiConfidence ?? null,
         },
       })
+
       await db.conversation.update({
         where: { id: input.conversationId },
         data: { lastMessageAt: new Date(), unreadCount: 0 },
       })
+
+      // ── WhatsApp Cloud API delivery (outbound only) ─────────────────
+      // For inbound messages persisted via this service (rare — the WA
+      // webhook writes directly), there's nothing to deliver.
+      if (isOutbound && conv.channel?.type === 'whatsapp') {
+        const adapter = await getWhatsAppAdapter(conv.tenantId)
+        const recipientPhone = conv.customerPhone || conv.customer?.phone || ''
+        if (adapter && recipientPhone) {
+          try {
+            const result = await adapter.sendText(recipientPhone, input.body)
+            if (result.messageId) {
+              await db.message.update({
+                where: { id: msg.id },
+                data: { waMessageId: result.messageId },
+              })
+            }
+            log.info(
+              { conversationId: input.conversationId, messageId: msg.id, waMessageId: result.messageId },
+              'Message delivered via WhatsApp Cloud API',
+            )
+          } catch (deliveryErr) {
+            // Mark the local message as failed but DON'T rethrow —
+            // the agent should still see their attempted reply. The
+            // error is captured for observability.
+            captureError(deliveryErr as Error, {
+              service: 'conversation',
+              method: 'sendMessage:wa-deliver',
+              conversationId: input.conversationId,
+              messageId: msg.id,
+            })
+            await db.message
+              .update({ where: { id: msg.id }, data: { status: 'failed' } })
+              .catch(() => {})
+            log.error(
+              { conversationId: input.conversationId, messageId: msg.id, err: deliveryErr instanceof Error ? deliveryErr.message : String(deliveryErr) },
+              'WhatsApp delivery failed — message persisted locally as failed',
+            )
+          }
+        } else if (!adapter) {
+          log.warn(
+            { conversationId: input.conversationId, tenantId: conv.tenantId },
+            'WhatsApp adapter not configured — message persisted locally only',
+          )
+        } else if (!recipientPhone) {
+          log.warn(
+            { conversationId: input.conversationId },
+            'Cannot deliver outbound: conversation has no customerPhone',
+          )
+        }
+      }
+
+      // ── TTR: stamp firstReplyAt on first outbound reply ─────────────
+      // Idempotent — `recordFirstReply` checks + short-circuits when
+      // already set. Best-effort + non-blocking.
+      if (isOutbound) {
+        await recordFirstReply(input.conversationId).catch(() => {})
+      }
+
       log.info(
         { conversationId: input.conversationId, messageId: msg.id, direction: msg.direction },
         'Message sent',

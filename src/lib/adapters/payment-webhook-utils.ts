@@ -5,6 +5,7 @@
 
 import { db } from '@/lib/db'
 import { getLogger } from '@/lib/logger'
+import { fireCapiPurchaseEvent } from '@/lib/attribution/capi-auto-fire'
 
 const log = getLogger('payment-webhook-utils')
 
@@ -131,6 +132,23 @@ export async function applyPaymentUpdate(opts: {
         },
       })
     })
+
+    // ── CAPI auto-fire on transition to paid ─────────────────────────────
+    // Study §14.4: closing the attribution loop with CAPI is the
+    // highest-impact improvement reported in 2026. We fire a `Purchase`
+    // ConversionEvent for every active PixelConfig of the order's tenant
+    // ONLY when this webhook actually transitioned the order to `paid`
+    // (not on idempotent retries). Best-effort + non-blocking: the
+    // CAPI module catches its own errors so a CAPI failure never
+    // prevents the payment webhook from ACKing 200.
+    if (shouldMarkPaid && !wasAlreadyPaid) {
+      fireCapiPurchaseEvent(order.id, order.tenantId).catch((err) =>
+        log.error(
+          { orderId: order.id, tenantId: order.tenantId, err: err instanceof Error ? err.message : String(err) },
+          'CAPI auto-fire failed (non-blocking)',
+        ),
+      )
+    }
 
     return { found: true, orderId: order.id, newStatus }
   } catch (err) {

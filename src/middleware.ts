@@ -43,6 +43,11 @@ const PUBLIC_PATTERNS: Array<RegExp | string> = [
   /^\/api\/webhooks(?:\/.*)?$/,
   /^\/api\/health(?:\/.*)?$/,
   /^\/api\/public(?:\/.*)?$/,
+  // UCP manifest — Documento §10.1: "debe ser públicamente accesible y no
+  // requerir ninguna autenticación". Exposed under /.well-known/ucp so that
+  // external AI agents (Gemini, ChatGPT) can discover the tenant without
+  // credentials. SPRINT-AGENTIC-PROTOCOLS-001.
+  '/.well-known/ucp',
   '/_next',
   '/favicon.ico',
   '/logo.svg',

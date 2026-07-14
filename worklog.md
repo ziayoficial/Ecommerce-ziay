@@ -6344,3 +6344,219 @@ Stage Summary:
 - `src/components/dashboard/{overview,ads,monetization,channels-manager}-view.tsx`
 - `src/lib/i18n.ts`
 - `upload/PLAN-ENTERPRISE-COMERCIO-AGENTICO.md` (roadmap reference)
+
+---
+Task ID: SPRINT-AGENTIC-PROTOCOLS-001
+Agent: senior-backend-architect
+Task: AP2 mandates + UCP manifest + signing service + Ley 2573/1581 compliance
+
+Work Log:
+- Read worklog tail (lines 6148–6245) — anchored on AUDIT-AGENTIC-PROTOCOLS-001 (14 missing protocol items across §9–§12 of the study doc). Confirmed prior baseline: 180/180 vitest passing, lint/tsc clean, 55-model Prisma schema, zero AP2/UCP/Ley 2573/1581 primitives in code.
+- Read study doc §9 (protocol stack), §10.1 (UCP manifest + 4 capabilities + state machine), §10.2 (3-mandate chain as W3C VCs), §11 (governance checklist: revocation + spend limits + audit), §12.1 (Ley 2573 — carga dinámica de la prueba), §12.2 (Ley 1581 — legal basis + revocation).
+- **Schema:** Appended 4 new Prisma models at end of `prisma/schema.prisma`: `AP2Mandate` (3-type chain: intent|cart|payment, with parentMandateId self-relation `MandateChain`, W3C VC payload + ed25519 signature + revocation columns + Intent-specific maxAmount/categoryLimits/expiresAt), `UcpCheckoutSession` (state machine incomplete→requires_escalation→ready_for_complete→completed/failed, continuation URL, negotiated caps, sessionId @unique for external agents), `IdentityVerification` (Ley 2573 KYC: method/provider/status/expiresAt/evidenceHash/triggerType+riskScore, 4 indexes), `ConsentRecord` (Ley 1581: purpose/legalBasis/granted/revokedAt/proofHash+proofPayload, 3 indexes). Added 4 reverse relations to `Tenant` (ap2Mandates, ucpCheckoutSessions, identityVerifications, consentRecords). All indexes follow existing convention (composite where query patterns demand it). `bunx prisma validate` → valid 🚀; `bun run db:push` → DB in sync; Prisma client regenerated.
+- **Signing service** (`src/lib/crypto/signing.ts`, 173 lines): ed25519 keypair management via `crypto.generateKeyPairSync('ed25519')`, PEM stored in `Setting` (keys `cred::signing::{tenantId}::private|public`). Functions: `getOrCreateTenantKeypair` (idempotent, dev-only — KMS in prod), `getTenantPublicKey` (verify-only), `createW3CVC` (builds unsigned VC with `@context` + `VerifiableCredential` type + custom subtypes), `signVC` (detached proof over canonical JSON, `Ed25519Signature2020` proof type, base64url), `verifyVC` (returns false on missing proof or invalid signature), `computeHash` (SHA-256 hex), `computeIntentCartHash` (lexicographic-ordered hash linking Intent + Cart for Payment Mandate non-repudiation).
+- **UCP manifest** (`src/app/.well-known/ucp/route.ts`, `force-static`): returns the full UCP JSON manifest — version `2026-04-08`, 4 capabilities (`dev.ucp.shopping.checkout`, `dev.ucp.common.identity_linking`, `dev.ucp.shopping.order`, `dev.ucp.shopping.payment_token_exchange`), 4 payment handlers (MercadoPago, Wompi, Stripe, PayU) with `allowed_card_networks` configs, REST transport endpoint `/api/ucp/v1`. Cache-Control: public, max-age=3600; CORS: `*`.
+- **Middleware update** (`src/middleware.ts`): added `/.well-known/ucp` to `PUBLIC_PATTERNS` so the manifest is accessible without auth (study §10.1: "debe ser públicamente accesible y no requerir ninguna autenticación"). All other `/api/**` routes remain auth-gated + rate-limited (60 req/min/IP).
+- **AP2 mandate endpoints** (5 routes):
+  - `POST /api/ap2/mandates` — creates Intent Mandate. Zod-validated body (userId, purpose, maxAmount, currency, categoryLimits?, expiresAt?). Signs W3C VC with tenant private key, stores VC payload + signature + signatoryDid + Intent bounds.
+  - `POST /api/ap2/mandates/cart` — creates Cart Mandate linked to Intent. Verifies Intent is active + not expired + signature valid + cart total ≤ maxAmount + per-category caps respected. Signs Cart VC including `totalHash` (deterministic sha256 over sorted items + totals).
+  - `POST /api/ap2/mandates/payment` — creates Payment Mandate linked to Cart. Verifies Cart active + signature + Intent padre active. Includes `intentCartHash = sha256(sort(intentId, cartId))` in VC subject for non-repudiation. Stores `tokenRef = sha256(paymentToken)` (no PAN).
+  - `PATCH /api/ap2/mandates/[id]/revoke` — revokes mandate + cascades to all child mandates (BFS over MandateChain relation, depth 3). Sets status=revoked, revokedAt, revokedReason. Idempotent (already-revoked returns 409). Study §11: "Mandatos revocables en cualquier momento".
+  - `GET /api/ap2/mandates/[id]` — returns mandate + parsed VC + signature verification status (re-verifies against tenant public key at read time).
+  - `GET /api/ap2/mandates?tenantId=X&userId=Y&type=intent&status=active` — list with filters.
+  - `PATCH /api/ap2/mandates/[id]` — advance active → consumed, update orderId/paymentRef.
+- **UCP v1 endpoints** (4 capabilities):
+  - `POST /api/ucp/v1/checkout` — starts session. Negotiates capabilities (intersect agent's declared caps with tenant's 4 caps) + payment handlers (intersect with tenant's 4 handlers). Returns sessionId (UUID), state=incomplete, negotiated result, expiresAt (30 min). 422 if agent lacks `dev.ucp.shopping.checkout`.
+  - `GET /api/ucp/v1/checkout/[sessionId]` — returns state + cart + continuationUrl + negotiatedCaps + linked mandate IDs + orderId.
+  - `PATCH /api/ucp/v1/checkout/[sessionId]` — advances state machine. Three transitions: (1) `→ requires_escalation` requires continuationUrl; (2) `→ ready_for_complete` verifies Intent + Cart Mandate signatures, validates cart.parentMandateId === intent.id, and if paymentMode ∈ {credit, installment} calls `requireIdentityVerification()` (Ley 2573 gate) — if KYC fails, forces `requires_escalation` with continuation URL `/compliance/kyc?verificationId=...`; (3) `→ completed` creates a real `Order` row (number `UCP-{sessionid-prefix}`, paymentMode advance|cod|hybrid|credit|installment, origen=`ucp_agent`), creates `OrderItem` rows for matching SKUs, writes `OrderEvent {type: 'created'}`, marks Intent+Cart+Payment Mandates as `consumed` with `orderId`, validates Payment Mandate's `intentCartHash` matches expected.
+  - `POST /api/ucp/v1/identity-linking` — OAuth-style agent↔customer linking. Verifies agent's signature over `${agentDid}:${customerId}:${tenantId}:${ts}` (ed25519 or RSA-SHA256), anti-replay (5 min window), creates `IdentityVerification {status: 'verified', triggerRef: linkingToken, expiresAt: +24h}`, returns `linkingToken` UUID.
+  - `GET /api/ucp/v1/order/[orderId]` — returns order details in UCP format: items, events, shipments (proveedor/numeroGuia/estado), `ucpFulfillmentStatus` mapped from operational status.
+  - `POST /api/ucp/v1/payment-token-exchange` — exchanges agent's payment token for chargeable instrument. Validates Payment Mandate active + Cart padre active + declared handler matches + `tokenRef = sha256(paymentToken)` matches (no PAN stored). Returns deterministic `paymentRef` (real adapter call in prod), updates mandate with paymentRef.
+- **KYC gate** (`src/lib/compliance/kyc-gate.ts`, 152 lines): `requireIdentityVerification(tenantId, userId, triggerType, triggerRef, orderAmount?)` — returns `{verified, verificationId, reason}`. Policy: `credit_purchase` + `installment_plan` → ALWAYS require KYC; `high_value_order` → requires if amount > COP 2,000,000. Idempotent: returns existing verified KYC if non-expired, else reuses pending verification for same trigger, else creates new pending. KYC TTL: 90 days. `recordIdentityVerification(id, status, evidenceHash, riskScore?)` — marks verified (sets expiresAt = +90d) or failed. `getActiveVerification(tenantId, userId)` — read-only check.
+- **KYC endpoints** (Ley 2573):
+  - `POST /api/compliance/kyc` — initiate. Returns 200 {verified: true} if existing valid KYC, else 202 {verified: false, verificationId, reason}.
+  - `GET /api/compliance/kyc?tenantId=X&userId=Y` — check active verification status.
+  - `POST /api/compliance/kyc/[id]/verify` — complete (provider webhook or 2FA TOTP). Body: {status: 'verified'|'failed', evidenceHash, riskScore?, provider?}. Updates record, sets expiresAt.
+- **Consent + DSR endpoints** (Ley 1581):
+  - `POST /api/compliance/consent` — record consent with Zod-validated {tenantId, dataSubjectId, dataSubjectType ('customer'|'user'|'lead'), purpose ('marketing'|'analytics'|'ai_processing'|'data_sharing'), legalBasis ('consent'|'contract'|'legitimate_interest'|'legal_obligation'), proofPayload?}. Computes `proofHash = sha256(JSON.stringify(proofPayload))`.
+  - `GET /api/compliance/consent?tenantId=X&dataSubjectId=Y` — list consents for a data subject.
+  - `DELETE /api/compliance/consent?id=Z&reason=...` — revoke (granted=false, revokedAt=now).
+  - `POST /api/compliance/dsr` — Data Subject Request. Three types: (1) `access` — returns full bundle: customer + orders + conversations + messages + consents + identityVerifications; (2) `portability` — same bundle, format=json-portable; (3) `erasure` — anonymizes customer (PII → null/`[anonimizado]`), deletes messages, bulk-revokes all consents for the data subject. Preserves referential integrity (Orders/Shipments kept, only PII wiped).
+
+Stage Summary:
+
+### Files created (13 new)
+
+| Path | Lines | Purpose |
+|------|-------|---------|
+| `src/lib/crypto/signing.ts` | 173 | ed25519 signing service (W3C VC create/sign/verify) |
+| `src/lib/compliance/kyc-gate.ts` | 152 | Ley 2573 KYC gate (requireIdentityVerification + record + getActive) |
+| `src/app/.well-known/ucp/route.ts` | 65 | UCP manifest (force-static, public) |
+| `src/app/api/ucp/v1/checkout/route.ts` | 144 | POST — start UCP checkout session + negotiate caps |
+| `src/app/api/ucp/v1/checkout/[sessionId]/route.ts` | 280 | GET poll + PATCH advance state machine (incl. order creation) |
+| `src/app/api/ucp/v1/identity-linking/route.ts` | 142 | POST — agent↔customer linking (OAuth-style + signature verify) |
+| `src/app/api/ucp/v1/order/[orderId]/route.ts` | 90 | GET — order details in UCP format |
+| `src/app/api/ucp/v1/payment-token-exchange/route.ts` | 142 | POST — exchange payment token for chargeable instrument |
+| `src/app/api/ap2/mandates/route.ts` | 168 | POST Intent + GET list |
+| `src/app/api/ap2/mandates/[id]/route.ts` | 162 | GET + PATCH (advance active→consumed) |
+| `src/app/api/ap2/mandates/[id]/revoke/route.ts` | 100 | PATCH — revoke with cascade over MandateChain |
+| `src/app/api/ap2/mandates/cart/route.ts` | 255 | POST — Cart Mandate (validates Intent bounds + signature) |
+| `src/app/api/ap2/mandates/payment/route.ts` | 195 | POST — Payment Mandate (intentCartHash non-repudiation) |
+| `src/app/api/compliance/kyc/route.ts` | 118 | POST initiate + GET status |
+| `src/app/api/compliance/kyc/[id]/verify/route.ts` | 102 | POST — complete verification |
+| `src/app/api/compliance/consent/route.ts` | 167 | POST + GET + DELETE (Ley 1581 consent CRUD) |
+| `src/app/api/compliance/dsr/route.ts` | 182 | POST — access/erasure/portability DSR |
+
+### Files modified (2)
+
+| Path | Change |
+|------|--------|
+| `prisma/schema.prisma` | +4 models (AP2Mandate, UcpCheckoutSession, IdentityVerification, ConsentRecord) at end + 4 reverse relations on `Tenant`. Model count: 62 → 66. |
+| `src/middleware.ts` | Added `/.well-known/ucp` to PUBLIC_PATTERNS so external AI agents can discover ZIAY merchants without auth (study §10.1). |
+
+### Endpoint count
+
+- AP2 mandates: 6 routes (POST intent, POST cart, POST payment, GET list, GET/GET [id], PATCH [id], PATCH [id]/revoke)
+- UCP v1: 5 routes (POST checkout, GET/PATCH checkout/[sessionId], POST identity-linking, GET order/[orderId], POST payment-token-exchange)
+- Compliance: 4 routes (POST/GET/DELETE consent, POST dsr, POST/GET kyc, POST kyc/[id]/verify)
+- Public: 1 route (`/.well-known/ucp`)
+- **Total: 16 new HTTP endpoints**
+
+### Verification results
+
+| Command | Result |
+|---------|--------|
+| `bunx prisma validate` | ✅ valid 🚀 |
+| `bun run db:push` | ✅ Database is already in sync; Prisma Client v6.19.2 generated |
+| `bun run lint` | ✅ exit 0 (no errors) |
+| `npx tsc --noEmit` | ✅ exit 0 (no errors) |
+| `bunx vitest run` | ✅ 10 test files, 180/180 tests passing |
+| `curl http://localhost:3000/.well-known/ucp` | ✅ HTTP 200 — returns UCP manifest JSON with version `2026-04-08`, 4 capabilities, 4 payment_handlers |
+
+### Audit gaps closed (from AUDIT-AGENTIC-PROTOCOLS-001)
+
+- Gap #1 (UCP `/.well-known/ucp` manifest) ✅
+- Gap #2 (UCP 4 capabilities: checkout, identity_linking, order, payment_token_exchange) ✅
+- Gap #3 (UCP checkout state machine incomplete → requires_escalation → ready_for_complete → completed/failed) ✅
+- Gap #4 (UCP profile negotiation — agent ∩ commerce per-transaction) ✅
+- Gap #6 (AP2 Intent Mandate signed) ✅
+- Gap #7 (AP2 Cart Mandate linked to Intent, with bounds enforcement) ✅
+- Gap #8 (AP2 Payment Mandate with intentCartHash linking) ✅
+- Gap #9 (AP2 mandates as W3C Verifiable Credentials — Ed25519Signature2020) ✅
+- Gap #10 (AP2 mandate revocation — any time, with cascade to children) ✅
+- Gap #11 (AP2 human-present vs delegated modes — Intent Mandate carries pre-authorized bounds; agent cannot exceed) ✅ (partial — full delegated task mode requires future Intent `mode: 'delegated'` flag + agent runtime check)
+- Gap #Ley 2573 (traceable identity verification for credit/installments) ✅
+- Gap #Ley 1581 (legal basis tagging + consent revocation + DSR) ✅
+- Gap #Spend limits (per-category caps enforced in Cart Mandate creation) ✅
+- Gap #Mandate revocation (PATCH /api/ap2/mandates/[id]/revoke with cascade) ✅
+
+### Out of scope (deferred to next sprint)
+
+- ACP (OpenAI/Stripe) manifest — gap #12 — separate `/.well-known/acp` route.
+- MCP transport + A2A agent-card.json — gap #5 + #14 — `/api/mcp` + `/.well-known/agent-card.json`.
+- AuditLog upgrade to Verifiable Intent (gap #10 in audit) — `proof` + `credentialSchema` columns on `AuditLog` + `/api/audit/[id]/verifiable` endpoint. Reuses the signing service built here.
+- Supervisor mapping (SIC vs SFC vs MinTIC) — gap #23 — `REGULATORY-MAPPING.md` + AuditLog.tag.
+- Frontend — UCP/KYC/Consent admin views (deferred to frontend sprint; rules prohibited touching `src/components/`).
+
+### Recommended next sprint
+
+Build the agent runtime layer on top of this protocol stack:
+1. MCP tool exposure (`/api/mcp` exposing the 4 UCP capabilities as MCP tool definitions for Claude/ChatGPT).
+2. A2A `/.well-known/agent-card.json` for inter-agent discovery.
+3. AuditLog Verifiable Intent upgrade — sign each row with tenant keypair, expose as W3C VC.
+4. Wire the existing `checkout` + `cart_builder` agents to issue AP2 Intent Mandates instead of plain ConversationalCart rows (backward-compat shim: ConversationalCart → AP2 Intent when cart is locked).
+5. Wire payment webhooks (Stripe/MP/Wompi/PayU) to mark AP2 Payment Mandates as `consumed` on `payment_status=paid`.
+
+---
+Task ID: SPRINT-WHATSAPP-FUNCTIONAL-001
+Agent: senior-backend-engineer
+Task: WhatsApp Cloud API send+receive + CAPI auto-fire + CTWA + TTR
+
+Work Log:
+- Read worklog tail (audit `AUDIT-CHANNELS-FINANCE-001` found WhatsApp is a stub: webhook only writes raw body to AuditLog; no message sending; CAPI never auto-fires on paid; CTWA click_id never captured; TTR unmeasurable).
+- Read `prisma/schema.prisma`, `src/app/api/webhooks/whatsapp/route.ts` (stub), `src/lib/services/conversation.service.ts` (sendMessage only persists locally), `src/lib/adapters/payment-webhook-utils.ts` (applyPaymentUpdate never fires CAPI), `src/lib/queue.ts` (`capi-fire` worker exists, posts to Meta/GA4/TikTok), `src/app/api/conversions/route.ts` (only explicit caller of capi-fire), `mini-services/chat-service/index.ts` (socket.io server on :3003, no /emit endpoint), `src/lib/middleware/hmac.ts` + `idempotency.ts` (existing 2-layer dedup to preserve).
+- Verified `ConversionEvent` schema uses `pixelConfigId`/`eventType`/`value`/`currency`/`status`/`response` (no `eventId`/`eventTime`/`eventName` columns) — adapted the capi-auto-fire module to use the real schema fields and store attribution metadata as JSON in `response`.
+- Schema changes (`prisma/schema.prisma`):
+  * `Conversation`: added `clickId String?`, `customerPhone String?`, `firstReplyAt DateTime?` + composite index `(tenantId, customerPhone, status)` for the WA webhook's open-conversation lookup by E.164 phone.
+  * `Message`: added `waMessageId String?` + index for inbound webhook dedup (Meta retries up to ~24h) and `markMessageRead` calls.
+- Created `src/lib/adapters/whatsapp-cloud.ts`:
+  * `WhatsAppCloudAdapter` class: `sendMessage` (POST `/{phoneNumberId}/messages`), `sendText` (convenience), `markMessageRead` (best-effort), `isConfigured`.
+  * `getWhatsAppAdapter(tenantId)` factory: lazy-loads credentials from the tenant's active WhatsApp `Channel` record (returns null when unconfigured).
+  * `findWhatsAppChannelByPhoneNumberId(phoneNumberId)`: reverse lookup used by the webhook to resolve which tenant owns an inbound message (via `value.metadata.phone_number_id`).
+- Created `src/lib/adapters/whatsapp-parser.ts`:
+  * `parseWhatsAppInbound(payload)`: pure function extracting `{ from, fromName, messageId, timestamp, timestampMs, type, text, textBody, mediaId, caption, imageUrl, location, buttonReply, ctwClickId, referralSourceUrl, phoneNumberId, displayPhoneNumber, contactWaId }`.
+  * Handles: text, button, interactive (button_reply + list_reply), image, audio, document, location, unknown.
+  * `extractClickIdFromUrl(url)`: parses `?cta_id=` (CTWA v2) and `?ms_id=` (CTWA v1) from `context.cta_url` / `context.referral.source_url`.
+  * `context.referral.ctwa_click_id` is preferred (Meta's canonical field) — falls back to URL parsing.
+- Rewrote `src/app/api/webhooks/whatsapp/route.ts` POST handler:
+  * Preserved: HMAC verification (with dev-mode fallback + production 500 when META_APP_SECRET missing), 2-layer idempotency (in-memory Map + DB-backed AuditLog), GET verification handshake.
+  * Added: 3rd idempotency layer on `waMessageId` (DB lookup before persisting — Meta re-signs payloads on retry, so the webhookId hash isn't sufficient).
+  * Pipeline: parse → resolve tenant via `phone_number_id` → Channel lookup → fallback to env `WHATSAPP_PHONE_NUMBER_ID` → resolve/create Customer by phone → resolve/create open Conversation (stamps `clickId` at creation OR retroactively when first CTWA-bearing message arrives) → persist Message (direction=inbound, waMessageId) → bump conversation `lastMessageAt` + `unreadCount++` → fire-and-forget `emitToTenant('message:new', payload)` + `emitToTenant('message:received', {...})` to chat-service /emit → best-effort `markMessageRead`.
+  * Returns 200 ALWAYS (Meta retries on non-200) with `{ received: true, status: 'processed' | 'duplicate' | 'duplicate_message_id' | 'non_message' | 'no_channel' | 'processing_failed' }`.
+  * Non-message payloads (status updates, template callbacks) still get an AuditLog row for traceability + ACK 200.
+- Created `src/lib/chat-emit.ts`:
+  * `emitToTenant(tenantId, event, payload)`: fire-and-forget POST to `http://localhost:3003/emit` (3s timeout). Failures are swallowed + logged — the webhook must never block on the realtime fan-out.
+  * `CHAT_SERVICE_INTERNAL_URL` env var (defaults to `http://localhost:3003`).
+- Added `/emit` POST endpoint to `mini-services/chat-service/index.ts`:
+  * Accepts `{ tenantId, event, payload }`, broadcasts via `io.to('tenant:<tenantId>').emit(event, payload)`.
+  * Unauthenticated by design — only the Next.js process can reach it via localhost; Caddy doesn't proxy `/emit` externally.
+  * Health endpoint (`GET /health`) preserved.
+- Created `src/lib/attribution/capi-auto-fire.ts`:
+  * `fireCapiPurchaseEvent(orderId, tenantId)`: loads order + items + customer, finds active PixelConfigs, pre-creates one `ConversionEvent` row per pixel in 'pending' status (with `eventType='Purchase'`, `value=order.total`, `currency=order.currency`), enqueues the existing `capi-fire` BullMQ job with `{tenantId, eventType, value, currency, pixels, eventIds}` (same shape as `/api/conversions` POST).
+  * Attribution metadata (orderId, clickId, sourceAdId, sourceCampaign, sourcePlatform, customerEmailHash, customerPhoneHash) stored as JSON in `ConversionEvent.response` — no schema change needed.
+  * `hashPii(value)`: SHA-256 lowercase hex (Meta CAPI spec).
+  * Best-effort + non-blocking: own try/catch swallows all errors so a CAPI failure never blocks the payment webhook. Skips $0 orders (test data). Skips tenants with no active pixels.
+- Hooked `applyPaymentUpdate` (`src/lib/adapters/payment-webhook-utils.ts`) to call `fireCapiPurchaseEvent` when the order transitions to `paid` (condition: `shouldMarkPaid && !wasAlreadyPaid` — fires only on the webhook that actually marks it paid, NOT on idempotent retries). Fire-and-forget (`.catch(...)` swallowed).
+- Created `src/lib/metrics/ttr.ts`:
+  * `recordFirstReply(conversationId)`: idempotent — sets `firstReplyAt` only on the first outbound reply.
+  * `calculateTtrMinutes(createdAt, firstReplyAt)`: minutes between creation + first reply (null when no reply yet; clamps clock skew to 0).
+  * `getTtrStats(tenantId, days=14)`: aggregates avg / median / withinTargetPct (% replied within 5 min, the pilot target) / totalConversations / repliedConversations. Returns nulls when no conversations.
+- Updated `src/lib/services/conversation.service.ts` `sendMessage`:
+  * Persists the local Message row FIRST (agent sees their reply immediately even if WA delivery is slow/fails).
+  * When `conv.channel.type === 'whatsapp'` AND outbound: calls `getWhatsAppAdapter(tenantId)` → `adapter.sendText(customerPhone, body)` → updates the Message row with the WA message ID Meta echoes back. On delivery failure: marks the local row `status='failed'` (captured + logged, not rethrown).
+  * Calls `recordFirstReply(conversationId)` after every outbound (idempotent — first call wins, subsequent calls are no-ops).
+- Updated `src/app/api/conversations/route.ts` POST:
+  * Migrated from direct `db.message.create` + `db.conversation.update` to `conversationService.sendMessage(...)` so WA delivery + TTR stamping fire automatically.
+  * Added fire-and-forget `emitToTenant('message:new', ...)` so other dashboards of the tenant see the agent's reply in real time.
+- Updated `src/app/api/ucp/v1/checkout/[sessionId]/route.ts` PATCH (completed transition):
+  * Extended `PatchSchema` with optional `conversationId`, `clickId`, `sourceAdId`, `sourceCampaign`, `sourcePlatform` (Zod-validated).
+  * When `conversationId` is supplied: loads the conversation, verifies tenant match (defense-in-depth), inherits `clickId`/`sourceAdId`/`sourceCampaign` from it (explicit body fields take precedence — useful for web checkout with client-side click_id).
+  * Stamps `Order.conversationId`, `clickId`, `sourceAdId`, `sourceCampaign`, `sourcePlatform`, `attributedAt` on the new Order.
+- Extended `CrearPedidoInput` (`src/lib/adapters/ecommerce-adapter.ts`) with optional `conversationId` / `clickId` / `sourceAdId` / `sourceCampaign` / `sourcePlatform` for the WhatsApp Catalog adapter's `crearPedido` path.
+- Updated `WhatsappCatalogAdapter.crearPedido` (`src/lib/adapters/whatsapp-catalog.ts`) to stamp `conversationId` + CTWA attribution fields on the new Order when supplied by the calling agent (closes the WA → order → CAPI loop).
+- Verification:
+  * `bunx prisma validate` → valid ✓
+  * `bun run db:push` → applied (Conversation + Message schema additions; Prisma Client regenerated) ✓
+  * `bun run lint` (eslint .) → exit 0 ✓
+  * `npx tsc --noEmit` → exit 0 ✓
+  * `bun run test` (vitest) → 10 files / 180 tests pass ✓
+  * `test -f src/lib/adapters/whatsapp-cloud.ts` → OK ✓
+  * `test -f src/lib/adapters/whatsapp-parser.ts` → OK ✓
+  * `grep parseWhatsAppInbound src/app/api/webhooks/whatsapp/route.ts` → 4 matches (import + 3 comment/call references) ✓
+- Did NOT touch: `src/components/**` (frontend scope), test files, the GET webhook verification handshake, the existing HMAC verification logic, the 2-layer idempotency (in-memory Map + DB AuditLog) — all preserved verbatim.
+
+Stage Summary:
+- Files created (5):
+  * `src/lib/adapters/whatsapp-cloud.ts` — Cloud API adapter (sendMessage / sendText / markMessageRead + factory + phone_number_id reverse lookup).
+  * `src/lib/adapters/whatsapp-parser.ts` — pure inbound payload parser (text/button/interactive/image/audio/document/location + CTWA click_id extraction).
+  * `src/lib/attribution/capi-auto-fire.ts` — auto-fire Purchase ConversionEvent per active pixel + enqueue `capi-fire` job; SHA-256 PII hashing.
+  * `src/lib/metrics/ttr.ts` — recordFirstReply + calculateTtrMinutes + getTtrStats (avg / median / within-5-min target %).
+  * `src/lib/chat-emit.ts` — fire-and-forget `emitToTenant(tenantId, event, payload)` → `POST http://localhost:3003/emit`.
+- Files modified (8):
+  * `prisma/schema.prisma` — added Conversation.{clickId, customerPhone, firstReplyAt} + composite index; Message.waMessageId + index.
+  * `src/app/api/webhooks/whatsapp/route.ts` — rewrote POST to parse inbound, resolve tenant via phone_number_id, upsert Customer/Conversation/Message, stamp CTWA clickId, emit socket events, mark read; preserved HMAC + 2-layer idempotency; added 3rd idempotency layer on waMessageId.
+  * `src/lib/adapters/payment-webhook-utils.ts` — applyPaymentUpdate now auto-fires CAPI Purchase on transition to paid (best-effort, non-blocking, idempotent on `wasAlreadyPaid`).
+  * `src/lib/services/conversation.service.ts` — sendMessage now delivers via WhatsApp Cloud API when channel is whatsapp + records TTR.
+  * `src/app/api/conversations/route.ts` — POST now routes through conversationService.sendMessage + emits socket event.
+  * `src/app/api/ucp/v1/checkout/[sessionId]/route.ts` — Zod schema + Order creation now inherit clickId/sourceAdId from conversation (CTWA closed-loop).
+  * `src/lib/adapters/ecommerce-adapter.ts` — CrearPedidoInput extended with optional attribution fields.
+  * `src/lib/adapters/whatsapp-catalog.ts` — crearPedido stamps attribution on Order when supplied.
+  * `mini-services/chat-service/index.ts` — added `/emit` POST endpoint for the Next.js process to fan out socket events to tenant rooms.
+- Verification: prisma validate ✓, db:push ✓, lint exit 0 ✓, tsc exit 0 ✓, vitest 180/180 ✓.
+- End-to-end WhatsApp flow now functional: Meta → webhook (HMAC + dedup) → parse → Customer/Conversation/Message upsert → CTWA clickId stamped → socket fan-out to dashboards → mark read. Agent reply → conversationService.sendMessage → Cloud API POST → waMessageId persisted → firstReplyAt stamped (TTR). Payment webhook → order.paid → CAPI Purchase auto-fire per active pixel with clickId for attribution. Order from conversation → clickId inherited. TTR stats available via `getTtrStats(tenantId)`.
+- Next actions (out of scope, follow-up sprints):
+  * Extend `fireMeta`/`fireGoogle`/`fireTikTok` in `queue.ts` to forward the `event_id` + hashed `user_data` (currently stored in `ConversionEvent.response` JSON but not forwarded to Meta — needed for full dedup).
+  * Wire the TTR stats into the overview dashboard (`overview.service.ts` + `overview-view.tsx`) so the SLA metric is visible to operators.
+  * Backfill `customerPhone` on existing conversations (the new field is nullable; existing rows have NULL — the WA webhook handles this by creating new conversations for unknown phones, but a one-time `UPDATE conversation SET customerPhone = customer.phone WHERE customerPhone IS NULL` would unify history).
+  * Add a CTWA metadata view (`/api/conversions` already returns the `response` JSON; could expose a `/api/attribution/ctwa` endpoint summarizing click_id → order → CAPI chain).
+  * Add Zod validation to the WA webhook POST body (currently best-effort JSON.parse — parser is defensive but a schema would catch malformed payloads earlier).

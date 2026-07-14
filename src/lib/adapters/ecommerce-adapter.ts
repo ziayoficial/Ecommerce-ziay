@@ -28,6 +28,13 @@ export interface ProductSearchResult {
  * `direccion` es un mapa libre porque cada plataforma tiene su propio shape
  * (WooCommerce usa `shipping.address_1/2/city/state/postcode`, Shopify usa
  * `shippingAddress` GraphQL input, WA Catalog solo lo registra internamente).
+ *
+ * SPRINT-WHATSAPP-FUNCTIONAL-001 — `conversationId` + `clickId` +
+ * `sourceAdId` + `sourceCampaign` + `sourcePlatform` are optional fields
+ * for closed-loop CTWA attribution (study §14.4). When the order is
+ * created from a WhatsApp conversation, the caller passes the
+ * conversation's clickId so the resulting Order row carries it forward
+ * to the CAPI Purchase event (auto-fired when the order is marked paid).
  */
 export interface CrearPedidoInput {
   contacto_id: string
@@ -36,6 +43,15 @@ export interface CrearPedidoInput {
   direccion: Record<string, string>
   /** Saramantha §2: imagen de referencia enviada por el cliente (VLM-detected). */
   imagen_referencia_url?: string
+  /** SPRINT-WHATSAPP-FUNCTIONAL-001 — conversation this order originated
+   *  from. Used to stamp `Order.conversationId` + pull attribution. */
+  conversationId?: string
+  /** CTWA click_id captured from the inbound WA message
+   *  (`context.referral.ctwa_click_id`). */
+  clickId?: string
+  sourceAdId?: string
+  sourceCampaign?: string
+  sourcePlatform?: string
 }
 
 export interface CrearPedidoResult {

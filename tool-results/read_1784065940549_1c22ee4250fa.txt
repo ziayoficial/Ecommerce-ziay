@@ -1,0 +1,202 @@
+   100→  7424→Work Log:
+   101→  7425→- Read worklog tail (~150 lines) for context — picked up AUDIT-FINAL-ARCH-001 (architecture) + AUDIT-SECURITY-* (security) scorecards already in place. This audit is a sibling: monitoring + alerting + DR.
+   102→  7426→- **Alerting**: counted Sentry capture call sites: only 5 occurrences across 2 files (`src/lib/capture-error.ts` + `src/lib/services/channel-cost.service.ts`). 63 `log.error`/`log.warn` call sites across 20 files — vast majority of error paths go to pino only and never reach Sentry. No alert thresholds, no PagerDuty/Slack/Opsgenie integration, no `alertRule`/`alert_rule`/`alertConfig` anywhere in repo. No Sentry alerts wired in code.
+   103→  7427→- **Metrics / dashboards**: NO `prom-client`/`prometheus` import anywhere. NO `/metrics` Prometheus endpoint (only `/api/health` JSON). NO Grafana dashboards (no `**/grafana/**`, no `dashboard*.json`). `src/lib/metrics/ttr.ts` is a business KPI module (time-to-reply), NOT infra metrics. PRODUCTION-CHECKLIST says "Prometheus scraper available on request" — i.e. not built.
+   104→  7428→- **Uptime monitoring**: Uptime Kuma container in `docker-compose.yml` ✓. `/api/health/uptime` route specifically designed for it ✓. BUT: no monitor definitions in code (those live in Kuma UI at runtime). No status page (statuspage.io / Atlassian Statuspage) integration. No `statusPage` references anywhere.
+   105→  7429→- **Error tracking**: Sentry initialized in `sentry.{client,server,edge}.config.ts` (DSN-gated, `tracesSampleRate: 0.1`). BUT `next.config.ts` does NOT wrap config with `withSentryConfig` → source maps are NOT uploaded. No `SENTRY_AUTH_TOKEN` env, no `SENTRY_RELEASE` references (only migration SQL false-positives). Already flagged as P0 in prior worklog entry O1, still unfixed.
+   106→  7430→- **Log aggregation**: `src/lib/logger.ts` is pino with redaction + ISO timestamps, JSON to stdout in prod. NO transport configured for shipping. NO Loki / Datadog / CloudWatch / Logstash / OpenTelemetry / OTLP anywhere in `src/`. Operator must deploy their own collector (Filebeat/Fluentbit/Promtail) — no guidance in repo.
+   107→  7431→- **Backup strategy**: `scripts/backup.sh` exists but SQLite-only (`sqlite3 .backup` + `cp` fallback). Despite prod path = PostgreSQL, the script has NO `pg_dump` branch. NO offsite replication (no `aws s3 cp` / `gsutil` / `rclone`). NO encryption at rest. 30-day retention OK. `scripts/restore.sh` exists and pre-snapshots the current DB before overwrite (good defensive design). Restore NEVER tested. NO cron in `docker-compose.yml` — must be set manually via `crontab` per PRODUCTION-CHECKLIST line 45.
+   108→  7432→- **DR plan**: NO `DR*`, `DISASTER*`, `RECOVERY*`, `BCP*` files anywhere. NO RTO/RPO defined (only false-positive matches in `bun.lock`/CSV/migration comments). PRODUCTION-CHECKLIST §"Backups & DR" mentions "Test restoring from a backup" + "Document the restore procedure in your runbook" but the runbook does not exist. No region/availability-zone strategy. No failover runbook.
+   109→  7433→- **Failover / HA**: `Caddyfile` has only `localhost:3000` and `localhost:{query.XTransformPort}` — single-instance reverse proxy, NO `lb_policy`, NO sticky-session cookie config. Redis adapter for socket.io is conditionally enabled in `mini-services/chat-service/index.ts` but `@socket.io/redis-adapter` + `ioredis` are NOT in `package.json` (dynamic import with non-literal specifier so type-check passes). Already flagged as R9 in prior audits — still unfixed. No k8s manifest, no second replica of any service.
+   110→  7434→- **Database recovery**: Prisma `datasource` is single-URL (no replica URL). NO PITR config. NO read replicas. `pg_dump` nightly (manual cron per checklist line 188) is the only recovery path — RPO ≥ 24h, RTO unknown.
+   111→  7435→- **Incident response**: NO `INCIDENT*`, `ONCALL*`, `RUNBOOK*` files. PRODUCTION-CHECKLIST line 217 has a checkbox "On-call rotation set up for the first week" — unchecked. No severity matrix, no escalation policy, no incident template.
+   112→  7436→- **Performance monitoring / APM**: Sentry `tracesSampleRate: 0.1` provides minimal APM traces. NO NewRelic / Datadog / AppDynamics / OpenTelemetry. NO `web-vitals` reporting (`reportWebVitals` / `onCLS` / `onLCP` / `onINP` not implemented in `src/app/`). No RUM. The dashboard is fully client-rendered (`src/app/page.tsx`) so Core Web Vitals matter for UX but are not captured.
+   113→  7437→- **Security monitoring**: AuditLog Prisma model exists, 16 files write to it (webhooks, governance, kyc, channels, refunds, shipping, ads, monetization, logistics). HMAC signature failures audit `webhook.X.invalid_sig` events ARE recorded but NEVER forwarded to alerts (already flagged as P3 #43 in prior audit — still open). NO `fail2ban` / intrusion detection. NO anomaly detection / fraud scoring (only PayU sends buyer IP for upstream fraud check — no in-app detection). Rate limiter (60 req/min in middleware + 14 per-route limiters) is in-memory per-instance; not centrally monitored or alerted.
+   114→  7438→
+   115→  7439→Stage Summary:
+   116→  7440→
+   117→  7441→## Monitoring / DR Scorecard
+   118→  7442→
+   119→  7443→| # | Dimension | Score (0-10) | Status | Critical gap |
+   120→  7444→|---|-----------|-------------|--------|--------------|
+   121→  7445→| 1 | Alerting | 3/10 | ❌ Weak | Sentry initialized but only 5 capture sites; 63 error paths go to pino only. No alert rules, no PagerDuty/Slack/Opsgenie, no thresholds. |
+   122→  7446→| 2 | Metrics / dashboards | 2/10 | ❌ Absent | No prom-client, no `/metrics` endpoint, no Grafana dashboards. TTR is a business KPI, not infra metrics. |
+   123→  7447→| 3 | Uptime monitoring | 5/10 | ⚠️ Partial | Uptime Kuma container + dedicated `/api/health/uptime` route ✓, but no status page, no monitor definitions in code, no alert routing from Kuma. |
+   124→  7448→| 4 | Error tracking | 4/10 | ⚠️ Partial | Sentry DSN-gated init ✓, but NO source-map upload, NO release tracking, NO SENTRY_AUTH_TOKEN. Prod stack traces = minified garbage. |
+   125→  7449→| 5 | Log aggregation | 3/10 | ❌ Weak | pino logger ✓ with redaction ✓, but no transport / shipper. No Loki / Datadog / CloudWatch / OTLP. Operator must build their own pipeline. |
+   126→  7450→| 6 | Backup strategy | 3/10 | ❌ SQLite-only | `backup.sh` is SQLite-only despite prod=PostgreSQL. No offsite, no encryption, no pg_dump branch. Restore script exists but UNTESTED. |
+   127→  7451→| 7 | Disaster recovery plan | 1/10 | ❌ Missing | No DR/BCP doc. No RTO/RPO. No failover runbook. Only a 3-line "Backups & DR" stub in PRODUCTION-CHECKLIST. |
+   128→  7452→| 8 | Failover / high availability | 2/10 | ❌ Single-instance | Caddyfile proxies single `localhost:3000`. Socket.io Redis adapter deps missing from `package.json` (silent single-instance fallback). No multi-instance validation. |
+   129→  7453→| 9 | Database recovery | 2/10 | ❌ Minimal | Single datasource (no replica). No PITR. No read replicas. RPO ≥ 24h via nightly `pg_dump` (manual cron). |
+   130→  7454→| 10 | Incident response | 1/10 | ❌ Missing | No INCIDENT/ONCALL/RUNBOOK files. No severity matrix. No escalation policy. No on-call schedule. |
+   131→  7455→| 11 | Performance monitoring / APM | 3/10 | ❌ Minimal | Sentry traces at 10% sample only. No NewRelic/Datadog/OTLP. No `web-vitals`/RUM. Dashboard is fully client-rendered — CWV blind spot. |
+   132→  7456→| 12 | Security monitoring | 4/10 | ⚠️ Partial | AuditLog writes in 16 files ✓. BUT no alert forwarding (already-flagged P3 #43). No fail2ban/IDS. No anomaly/fraud detection in-app. Rate limiter not centrally monitored. |
+   133→  7457→
+   134→  7458→**Overall: 2.75/10** — The codebase has the right *primitives* (health endpoints, Sentry SDK, pino, AuditLog, Uptime Kuma container, backup scripts) but almost none of the *operational wiring* (alerts, dashboards, source maps, log shipping, DR runbooks, on-call, multi-instance, PITR). The platform is currently in a "dev sandbox with prod-shaped shells" state — fine for a single-tenant pilot, NOT ready for any SLA-bearing commitment.
+   135→  7459→
+   136→  7460→## Critical Monitoring Gaps
+   137→  7461→
+   138→  7462→### P0 (block any SLA-bearing launch)
+   139→  7463→
+   140→  7464→**M-1 — No alerting pipeline.** `captureError()` exists in `src/lib/capture-error.ts` but is called from only 2 files; 63 `log.error`/`log.warn` call sites across 20 files (`webhooks/pse`, `webhooks/pix`, `webhooks/whatsapp`, `ads/import`, `ucp/v1/checkout/[sessionId]`, `acp/v1/refunds`, `conversation.service`, `channel-cost.service`, `graceful-shutdown`, `attribution/capi-auto-fire`, `queue`, `idempotency`, `novedades`, `country-detection`, `vision/pipeline`, `product-enrichment`, `google-ads`, `tiktok-ads`, `payment-webhook-utils`, `logger`) emit structured logs that NO ONE reads unless the operator tails stdout. No Sentry alerts, no PagerDuty, no Slack webhook, no email-on-error. An entire payment webhook failure can pass unnoticed for days.
+   141→  7465→*Fix:* (a) Replace every `log.error({ err }, ...)` with `captureError(err, ctx)` (or wrap pino's logger to forward `error` level to Sentry). (b) Configure Sentry alert rules: new issue > 0 in 5 min → PagerDuty; error rate > 1% / 5 min → Slack. (c) Add a top-level `process.on('uncaughtException')` + `process.on('unhandledRejection')` Sentry hook (currently only logged).
+   142→  7466→
+   143→  7467→**M-2 — Source maps not uploaded to Sentry.** `next.config.ts` does not use `withSentryConfig`. No `SENTRY_AUTH_TOKEN`. No `SENTRY_RELEASE`. Already flagged as O1 in a prior audit (line 5505 of worklog), still open. Production stack traces will point to minified `chunk-abc123.js` lines — Sentry becomes nearly useless for debugging.
+   144→  7468→*Fix:* Wrap `nextConfig` with `withSentryConfig({ silent: true, hideSourceMaps: true, disableServerWebpackPlugin: false })`. Set `SENTRY_AUTH_TOKEN` + `SENTRY_RELEASE` (e.g. `git rev-parse --short HEAD`) in CI. Document the build-time upload step in `package.json` `build` script.
+   145→  7469→
+   146→  7470→**M-3 — No DR runbook; no RTO/RPO defined.** Zero `DR*.md` / `BCP*.md` / `RUNBOOK*.md` files. The only mention is a 3-line stub in PRODUCTION-CHECKLIST §"Backups & DR". Without defined RTO/RPO, the team cannot size the backup/restore infrastructure correctly, cannot communicate SLAs to customers, and cannot run incident postmortems against a target.
+   147→  7471→*Fix:* Author `docs/DR-RUNBOOK.md` defining: RTO ≤ 4h, RPO ≤ 24h (matches the nightly `pg_dump` cadence); per-service recovery steps (app, postgres, redis, minio, chat-service, caddy); failover/rollback procedures; contact tree; severity matrix (SEV1 = data loss / payment outage, SEV2 = partial outage, SEV3 = degraded, SEV4 = cosmetic).
+   148→  7472→
+   149→  7473→**M-4 — Backup script is SQLite-only; prod runs PostgreSQL.** `scripts/backup.sh` calls `sqlite3 "$DB_PATH" .backup` — but PRODUCTION-CHECKLIST §"🐘 PostgreSQL Migration" tells operators to provision PostgreSQL 16, and `docker-compose.yml` ships a `postgres:16-alpine` container. There is NO `pg_dump` branch in `backup.sh`. The first night after a PG migration, the cron will silently fail (or, worse, fall through to `cp` on a non-existent file path).
+   150→  7474→*Fix:* Detect `DATABASE_URL` scheme in `backup.sh`: if `postgresql://` → `pg_dump -Fc -d "$DATABASE_URL" -f "$BACKUP_FILE"`; if `file:` → existing `sqlite3 .backup` path. Add a `--verify` flag that restores to a temp DB and runs `SELECT COUNT(*)` on critical tables.
+   151→  7475→
+   152→  7476→**M-5 — Backups are local-only, single-host.** `BACKUP_DIR="${BACKUP_DIR:-./backups}"`. If the host disk fails, prod + backups are lost together. No `aws s3 sync` / `gsutil cp` / `rclone copyto` / `restic` snapshot to offsite storage. No encryption at rest. No 3-2-1 backup compliance.
+   153→  7477→*Fix:* After local backup, upload to offsite: `rclone copy "$BACKUP_FILE.gz" "s3:ziay-backups/$(date +%Y/%m/)"`. Add `AGE`/`gpg` encryption for offsite copies. Set S3 lifecycle: 30d to Glacier, 365d expire. Document restore-from-offsite procedure.
+   154→  7478→
+   155→  7479→### P1 (address before scaling beyond a single tenant)
+   156→  7480→
+   157→  7481→**M-6 — No metrics endpoint / Prometheus scraper.** The `/api/health` JSON exposes useful checks (DB latency, Redis, disk, memory, socket-service, integration creds) but it is NOT in Prometheus exposition format. No `prom-client` in `package.json`. No `/metrics` route. No Grafana dashboards (`**/grafana/**` glob returns nothing). Operators must manually `curl /api/health | jq` — no historical trend, no alerting on metric thresholds (DB latency > 500ms, heap > 80%, disk < 15%).
+   158→  7482→*Fix:* Add `prom-client` dependency. Create `/api/metrics` route exposing: `http_request_duration_seconds` (histogram, labels: method/route/status), `http_requests_total` (counter), `db_query_duration_seconds` (histogram), `process_heap_used_bytes` (gauge), `cache_hits_total`/`cache_misses_total` (counters), `webhook_invalid_signature_total` (counter per gateway). Add a `grafana/` directory with JSON dashboard exports checked into the repo.
+   159→  7483→
+   160→  7484→**M-7 — Restore procedure never tested.** `scripts/restore.sh` is well-designed (pre-snapshot, gunzip, overwrite) but is not exercised. "Untested backups = no backups" is the SRE canon. There is no CI job, no runbook validation, no scheduled restore drill.
+   161→  7485→*Fix:* Add a weekly CI job (`tests/dr/restore.test.ts`) that: (1) takes a backup, (2) restores to a throwaway DB, (3) runs `SELECT COUNT(*)` on Tenant/Order/WalletTransaction, (4) asserts counts match prod. Schedule a quarterly manual restore drill and log it in `docs/DR-RUNBOOK.md`.
+   162→  7486→
+   163→  7487→**M-8 — Socket.io multi-instance deps missing from `package.json`.** `mini-services/chat-service/index.ts` dynamically imports `@socket.io/redis-adapter` and `ioredis`, but NEITHER is listed in `package.json` (verified by grep). Already flagged as R9 in a prior audit (worklog line 5505+). In prod with `REDIS_URL` set, the chat-service will silently fall back to single-instance mode — `io.emit` only reaches clients on the same host. If a second chat-service replica is added behind Caddy, broadcasts will be lost.
+   164→  7488→*Fix:* `bun add @socket.io/redis-adapter ioredis` in `mini-services/chat-service/package.json`. Add a startup check: if `REDIS_URL` is set AND adapter import fails, log a LOUD warning (or refuse to start). Configure `Caddyfile` `lb_policy cookie` for the chat-service upstream if multi-replica is enabled.
+   165→  7489→
+   166→  7490→**M-9 — No status page; no public incident communication.** No statuspage.io / Atlassian Statuspage / own status page. When prod goes down, customers have no way to know if it's "their connection" or "the platform". For a B2B commerce platform where tenant revenue depends on the dashboard being up, this is a trust failure.
+   167→  7491→*Fix:* Either (a) stand up Atlassian Statuspage (free tier covers 1 status page + 2 team members) wired to the Uptime Kuma webhook, or (b) build a minimal `/status` page that reads from `/api/health` + a `Maintenance` table. Document the "post an incident" runbook step.
+   168→  7492→
+   169→  7493→**M-10 — No web-vitals / RUM.** `src/app/page.tsx` is fully client-rendered (`'use client'`) — already flagged as P2 #17 in the architecture audit. Without `reportWebVitals` / `onCLS`/`onLCP`/`onINP` handlers, there is ZERO visibility into actual user-perceived performance. Sentry's `tracesSampleRate: 0.1` captures route-level traces but not Core Web Vitals. A regression that pushes LCP from 2s → 6s on a tenant's slow mobile network will go unnoticed until churn.
+   170→  7494→*Fix:* Add `src/app/_app.tsx` (or instrumentation in `layout.tsx`) with `export function reportWebVitals(metric) { Sentry.captureMessage('web-vital', { level: 'info', extra: metric }) }` for CLS, LCP, INP, FCP, TTFB. Set up a Sentry dashboard with the Web Vitals panel.
+   171→  7495→
+   172→  7496→### P2 (schedule opportunistically)
+   173→  7497→
+   174→  7498→- **M-11 — Log shipping not configured.** pino emits JSON to stdout but there is no Fluentbit/Filebeat/Promtail sidecar in `docker-compose.yml`. Recommendation: add a `fluentbit` service that tails `app` + `chat-service` containers and ships to Loki (or S3 for archival). Pair with a Grafana log panel.
+   175→  7499→- **M-12 — No anomaly detection / fraud scoring in-app.** Only PayU sends buyer IP for upstream fraud check. No in-app detection of: unusual login geolocation, sudden order volume spike, refund-abuse pattern, webhook signature failure storm (AuditLog rows exist but are not aggregated/alerted). Add a daily cron that scans AuditLog for `webhook.*.invalid_sig` count > threshold and alerts.
+   176→  7500→- **M-13 — No on-call rotation documented.** PRODUCTION-CHECKLIST has an unchecked "On-call rotation set up for the first week" item. No schedule file, no PagerDuty schedule ID, no escalation policy. Add `docs/ONCALL.md` with rotation + escalation + ack-time targets (15 min for SEV1, 1h for SEV2).
+   177→  7501→- **M-14 — In-memory rate limiter per-instance.** Already flagged as P3 #40 in prior audit. Behind multi-instance deploy the effective limit is `N × 60` req/min/IP. Swap for Redis-backed `@upstash/ratelimit`. Pair with a `rate_limit_exceeded_total` Prometheus counter so the security team can see attack patterns.
+   178→  7502→- **M-15 — No fail2ban / IDS.** No intrusion detection at the host level. Recommendation: configure `fail2ban` on the production host watching the Caddy access log for repeated 401/403/429 from the same IP, banning for 1h after 50 failures in 5 min. Document in `docs/SECURITY-RUNBOOK.md`.
+   179→  7503→
+   180→  7504→## RECOMMENDED NEXT SPRINT (monitoring + DR, ~2 days)
+   181→  7505→
+   182→  7506→1. **M-2** (source maps) — wrap `next.config.ts` with `withSentryConfig`, set `SENTRY_AUTH_TOKEN` + `SENTRY_RELEASE` in CI (30 min).
+   183→  7507→2. **M-1** (alerting pipeline) — sweep 63 `log.error` sites → `captureError`; add Sentry alert rules (PagerDuty + Slack); add process-level hooks (2h).
+   184→  7508→3. **M-4 + M-5** (backup overhaul) — add `pg_dump` branch + offsite rclone upload + AGE encryption (2h).
+   185→  7509→4. **M-3** (DR runbook) — author `docs/DR-RUNBOOK.md` with RTO/RPO + per-service recovery steps (2h).
+   186→  7510→5. **M-6** (Prometheus metrics) — `bun add prom-client`, expose `/api/metrics`, ship a Grafana JSON dashboard (3h).
+   187→  7511→6. **M-7** (restore drill) — weekly CI job that backs up + restores to a temp DB + asserts row counts (2h).
+   188→  7512→7. **M-10** (web vitals) — add `reportWebVitals` to `layout.tsx` forwarding to Sentry (30 min).
+   189→  7513→8. **M-9** (status page) — wire Uptime Kuma → Atlassian Statuspage (free tier) (1h).
+   190→  7514→
+   191→  7515→## HEALTH METRICS
+   192→  7516→
+   193→  7517→| Metric | Value | Status |
+   194→  7518→|--------|-------|--------|
+   195→  7519→| Sentry capture sites (`captureException`/`captureMessage`) | 5 across 2 files | ❌ grossly under-wired |
+   196→  7520→| `log.error`/`log.warn` call sites NOT forwarded to Sentry | 63 across 20 files | ❌ blind spots |
+   197→  7521→| Alert rules configured | 0 | ❌ none |
+   198→  7522→| Prometheus metrics endpoints | 0 | ❌ none |
+   199→  7523→| Grafana dashboards in repo | 0 | ❌ none |
+   200→  7524→| Uptime monitors in code | 0 (Kuma UI runtime-only) | ⚠️ not codified |
+   201→  7525→| Status page | none | ❌ absent |
+   202→  7526→| Sentry source-map upload | not configured | ❌ P0 (O1 still open) |
+   203→  7527→| Sentry release tracking | not configured | ❌ absent |
+   204→  7528→| Log shipper (Loki/Datadog/CW/OTLP) | none | ❌ absent |
+   205→  7529→| Backup script database support | SQLite only (prod = Postgres) | ❌ mismatched |
+   206→  7530→| Offsite backup replication | none | ❌ P0 |
+   207→  7531→| Backup encryption at rest | none | ❌ P0 |
+   208→  7532→| Backup retention | 30 days | ✅ reasonable |
+   209→  7533→| Restore tested | never | ❌ P0 |
+   210→  7534→| DR / BCP runbook | none | ❌ P0 |
+   211→  7535→| RTO / RPO defined | no | ❌ P0 |
+   212→  7536→| Multi-instance app | no (single `localhost:3000`) | ❌ no HA |
+   213→  7537→| Multi-instance chat-service | conditional, deps missing | ⚠️ R9 still open |
+   214→  7538→| Database PITR | no | ❌ no point-in-time |
+   215→  7539→| Database read replicas | no (single datasource) | ❌ no read scaling |
+   216→  7540→| Incident response plan | none | ❌ absent |
+   217→  7541→| On-call rotation | unchecked checklist item | ❌ absent |
+   218→  7542→| Severity matrix | none | ❌ absent |
+   219→  7543→| APM (NewRelic/Datadog/OTLP) | none (Sentry traces only, 10% sample) | ⚠️ minimal |
+   220→  7544→| Web Vitals reporting | none | ❌ absent |
+   221→  7545→| AuditLog writers | 16 files | ✅ good coverage |
+   222→  7546→| AuditLog → alert forwarding | none | ❌ P3 #43 still open |
+   223→  7547→| Intrusion detection / fail2ban | none | ❌ absent |
+   224→  7548→| Anomaly / fraud detection | none in-app | ❌ absent |
+   225→  7549→
+   226→  7550→## SUMMARY
+   227→  7551→
+   228→  7552→The codebase has solid monitoring **primitives** (4-tier health endpoint, pino structured logger, Sentry SDK, AuditLog table, Uptime Kuma container, backup + restore scripts) but is missing almost all of the **operational wiring** that turns primitives into an SRE-grade observability + DR posture. The 5 P0 gaps (alerting pipeline, source maps, DR runbook, PostgreSQL backup path, offsite + encrypted backups) are blocking any SLA-bearing launch. The 5 P1 gaps (metrics endpoint, restore testing, multi-instance deps, status page, web vitals) are blocking scale beyond a single tenant. Estimated 2-day sprint to close P0 + most of P1.
+   229→  7553→
+   230→  7554→---
+   231→  7555→Task ID: AUDIT-LEGAL-COMPLIANCE-001
+   232→  7556→Agent: senior-legal-compliance-engineer
+   233→  7557→Task: Audit legal compliance beyond Ley 2573/1581 — PCI, GDPR, CCPA, consumer protection, Habeas Data, e-commerce, retention, cross-border, minors, marketing consent, tax, privacy policy
+   234→  7558→
+   235→  7559→Work Log:
+   236→  7560→- Read worklog tail (prior security + architecture audits confirmed baseline: 6.1/10 security, 7.8/10 architecture, with V1–V21 security gaps already catalogued).
+   237→  7561→- Ran read-only scans across all 12 audit dimensions. NO files modified.
+   238→  7562→- PCI: searched `cardNumber|cvv|cvc|pan|trackData` — only documentation references; no PAN storage. Verified tokenization: `ap2/mandates/payment/route.ts` line "NO almacenar PAN ni datos sensibles — solo el token del instrumento"; `ucp/v1/payment-token-exchange/route.ts` stores `tokenRef = sha256(originalToken)`. All 4 gateways (Stripe/MP/Wompi/PayU) use hosted checkout pages (`/v1/checkout/sessions` redirect) — ZIAY never sees raw card data → SAQ-A eligible. HSTS enforced (max-age=31536000; includeSubDomains). Webhook signatures verified with timingSafeEqual.
+   239→  7563→- GDPR: 0 matches for `cookie.consent|cookieConsent|gdpr|GDPR`. DSR endpoint exists (`/api/compliance/dsr`) for Colombian Ley 1581 equivalent (access/erasure/portability) but no SLA, no self-service portal, no cookie banner, no DPA, no EU-specific scaffolding.
+   240→  7564→- CCPA/CPRA: 0 matches. Not yet applicable (no US ops) but no scaffolding to extend DSR to CCPA.
+   241→  7565→- Ley 1480/2011 (Estatuto del Consumidor): Refund flow exists (`/api/acp/v1/refunds`) with reason + amount (full/partial) + audit log. BUT no derecho al retracto (Art 47 — 5-day cooling-off period for online sales), no PQR ticketing, no SLA tracking, no consumer dispute resolution flow. Storefront does not display "IVA incluido" — tax is computed (calculateTax in i18n/tax.ts) but not surfaced in `/t/[slug]` UI.
+   242→  7566→- Habeas Data (Ley 1266/2008): No credit bureau integration (Datacrédito, Cifin). IdentityVerification model has `riskScore` field but never sourced from regulated provider (prior audit flagged KYC self-verify bypass V1). No negative data reported.
+   243→  7567→- Decreto 745/2014 (e-commerce): `/api/monetization/generate-invoice` creates an internal commission invoice (`estado: 'borrador'`) — NOT a DIAN electronic tax invoice. No factura electrónica, no QR, no e-signature, no DIAN integration. API comment says "Generate a PDF invoice" but route returns JSON only. No nomina electrónica.
+   244→  7568→- Data retention: ZERO matches for `retention|retain|delete.after|purge|TTL` (only cache TTLs 60s, idempotency 5min, KYC 90d). No `deleteMany.*createdAt|cron.*delete|scheduled.*cleanup` pattern. Ley 1581 Art 11 requires deletion when purpose fulfilled — ZIAY retains PII forever (messages, audit logs, customer profiles, abandoned carts).
+   245→  7569→- Cross-border: `.env` has no AWS_REGION/GCP_REGION/AZURE_REGION. docker-compose self-hosts PostgreSQL/Redis/MinIO. BUT WhatsApp Cloud API + Meta CAPI + Stripe + PayPal inherently transfer PII (phone numbers, message content, order data) to Meta/Stripe US-based servers. No adequacy decision documented, no explicit cross-border consent, no SCCs (Standard Contractual Clauses).
+   246→  7570→- Minors: ZERO matches for `age.*verif|menor.*edad|minor|parental.consent`. No age gate at checkout. COPPA (US) and Colombian Código de la Infancia y Adolescencia (Ley 1098/2006) Art 17 — enhanced PII protection for minors — entirely unaddressed.
+   247→  7571→- Marketing consent: ConsentRecord model exists (`/api/compliance/consent`) with purpose enum including 'marketing'. BUT remarketing endpoint (`/api/remarketing`) does NOT check consent before scheduling WhatsApp abandoned-cart / no-response / post-purchase messages. No WhatsApp opt-in flow per Meta Cloud API policy (marketing templates require explicit opt-in outside 24h customer-service window). No unsubscribe keyword handling ("STOP", "BAJA"). No opt-out link in messages.
+   248→  7572→- Tax: `src/lib/i18n/tax.ts` computes IVA correctly per country (CO 19%, MX 16%, BR 17%, PE 18%, CL 19%, AR 21%, US Sales Tax). No retefuente / reteica / impuesto al consumo calculations. No DIAN integration (electronic invoicing — mandatory since 2019 for Colombia). No régimen tributario selection (simplificado vs común). No PDF generation.
+   249→  7573→- Privacy policy + terms of service: ZERO legal pages — no `/privacy`, `/terms`, `/legal` directories in `src/app/`. No public privacy policy URL (required by Ley 1581 Art 10 — right to be informed about data processing). No terms of service (required for B2B SaaS). No cookie policy. Storefront footer (`/t/[slug]/page.tsx`) renders empty `<footer>`. Login footer (`/login/page.tsx`) has only `© 2025 ZIAY · Indisutex SAS` — no links to legal documents.
+   250→  7574→
+   251→  7575→Stage Summary:
+   252→  7576→
+   253→  7577→## COMPLIANCE SCORECARD
+   254→  7578→
+   255→  7579→| # | Dimension | Score (0–10) | Status | Top gap |
+   256→  7580→|---|-----------|-------------|--------|---------|
+   257→  7581→| 1 | PCI DSS (card data handling) | 8/10 | ✅ Strong | No SAQ-A self-assessment documented. Hosted checkout + tokenization = SAQ-A scope. Credential storage not tenant-scoped (carried from V5 security gap). |
+   258→  7582→| 2 | GDPR (EU users) | 2/10 | ❌ Not ready | No cookie banner, no DPA, no EU DSR portal, no SCCs. Existing `/api/compliance/dsr` is a starting point but lacks 1-month SLA + data-subject self-service. |
+   259→  7583→| 3 | CCPA / CPRA (California) | N/A | ⏸ Not yet applicable | No US operations yet. DSR endpoint could be extended to CCPA with minor changes — no "Do Not Sell" link scaffolding. |
+   260→  7584→| 4 | Ley 1480/2011 (consumer protection) | 4/10 | ⚠️ Partial | No derecho al retracto (5-day cooling-off), no PQR ticketing, no SLA on complaints. "IVA incluido" not surfaced in storefront. |
+   261→  7585→| 5 | Habeas Data (Ley 1266/2008 — financial) | 5/10 | ⚠️ Minimal | No credit bureau integration. KYC `riskScore` field never sourced from regulated provider (V1 self-verify bypass). |
+   262→  7586→| 6 | E-commerce (Decreto 745/2014) | 3/10 | ❌ Missing | `/api/monetization/generate-invoice` creates a commission invoice, NOT a DIAN factura electrónica. No QR, no e-signature, no DIAN integration. No PDF. |
+   263→  7587→| 7 | Data retention policy | 1/10 | ❌ Critical | No retention policy, no automated deletion, no cron cleanup. PII retained forever in violation of Ley 1581 Art 11. |
+   264→  7588→| 8 | Cross-border data transfer | 3/10 | ❌ Gap | WhatsApp Cloud API + Stripe + Meta CAPI inherently transfer PII to US servers. No adequacy decision, no SCCs, no explicit cross-border consent documented. |
+   265→  7589→| 9 | Minors' data protection | 1/10 | ❌ Critical | Zero age verification, zero parental consent flow. Ley 1098/2006 Art 17 entirely unaddressed. |
+   266→  7590→| 10 | Marketing consent (WhatsApp opt-in) | 2/10 | ❌ Critical | ConsentRecord model exists but `/api/remarketing` does NOT check consent before sending. No WhatsApp opt-in flow (Meta Cloud API policy violation). No unsubscribe keyword. |
+   267→  7591→| 11 | Tax compliance (IVA/retefuente/reteica) | 4/10 | ⚠️ Partial | IVA calculation correct per country. No retefuente / reteica / impuesto al consumo. No DIAN electronic invoicing. No régimen tributario handling. |
+   268→  7592→| 12 | Privacy policy + Terms of service | 0/10 | ❌ Missing | ZERO legal pages. No `/privacy`, `/terms`, `/legal` routes. Storefront footer empty. Required by Ley 1581 Art 10. |
+   269→  7593→
+   270→  7594→**Weighted average: 3.0/10** — PCI handling is sound (tokenization + hosted checkout), but the platform is materially non-compliant on consumer protection, retention, minors, marketing consent, and (critically) has no public privacy policy or terms of service — a hard blocker for any B2B contract.
+   271→  7595→
+   272→  7596→## CRITICAL COMPLIANCE GAPS
+   273→  7597→
+   274→  7598→### P0 — Hard blockers for production launch
+   275→  7599→
+   276→  7600→**P0-1 — No privacy policy, no terms of service (Ley 1581 Art 10)**
+   277→  7601→`src/app/` has ZERO routes under `/privacy`, `/terms`, `/legal`. Storefront footer (`src/app/t/[slug]/page.tsx`) renders an empty `<footer>` element. Login footer has only `© 2025 ZIAY · Indisutex SAS` with no links. Ley 1581 Art 10 requires that data subjects be informed about: (a) the data being collected, (b) the purpose, (c) the legal basis, (d) the retention period, (e) the rights they have, (f) how to exercise them. None of this is publicly available. This is also a hard blocker for any B2B SaaS contract (no enforceable ToS).
+   278→  7602→
+   279→  7603→**Fix:** Create `src/app/privacy/page.tsx`, `src/app/terms/page.tsx`, `src/app/legal/page.tsx` (or `cookies/page.tsx`). Content drafted by Colombian counsel (Indisutex SAS is the operating entity per `src/app/layout.tsx:legalName`). Link from login footer + storefront footer + dashboard sidebar. Estimated: 1 day (legal review + i18n + footer wiring).
+   280→  7604→
+   281→  7605→**P0-2 — No data retention policy (Ley 1581 Art 11)**
+   282→  7606→Zero references to `retention|purge|delete.after`. No cron job, no `deleteMany({ where: { createdAt: { lt: now - X days } } })` pattern anywhere in src/. The platform retains forever: messages (PII textual), audit logs, customer profiles, abandoned carts, expired consent records, expired KYC verifications. Ley 1581 Art 11 mandates deletion when the data is no longer necessary for the purpose for which it was collected.
+   283→  7607→
+   284→  7608→**Fix:** Define a retention matrix per data type (e.g. messages → 24 months, audit logs → 5 years for tax law, abandoned carts → 90 days, expired consents → 6 months after revocation, expired KYC → 12 months). Implement a daily cron (BullMQ recurring job — the queue infra exists per `src/lib/queue.ts`) that calls `db.<model>.deleteMany({ where: { createdAt: { lt: ... } } })`. Estimated: 2 days (policy + cron + tests).
+   285→  7609→
+   286→  7610→**P0-3 — Marketing messages sent without consent enforcement (Meta Cloud API policy + Ley 1581)**
+   287→  7611→`src/app/api/remarketing/route.ts` accepts `customerPhone` + `template` + `trigger` (abandoned_cart | no_response | post_purchase) and schedules WhatsApp messages via `enqueue('capi-fire', ...)` without ANY check of `db.consentRecord` for purpose='marketing' granted=true. This is a direct violation of: (a) Meta Cloud API policy — marketing templates require explicit opt-in outside the 24h customer-service window; (b) Ley 1581 Art 10 — processing PII for marketing without legal basis (consent or legitimate interest, both tracked in ConsentRecord but not enforced).
+   288→  7612→
+   289→  7613→**Fix:** Before scheduling any remarketing message, query `db.consentRecord.findFirst({ where: { dataSubjectId: customer.id, purpose: 'marketing', granted: true } })`. If no record or revoked → skip + log. Add WhatsApp opt-in keyword flow ("accept SMS marketing? reply SI" → create consent record). Add unsubscribe keyword handling ("STOP", "BAJA", "DESCANCELAR"). Estimated: 1 day.
+   290→  7614→
+   291→  7615→**P0-4 — No minors' data protection (Código de la Infancia y Adolescencia Ley 1098/2006)**
+   292→  7616→Zero references to age verification or parental consent. WhatsApp storefront accepts orders from any phone number. Ley 1098 Art 17 grants minors enhanced PII protection; processing minors' data without parental consent is a violation. Also a COPPA exposure if US expansion happens.
+   293→  7617→
+   294→  7618→**Fix:** Add an age gate at checkout (UCP checkout state machine already supports `requires_escalation` — extend it with an `age_verification` escalation). For now, a declarative checkbox "Confirmo que soy mayor de edad" on the storefront + a `isMinor` flag on Customer (set when age is later inferred from KYC) with hard opt-out of marketing. Estimated: 1 day.
+   295→  7619→
+   296→  7620→### P1 — Address before scaling beyond pilot
+   297→  7621→
+   298→  7622→**P1-1 — No DIAN electronic invoicing (Decreto 358/2020, mandatory since 2019)**
+   299→  7623→`src/app/api/monetization/generate-invoice/route.ts` produces a JSON commission invoice (estado: 'borrador') — NOT a valid factura electrónica for Colombian tax purposes. No DIAN registration, no numerical range, no QR code, no electronic signature, no PDF representation. Both ZIAY's own invoices to tenants AND tenant invoices to end-customers are non-compliant.
+
+[showing lines 100-299 of 302; use offset=300 with limit to continue reading]

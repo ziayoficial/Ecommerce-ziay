@@ -1,7 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { requireAuth } from '@/lib/auth-helpers'
 import { orderService } from '@/lib/services'
 import { captureError } from '@/lib/capture-error'
+
+// TD-2: Zod schema for order PATCH. All fields optional (only those present
+// are applied). `.passthrough()` so unknown keys (e.g. future `note` variants)
+// don't 400.
+const OrderPatchSchema = z.object({
+  status: z.string().optional(),
+  paymentStatus: z.string().optional(),
+  paidAt: z.string().optional(),
+  paymentGateway: z.string().optional(),
+  paymentRef: z.string().optional(),
+  event: z.string().optional(),
+  note: z.string().optional(),
+}).passthrough()
 
 // Update order status / payment status.
 //
@@ -40,16 +54,24 @@ export async function PATCH(
       )
     }
 
-    const body = await req.json()
+    const raw = await req.json()
+    const parseResult = OrderPatchSchema.safeParse(raw)
+    if (!parseResult.success) {
+      return NextResponse.json(
+        { error: 'Validación fallida', details: parseResult.error.flatten() },
+        { status: 400 },
+      )
+    }
+    const body = parseResult.data as Record<string, unknown>
     const data: Record<string, unknown> = {}
     if (body.status) data.status = body.status
     if (body.paymentStatus) data.paymentStatus = body.paymentStatus
-    if (body.paidAt) data.paidAt = new Date(body.paidAt)
+    if (body.paidAt) data.paidAt = new Date(body.paidAt as string)
     if (body.paymentGateway) data.paymentGateway = body.paymentGateway
     if (body.paymentRef) data.paymentRef = body.paymentRef
 
     const updated = await orderService.updateOrder(id, data, body.event
-      ? { type: body.event, note: body.note }
+      ? { type: body.event as string, note: body.note as string | undefined }
       : undefined)
     return NextResponse.json({ order: updated })
   } catch (err) {

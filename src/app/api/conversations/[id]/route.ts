@@ -1,8 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { requireAuth } from '@/lib/auth-helpers'
 import { db } from '@/lib/db'
 import { captureError } from '@/lib/capture-error'
 import { conversationService } from '@/lib/services'
+
+// TD-2: Zod schema for conversation PATCH.
+const ConversationPatchSchema = z.object({
+  status: z.string().optional(),
+  priority: z.string().optional(),
+  assigneeId: z.string().nullable().optional(),
+}).passthrough()
 
 // SPRINT7-POSTGRES-SERVICES-001 — migrated from `db.conversation.findUnique`
 // → `conversationService.getConversationById` and `db.conversation.update`
@@ -78,7 +86,19 @@ export async function PATCH(
   if (!conv) return NextResponse.json({ error: 'No conversation' }, { status: 404 })
 
   try {
-    const body = await req.json()
+    const raw = await req.json()
+    const parseResult = ConversationPatchSchema.safeParse(raw)
+    if (!parseResult.success) {
+      return NextResponse.json(
+        { error: 'Validación fallida', details: parseResult.error.flatten() },
+        { status: 400 },
+      )
+    }
+    const body = parseResult.data as {
+      status?: string
+      priority?: string
+      assigneeId?: string | null
+    }
     const updated = await conversationService.updateStatus(id, {
       ...(body.status ? { status: body.status } : {}),
       ...(body.priority ? { priority: body.priority } : {}),

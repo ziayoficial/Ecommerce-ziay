@@ -17,18 +17,28 @@
 // user used to be able to pollute another tenant's Invoice table.
 
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { requireTenantAccess } from '@/lib/auth-helpers'
 import { captureError } from '@/lib/capture-error'
 import { monetizationService } from '@/lib/services'
 
+// TD-2: Zod schema for invoice generation POST.
+const GenerateInvoiceSchema = z.object({
+  tenantId: z.string().min(1),
+  periodo: z.string().optional(),
+}).passthrough()
+
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json()
-    const { tenantId, periodo } = body as { tenantId?: string; periodo?: string }
-
-    if (!tenantId) {
-      return NextResponse.json({ error: 'tenantId required' }, { status: 400 })
+    const raw = await req.json()
+    const parseResult = GenerateInvoiceSchema.safeParse(raw)
+    if (!parseResult.success) {
+      return NextResponse.json(
+        { error: 'Validación fallida', details: parseResult.error.flatten() },
+        { status: 400 },
+      )
     }
+    const { tenantId, periodo } = parseResult.data
 
     // FIX-SECURITY-AUTH-001 (#20) — tenant gate before the invoice upsert.
     const { error } = await requireTenantAccess(tenantId)

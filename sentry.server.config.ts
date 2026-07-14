@@ -9,6 +9,13 @@
 //
 // Env vars:
 //   - SENTRY_DSN
+//   - SENTRY_ORG, SENTRY_PROJECT, SENTRY_AUTH_TOKEN (source map upload — set in CI)
+//   - SENTRY_RELEASE (release tracking — set by CI, e.g. `git rev-parse --short HEAD`)
+//
+// SPRINT-MONITORING-DR-001 · M-1 — added `tracesSampler` with per-route rates
+// (payments/webhooks sampled at 1.0, health/static at 0, default 0.1) and
+// release tracking via SENTRY_RELEASE so Sentry alerts can be scoped to a
+// deploy.
 
 import * as Sentry from '@sentry/nextjs'
 
@@ -20,5 +27,49 @@ if (SENTRY_DSN) {
     dsn: SENTRY_DSN,
     tracesSampleRate: 0.1,
     environment: process.env.NODE_ENV,
+    // Release tracking — lets Sentry group errors by deploy + alert on
+    // "new issue in release X". Set SENTRY_RELEASE in CI to the git SHA
+    // (or a semver tag). Falls back to undefined when not set (dev / non-CI).
+    ...(process.env.SENTRY_RELEASE
+      ? { release: process.env.SENTRY_RELEASE }
+      : {}),
+    // Per-route sampling. Higher rates for money-movement + webhooks
+    // (where latent bugs are most expensive), zero for noisy paths.
+    tracesSampler: (samplingContext) => {
+      const method = samplingContext.transactionContext.method || ''
+      const path = (samplingContext.transactionContext.data?.url as string) || ''
+
+      // Don't trace health checks / metrics scraping — they're polled every
+      // 10–30s and would dominate the sample budget.
+      if (path.includes('/api/health') || path.includes('/api/metrics')) {
+        return 0
+      }
+
+      // Payments, wallets, webhooks — sample everything. These are the
+      // paths where a missed trace costs real money.
+      if (
+        path.includes('/api/payments') ||
+        path.includes('/api/wallet') ||
+        path.includes('/api/webhooks') ||
+        path.includes('/api/acp/') ||
+        path.includes('/api/ap2/') ||
+        path.includes('/api/withdrawals')
+      ) {
+        return 1.0
+      }
+
+      // Auth — sample 50% (high signal but noisy).
+      if (path.includes('/api/auth') || path.includes('/api/compliance/kyc')) {
+        return 0.5
+      }
+
+      // POST/PUT/PATCH on mutations — sample 25% (more interesting than GETs).
+      if (method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE') {
+        return 0.25
+      }
+
+      // Default — 10% (matches the previous global rate).
+      return 0.1
+    },
   })
 }

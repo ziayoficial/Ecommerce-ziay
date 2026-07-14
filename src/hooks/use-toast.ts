@@ -18,7 +18,10 @@ type ToasterToast = ToastProps & {
   action?: ToastActionElement
 }
 
-const actionTypes = {
+// _actionTypes is used only as a type source (`typeof _actionTypes`). The
+// leading underscore matches the lint `varsIgnorePattern: '^_'` so the
+// unused-var warning is silenced for type-only runtime constants.
+const _actionTypes = {
   ADD_TOAST: "ADD_TOAST",
   UPDATE_TOAST: "UPDATE_TOAST",
   DISMISS_TOAST: "DISMISS_TOAST",
@@ -32,7 +35,7 @@ function genId() {
   return count.toString()
 }
 
-type ActionType = typeof actionTypes
+type ActionType = typeof _actionTypes
 
 type Action =
   | {

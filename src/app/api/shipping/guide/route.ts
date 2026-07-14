@@ -17,6 +17,7 @@
 // order (cross-tenant Shipment create + Order.status mutation).
 
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { requireTenantAccess } from '@/lib/auth-helpers'
 import { getLogisticsAdapter } from '@/lib/adapters/registry'
 import { normalizeCarrierName } from '@/lib/carriers'
@@ -24,17 +25,23 @@ import { captureError } from '@/lib/capture-error'
 import { db } from '@/lib/db'
 import { logisticsService } from '@/lib/services'
 
+// TD-2: Zod schema for shipping guide POST.
+const ShippingGuideSchema = z.object({
+  tenantId: z.string().min(1),
+  orderId: z.string().min(1),
+}).passthrough()
+
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json()
-    const { tenantId, orderId } = body as { tenantId?: string; orderId?: string }
-
-    if (!tenantId) {
-      return NextResponse.json({ error: 'tenantId is required' }, { status: 400 })
+    const raw = await req.json()
+    const parseResult = ShippingGuideSchema.safeParse(raw)
+    if (!parseResult.success) {
+      return NextResponse.json(
+        { error: 'Validación fallida', details: parseResult.error.flatten() },
+        { status: 400 },
+      )
     }
-    if (!orderId) {
-      return NextResponse.json({ error: 'orderId is required' }, { status: 400 })
-    }
+    const { tenantId, orderId } = parseResult.data
 
     // FIX-SECURITY-AUTH-001 (#26) — tenant gate before any external API call.
     const { error } = await requireTenantAccess(tenantId)

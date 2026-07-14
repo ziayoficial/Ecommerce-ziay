@@ -7,7 +7,7 @@ export async function GET() {
   try {
     await db.$queryRaw`SELECT 1`
     return NextResponse.json({ status: 'ok', db: 'connected', latencyMs: Date.now() - start }, { status: 200, headers: { 'Cache-Control': 'no-store' } })
-  } catch (e) {
+  } catch (_e) {
     return NextResponse.json({ status: 'error', db: 'disconnected' }, { status: 503, headers: { 'Cache-Control': 'no-store' } })
   }
 }

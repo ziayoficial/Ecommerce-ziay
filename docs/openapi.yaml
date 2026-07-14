@@ -1,0 +1,154 @@
+openapi: 3.1.0
+info:
+  title: ZIAY API
+  version: 1.0.0
+  description: Comercio Conversacional + Atribución Inteligente
+  contact:
+    email: api@ziay.co
+servers:
+  - url: https://ziay.co
+    description: Production
+  - url: http://localhost:3000
+    description: Development
+
+components:
+  securitySchemes:
+    sessionAuth:
+      type: apiKey
+      in: cookie
+      name: next-auth.session-token
+    bearerAuth:
+      type: http
+      scheme: bearer
+
+security:
+  - sessionAuth: []
+
+paths:
+  /api/health:
+    get:
+      summary: Health check
+      security: []
+      responses:
+        '200':
+          description: Healthy
+        '503':
+          description: Unhealthy
+
+  /api/overview:
+    get:
+      summary: Dashboard overview KPIs
+      parameters:
+        - name: tenantId
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: days
+          in: query
+          schema:
+            type: integer
+            default: 14
+      responses:
+        '200':
+          description: KPIs
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/orders:
+    get:
+      summary: List orders
+      parameters:
+        - name: tenantId
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: cursor
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Paginated orders list
+
+  /api/ap2/mandates:
+    post:
+      summary: Create AP2 Intent Mandate
+      description: Creates a signed W3C Verifiable Credential for purchase authorization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tenantId:
+                  type: string
+                userId:
+                  type: string
+                maxAmount:
+                  type: number
+                currency:
+                  type: string
+                categoryLimits:
+                  type: object
+                purpose:
+                  type: string
+      responses:
+        '201':
+          description: Mandate created
+
+  /.well-known/ucp:
+    get:
+      summary: UCP manifest
+      security: []
+      description: Universal Commerce Protocol manifest for AI agent discovery
+      responses:
+        '200':
+          description: UCP manifest JSON
+
+  /.well-known/acp:
+    get:
+      summary: ACP manifest
+      security: []
+      description: Agentic Commerce Protocol manifest for ChatGPT/Copilot
+      responses:
+        '200':
+          description: ACP manifest JSON
+
+  /.well-known/agent-card:
+    get:
+      summary: A2A agent card
+      security: []
+      description: Agent-to-Agent discovery card
+      responses:
+        '200':
+          description: Agent card JSON
+
+  /api/mcp:
+    post:
+      summary: MCP JSON-RPC endpoint
+      description: Model Context Protocol for Claude/ChatGPT tool calling
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                jsonrpc:
+                  type: string
+                method:
+                  type: string
+                params:
+                  type: object
+      responses:
+        '200':
+          description: JSON-RPC response

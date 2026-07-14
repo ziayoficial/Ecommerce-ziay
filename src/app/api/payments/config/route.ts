@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { requireAuth } from '@/lib/auth-helpers'
 import { db } from '@/lib/db'
 import { captureError } from '@/lib/capture-error'
@@ -111,9 +112,29 @@ export async function PATCH(req: NextRequest) {
       )
     }
 
-    const body = await req.json()
-    const { channelId, ...fields } = body
-    if (!channelId) return NextResponse.json({ error: 'channelId required' }, { status: 400 })
+    // TD-2: Zod validation on the PATCH body. `channelId` is required; the
+    // strategy fields are all optional (only those present are updated).
+    // `.passthrough()` preserves the existing behaviour of silently dropping
+    // unknown non-credential Setting keys (see ALLOWED_SETTING_KEYS filter
+    // below).
+    const PaymentsConfigPatchSchema = z.object({
+      channelId: z.string().min(1),
+      paymentStrategy: z.string().optional(),
+      requirePrepayMin: z.number().nullable().optional(),
+      prepayDiscountPct: z.number().optional(),
+      codFee: z.number().optional(),
+      global: z.record(z.string(), z.unknown()).optional(),
+    }).passthrough()
+
+    const raw = await req.json()
+    const parseResult = PaymentsConfigPatchSchema.safeParse(raw)
+    if (!parseResult.success) {
+      return NextResponse.json(
+        { error: 'Validación fallida', details: parseResult.error.flatten() },
+        { status: 400 },
+      )
+    }
+    const { channelId, ...fields } = parseResult.data
 
     // FIX-SECURITY-AUTH-001 — fetch the channel first and verify tenant
     // ownership. Previously any authed user could PATCH any channel by id,

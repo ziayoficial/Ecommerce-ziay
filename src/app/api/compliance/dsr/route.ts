@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { resolveTenantId, requireAuth } from '@/lib/auth-helpers'
+import { resolveTenantId } from '@/lib/auth-helpers'
 import { captureError } from '@/lib/capture-error'
 import { db } from '@/lib/db'
 

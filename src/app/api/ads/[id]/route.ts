@@ -1,8 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { requireAuth } from '@/lib/auth-helpers'
 import { db } from '@/lib/db'
 import { captureError } from '@/lib/capture-error'
 import { adsService } from '@/lib/services'
+
+// TD-2: Zod schema for ads PATCH.
+const AdActionSchema = z.enum(['pause', 'kill', 'resume', 'scale'])
+const AdPatchSchema = z.object({
+  action: AdActionSchema,
+  reason: z.string().optional(),
+  userId: z.string().optional(),
+}).passthrough()
 
 // Kill / pause / resume an ad (simulates pushing action to ad platform)
 //
@@ -40,9 +49,20 @@ export async function PATCH(
       )
     }
 
-    const body = await req.json()
-    const action = body.action as 'pause' | 'kill' | 'resume' | 'scale' | undefined
-    if (!action) return NextResponse.json({ error: 'action required' }, { status: 400 })
+    const raw = await req.json()
+    const parseResult = AdPatchSchema.safeParse(raw)
+    if (!parseResult.success) {
+      return NextResponse.json(
+        { error: 'Validación fallida', details: parseResult.error.flatten() },
+        { status: 400 },
+      )
+    }
+    const body = parseResult.data as {
+      action: 'pause' | 'kill' | 'resume' | 'scale'
+      reason?: string
+      userId?: string
+    }
+    const action = body.action
 
     const statusMap: Record<string, string> = {
       pause: 'paused',
@@ -50,7 +70,7 @@ export async function PATCH(
       resume: 'active',
       scale: 'active',
     }
-    const reason = body.reason as string | undefined
+    const reason = body.reason
 
     const updated = await adsService.updateAd(id, {
       status: statusMap[action],

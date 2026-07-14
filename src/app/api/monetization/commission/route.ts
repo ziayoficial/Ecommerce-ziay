@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { db } from '@/lib/db'
 import { requireAuth, requireTenantAccess } from '@/lib/auth-helpers'
 import { captureError } from '@/lib/capture-error'
 import { monetizationService } from '@/lib/services'
+
+// TD-2: Zod schema for commission POST.
+const CommissionPostSchema = z.object({
+  orderId: z.string().min(1),
+  etapaReconocimiento: z.enum(['datos_completados', 'despachado']),
+}).passthrough()
 
 // GET /api/monetization/commission?tenantId=...
 // Returns list of commission entries (recognized + pending)
@@ -65,8 +72,15 @@ export async function POST(req: NextRequest) {
   if (authErr) return authErr
 
   try {
-    const { orderId, etapaReconocimiento } = await req.json()
-    if (!orderId || !etapaReconocimiento) return NextResponse.json({ error: 'orderId and etapaReconocimiento required' }, { status: 400 })
+    const raw = await req.json()
+    const parseResult = CommissionPostSchema.safeParse(raw)
+    if (!parseResult.success) {
+      return NextResponse.json(
+        { error: 'Validación fallida', details: parseResult.error.flatten() },
+        { status: 400 },
+      )
+    }
+    const { orderId, etapaReconocimiento } = parseResult.data
 
     const order = await db.order.findUnique({ where: { id: orderId }, include: { tenant: true }})
     if (!order) return NextResponse.json({ error: 'order not found' }, { status: 404 })

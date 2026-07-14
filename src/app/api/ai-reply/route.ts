@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { requireTenantAccess } from '@/lib/auth-helpers'
 import { rateLimit } from '@/lib/middleware/rate-limit'
 import { db } from '@/lib/db'
@@ -6,6 +7,12 @@ import ZAI from 'z-ai-web-dev-sdk'
 // FIX-AI-AGENTS-001 — defensas anti-inyección + confidence real.
 import { wrapUserInput, ANTI_INJECTION_PREFIX } from '@/lib/agents/sanitize'
 import { emitToTenant } from '@/lib/chat-emit'
+
+// TD-2: Zod schema for ai-reply POST.
+const AiReplySchema = z.object({
+  conversationId: z.string().min(1),
+  tone: z.string().optional(),
+}).passthrough()
 
 // POST /api/ai-reply
 // Generates context-aware sales replies using the LLM skill.
@@ -34,8 +41,18 @@ export async function POST(req: NextRequest) {
   const limited = rateLimit(req, { max: 10, windowMs: 60_000, namespace: 'api:ai-reply' })
   if (limited) return limited
 
-  const { conversationId, tone = 'friendly' } = await req.json()
-  if (!conversationId) return NextResponse.json({ error: 'conversationId required' }, { status: 400 })
+  const raw = await req.json()
+  const parseResult = AiReplySchema.safeParse(raw)
+  if (!parseResult.success) {
+    return NextResponse.json(
+      { error: 'Validación fallida', details: parseResult.error.flatten() },
+      { status: 400 },
+    )
+  }
+  const { conversationId, tone = 'friendly' } = parseResult.data as {
+    conversationId: string
+    tone?: string
+  }
 
   const conv = await db.conversation.findUnique({
     where: { id: conversationId },

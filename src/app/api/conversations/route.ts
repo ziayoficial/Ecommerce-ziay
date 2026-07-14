@@ -1,9 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { db } from '@/lib/db'
 import { resolveTenantId, requireTenantAccess } from '@/lib/auth-helpers'
 import { captureError } from '@/lib/capture-error'
 import { conversationService } from '@/lib/services'
 import { emitToTenant } from '@/lib/chat-emit'
+
+// TD-2: Zod schema for conversations POST.
+const SendMessageSchema = z.object({
+  conversationId: z.string().min(1),
+  body: z.string().min(1),
+  direction: z.enum(['inbound', 'outbound']).optional(),
+}).passthrough()
 
 // GET /api/conversations?tenantId=X&status=Y&channel=Z&q=...&cursor=ID&limit=N
 //
@@ -93,10 +101,18 @@ export async function GET(req: NextRequest) {
 // received the agent's reply on WhatsApp.
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json()
-    const { conversationId, body: text, direction = 'outbound' } = body
-    if (!conversationId || !text) {
-      return NextResponse.json({ error: 'conversationId and body required' }, { status: 400 })
+    const raw = await req.json()
+    const parseResult = SendMessageSchema.safeParse(raw)
+    if (!parseResult.success) {
+      return NextResponse.json(
+        { error: 'Validación fallida', details: parseResult.error.flatten() },
+        { status: 400 },
+      )
+    }
+    const { conversationId, body: text, direction = 'outbound' } = parseResult.data as {
+      conversationId: string
+      body: string
+      direction?: 'inbound' | 'outbound'
     }
 
     // Fetch the conversation to learn its tenantId — never trust the body.

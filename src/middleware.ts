@@ -49,6 +49,14 @@ const PUBLIC_PATTERNS: Array<RegExp | string> = [
   /^\/api\/webhooks(?:\/.*)?$/,
   /^\/api\/health(?:\/.*)?$/,
   /^\/api\/public(?:\/.*)?$/,
+  // SPRINT-MONITORING-DR-001 · M-6 — Prometheus scrape target. Exposed
+  // publicly so Prometheus / Grafana Agent (no NextAuth session) can pull
+  // metrics. The route returns only aggregate counters (no PII, no
+  // per-tenant breakdown). For production isolation, place behind mTLS /
+  // basic-auth at the reverse-proxy layer (see docs/DR-RUNBOOK.md). The
+  // rate-limit below still applies — Prometheus should be configured with
+  // a generous scrape interval (e.g. 15s) to stay under 60 req/min.
+  '/api/metrics',
   // UCP manifest — Documento §10.1: "debe ser públicamente accesible y no
   // requerir ninguna autenticación". Exposed under /.well-known/ucp so that
   // external AI agents (Gemini, ChatGPT) can discover the tenant without

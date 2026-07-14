@@ -1,7 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { requireTenantAccess } from '@/lib/auth-helpers'
 import { captureError } from '@/lib/capture-error'
 import { catalogService } from '@/lib/services'
+
+// TD-2: Zod schema for catalog send-to-chat POST.
+const SendToChatSchema = z.object({
+  tenantId: z.string().min(1),
+  conversationId: z.string().min(1),
+  sku: z.string().min(1),
+}).passthrough()
 
 // POST /api/catalog/send-to-chat
 // Sends a product (with image) to a conversation as an outbound message.
@@ -18,10 +26,15 @@ import { catalogService } from '@/lib/services'
 // attachment).
 export async function POST(req: NextRequest) {
   try {
-    const { tenantId, conversationId, sku } = await req.json()
-    if (!tenantId || !conversationId || !sku) {
-      return NextResponse.json({ error: 'tenantId, conversationId, sku required' }, { status: 400 })
+    const raw = await req.json()
+    const parseResult = SendToChatSchema.safeParse(raw)
+    if (!parseResult.success) {
+      return NextResponse.json(
+        { error: 'Validación fallida', details: parseResult.error.flatten() },
+        { status: 400 },
+      )
     }
+    const { tenantId, conversationId, sku } = parseResult.data
 
     // FIX-SECURITY-AUTH-001 (#33) — tenant gate before the service writes a
     // message row. (The service itself uses tenantId in the Message.tenantId

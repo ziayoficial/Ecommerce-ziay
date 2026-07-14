@@ -29,6 +29,7 @@
 // `Conversation.perfilConversacion` on any tenant's conversation).
 
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { requireTenantAccess } from '@/lib/auth-helpers'
 import { rateLimit } from '@/lib/middleware/rate-limit'
 import { db } from '@/lib/db'
@@ -46,6 +47,19 @@ import { wrapUserInput, ANTI_INJECTION_PREFIX } from '@/lib/agents/sanitize'
 import { emitToTenant } from '@/lib/chat-emit'
 
 const log = getLogger('api:orchestrate')
+
+// TD-2: Zod validation for the orchestrator request body. Replaces the
+// inline `body as { ... }` cast + manual `if (!tenantId)` / `if (action !== ...)`
+// checks with a single declarative schema. `.passthrough()` keeps unknown keys
+// so the route stays tolerant of forward-compatible client payloads.
+const OrchestrateSchema = z.object({
+  tenantId: z.string().min(1),
+  action: z.enum(['full', 'step']),
+  scenarioId: z.string().optional(),
+  conversationId: z.string().optional(),
+  customerId: z.string().optional(),
+  currentStep: z.string().optional(),
+}).passthrough()
 
 /**
  * Resultado enriquecido de `callAgent` — además del reply, lleva el
@@ -163,19 +177,21 @@ export async function POST(req: NextRequest) {
   if (limited) return limited
 
   try {
-    const body = await req.json()
-    const { tenantId, action, scenarioId, conversationId, customerId, currentStep } = body as {
-      tenantId?: string
-      action?: 'full' | 'step'
+    const raw = await req.json()
+    const parseResult = OrchestrateSchema.safeParse(raw)
+    if (!parseResult.success) {
+      return NextResponse.json(
+        { ok: false, error: 'Validación fallida', details: parseResult.error.flatten() },
+        { status: 400 },
+      )
+    }
+    const { tenantId, action, scenarioId, conversationId, customerId, currentStep } = parseResult.data as {
+      tenantId: string
+      action: 'full' | 'step'
       scenarioId?: string
       conversationId?: string
       customerId?: string
       currentStep?: OrchestratorStepId
-    }
-
-    if (!tenantId) return NextResponse.json({ ok: false, error: 'tenantId required' }, { status: 400 })
-    if (action !== 'full' && action !== 'step') {
-      return NextResponse.json({ ok: false, error: "action must be 'full' or 'step'" }, { status: 400 })
     }
 
     // FIX-SECURITY-AUTH-001 (#29) — tenant gate before any LLM call.

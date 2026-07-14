@@ -44,7 +44,6 @@ const VALID_TYPES = [
   'retraso',
   'otro',
 ] as const
-const VALID_STATUSES = ['open', 'assigned', 'resolved', 'escalated', 'closed'] as const
 
 const CreateCaseSchema = z.object({
   phone: z.string().min(1),

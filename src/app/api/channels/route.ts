@@ -1,7 +1,40 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { requireAuth, requireTenantAccess } from '@/lib/auth-helpers'
 import { db } from '@/lib/db'
 import { captureError } from '@/lib/capture-error'
+
+// TD-2: Zod schemas for POST + PATCH. Both use `.passthrough()` so unknown
+// keys are preserved on `parseResult.data` (matches the previous behaviour
+// where `body.accountId`, `body.country`, etc. were read individually).
+const ChannelTypeSchema = z.enum(['whatsapp', 'messenger', 'instagram', 'telegram'])
+
+const CreateChannelSchema = z.object({
+  tenantId: z.string().min(1),
+  type: ChannelTypeSchema,
+  name: z.string().min(1),
+  displayName: z.string().min(1),
+  accountId: z.string().optional(),
+  verified: z.boolean().optional(),
+  active: z.boolean().optional(),
+  country: z.string().optional(),
+  paymentStrategy: z.string().optional(),
+  requirePrepayMin: z.number().nullable().optional(),
+  prepayDiscountPct: z.number().optional(),
+  codFee: z.number().optional(),
+  wabaId: z.string().optional(),
+  phoneNumberId: z.string().optional(),
+  whatsappToken: z.string().optional(),
+  pageId: z.string().optional(),
+  pageAccessToken: z.string().optional(),
+  igAccountId: z.string().optional(),
+  verifyToken: z.string().optional(),
+  appSecret: z.string().optional(),
+}).passthrough()
+
+const UpdateChannelSchema = z.object({
+  channelId: z.string().min(1),
+}).passthrough()
 
 // Channel CRUD — list / create / update / deactivate.
 //
@@ -55,20 +88,20 @@ export async function GET(req: NextRequest) {
 // POST /api/channels — create a new channel (e.g., add a new WhatsApp line)
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json()
-    const { tenantId, type, name, displayName } = body
-    if (!tenantId || !type || !name || !displayName) {
-      return NextResponse.json({ error: 'tenantId, type, name, displayName required' }, { status: 400 })
+    const raw = await req.json()
+    const parseResult = CreateChannelSchema.safeParse(raw)
+    if (!parseResult.success) {
+      return NextResponse.json(
+        { error: 'Validación fallida', details: parseResult.error.flatten() },
+        { status: 400 },
+      )
     }
+    const body = parseResult.data
+    const { tenantId, type, name, displayName } = body
 
     // FIX-SECURITY-AUTH-001 (#12) — tenant gate before the channel create.
     const { error } = await requireTenantAccess(tenantId)
     if (error) return error
-
-    const validTypes = ['whatsapp', 'messenger', 'instagram', 'telegram']
-    if (!validTypes.includes(type)) {
-      return NextResponse.json({ error: `type must be one of: ${validTypes.join(', ')}` }, { status: 400 })
-    }
 
     // Validate required fields by type
     if (type === 'whatsapp' && !body.wabaId) {
@@ -123,9 +156,15 @@ export async function PATCH(req: NextRequest) {
   const { session, error: authErr } = await requireAuth()
   if (authErr) return authErr
   try {
-    const body = await req.json()
-    const { channelId, ...fields } = body
-    if (!channelId) return NextResponse.json({ error: 'channelId required' }, { status: 400 })
+    const body_raw = await req.json()
+    const parseResult = UpdateChannelSchema.safeParse(body_raw)
+    if (!parseResult.success) {
+      return NextResponse.json(
+        { error: 'Validación fallida', details: parseResult.error.flatten() },
+        { status: 400 },
+      )
+    }
+    const { channelId, ...fields } = parseResult.data as Record<string, unknown> & { channelId: string }
 
     // FIX-SECURITY-AUTH-001 (#12) — fetch the channel, verify tenant
     // ownership before update. Any authed user used to be able to mutate

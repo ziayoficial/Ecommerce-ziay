@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { captureError } from '@/lib/capture-error'
 import { requireRole } from '@/lib/auth-helpers'
 import {
@@ -87,11 +88,26 @@ export async function GET(_req: NextRequest) {
 
 // POST /api/compliance/retention
 // Triggers a retention sweep. Admin-only.
-export async function POST(_req: NextRequest) {
+//
+// TD-2: Zod schema accepts an optional body (the sweep takes no parameters,
+// but the client may send an empty `{}`). `.passthrough()` keeps unknown
+// keys so future optional filters don't 400 the caller.
+const RetentionSweepSchema = z.object({}).passthrough()
+
+export async function POST(req: NextRequest) {
   const { error } = await requireRole(['admin'])
   if (error) return error
 
   try {
+    const raw = await req.json().catch(() => ({}))
+    const parsed = RetentionSweepSchema.safeParse(raw)
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: 'Validación fallida', details: parsed.error.flatten() },
+        { status: 400 },
+      )
+    }
+
     const result: RetentionResult = await runRetentionCleanup()
 
     // Best-effort: record the sweep in the audit log so admins can trace

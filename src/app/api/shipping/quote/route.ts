@@ -17,25 +17,34 @@
 // user used to be able to burn any tenant's external logistics API quota.
 
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { requireTenantAccess } from '@/lib/auth-helpers'
 import { getLogisticsAdapter } from '@/lib/adapters/registry'
 import { db } from '@/lib/db'
 
+// TD-2: Zod schema for shipping quote POST.
+const ShippingQuoteSchema = z.object({
+  tenantId: z.string().min(1),
+  ciudad: z.string().min(1),
+  pais: z.string().optional(),
+  cantidad_unidades: z.number().optional(),
+}).passthrough()
+
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json()
-    const { tenantId, ciudad, pais, cantidad_unidades } = body as {
-      tenantId?: string
-      ciudad?: string
+    const raw = await req.json()
+    const parseResult = ShippingQuoteSchema.safeParse(raw)
+    if (!parseResult.success) {
+      return NextResponse.json(
+        { error: 'Validación fallida', details: parseResult.error.flatten() },
+        { status: 400 },
+      )
+    }
+    const { tenantId, ciudad, pais, cantidad_unidades } = parseResult.data as {
+      tenantId: string
+      ciudad: string
       pais?: string
       cantidad_unidades?: number
-    }
-
-    if (!tenantId) {
-      return NextResponse.json({ error: 'tenantId is required' }, { status: 400 })
-    }
-    if (!ciudad) {
-      return NextResponse.json({ error: 'ciudad is required' }, { status: 400 })
     }
 
     // FIX-SECURITY-AUTH-001 (#26) — tenant gate before the external adapter call.

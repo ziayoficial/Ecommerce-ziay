@@ -8,10 +8,12 @@
 // SPRINT8-SERVICES-REST-001 — service layer.
 
 import { db } from '@/lib/db'
-import { getLogger } from '@/lib/logger'
 import { captureError } from '@/lib/capture-error'
 
-const log = getLogger('service:conversions')
+// TD-7: `log` was declared but never used (the service uses `captureError`
+// for error reporting instead of structured logging). Removed to silence
+// `@typescript-eslint/no-unused-vars`. Re-add `getLogger('service:conversions')`
+// here if you add structured log calls in the future.
 
 export const conversionsService = {
   /**

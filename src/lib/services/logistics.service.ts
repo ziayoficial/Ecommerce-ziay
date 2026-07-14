@@ -7,10 +7,11 @@
 // SPRINT6-ARCH-001 — service layer.
 
 import { db } from '@/lib/db'
-import { getLogger } from '@/lib/logger'
 import { captureError } from '@/lib/capture-error'
 
-const log = getLogger('service:logistics')
+// TD-7: `log` was declared but never used. Removed to silence
+// `@typescript-eslint/no-unused-vars`. Re-add `getLogger('service:logistics')`
+// here if you add structured log calls in the future.
 
 export const logisticsService = {
   /**

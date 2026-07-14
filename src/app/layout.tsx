@@ -150,6 +150,43 @@ function safeJsonLd(obj: unknown): string {
   return JSON.stringify(obj).replace(/</g, "\\u003c");
 }
 
+// ───────────────────────────────────────────────────────────────────────────
+// SPRINT-MONITORING-DR-001 · M-10 — Web Vitals reporting.
+//
+// Next.js calls this function for every Core Web Vital (LCP, FID/INP, CLS,
+// FCP, TTFB) measured in the browser. We forward each metric to
+// /api/analytics/web-vitals (which logs it through pino) using `sendBeacon`
+// so the upload doesn't block the page navigation.
+//
+// Only fires in production — the route handler is a no-op for dev builds
+// (and the early return here keeps the dev console clean).
+// ───────────────────────────────────────────────────────────────────────────
+export function reportWebVitals(metric: {
+  name: string
+  value: number
+  id: string
+  label: 'web-vital' | 'custom'
+}) {
+  // Only report in production
+  if (process.env.NODE_ENV !== 'production') return
+
+  // Send to analytics endpoint
+  const url = '/api/analytics/web-vitals'
+  const body = JSON.stringify({
+    name: metric.name,
+    value: metric.value,
+    id: metric.id,
+    page: typeof window !== 'undefined' ? window.location.pathname : '/',
+  })
+
+  // Use sendBeacon for non-blocking
+  if (typeof navigator !== 'undefined' && navigator.sendBeacon) {
+    navigator.sendBeacon(url, body)
+  } else {
+    fetch(url, { body, method: 'POST', keepalive: true })
+  }
+}
+
 export default function RootLayout({
   children,
 }: Readonly<{

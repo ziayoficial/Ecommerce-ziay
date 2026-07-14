@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { requireAuth } from '@/lib/auth-helpers'
+import { requireAuth, requireTenantAccess } from '@/lib/auth-helpers'
 import { captureError } from '@/lib/capture-error'
 import { monetizationService } from '@/lib/services'
 
 // GET /api/monetization/commission?tenantId=...
 // Returns list of commission entries (recognized + pending)
+//
+// V6 (AUDIT-FINAL-SEC-001): previamente se aceptaba `?tenantId=` del query
+// sin verificar que el caller perteneciera a ese tenant. Ahora usamos
+// requireTenantAccess(tenantId) — cualquier intento cross-tenant retorna 403.
 //
 // SPRINT7-POSTGRES-SERVICES-001 — GET migrated from `db.commissionEntry.findMany`
 // + inline totals reduce to `monetizationService.getCommissions`. The POST
@@ -13,13 +17,13 @@ import { monetizationService } from '@/lib/services'
 // recognition logic doesn't have a 1:1 service method yet. Response shape
 // is unchanged.
 export async function GET(req: NextRequest) {
-  const { error } = await requireAuth()
+  const tenantId = req.nextUrl.searchParams.get('tenantId')
+  if (!tenantId) return NextResponse.json({ error: 'tenantId required' }, { status: 400 })
+
+  const { error } = await requireTenantAccess(tenantId)
   if (error) return error
 
   try {
-    const tenantId = req.nextUrl.searchParams.get('tenantId')
-    if (!tenantId) return NextResponse.json({ error: 'tenantId required' }, { status: 400 })
-
     const { entries, totals } = await monetizationService.getCommissions(tenantId)
 
     return NextResponse.json({
@@ -51,9 +55,14 @@ export async function GET(req: NextRequest) {
 // POST /api/monetization/commission
 // Body: { orderId, etapaReconocimiento: 'datos_completados' | 'despachado' }
 // Creates or updates a commission entry, applying the two-moment recognition (Saramantha §17.7)
+//
+// V6 (AUDIT-FINAL-SEC-001): verificamos que el caller pertenezca al tenant
+// del order (requireTenantAccess). Previamente cualquier usuario authed
+// podía crear/actualizar commission entries para cualquier order.
 export async function POST(req: NextRequest) {
-  const { error } = await requireAuth()
-  if (error) return error
+  // Auth primero — necesitamos la sesión para errores 401 tempranos.
+  const { error: authErr } = await requireAuth()
+  if (authErr) return authErr
 
   try {
     const { orderId, etapaReconocimiento } = await req.json()
@@ -61,6 +70,10 @@ export async function POST(req: NextRequest) {
 
     const order = await db.order.findUnique({ where: { id: orderId }, include: { tenant: true }})
     if (!order) return NextResponse.json({ error: 'order not found' }, { status: 404 })
+
+    // Tenant guard — el caller debe pertenecer al tenant del order.
+    const { error: tenantErr } = await requireTenantAccess(order.tenantId)
+    if (tenantErr) return tenantErr
 
     const tenant = order.tenant
     const gmv = order.total

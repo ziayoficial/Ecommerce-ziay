@@ -3,6 +3,9 @@ import { requireTenantAccess } from '@/lib/auth-helpers'
 import { rateLimit } from '@/lib/middleware/rate-limit'
 import { db } from '@/lib/db'
 import ZAI from 'z-ai-web-dev-sdk'
+// FIX-AI-AGENTS-001 — defensas anti-inyección + confidence real.
+import { wrapUserInput, ANTI_INJECTION_PREFIX } from '@/lib/agents/sanitize'
+import { emitToTenant } from '@/lib/chat-emit'
 
 // POST /api/ai-reply
 // Generates context-aware sales replies using the LLM skill.
@@ -79,19 +82,62 @@ Tono: ${tone}, cálido, cercano (estilo LATAM), emojis moderados. Máximo 2 mens
 
   try {
     const zai = await ZAI.create()
+    // FIX-AI-AGENTS-001 §A-1: el system prompt va con rol `system`
+    // (antes iba con rol `assistant` — el modelo lo trataba como una
+    // respuesta previa suya, debilitando los guardrails "NO inventes
+    // precios fuera del catálogo" y habilitando prompt injection).
+    //
+    // FIX-AI-AGENTS-001 §A-4: se antepone `ANTI_INJECTION_PREFIX` al
+    // system prompt (instrucciones anti-inyección en español) y se envuelve
+    // el user prompt con `wrapUserInput()` — el historial de la conversación
+    // es input del cliente y debe ir delimitado con <user_message>.
     const completion = await zai.chat.completions.create({
       messages: [
-        { role: 'assistant', content: systemPrompt },
-        { role: 'user', content: `Historia de la conversación:\n${history}\n\nGenera la siguiente respuesta del agente (solo el texto, sin prefijo "Agente:"):` },
+        { role: 'system', content: ANTI_INJECTION_PREFIX + systemPrompt },
+        { role: 'user', content: wrapUserInput(`Historia de la conversación:\n${history}\n\nGenera la siguiente respuesta del agente (solo el texto, sin prefijo "Agente:"):`) },
       ],
       thinking: { type: 'disabled' },
     })
     const reply = completion.choices[0]?.message?.content?.trim() || ''
-    return NextResponse.json({ reply, confidence: 0.9 })
+    // FIX-AI-AGENTS-001 §A-3: confidence real — esta ruta devuelve texto
+    // libre (no JSON), no hay esquema Zod que validar → 0.6.
+    // (Antes era 0.9 hardcodeado en cada éxito.)
+    const confidence = 0.6
+    return NextResponse.json({ reply, confidence })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'unknown error'
     // Fallback deterministic reply so the UI never breaks
     const fallback = `¡Hola ${conv.customer.name.split(' ')[0]}! 👋 Gracias por escribir. ¿Te ayudo a confirmar tu pedido? Cuéntame qué producto te interesa y tu ciudad para coordinar el envío.`
-    return NextResponse.json({ reply: fallback, confidence: 0.3, error: message })
+    // FIX-AI-AGENTS-001 §A-3: la llamada LLM falló completamente → 0.1
+    // (antes era 0.3 — pero 0.3 implicaba "teníamos fallback", mientras
+    // que 0.1 implica "nunca llegamos a tener output del modelo").
+    const confidence = 0.1
+    // §A-3 auto-escalación: 0.1 < 0.6 → persistir DecisionLog con
+    // `humanReviewed: false` y emitir `agent:low_confidence` al tenant.
+    try {
+      await db.decisionLog.create({
+        data: {
+          tenantId: conv.tenantId,
+          agentName: 'ai_reply',
+          conversationId: conv.id,
+          input: JSON.stringify({ conversationId: conv.id, tone }),
+          output: JSON.stringify({ reply: fallback, confidence, error: message }),
+          reasoning: null,
+          confidence,
+          // humanReviewed: false (default del schema Prisma).
+        },
+      })
+    } catch {
+      // Non-blocking: la escalada es best-effort.
+    }
+    emitToTenant(conv.tenantId, 'agent:low_confidence', {
+      agentName: 'ai_reply',
+      conversationId: conv.id,
+      confidence,
+      reply: fallback,
+      error: message,
+      humanReviewed: false,
+    })
+    return NextResponse.json({ reply: fallback, confidence, error: message })
   }
 }

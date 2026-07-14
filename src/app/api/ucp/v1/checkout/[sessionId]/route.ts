@@ -11,6 +11,10 @@ import {
 } from '@/lib/crypto/signing'
 import { requireIdentityVerification } from '@/lib/compliance/kyc-gate'
 import {
+  checkAgeGate,
+  requireParentalConsent,
+} from '@/lib/compliance/age-gate'
+import {
   enforceMandateBounds,
   checkEscalationRules,
   normalizeUcpCartToItems,
@@ -337,6 +341,76 @@ export async function PATCH(
           escalated: true,
           reasons: escalation.reasons,
         })
+      }
+
+      // ── FIX-LEGAL-P0-001 L-4 — Age gate (Ley 1098/2006 Art 17) ──────────
+      // Before allowing the checkout to advance to `ready_for_complete`,
+      // verify the customer is not a minor OR — if they are — that they
+      // have an active `parental_consent_minor` ConsentRecord on file.
+      // If the customer is a minor WITHOUT parental consent, force the
+      // session into `requires_escalation` so the human-in-the-loop can
+      // collect the parental consent via the `/compliance/parental-consent`
+      // continuation URL.
+      //
+      // The check runs only when `body.customerId` is supplied. The
+      // `completed` transition independently requires `customerId`, so a
+      // checkout that reached `ready_for_complete` without a customerId
+      // here will be caught at completion. Skipping the age gate here when
+      // customerId is absent is safe (no PII is processed until the
+      // `completed` transition).
+      if (body.customerId) {
+        const ageCheck = await checkAgeGate(body.customerId)
+        if (!ageCheck.allowed) {
+          if (ageCheck.isMinor) {
+            const parentalConsent = await requireParentalConsent(
+              body.customerId,
+            )
+            if (!parentalConsent.verified) {
+              // Force escalation — parental consent must be collected.
+              const continuationUrl = `/compliance/parental-consent?customerId=${encodeURIComponent(
+                body.customerId,
+              )}`
+              const escalated = await db.ucpCheckoutSession.update({
+                where: { sessionId },
+                data: {
+                  state: 'requires_escalation',
+                  continuationUrl,
+                },
+              })
+              log.info(
+                {
+                  sessionId,
+                  state: escalated.state,
+                  customerId: body.customerId,
+                  reason: ageCheck.reason,
+                },
+                'UCP state → requires_escalation (age gate — Ley 1098/2006)',
+              )
+              return NextResponse.json({
+                sessionId,
+                state: escalated.state,
+                continuationUrl: escalated.continuationUrl,
+                escalated: true,
+                reason: ageCheck.reason,
+                legalBasis: 'Ley 1098 de 2006 Art 17',
+              })
+            }
+            // Parental consent on file — allow the checkout through, but
+            // log the minor status so downstream flows (marketing, retention)
+            // can apply the enhanced-protection rules.
+            log.info(
+              { sessionId, customerId: body.customerId },
+              'UCP age gate: minor with parental consent on file — proceeding',
+            )
+          } else {
+            // Age check failed for a non-age reason (e.g. customer not found,
+            // DB error). Block the checkout with 403.
+            return NextResponse.json(
+              { error: ageCheck.reason ?? 'Verificación de edad fallida' },
+              { status: 403 },
+            )
+          }
+        }
       }
 
       // Si el pago es a crédito/cuotas, validar KYC (Ley 2573).

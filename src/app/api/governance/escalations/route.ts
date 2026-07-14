@@ -82,6 +82,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  // V7 (AUDIT-FINAL-SEC-001): role gate — only admin / finance / support
+  // can approve or reject escalations. Previously any authed tenant user
+  // could approve their own escalation.
+  const role = authSession.user.role
+  if (role !== 'admin' && role !== 'finance' && role !== 'support') {
+    return NextResponse.json(
+      { error: 'Forbidden: solo admin, finance o support pueden decidir escalaciones' },
+      { status: 403 },
+    )
+  }
+
   let raw: unknown
   try {
     raw = await req.json()

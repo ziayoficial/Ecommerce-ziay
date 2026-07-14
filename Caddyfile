@@ -1,23 +1,48 @@
-:81 {
-	@transform_port_query {
-		query XTransformPort=*
-	}
+{
+    # Global options
+    email admin@ziay.co
+}
 
-	handle @transform_port_query {
-		reverse_proxy localhost:{query.XTransformPort} {
-			header_up Host {host}
-			header_up X-Forwarded-For {remote_host}
-			header_up X-Forwarded-Proto {scheme}
-			header_up X-Real-IP {remote_host}
-		}
-	}
+# ZIAY reverse proxy — HTTPS auto-provisioned via Let's Encrypt
+# Set APP_DOMAIN env var on the deploy host (e.g. ziay.co)
+{$APP_DOMAIN:localhost} {
+    # Compression
+    encode zstd gzip
 
-	handle {
-		reverse_proxy localhost:3000 {
-			header_up Host {host}
-			header_up X-Forwarded-For {remote_host}
-			header_up X-Forwarded-Proto {scheme}
-			header_up X-Real-IP {remote_host}
-		}
-	}
+    # Security headers
+    header {
+        X-Frame-Options "DENY"
+        X-Content-Type-Options "nosniff"
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Permissions-Policy "camera=(), microphone=(), geolocation=()"
+        -Server
+    }
+
+    # WebSocket + cross-port routing via XTransformPort query param
+    @transform_port_query {
+        query XTransformPort=*
+    }
+
+    handle @transform_port_query {
+        reverse_proxy localhost:{query.XTransformPort} {
+            header_up Host {host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+            header_up X-Real-IP {remote_host}
+            transport http {
+                versions 1.1
+            }
+        }
+    }
+
+    # Default: proxy to Next.js app
+    handle {
+        reverse_proxy localhost:3000 {
+            header_up Host {host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+            header_up X-Real-IP {remote_host}
+        }
+    }
 }

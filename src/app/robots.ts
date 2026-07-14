@@ -18,7 +18,7 @@ export default function robots(): MetadataRoute.Robots {
         // `/` is allowed for crawling (so Google can follow internal links
         // to public storefronts + directorio) but is marked `noindex` via
         // the X-Robots-Tag response header set in src/middleware.ts.
-        allow: ['/t/', '/directorio', '/'],
+        allow: ['/t/', '/directorio', '/', '/privacy', '/terms', '/legal'],
         disallow: [
           '/api/',
           '/vendedor',

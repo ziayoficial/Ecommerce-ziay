@@ -39,6 +39,12 @@ const PUBLIC_PATTERNS: Array<RegExp | string> = [
   /^\/t\/.+/,
   /^\/vendedor(?:\/.*)?$/,
   /^\/directorio(?:\/.*)?$/,
+  // FIX-LEGAL-P0-001 L-1 — public legal pages (Ley 1581 Art 10). SSR pages
+  // reachable by crawlers + unauthenticated data subjects. Linked from
+  // login + storefront footers + dashboard sidebar.
+  /^\/privacy(?:\/.*)?$/,
+  /^\/terms(?:\/.*)?$/,
+  /^\/legal(?:\/.*)?$/,
   /^\/api\/auth(?:\/.*)?$/,
   /^\/api\/webhooks(?:\/.*)?$/,
   /^\/api\/health(?:\/.*)?$/,
@@ -232,12 +238,41 @@ export async function middleware(req: NextRequest) {
   return redirectRes
 }
 
+// ───────────────────────────────────────────────────────────────────────────
+// Content-Security-Policy for ALL responses.
+//
+// V11 (AUDIT-FINAL-SEC-001): the previous code only set a CSP for responses
+// whose `content-type` was already `application/json` at middleware time —
+// which in practice only covered the 429 / 401 JSON errors generated inside
+// this middleware (NextResponse.next() has no content-type yet, so route
+// handlers' HTML responses shipped with NO CSP). We now attach a real CSP
+// to every response. JSON responses still get the stricter `default-src
+// 'none'` override below (defense-in-depth — JSON must never trigger
+// resource loads).
+// ───────────────────────────────────────────────────────────────────────────
+const CSP_HEADER = [
+  "default-src 'self'",
+  // Next.js (esp. dev) needs inline scripts + eval for HMR / Fast Refresh.
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: https:",
+  "font-src 'self' data:",
+  "connect-src 'self' wss: ws:",
+  "frame-ancestors 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+].join('; ')
+
 function addSecurityHeaders(response: NextResponse) {
   response.headers.set('X-Frame-Options', 'DENY')
   response.headers.set('X-Content-Type-Options', 'nosniff')
   response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
   response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
+  response.headers.set('Content-Security-Policy', CSP_HEADER)
+  // Stricter CSP for JSON responses (defense-in-depth — JSON must never
+  // trigger script/style/img loads). This overrides CSP_HEADER for the
+  // 429 / 401 JSON errors generated inside this middleware.
   if (response.headers.get('content-type')?.includes('application/json')) {
     response.headers.set('Content-Security-Policy', "default-src 'none'")
   }

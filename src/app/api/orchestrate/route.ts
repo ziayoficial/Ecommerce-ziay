@@ -39,8 +39,76 @@ import {
 import { captureError } from '@/lib/capture-error'
 import { getLogger } from '@/lib/logger'
 import ZAI from 'z-ai-web-dev-sdk'
+// FIX-AI-AGENTS-001 — defensas y validación de salida para los 9 agentes
+// del pipeline de orquestación.
+import { parseAgentOutput, hasOutputSchema } from '@/lib/agents/schemas'
+import { wrapUserInput, ANTI_INJECTION_PREFIX } from '@/lib/agents/sanitize'
+import { emitToTenant } from '@/lib/chat-emit'
 
 const log = getLogger('api:orchestrate')
+
+/**
+ * Resultado enriquecido de `callAgent` — además del reply, lleva el
+ * confidence calculado por §A-3 y el reply crudo para diagnóstico.
+ */
+interface CallAgentResult {
+  reply: string
+  confidence: number
+  rawReply?: string
+  error?: string
+}
+
+/**
+ * FIX-AI-AGENTS-001 §A-3 — auto-escalación a revisión humana.
+ *
+ * Si `confidence < 0.6`, persistimos un DecisionLog (con `humanReviewed:
+ * false` por default del schema Prisma) y emitimos `agent:low_confidence`
+ * al room del tenant. Best-effort: si la persistencia falla, no se rompe
+ * el pipeline.
+ */
+async function escalateIfLowConfidence(params: {
+  tenantId: string
+  agentName: string
+  conversationId?: string
+  ctx: unknown
+  result: CallAgentResult
+}): Promise<void> {
+  if (params.result.confidence >= 0.6) return
+  // Persistir DecisionLog solo en casos de baja confianza — el pipeline
+  // orquesta 9 agentes por request, persistir todos sería ruido.
+  try {
+    await db.decisionLog.create({
+      data: {
+        tenantId: params.tenantId,
+        agentName: params.agentName,
+        conversationId: params.conversationId ?? null,
+        input: JSON.stringify(params.ctx),
+        output: JSON.stringify({
+          reply: params.result.reply,
+          confidence: params.result.confidence,
+          error: params.result.error ?? null,
+        }),
+        reasoning: null,
+        confidence: params.result.confidence,
+        // humanReviewed: false (default del schema Prisma).
+      },
+    })
+  } catch (err) {
+    log.warn(
+      { err, agentName: params.agentName, tenantId: params.tenantId },
+      'No se pudo persistir DecisionLog en escalación (non-blocking)',
+    )
+  }
+  emitToTenant(params.tenantId, 'agent:low_confidence', {
+    agentName: params.agentName,
+    conversationId: params.conversationId ?? null,
+    confidence: params.result.confidence,
+    reply: params.result.reply,
+    rawReply: params.result.rawReply,
+    error: params.result.error,
+    humanReviewed: false,
+  })
+}
 
 async function callAgent(agentName: AgentName, ctx: {
   tenantId: string
@@ -52,17 +120,39 @@ async function callAgent(agentName: AgentName, ctx: {
   items?: { sku: string; cantidad: number }[]
   message?: string
   partialAddress?: Record<string, string>
-}): Promise<string> {
+}): Promise<CallAgentResult> {
   const { system, user } = await buildAgentPrompt(agentName, ctx)
   const zai = await ZAI.create()
+  // FIX-AI-AGENTS-001 §A-1: system prompt con rol `system`
+  // (antes iba con rol `assistant` — debilitaba guardrails y exponía a
+  // prompt injection). §A-4: prefix anti-inyección + delimitador
+  // <user_message> para el input del cliente.
   const completion = await zai.chat.completions.create({
     messages: [
-      { role: 'assistant', content: system },
-      { role: 'user', content: user },
+      { role: 'system', content: ANTI_INJECTION_PREFIX + system },
+      { role: 'user', content: wrapUserInput(user) },
     ],
     thinking: { type: 'disabled' },
   })
-  return completion.choices[0]?.message?.content?.trim() || ''
+  const rawReply = completion.choices[0]?.message?.content?.trim() || ''
+
+  // FIX-AI-AGENTS-001 §A-2: validar salida contra esquema Zod si existe.
+  const parsed = parseAgentOutput<unknown>(agentName, rawReply)
+  const schemaExists = hasOutputSchema(agentName)
+
+  // FIX-AI-AGENTS-001 §A-3: confidence real basada en validación.
+  let confidence: number
+  let reply = rawReply
+  if (parsed) {
+    confidence = 0.8
+  } else if (schemaExists) {
+    confidence = 0.3
+    reply = FALLBACKS[agentName]
+  } else {
+    confidence = 0.6
+  }
+
+  return { reply, confidence, rawReply }
 }
 
 export async function POST(req: NextRequest) {
@@ -128,12 +218,18 @@ export async function POST(req: NextRequest) {
       log.info({ tenantId, action, stepId: step.id, agent: step.agent }, 'agent start')
       let reply = ''
       let errorMsg: string | undefined
+      let confidence = 0.6 // default para agentes de texto libre
+      let rawReply: string | undefined
       try {
-        reply = await callAgent(step.agent as AgentName, buildCtx(step.id))
-        log.info({ tenantId, stepId: step.id, agent: step.agent, replyLen: reply.length }, 'agent complete')
+        const result = await callAgent(step.agent as AgentName, buildCtx(step.id))
+        reply = result.reply
+        confidence = result.confidence
+        rawReply = result.rawReply
+        log.info({ tenantId, stepId: step.id, agent: step.agent, replyLen: reply.length, confidence }, 'agent complete')
       } catch (err) {
         errorMsg = err instanceof Error ? err.message : 'unknown error'
         reply = FALLBACKS[step.agent as AgentName]
+        confidence = 0.1 // §A-3: la llamada LLM falló completamente
         log.error({ tenantId, stepId: step.id, agent: step.agent, err: errorMsg }, 'agent error — fallback used')
       }
 
@@ -147,6 +243,15 @@ export async function POST(req: NextRequest) {
         }
       }
 
+      // FIX-AI-AGENTS-001 §A-3 — auto-escalación a revisión humana.
+      await escalateIfLowConfidence({
+        tenantId,
+        agentName: step.agent as AgentName,
+        conversationId,
+        ctx: buildCtx(step.id),
+        result: { reply, confidence, rawReply, error: errorMsg },
+      })
+
       return NextResponse.json({
         ok: true,
         action: 'step',
@@ -154,6 +259,7 @@ export async function POST(req: NextRequest) {
         currentStep: { id: step.id, index: step.index, label: step.label, emoji: step.emoji, agent: step.agent },
         nextStep,
         reply,
+        confidence,
         error: errorMsg,
       })
     }
@@ -161,18 +267,24 @@ export async function POST(req: NextRequest) {
     // ── action='full' — run all 9 steps sequentially ────────────────────
     const timeline: Array<{
       step: OrchestratorStepId; index: number; label: string; emoji: string;
-      agent: string; agentLabel: string; reply: string; error?: string
+      agent: string; agentLabel: string; reply: string; confidence: number; error?: string
     }> = []
     for (const step of ORCHESTRATOR_STEPS) {
       log.info({ tenantId, action: 'full', stepId: step.id, agent: step.agent, index: step.index }, 'agent start')
       let reply = ''
       let errorMsg: string | undefined
+      let confidence = 0.6
+      let rawReply: string | undefined
       try {
-        reply = await callAgent(step.agent as AgentName, buildCtx(step.id))
-        log.info({ tenantId, stepId: step.id, agent: step.agent, replyLen: reply.length }, 'agent complete')
+        const result = await callAgent(step.agent as AgentName, buildCtx(step.id))
+        reply = result.reply
+        confidence = result.confidence
+        rawReply = result.rawReply
+        log.info({ tenantId, stepId: step.id, agent: step.agent, replyLen: reply.length, confidence }, 'agent complete')
       } catch (err) {
         errorMsg = err instanceof Error ? err.message : 'unknown error'
         reply = FALLBACKS[step.agent as AgentName]
+        confidence = 0.1 // §A-3: llamada LLM fallida
         log.error({ tenantId, stepId: step.id, agent: step.agent, err: errorMsg }, 'agent error — fallback used')
       }
 
@@ -186,6 +298,15 @@ export async function POST(req: NextRequest) {
         }
       }
 
+      // FIX-AI-AGENTS-001 §A-3 — auto-escalación a revisión humana.
+      await escalateIfLowConfidence({
+        tenantId,
+        agentName: step.agent as AgentName,
+        conversationId,
+        ctx: buildCtx(step.id),
+        result: { reply, confidence, rawReply, error: errorMsg },
+      })
+
       timeline.push({
         step: step.id,
         index: step.index,
@@ -194,6 +315,7 @@ export async function POST(req: NextRequest) {
         agent: step.agent,
         agentLabel: AGENT_LABELS[step.agent as AgentName],
         reply,
+        confidence,
         error: errorMsg,
       })
     }

@@ -8,6 +8,88 @@ import { getLogger } from '@/lib/logger'
 const log = getLogger('api/remarketing')
 
 // ───────────────────────────────────────────────────────────────────────────
+// FIX-LEGAL-P0-001 L-3 — Consent enforcement on remarketing.
+//
+// AUDIT-LEGAL-COMPLIANCE-001 P0-3: this route scheduled WhatsApp marketing
+// messages without checking `ConsentRecord` for `purpose: 'marketing'`.
+// Direct violation of Ley 1581 Art 10 (no legal basis) + Meta Cloud API
+// policy (marketing templates require explicit opt-in outside the 24h
+// customer-service window).
+//
+// Every customer targeted by `schedule` or `auto_generate` now goes through
+// `assertMarketingConsent()`. If the customer has no ConsentRecord with
+// `purpose='marketing'`, `granted=true`, `revokedAt=null` — the message is
+// SKIPPED and an AuditLog row is written with `action='remarketing.skipped_no_consent'`
+// so the marketing dashboard can surface the silent skip to the tenant.
+// ───────────────────────────────────────────────────────────────────────────
+
+/**
+ * Returns the Customer row matching a (tenantId, phone) tuple, or null.
+ * Phone lookup is the right path because `RemarketingMessage.customerPhone`
+ * is the identifier on the schedule/auto-generate paths — there is no
+ * `customerId` on the message row by design (the message can target a phone
+ * that has not yet been linked to a Customer row).
+ */
+async function findCustomerByPhone(
+  tenantId: string,
+  phone: string,
+): Promise<{ id: string; name: string | null } | null> {
+  const customer = await db.customer.findFirst({
+    where: { tenantId, phone },
+    select: { id: true, name: true },
+  })
+  return customer ?? null
+}
+
+/**
+ * Asserts that the customer has granted marketing consent (Ley 1581 Art 10).
+ * Returns `true` if consent exists + is granted + not revoked; `false`
+ * otherwise. On `false`, writes an AuditLog row so the marketing dashboard
+ * can surface silent skips. AuditLog write is best-effort — a transient DB
+ * error must NOT silently re-enable sending.
+ */
+async function assertMarketingConsent(
+  tenantId: string,
+  customerId: string,
+): Promise<boolean> {
+  const consent = await db.consentRecord.findFirst({
+    where: {
+      tenantId,
+      dataSubjectId: customerId,
+      dataSubjectType: 'customer',
+      purpose: 'marketing',
+      granted: true,
+      revokedAt: null,
+    },
+    select: { id: true },
+  })
+  if (consent) return true
+  // Best-effort audit log — failure to write it does NOT enable sending.
+  try {
+    await db.auditLog.create({
+      data: {
+        tenantId,
+        action: 'remarketing.skipped_no_consent',
+        entity: 'customer',
+        entityId: customerId,
+        meta: JSON.stringify({
+          reason:
+            'No ConsentRecord with purpose=marketing, granted=true, revokedAt=null',
+          legalBasis:
+            'Ley 1581 de 2012 Art 10 + Meta Cloud API marketing opt-in policy',
+        }),
+      },
+    })
+  } catch (auditErr) {
+    log.error(
+      { err: auditErr, tenantId, customerId },
+      'remarketing: failed to write no-consent audit log',
+    )
+  }
+  return false
+}
+
+// ───────────────────────────────────────────────────────────────────────────
 // Body schemas (per-action discriminated unions for POST and PATCH)
 // ───────────────────────────────────────────────────────────────────────────
 
@@ -251,12 +333,58 @@ async function scheduleMessage(tenantId: string, body: z.infer<typeof ScheduleSc
       { status: 404 },
     )
   }
+
+  // FIX-LEGAL-P0-001 L-3 — enforce marketing consent before scheduling.
+  // If the customer cannot be resolved by phone, OR has no marketing
+  // consent, skip the schedule. Skipping is logged via AuditLog by
+  // assertMarketingConsent(); we return a 403 so the caller knows.
+  const customer = await findCustomerByPhone(tenantId, String(customerPhone))
+  if (!customer) {
+    log.warn(
+      { tenantId, customerPhone },
+      'remarketing.schedule: customer not found by phone — skipping (no data subject to consent)',
+    )
+    try {
+      await db.auditLog.create({
+        data: {
+          tenantId,
+          action: 'remarketing.skipped_no_customer',
+          entity: 'customer',
+          meta: JSON.stringify({
+            phone: String(customerPhone),
+            reason: 'No Customer row linked to this phone — cannot verify marketing consent',
+          }),
+        },
+      })
+    } catch {
+      /* best-effort */
+    }
+    return NextResponse.json(
+      {
+        error:
+          'No se pudo programar el mensaje: no existe un Customer para este teléfono. Registra al cliente primero y obtén su consentimiento de marketing (Ley 1581 Art 10).',
+      },
+      { status: 403 },
+    )
+  }
+  const hasConsent = await assertMarketingConsent(tenantId, customer.id)
+  if (!hasConsent) {
+    return NextResponse.json(
+      {
+        error:
+          'No se pudo programar el mensaje: el cliente no ha otorgado consentimiento de marketing (Ley 1581 de 2012 Art 10 + política de Meta Cloud API).',
+        customerId: customer.id,
+      },
+      { status: 403 },
+    )
+  }
+
   const message = await db.remarketingMessage.create({
     data: {
       tenantId,
       campaignId,
       customerPhone: String(customerPhone),
-      customerName: customerName ?? null,
+      customerName: customerName ?? customer.name ?? null,
       scheduledAt: new Date(scheduledAt),
     },
   })
@@ -281,6 +409,7 @@ async function autoGenerate(tenantId: string, body: z.infer<typeof AutoGenerateS
   }
 
   let created = 0
+  let skipped = 0
   if (trigger === 'abandoned_cart') {
     // Find ConversationalCarts in 'building' status not updated recently.
     // ConversationalCart only has `conversationId` (no relation), so we look
@@ -296,7 +425,7 @@ async function autoGenerate(tenantId: string, body: z.infer<typeof AutoGenerateS
     const conversations = conversationIds.length
       ? await db.conversation.findMany({
           where: { id: { in: conversationIds } },
-          include: { customer: { select: { phone: true, name: true } } },
+          include: { customer: { select: { id: true, phone: true, name: true } } },
         })
       : []
     const convById = new Map(conversations.map((c) => [c.id, c]))
@@ -305,6 +434,17 @@ async function autoGenerate(tenantId: string, body: z.infer<typeof AutoGenerateS
       const conv = convById.get(c.conversationId)
       const phone = conv?.customer?.phone
       if (!phone) continue
+      const customerId = conv?.customer?.id
+      if (!customerId) {
+        skipped++
+        continue
+      }
+      // FIX-LEGAL-P0-001 L-3 — marketing consent gate.
+      const hasConsent = await assertMarketingConsent(tenantId, customerId)
+      if (!hasConsent) {
+        skipped++
+        continue
+      }
       await db.remarketingMessage.create({
         data: {
           tenantId,
@@ -320,13 +460,23 @@ async function autoGenerate(tenantId: string, body: z.infer<typeof AutoGenerateS
     // Find conversations without a customer reply in the last `daysAgo` days
     const conversations = await db.conversation.findMany({
       where: { tenantId, updatedAt: { lt: since } },
-      include: { customer: { select: { phone: true, name: true } } },
+      include: { customer: { select: { id: true, phone: true, name: true } } },
       take: 100,
     })
     const scheduledAt = new Date()
     for (const conv of conversations) {
       const phone = conv.customer?.phone
       if (!phone) continue
+      const customerId = conv.customer?.id
+      if (!customerId) {
+        skipped++
+        continue
+      }
+      const hasConsent = await assertMarketingConsent(tenantId, customerId)
+      if (!hasConsent) {
+        skipped++
+        continue
+      }
       await db.remarketingMessage.create({
         data: {
           tenantId,
@@ -342,13 +492,23 @@ async function autoGenerate(tenantId: string, body: z.infer<typeof AutoGenerateS
     // Find orders delivered within the window
     const orders = await db.order.findMany({
       where: { tenantId, status: 'delivered', updatedAt: { lt: since } },
-      include: { customer: { select: { phone: true, name: true } } },
+      include: { customer: { select: { id: true, phone: true, name: true } } },
       take: 100,
     })
     const scheduledAt = new Date()
     for (const o of orders) {
       const phone = o.customer?.phone
       if (!phone) continue
+      const customerId = o.customer?.id
+      if (!customerId) {
+        skipped++
+        continue
+      }
+      const hasConsent = await assertMarketingConsent(tenantId, customerId)
+      if (!hasConsent) {
+        skipped++
+        continue
+      }
       await db.remarketingMessage.create({
         data: {
           tenantId,
@@ -362,6 +522,14 @@ async function autoGenerate(tenantId: string, body: z.infer<typeof AutoGenerateS
     }
   }
 
-  log.info({ tenantId, trigger, created }, 'auto-generated remarketing messages')
-  return NextResponse.json({ trigger, created, campaignId: campaign.id })
+  log.info(
+    { tenantId, trigger, created, skipped },
+    'auto-generated remarketing messages (with consent enforcement)',
+  )
+  return NextResponse.json({
+    trigger,
+    created,
+    skipped,
+    campaignId: campaign.id,
+  })
 }

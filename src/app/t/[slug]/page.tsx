@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import { db } from '@/lib/db'
 import { formatCurrency } from '@/lib/format'
+import { safeJsonLd } from '@/lib/seo/json-ld'
 
 // ───────────────────────────────────────────────────────────────────────────
 // SSR Tenant Storefront — /t/[slug]
@@ -180,15 +181,15 @@ export default async function TenantStorefrontPage({ params }: PageProps) {
     <div className="min-h-screen flex flex-col bg-background text-foreground">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdOnlineStore) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(jsonLdOnlineStore) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdItemList) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(jsonLdItemList) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdFaq) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(jsonLdFaq) }}
       />
 
       {/* ── Header with WhatsApp CTA ── */}

@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import { db } from '@/lib/db'
 import { formatCurrency } from '@/lib/format'
+import { safeJsonLd } from '@/lib/seo/json-ld'
 
 // ───────────────────────────────────────────────────────────────────────────
 // SSR Product Detail — /t/[slug]/p/[sku]
@@ -148,11 +149,11 @@ export default async function ProductDetailPage({ params }: PageProps) {
     <div className="min-h-screen flex flex-col bg-background text-foreground">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdProduct) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(jsonLdProduct) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdBreadcrumb) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(jsonLdBreadcrumb) }}
       />
 
       {/* ── Header ── */}

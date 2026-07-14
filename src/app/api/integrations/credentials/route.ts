@@ -12,7 +12,15 @@ import {
 
 // ───────────────────────────────────────────────────────────────────────────
 // Credential management endpoint — stores integration credentials in the
-// Setting model under the key prefix `cred::{integrationId}`.
+// Setting model under a tenant-scoped key prefix.
+//
+// V5 (AUDIT-FINAL-SEC-001): previamente las credenciales se guardaban bajo
+// `cred::{integrationId}` (global) — cualquier usuario autenticado podía
+// leer las credenciales (enmascaradas) y sobrescribirlas para cualquier
+// integración, sin importar el tenant. Ahora la clave incluye el tenantId:
+//   `cred::{tenantId}::{integrationId}`
+// Así cada tenant tiene su propio namespace de credenciales. Los admins de
+// plataforma (sin tenantId) usan el namespace `_global`.
 //
 // Security:
 //   - All routes require an authenticated session (requireAuth).
@@ -21,7 +29,7 @@ import {
 //     raw secret after the request completes.
 //
 // Storage convention:
-//   Setting.key   = `cred::{integrationId}`
+//   Setting.key   = `cred::{tenantId}::{integrationId}`
 //   Setting.value = JSON.stringify({ [fieldKey]: rawValue, ... })
 //
 // SPRINT8-SERVICES-REST-001 — left inline. Every method touches only the
@@ -34,16 +42,39 @@ import {
 // TODO: migrate to service layer when more Setting consumers land.
 // ───────────────────────────────────────────────────────────────────────────
 
-const CRED_PREFIX = 'cred::'
+const CRED_ROOT = 'cred::'
+/** Namespace for platform-admin credentials (no tenantId on session). */
+const GLOBAL_NAMESPACE = '_global'
 
-/** Strip the `cred::` prefix to recover the integration id from a Setting key. */
-function keyToIntegrationId(key: string): string {
-  return key.startsWith(CRED_PREFIX) ? key.slice(CRED_PREFIX.length) : key
+/**
+ * Resolve the credential namespace for the current session.
+ * - Tenant users → their tenantId.
+ * - Platform admins (no tenantId) → `_global`.
+ */
+function resolveNamespace(tenantId: string | null): string {
+  return tenantId ?? GLOBAL_NAMESPACE
 }
 
-/** Build the Setting key for an integration id. */
-function integrationIdToKey(id: string): string {
-  return `${CRED_PREFIX}${id}`
+/** Build the Setting key prefix for a namespace: `cred::{ns}::`. */
+function credKeyPrefix(ns: string): string {
+  return `${CRED_ROOT}${ns}::`
+}
+
+/** Build the Setting key for a namespace + integration id. */
+function integrationIdToKey(ns: string, integrationId: string): string {
+  return `${credKeyPrefix(ns)}${integrationId}`
+}
+
+/**
+ * Strip the `cred::{ns}::` prefix to recover the integration id from a
+ * Setting key. Falls back to stripping just `cred::` for legacy keys.
+ */
+function keyToIntegrationId(key: string, ns: string): string {
+  const prefix = credKeyPrefix(ns)
+  if (key.startsWith(prefix)) return key.slice(prefix.length)
+  // Legacy key (pre-V5): `cred::{integrationId}` — no namespace.
+  if (key.startsWith(CRED_ROOT)) return key.slice(CRED_ROOT.length)
+  return key
 }
 
 /**
@@ -90,15 +121,19 @@ function parseCredValue(value: string | null | undefined): Record<string, string
 
 // ───────────────────────────────────────────────────────────────────────────
 // GET /api/integrations/credentials
-// Returns all saved credentials, masked, grouped by integration id.
+// Returns all saved credentials for the caller's tenant, masked, grouped
+// by integration id.
 // ───────────────────────────────────────────────────────────────────────────
 export async function GET() {
-  const { error } = await requireAuth()
+  const { session, error } = await requireAuth()
   if (error) return error
 
-  // Only Setting rows whose key starts with `cred::`
+  const ns = resolveNamespace(session?.user?.tenantId ?? null)
+  const prefix = credKeyPrefix(ns)
+
+  // Only Setting rows whose key starts with `cred::{ns}::`
   const rows = await db.setting.findMany({
-    where: { key: { startsWith: CRED_PREFIX } },
+    where: { key: { startsWith: prefix } },
     select: { key: true, value: true },
   })
 
@@ -108,7 +143,7 @@ export async function GET() {
   > = {}
 
   for (const row of rows) {
-    const integrationId = keyToIntegrationId(row.key)
+    const integrationId = keyToIntegrationId(row.key, ns)
     const config = getIntegrationById(integrationId)
     const raw = parseCredValue(row.value)
     if (config) {
@@ -142,8 +177,10 @@ export async function GET() {
 //   - Returns masked values for the saved integration
 // ───────────────────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
-  const { error } = await requireAuth()
+  const { session, error } = await requireAuth()
   if (error) return error
+
+  const ns = resolveNamespace(session?.user?.tenantId ?? null)
 
   let body: unknown
   try {
@@ -189,7 +226,7 @@ export async function POST(req: NextRequest) {
   // Merge with existing stored values so callers can PATCH a single field
   // without resending the whole payload. (A caller that wants to truly
   // clear a field sends an empty string for that key, which overwrites.)
-  const settingKey = integrationIdToKey(integration)
+  const settingKey = integrationIdToKey(ns, integration)
   const existing = await db.setting.findUnique({ where: { key: settingKey } })
   const existingFields = existing ? parseCredValue(existing.value) : {}
   const merged: Record<string, string> = { ...existingFields }
@@ -217,8 +254,10 @@ export async function POST(req: NextRequest) {
 //   { integration: "mercadopago", field: "accessToken" } → remove a single field
 // ───────────────────────────────────────────────────────────────────────────
 export async function DELETE(req: NextRequest) {
-  const { error } = await requireAuth()
+  const { session, error } = await requireAuth()
   if (error) return error
+
+  const ns = resolveNamespace(session?.user?.tenantId ?? null)
 
   let body: unknown
   try {
@@ -236,7 +275,7 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: '`integration` (string) is required' }, { status: 400 })
   }
 
-  const settingKey = integrationIdToKey(integration)
+  const settingKey = integrationIdToKey(ns, integration)
   const existing = await db.setting.findUnique({ where: { key: settingKey } })
   if (!existing) {
     return NextResponse.json(

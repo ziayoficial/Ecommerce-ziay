@@ -88,6 +88,17 @@ export async function PATCH(
   const { session: authSession, error } = await requireAuth()
   if (error) return error
 
+  // V7 (AUDIT-FINAL-SEC-001): role gate — only admin / finance / support
+  // can mark a DecisionLog as reviewed. Previously any authed tenant user
+  // could approve their own escalation.
+  const role = authSession?.user?.role
+  if (role !== 'admin' && role !== 'finance' && role !== 'support') {
+    return NextResponse.json(
+      { error: 'Forbidden: solo admin, finance o support pueden revisar decisiones' },
+      { status: 403 },
+    )
+  }
+
   let raw: unknown
   try {
     raw = await req.json()

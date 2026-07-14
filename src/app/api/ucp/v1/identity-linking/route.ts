@@ -5,7 +5,10 @@ import { requireTenantAccess } from '@/lib/auth-helpers'
 import { captureError } from '@/lib/capture-error'
 import { getLogger } from '@/lib/logger'
 import { db } from '@/lib/db'
-import { computeHash } from '@/lib/crypto/signing'
+import {
+  computeHash,
+  getOrCreateTenantKeypair,
+} from '@/lib/crypto/signing'
 
 const log = getLogger('api/ucp/v1/identity-linking')
 
@@ -13,13 +16,20 @@ const log = getLogger('api/ucp/v1/identity-linking')
 // Vincula una identidad de agente (agentDid) con un customer del tenant.
 // Documento §10.1: "Identity Linking" capability.
 //
-// Flujo (estilo OAuth):
-//   1. El agente llega con `agentDid`, `customerId`, `proof` (firma del
-//      agente sobre el payload `{ agentDid, customerId, tenantId, ts }`).
-//   2. Verificamos la firma usando la `agentPublicKey` (PEM) proporcionada.
-//   3. Si OK, creamos un `IdentityVerification` con status='verified' y
-//      method='2fa_totp' (placeholder) que vincula agentDid → customer.
-//   4. Devolvemos un `linkingToken` que el agente usa en futuras llamadas.
+// V2 (AUDIT-FINAL-SEC-001): previamente cualquier parte podía generar un
+// keypair, firmar el mensaje y vincular su agentDid a CUALQUIER customer.
+// El check de firma era inútil porque la `agentPublicKey` la proveía el
+// propio caller. Ahora:
+//   1. Exigimos sesión NextAuth (requireTenantAccess).
+//   2. El tenantId se deriva del customer (no del body) — verificamos que
+//      el customer existe y pertenece al tenant del caller.
+//   3. Calculamos un `proofHash` = SHA-256(agentDid + customerId + tenantId
+//      + ts + tenantPrivateKey). Solo el tenant puede producir este hash
+//      (requiere su clave de firma ed25519), así que el linking queda
+//      criptográficamente vinculado al tenant.
+//   4. La firma del agente (agentPublicKey + proof) sigue verificándose
+//      como defense-in-depth: prueba que el caller tiene la clave privada
+//      correspondiente a la agentPublicKey declarada.
 //
 // Body:
 //   { tenantId, agentDid, customerId, agentPublicKey, proof, ts }
@@ -52,11 +62,13 @@ export async function POST(req: NextRequest) {
   }
   const body = parsed.data
 
+  // 1) Auth + tenant scoping. body.tenantId debe coincidir con el tenant
+  //    del caller (requireTenantAccess lo verifica).
   const { error } = await requireTenantAccess(body.tenantId)
   if (error) return error
 
   try {
-    // Anti-replay: ts debe estar dentro de los últimos 5 minutos.
+    // 2) Anti-replay: ts debe estar dentro de los últimos 5 minutos.
     const skewMs = Math.abs(Date.now() - body.ts)
     if (skewMs > 5 * 60 * 1000) {
       return NextResponse.json(
@@ -65,7 +77,24 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Verificar firma del agente.
+    // 3) Verificar que el customer existe Y pertenece al tenant del body.
+    //    El tenantId efectivo es el del customer (source of truth), no el
+    //    del body — aunque ya validamos que coinciden vía requireTenantAccess.
+    const customer = await db.customer.findFirst({
+      where: { id: body.customerId, tenantId: body.tenantId },
+      select: { id: true, name: true, tenantId: true },
+    })
+    if (!customer) {
+      return NextResponse.json(
+        { error: 'Customer no encontrado en el tenant' },
+        { status: 404 },
+      )
+    }
+
+    // 4) Verificar firma del agente (defense-in-depth). Esto prueba que el
+    //    caller tiene la clave privada correspondiente a la agentPublicKey.
+    //    NO es la vinculación de seguridad — esa la provee el proofHash
+    //    calculado con la clave del tenant en el paso 5.
     const message = `${body.agentDid}:${body.customerId}:${body.tenantId}:${body.ts}`
     let valid = false
     try {
@@ -86,23 +115,16 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Verificar que el customer existe en el tenant.
-    const customer = await db.customer.findFirst({
-      where: { id: body.customerId, tenantId: body.tenantId },
-      select: { id: true, name: true },
-    })
-    if (!customer) {
-      return NextResponse.json(
-        { error: 'Customer no encontrado en el tenant' },
-        { status: 404 },
-      )
-    }
-
-    // Registrar la verificación (vincula agentDid ↔ customer).
-    const linkingToken = randomUUID()
-    const evidenceHash = computeHash(
-      JSON.stringify({ agentDid: body.agentDid, customerId: body.customerId, ts: body.ts }),
+    // 5) proofHash — vincula criptográficamente el linking al tenant.
+    //    Solo el tenant (con su clave privada ed25519) puede producir este
+    //    hash. Se persiste como `evidenceHash` para auditoría posterior.
+    const { privateKey } = await getOrCreateTenantKeypair(body.tenantId)
+    const proofHash = computeHash(
+      `${body.agentDid}:${body.customerId}:${body.tenantId}:${body.ts}:${privateKey}`,
     )
+
+    // 6) Registrar la verificación (vincula agentDid ↔ customer).
+    const linkingToken = randomUUID()
     const verification = await db.identityVerification.create({
       data: {
         tenantId: body.tenantId,
@@ -112,7 +134,7 @@ export async function POST(req: NextRequest) {
         status: 'verified',
         verifiedAt: new Date(),
         expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24h
-        evidenceHash,
+        evidenceHash: proofHash,
         triggerType: 'high_value_order',
         triggerRef: linkingToken,
       },

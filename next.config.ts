@@ -3,10 +3,7 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   output: "standalone",
   /* config options here */
-  typescript: {
-    ignoreBuildErrors: true,
-  },
-  reactStrictMode: false,
+  reactStrictMode: true,
   // Disable the Next.js 16 dev overlay (the issues/build-activity badge that
   // floats at the bottom of the viewport). In dev it was blocking clicks on
   // the sidebar nav (agent-browser reported "Element is covered by
@@ -28,7 +25,7 @@ const nextConfig: NextConfig = {
   compress: true,
   poweredByHeader: false,
   experimental: {
-    optimizePackageImports: ['lucide-react', '@radix-ui/react-icons'],
+    optimizePackageImports: ['lucide-react', '@radix-ui/react-icons', 'recharts'],
   },
 };
 

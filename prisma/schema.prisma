@@ -204,6 +204,14 @@ model Customer {
   tags        String?
   lifetimeValue Float  @default(0)
   ordersCount  Int     @default(0)
+  // FIX-LEGAL-P0-001 L-4 — Ley 1098 de 2006 (Código de la Infancia y
+  // Adolescencia) Art 17. `birthDate` is set when KYC or the storefront
+  // collects it; `isMinor` is a denormalized flag derived from `birthDate`
+  // by `checkAgeGate()` so the consent / checkout gates don't have to
+  // re-compute the age on every read. NULL `isMinor` means "unknown —
+  // assume adult but flag for verification" (per the age-gate policy).
+  birthDate         DateTime?
+  isMinor           Boolean?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -215,9 +223,11 @@ model Customer {
   // Hot paths: tenant customer list (tenantId), email/phone customer lookup
   // (both fields are optional String? — indexing NULLs is cheap in PG/SQLite
   // and supports the customer-merge feature that finds dupes by phone/email).
+  // FIX-LEGAL-P0-001 L-4 — `isMinor` index for fast lookup of minors.
   @@index([tenantId])
   @@index([email])
   @@index([phone])
+  @@index([isMinor])
 }
 
 // ───────────────────────────────────────────────────────────────────────────

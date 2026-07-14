@@ -139,6 +139,12 @@ export default function Home() {
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:rounded-md focus:bg-background focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:shadow-lg focus:ring-2 focus:ring-ring"
+      >
+        Saltar al contenido principal
+      </a>
       <div className="flex flex-1 overflow-hidden">
         <Sidebar active={view} onChange={setView} badges={badges} />
         <div className="flex-1 flex flex-col min-w-0">
@@ -150,7 +156,10 @@ export default function Home() {
             onOpenSearch={() => setSearchOpen(true)}
             badges={badges}
           />
-          <main className="flex-1 overflow-y-auto scroll-thin">
+          <main id="main-content" className="flex-1 overflow-y-auto scroll-thin">
+            <h1 className="sr-only">
+              {NAV_ITEMS.find(n => n.id === view)?.label || 'Dashboard'}
+            </h1>
             <div className="p-4 md:p-6 max-w-[1600px] mx-auto">
               {view === 'overview' && <OverviewView />}
               {view === 'messenger' && <MessengerView />}

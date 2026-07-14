@@ -4,6 +4,7 @@ import { randomUUID } from 'crypto'
 import { captureError } from '@/lib/capture-error'
 import { getLogger } from '@/lib/logger'
 import { db } from '@/lib/db'
+import { verifyAcpBearer } from '@/lib/acp/bearer'
 
 const log = getLogger('api/acp/v1/checkout')
 
@@ -78,18 +79,26 @@ export async function POST(req: NextRequest) {
   const body = parsed.data
 
   try {
-    // ── 1. Validar el user_auth_token como AP2 Intent Mandate ──────────
-    // El "Bearer" del agente ACP es el ID del mandato firmado por el humano.
-    // Reutilizamos el servicio de firma (el VC ya está verificado por la
-    // cadena Intent → Cart → Payment; aquí solo verificamos estado + vigencia).
-    const mandate = await db.aP2Mandate.findFirst({
-      where: {
-        id: body.user_auth_token,
-        type: 'intent',
-        status: 'active',
-      },
+    // ── 1. Validar el user_auth_token como AP2 Intent Mandate firmado ──
+    // V4 (AUDIT-FINAL-SEC-001): el token ya NO es el mandate ID en crudo —
+    // es `{mandateId}.{ed25519(mandateId)}` firmado por la clave del tenant.
+    // verifyAcpBearer valida la firma, el estado `active` y la vigencia.
+    const bearer = await verifyAcpBearer(body.user_auth_token)
+    if (!bearer) {
+      return NextResponse.json(
+        {
+          error: 'Token de autorización inválido o expirado',
+          code: 'invalid_auth_token',
+        },
+        { status: 401 },
+      )
+    }
+    // El mandate sigue siendo necesario para los límites (maxAmount,
+    // categoryLimits) — lo cargamos completo desde el DB.
+    const mandate = await db.aP2Mandate.findUnique({
+      where: { id: bearer.mandateId },
     })
-    if (!mandate) {
+    if (!mandate || mandate.status !== 'active') {
       return NextResponse.json(
         {
           error: 'Token de autorización inválido o expirado',

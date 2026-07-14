@@ -3,18 +3,55 @@ name: Deploy
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 jobs:
-  deploy-staging:
+  deploy:
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-    needs: []
     steps:
       - uses: actions/checkout@v4
-      - name: Deploy to staging
-        run: |
-          echo "Deploy to staging server"
-          echo "This would trigger: docker compose up -d on staging"
-          # Add actual deploy commands here (SSH, Docker, etc.)
-      - name: Notify
-        run: echo "Staging deploy complete"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}:latest
+            ghcr.io/${{ github.repository }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            cd /opt/ziay
+            docker compose pull
+            docker compose up -d
+            # Wait for health check
+            timeout 60 bash -c 'until curl -f http://localhost:3000/api/health; do sleep 2; done'
+
+      - name: Rollback on failure
+        if: failure()
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            cd /opt/ziay
+            docker compose up -d --no-deps --build ziay

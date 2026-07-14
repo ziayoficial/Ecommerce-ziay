@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { resolveTenantId, requireAuth } from '@/lib/auth-helpers'
+import { resolveTenantId, requireAuth, requireTenantAccess } from '@/lib/auth-helpers'
 import { captureError } from '@/lib/capture-error'
 import { db } from '@/lib/db'
 import { computeHash } from '@/lib/crypto/signing'
@@ -9,6 +9,10 @@ import { computeHash } from '@/lib/crypto/signing'
 // Registra un consentimiento (Ley 1581 de 2012).
 // Body:
 //   { tenantId, dataSubjectId, dataSubjectType, purpose, legalBasis, proofPayload? }
+//
+// V8 (AUDIT-FINAL-SEC-001): previamente cualquier usuario del tenant podía
+// crear consentimientos para cualquier dataSubjectId. Ahora verificamos
+// que el dataSubject (cuando es `customer`) pertenece al tenant del caller.
 const CreateConsentSchema = z.object({
   tenantId: z.string().min(1),
   dataSubjectId: z.string().min(1),
@@ -51,6 +55,28 @@ export async function POST(req: NextRequest) {
   if (error) return error
 
   try {
+    // V8: si el dataSubject es un customer, verificar que pertenece al
+    // tenant del caller. Para `user` / `lead` no hay un check directo de
+    // tenant (los users pueden ser platform users, los leads no tienen
+    // tenantId en este modelo) — el guard de `resolveTenantId` arriba ya
+    // cubre el scope del caller.
+    if (body.dataSubjectType === 'customer') {
+      const customer = await db.customer.findFirst({
+        where: { id: body.dataSubjectId, tenantId: body.tenantId },
+        select: { id: true, tenantId: true },
+      })
+      if (!customer) {
+        return NextResponse.json(
+          { error: 'El dataSubject (customer) no pertenece al tenant' },
+          { status: 403 },
+        )
+      }
+      // Defense-in-depth: requireTenantAccess con el tenantId del customer
+      // (source of truth) en lugar del body.
+      const { error: tErr } = await requireTenantAccess(customer.tenantId)
+      if (tErr) return tErr
+    }
+
     const proofJson = body.proofPayload
       ? JSON.stringify(body.proofPayload)
       : null
@@ -140,6 +166,10 @@ export async function GET(req: NextRequest) {
 
 // DELETE /api/compliance/consent?id=Z&reason=...
 // Revoca un consentimiento (granted=false, revokedAt=now).
+//
+// V8 (AUDIT-FINAL-SEC-001): si el dataSubject es un customer, verificamos
+// que pertenece al tenant del caller (defense-in-depth además del guard
+// de tenant sobre el consent record).
 export async function DELETE(req: NextRequest) {
   const id = req.nextUrl.searchParams.get('id')
   const reason = req.nextUrl.searchParams.get('reason') || 'Revocado por el titular'
@@ -162,15 +192,25 @@ export async function DELETE(req: NextRequest) {
         { status: 404 },
       )
     }
-    // Tenant guard.
-    const { session, error: tErr } = await requireAuth()
+    // Tenant guard — requireTenantAccess con el tenantId del consent
+    // record (source of truth). Platform admins (sin tenantId) bypass.
+    const { error: tErr } = await requireTenantAccess(existing.tenantId)
     if (tErr) return tErr
-    const userTenantId = session?.user?.tenantId ?? null
-    if (userTenantId && userTenantId !== existing.tenantId) {
-      return NextResponse.json(
-        { error: 'Forbidden: tenant mismatch' },
-        { status: 403 },
-      )
+
+    // V8: si el dataSubject es un customer, verificar que pertenece al
+    // tenant del consent record. Esto previene revocar consentimientos
+    // creados incorrectamente con un dataSubjectId de otro tenant.
+    if (existing.dataSubjectType === 'customer') {
+      const customer = await db.customer.findFirst({
+        where: { id: existing.dataSubjectId, tenantId: existing.tenantId },
+        select: { id: true },
+      })
+      if (!customer) {
+        return NextResponse.json(
+          { error: 'El dataSubject (customer) no pertenece al tenant del consentimiento' },
+          { status: 403 },
+        )
+      }
     }
 
     const updated = await db.consentRecord.update({

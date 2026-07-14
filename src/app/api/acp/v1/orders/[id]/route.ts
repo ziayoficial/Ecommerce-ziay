@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { captureError } from '@/lib/capture-error'
 import { db } from '@/lib/db'
+import { verifyAcpBearer } from '@/lib/acp/bearer'
 
 // GET /api/acp/v1/orders/[id]
 // Devuelve el estado del pedido en formato ACP (ChatGPT / Copilot).
 // Documento §9.1: capability `order_status`.
 //
-// Auth: Bearer = AP2 Intent Mandate ID (cabecera `Authorization: Bearer <mandateId>`).
+// Auth: Bearer = `{mandateId}.{ed25519(mandateId)}` firmado por el tenant.
+// V4 (AUDIT-FINAL-SEC-001): el bearer ya NO es el mandate ID en crudo —
+// verifyAcpBearer valida la firma ed25519 + estado active + vigencia.
 // El mandate vincula el tenant; solo se permiten órdenes del mismo tenant.
 
 function extractBearerToken(req: NextRequest): string | null {
@@ -30,11 +33,21 @@ export async function GET(
   }
 
   try {
-    // Validar el bearer como Intent Mandate activo.
-    const mandate = await db.aP2Mandate.findFirst({
-      where: { id: token, type: 'intent', status: 'active' },
+    // Validar el bearer firmado + cargar el mandate.
+    const bearer = await verifyAcpBearer(token)
+    if (!bearer) {
+      return NextResponse.json(
+        {
+          error: 'Token de autorización inválido o expirado',
+          code: 'invalid_auth_token',
+        },
+        { status: 401 },
+      )
+    }
+    const mandate = await db.aP2Mandate.findUnique({
+      where: { id: bearer.mandateId },
     })
-    if (!mandate) {
+    if (!mandate || mandate.status !== 'active') {
       return NextResponse.json(
         {
           error: 'Token de autorización inválido o expirado',

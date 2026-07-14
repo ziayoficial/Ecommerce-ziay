@@ -60,6 +60,26 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: 'daily',
       priority: 0.9,
     },
+    // FIX-LEGAL-P0-001 L-1 — public legal pages (Ley 1581 Art 10 disclosure).
+    // Crawled + indexed so data subjects can discover them via search engines.
+    {
+      url: `${BASE_URL}/legal`,
+      lastModified: SITE_BUILD_TIME,
+      changeFrequency: 'monthly',
+      priority: 0.5,
+    },
+    {
+      url: `${BASE_URL}/privacy`,
+      lastModified: SITE_BUILD_TIME,
+      changeFrequency: 'monthly',
+      priority: 0.5,
+    },
+    {
+      url: `${BASE_URL}/terms`,
+      lastModified: SITE_BUILD_TIME,
+      changeFrequency: 'monthly',
+      priority: 0.5,
+    },
   ]
 
   // Tenants + their products in a single query (relation include).

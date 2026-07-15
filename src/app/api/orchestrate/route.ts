@@ -53,6 +53,17 @@ import { wrapUserInput, ANTI_INJECTION_PREFIX } from '@/lib/agents/sanitize'
 // así que el budget se verifica una vez al inicio del handler (no por
 // step) para no bloquear a mitad del pipeline.
 import { checkBudgetBeforeCall } from '@/lib/llm/budget'
+// SPRINT-AI-FINAL-001 §1 — resumen LLM para el pipeline memory del
+// orchestrator. Cuando el pipelineMemory crece (>20 mensajes) se invoca
+// `truncateWithSummary` para resumir los outputs de agentes previos antes
+// de pasarlos al siguiente step — evita desbordar el context window y
+// preserva el contexto crítico (perfil detectado, precios cotizados,
+// objeciones levantadas). El threshold >20 coincide con MAX_MESSAGES de
+// history.ts; con 9 steps por pipeline 'full' el path rara vez se activa,
+// pero queda como defensa para pipelines extendidos o callers que reusen
+// este handler con más steps.
+import { truncateWithSummary } from '@/lib/agents/summarize'
+import type { Message } from '@/lib/agents/history'
 import { emitToTenant } from '@/lib/chat-emit'
 // SPRINT-ADOPT-ERRORHANDLER-001 — wrapper funnels unhandled exceptions
 // through Sentry + pino. The inner per-agent try/catches inside the
@@ -178,6 +189,14 @@ async function callAgent(
   // SPRINT-AI-LLM-ADAPTER-001 — provider resuelto desde el tenant en el
   // POST handler y pasado aquí para no volver a hacer fetch por cada step.
   providerName?: string,
+  // SPRINT-AI-FINAL-001 §1 — memoria del pipeline: outputs de agentes
+  // previos en `action='full'`. Se inyecta entre el system prompt y el
+  // user message del step actual para dar contexto de qué decidieron los
+  // agentes anteriores (perfil detectado, precios cotizados, objeciones).
+  // Cuando el array supera 20 entradas se invoca `truncateWithSummary`
+  // para resumir los mensajes antiguos antes de pasárselos al LLM —
+  // evita desbordar el context window en pipelines largos.
+  pipelineMemory?: Message[],
 ): Promise<CallAgentResult> {
   const { system, user } = await buildAgentPrompt(agentName, ctx)
   const startTime = Date.now()
@@ -186,21 +205,41 @@ async function callAgent(
   // prompt injection). §A-4: prefix anti-inyección + delimitador
   // <user_message> para el input del cliente.
   //
+  // SPRINT-AI-FINAL-001 §1 — construir el array de mensajes con la
+  // memoria del pipeline inyectada (si existe). Si pipelineMemory > 20,
+  // pasamos por `truncateWithSummary` para resumir los outputs antiguos
+  // y no desbordar el context window. Si pipelineMemory es undefined o
+  // vacío (action='step' o primer step de 'full'), comportamiendo
+  // idéntico al anterior: system + user.
+  const systemContent = ANTI_INJECTION_PREFIX + system
+  let messages: Message[]
+  if (pipelineMemory && pipelineMemory.length > 0) {
+    if (pipelineMemory.length > 20) {
+      messages = await truncateWithSummary(systemContent, pipelineMemory)
+    } else {
+      messages = [
+        { role: 'system', content: systemContent },
+        ...pipelineMemory,
+      ]
+    }
+    // El user message del step actual va SIEMPRE al final — es la
+    // instrucción específica que este agente debe procesar.
+    messages.push({ role: 'user', content: wrapUserInput(user) })
+  } else {
+    messages = [
+      { role: 'system', content: systemContent },
+      { role: 'user', content: wrapUserInput(user) },
+    ]
+  }
   // SPRINT-AI-LLM-ADAPTER-001 §A-3 (timeout): Promise.race con 15s — si
   // el LLM no responde, se rechaza y el caller cae al fallback.
   let llmResult: LLMChatResult
   try {
     llmResult = await Promise.race([
-      chat(
-        [
-          { role: 'system', content: ANTI_INJECTION_PREFIX + system },
-          { role: 'user', content: wrapUserInput(user) },
-        ],
-        {
-          provider: providerName,
-          thinking: 'disabled',
-        },
-      ),
+      chat(messages, {
+        provider: providerName,
+        thinking: 'disabled',
+      }),
       new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error('LLM timeout (15s)')), 15_000),
       ),
@@ -402,8 +441,16 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
       step: OrchestratorStepId; index: number; label: string; emoji: string;
       agent: string; agentLabel: string; reply: string; confidence: number; error?: string
     }> = []
+    // SPRINT-AI-FINAL-001 §1 — memoria del pipeline: cada step ve los
+    // outputs de los steps anteriores como mensajes `assistant` en su
+    // context window. Esto le da a cada agente visibilidad de lo que los
+    // agentes previos decidieron (perfil detectado, productos sugeridos,
+    // precios cotizados, objeciones levantadas) — mejorando la coherencia
+    // del pipeline. Cuando el array crece >20, callAgent invoca
+    // `truncateWithSummary` para resumir antes de pasarlo al LLM.
+    const pipelineMemory: Message[] = []
     for (const step of ORCHESTRATOR_STEPS) {
-      log.info({ tenantId, action: 'full', stepId: step.id, agent: step.agent, index: step.index }, 'agent start')
+      log.info({ tenantId, action: 'full', stepId: step.id, agent: step.agent, index: step.index, memSize: pipelineMemory.length }, 'agent start')
       let reply = ''
       let errorMsg: string | undefined
       let confidence = 0.6
@@ -417,7 +464,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
         latencyMs?: number
       } = {}
       try {
-        const result = await callAgent(step.agent as AgentName, buildCtx(step.id), providerName)
+        const result = await callAgent(step.agent as AgentName, buildCtx(step.id), providerName, pipelineMemory)
         reply = result.reply
         confidence = result.confidence
         rawReply = result.rawReply
@@ -434,6 +481,17 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
         confidence = 0.1 // §A-3: llamada LLM fallida
         log.error({ tenantId, stepId: step.id, agent: step.agent, err: errorMsg }, 'agent error — fallback used')
       }
+
+      // SPRINT-AI-FINAL-001 §1 — añadir el reply (real o fallback) al
+      // pipelineMemory para que el siguiente step lo vea como contexto.
+      // Se etiqueta con el step+agente para que el siguiente agente
+      // identifique de dónde viene cada output. Se empuja SIEMPRE, aún
+      // en caso de error — el fallback también es información útil para
+      // el siguiente agente (saber que el anterior no respondió bien).
+      pipelineMemory.push({
+        role: 'assistant',
+        content: `[${step.id}/${step.agent}] ${reply}`,
+      })
 
       // Persist profile detection
       if (step.id === 'profile' && conversationId) {

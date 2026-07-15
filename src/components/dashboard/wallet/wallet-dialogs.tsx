@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/input-otp'
 
 import { formatCurrency } from '@/lib/format'
+import { t } from '@/lib/i18n'
 
 import { type WalletData, maskAccount } from './wallet-shared'
 
@@ -54,9 +55,9 @@ export function WithdrawalDialog({
         </DialogHeader>
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label>Cuenta de cobro</Label>
+            <Label htmlFor="withdrawal-account">Cuenta de cobro</Label>
             <Select value={wdAccount} onValueChange={setWdAccount}>
-              <SelectTrigger><SelectValue placeholder="Selecciona una cuenta" /></SelectTrigger>
+              <SelectTrigger id="withdrawal-account"><SelectValue placeholder="Selecciona una cuenta" /></SelectTrigger>
               <SelectContent>
                 {data.accounts.map(a => (
                   <SelectItem key={a.id} value={a.id}>
@@ -67,8 +68,9 @@ export function WithdrawalDialog({
             </Select>
           </div>
           <div className="space-y-2">
-            <Label>Monto (COP)</Label>
+            <Label htmlFor="withdrawal-amount">Monto (COP)</Label>
             <Input
+              id="withdrawal-amount"
               type="number"
               min={0}
               max={data.balance}
@@ -84,8 +86,8 @@ export function WithdrawalDialog({
           </div>
           {twoFactorEnabled && (
             <div className="space-y-2">
-              <Label className="flex items-center gap-1"><Lock className="size-3" /> Código TOTP (6 dígitos)</Label>
-              <InputOTP maxLength={6} value={wdTotp} onChange={setWdTotp}>
+              <Label htmlFor="withdrawal-totp" className="flex items-center gap-1"><Lock className="size-3" /> Código TOTP (6 dígitos)</Label>
+              <InputOTP id="withdrawal-totp" maxLength={6} value={wdTotp} onChange={setWdTotp}>
                 <InputOTPGroup>
                   <InputOTPSlot index={0} />
                   <InputOTPSlot index={1} />
@@ -102,7 +104,7 @@ export function WithdrawalDialog({
           )}
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>{t('common.cancel')}</Button>
           <Button onClick={onSubmit} disabled={wdBusy}>
             {wdBusy && <Loader2 className="size-4 animate-spin mr-1" />}
             Confirmar retiro
@@ -151,9 +153,9 @@ export function RegisterAccountDialog({
         </DialogHeader>
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label>Tipo de cuenta</Label>
+            <Label htmlFor="account-type">Tipo de cuenta</Label>
             <Select value={acType} onValueChange={setAcType}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger id="account-type"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="bank">Banco</SelectItem>
                 <SelectItem value="nequi">Nequi</SelectItem>
@@ -164,24 +166,24 @@ export function RegisterAccountDialog({
             </Select>
           </div>
           <div className="space-y-2">
-            <Label>Titular de la cuenta</Label>
-            <Input value={acHolder} onChange={e => setAcHolder(e.target.value)} placeholder="Nombre completo" />
+            <Label htmlFor="account-holder">Titular de la cuenta</Label>
+            <Input id="account-holder" value={acHolder} onChange={e => setAcHolder(e.target.value)} placeholder="Nombre completo" />
           </div>
           <div className="space-y-2">
-            <Label>Número de cuenta</Label>
-            <Input value={acNumber} onChange={e => setAcNumber(e.target.value)} placeholder="0000000000" />
+            <Label htmlFor="account-number">Número de cuenta</Label>
+            <Input id="account-number" value={acNumber} onChange={e => setAcNumber(e.target.value)} placeholder="0000000000" />
           </div>
           {acType === 'bank' && (
             <div className="space-y-2">
-              <Label>Banco</Label>
-              <Input value={acBank} onChange={e => setAcBank(e.target.value)} placeholder="Bancolombia, Davivienda, etc." />
+              <Label htmlFor="account-bank">Banco</Label>
+              <Input id="account-bank" value={acBank} onChange={e => setAcBank(e.target.value)} placeholder="Bancolombia, Davivienda, etc." />
             </div>
           )}
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-2">
-              <Label>Tipo doc.</Label>
+              <Label htmlFor="account-doc-type">Tipo doc.</Label>
               <Select value={acDocType} onValueChange={setAcDocType}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger id="account-doc-type"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="cc">C.C.</SelectItem>
                   <SelectItem value="ce">C.E.</SelectItem>
@@ -191,8 +193,8 @@ export function RegisterAccountDialog({
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Número doc.</Label>
-              <Input value={acDocNumber} onChange={e => setAcDocNumber(e.target.value)} placeholder="1234567890" />
+              <Label htmlFor="account-doc-number">Número doc.</Label>
+              <Input id="account-doc-number" value={acDocNumber} onChange={e => setAcDocNumber(e.target.value)} placeholder="1234567890" />
             </div>
           </div>
           <label className="flex items-center gap-2 text-sm cursor-pointer">
@@ -206,7 +208,7 @@ export function RegisterAccountDialog({
           </label>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>{t('common.cancel')}</Button>
           <Button onClick={onSubmit} disabled={acBusy}>
             {acBusy && <Loader2 className="size-4 animate-spin mr-1" />}
             Registrar cuenta

@@ -1731,3 +1731,30 @@ model DecisionLog {
   @@index([mandateId])
   @@index([humanReviewed, createdAt])
 }
+
+// ───────────────────────────────────────────────────────────────────────────
+// SPRINT-MONITORING-FINAL-001 — status page incident history.
+// ───────────────────────────────────────────────────────────────────────────
+// Status page incident — shows past incidents on /status. Created via the
+// admin-only `/api/status/incidents` POST endpoint (SRE / on-call only);
+// rendered publicly on `/status` (Spanish UI). The `updates` field is a
+// JSON-encoded array of `{ time: ISO8601, message: string, status: string }`
+// entries (timeline-style — one per state transition). Stored as String
+// (not a JSON column) so the same schema compiles on SQLite (dev) and
+// PostgreSQL (prod).
+/// Status page incident — shows past incidents on /status
+model StatusIncident {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  severity    String   // "minor" | "major" | "critical" | "maintenance"
+  status      String   // "investigating" | "identified" | "monitoring" | "resolved"
+  startTime   DateTime
+  endTime     DateTime?
+  updates     String?  // JSON array of {time, message, status}
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([startTime, status])
+  @@index([severity, status])
+}

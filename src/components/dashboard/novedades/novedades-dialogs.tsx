@@ -17,6 +17,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
 import { Loader2, Plus } from 'lucide-react'
+import { t } from '@/lib/i18n'
 
 // ───────────────────────────────────────────────────────────────────────────
 // CreateCaseDialog
@@ -133,7 +134,7 @@ export function CreateCaseDialog({ open, onOpenChange, tenantId, onCreated }: {
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>{t('common.cancel')}</Button>
           <Button onClick={submit} disabled={busy}>
             {busy && <Loader2 className="size-4 animate-spin mr-1" />}
             Crear caso
@@ -230,7 +231,7 @@ export function CreateRedeliveryDialog({ open, onOpenChange, tenantId, onCreated
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>{t('common.cancel')}</Button>
           <Button onClick={submit} disabled={busy}>
             {busy && <Loader2 className="size-4 animate-spin mr-1" />}
             Crear reintento

@@ -1,4 +1,5 @@
 // SPRINT-MONITORING-002 · M-11 — public status page.
+// SPRINT-MONITORING-FINAL-001 — added incident history section.
 //
 // Shows the current health of the platform (DB + chat service) at
 // /status. Added to PUBLIC_PATTERNS in middleware so unauthenticated
@@ -18,6 +19,11 @@
 //     so a hung chat-service never blocks the page render.
 //   - DB check is `db.$queryRaw\`SELECT 1\`` — the cheapest possible
 //     liveness probe (no Prisma model load, no joins).
+//   - Incident history (SPRINT-MONITORING-FINAL-001) loads the 10 most
+//     recent incidents from the `StatusIncident` table — active ones
+//     (not `resolved`) plus those resolved within the last 30 days. The
+//     query is wrapped in try/catch so a missing table or DB error
+//     degrades the page silently (still shows the live checks above).
 
 import { db } from '@/lib/db'
 import { Metadata } from 'next'
@@ -38,6 +44,70 @@ interface Check {
   status: CheckStatus
   latency?: number
   message?: string
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Incident history (SPRINT-MONITORING-FINAL-001)
+// ───────────────────────────────────────────────────────────────────────────
+// Active incidents (any status != resolved) + incidents resolved within the
+// last 30 days, newest first, capped at 10. The query is wrapped in try/catch
+// — a fresh DB without the `StatusIncident` table (pre-`db:push`) must NOT
+// break the status page; the section just renders nothing.
+interface Incident {
+  id: string
+  title: string
+  description: string
+  severity: string
+  status: string
+  startTime: Date
+  endTime: Date | null
+  updates: string | null
+}
+
+async function getRecentIncidents(): Promise<Incident[]> {
+  try {
+    const incidents = await db.statusIncident.findMany({
+      where: {
+        OR: [
+          // Active incidents — status is anything but "resolved"
+          { status: { not: 'resolved' } },
+          // Resolved within the last 30 days (older ones fall off the page)
+          { endTime: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } },
+        ],
+      },
+      orderBy: { startTime: 'desc' },
+      take: 10,
+    })
+    return incidents as Incident[]
+  } catch {
+    return []
+  }
+}
+
+// Spanish labels for the incident severity + status enums.
+const INCIDENT_STATUS_LABEL: Record<string, string> = {
+  resolved: 'Resuelto',
+  investigating: 'Investigando',
+  identified: 'Identificado',
+  monitoring: 'Monitoreando',
+}
+
+// Tailwind classes per incident badge — resolved is always green; otherwise
+// the severity drives the color (critical=rose, major=amber, minor+maintenance=sky).
+function incidentBadgeClass(incident: {
+  status: string
+  severity: string
+}): string {
+  if (incident.status === 'resolved') {
+    return 'bg-emerald-500/10 text-emerald-700'
+  }
+  if (incident.severity === 'critical') return 'bg-rose-500/10 text-rose-700'
+  if (incident.severity === 'major') return 'bg-amber-500/10 text-amber-700'
+  return 'bg-sky-500/10 text-sky-700'
+}
+
+function incidentStatusLabel(status: string): string {
+  return INCIDENT_STATUS_LABEL[status] ?? status
 }
 
 async function getSystemStatus(): Promise<{
@@ -86,7 +156,13 @@ const statusConfig: Record<CheckStatus, { label: string; color: string; dot: str
 }
 
 export default async function StatusPage() {
-  const { checks, overall, timestamp } = await getSystemStatus()
+  // Run the live checks + incident query in parallel — they hit different
+  // subsystems (DB ping + chat-service fetch vs. a Prisma SELECT) so
+  // parallelizing shaves a few hundred ms off the render.
+  const [{ checks, overall, timestamp }, incidents] = await Promise.all([
+    getSystemStatus(),
+    getRecentIncidents(),
+  ])
   const overallConfig = statusConfig[overall]
 
   return (
@@ -141,6 +217,33 @@ export default async function StatusPage() {
             )
           })}
         </div>
+
+        {/* Incident history — SPRINT-MONITORING-FINAL-001 */}
+        {incidents.length > 0 && (
+          <div className="mt-8">
+            <h2 className="text-xl font-semibold mb-4">Incidentes recientes</h2>
+            <div className="space-y-3">
+              {incidents.map((incident) => (
+                <div key={incident.id} className="rounded-lg border p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="font-medium">{incident.title}</h3>
+                    <span
+                      className={`text-xs px-2 py-0.5 rounded-full ${incidentBadgeClass(incident)}`}
+                    >
+                      {incidentStatusLabel(incident.status)}
+                    </span>
+                  </div>
+                  <p className="text-sm text-muted-foreground mb-2">{incident.description}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {new Date(incident.startTime).toLocaleString('es-CO')}
+                    {incident.endTime &&
+                      ` — ${new Date(incident.endTime).toLocaleString('es-CO')}`}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Footer */}
         <div className="mt-12 text-center text-sm text-muted-foreground">

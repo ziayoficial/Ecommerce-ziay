@@ -57,6 +57,11 @@ const PUBLIC_PATTERNS: Array<RegExp | string> = [
   // uptime. The page itself is server-rendered (force-dynamic) with a
   // 30s ISR revalidate so a status-page flood can't DDoS the DB.
   /^\/status(?:\/.*)?$/,
+  // SPRINT-MONITORING-FINAL-001 — public GET on incident history (backs
+  // the `/status` "Incidentes recientes" section). POST + PATCH are
+  // admin-only — they run `requireRole(['admin'])` inside the route
+  // handler, so this middleware bypass doesn't expose them.
+  '/api/status/incidents',
   /^\/api\/auth(?:\/.*)?$/,
   /^\/api\/webhooks(?:\/.*)?$/,
   /^\/api\/health(?:\/.*)?$/,

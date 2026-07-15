@@ -14,6 +14,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
 import { timeAgo } from '@/lib/format'
 import { useTenantId } from '@/hooks/use-tenant'
+import { t } from '@/lib/i18n'
 import { toast } from 'sonner'
 import {
   ShieldCheck, ShieldAlert, RotateCcw, Truck, Sparkles, Send,
@@ -132,7 +133,7 @@ export function LogisticsIntelligenceView() {
         </p>
         <div className="flex flex-wrap gap-2 mt-5">
           <Button variant="outline" size="sm" onClick={load} disabled={refreshing} className="gap-1.5">
-            <RefreshCw className={cn('size-3.5', refreshing && 'animate-spin')} /> Refrescar
+            <RefreshCw className={cn('size-3.5', refreshing && 'animate-spin')} /> {t('common.refresh')}
           </Button>
         </div>
       </section>

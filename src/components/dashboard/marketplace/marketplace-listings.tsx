@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/dialog'
 import { toast } from 'sonner'
 import { ArrowRight, Package, RefreshCw, Share2 } from 'lucide-react'
+import { t } from '@/lib/i18n'
 import {
   ListingCard, EmptyState, type MarketplaceListing,
 } from './marketplace-shared'
@@ -129,7 +130,7 @@ function ReferButton({
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
+          <Button variant="outline" onClick={() => setOpen(false)}>{t('common.cancel')}</Button>
           <Button onClick={submit} disabled={saving}>
             {saving ? <RefreshCw className="size-4 animate-spin" /> : <Share2 className="size-4" />}
             Enviar referral

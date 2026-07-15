@@ -149,7 +149,7 @@ export function SettingsView() {
         </p>
         <div className="flex flex-wrap gap-2 mt-5">
           <Button variant="outline" size="sm" onClick={() => loadData(true)} disabled={refreshing} className="gap-1.5">
-            <RefreshCw className={cn('size-3.5', refreshing && 'animate-spin')} /> Refrescar
+            <RefreshCw className={cn('size-3.5', refreshing && 'animate-spin')} /> {t('common.refresh')}
           </Button>
         </div>
       </section>
@@ -325,7 +325,7 @@ export function SettingsView() {
                 <Switch checked={autoKill} onCheckedChange={setAutoKill} />
               </div>
               <Button type="submit" disabled={saving === 'global'} className="gap-1.5">
-                <Save className="size-3.5" /> {saving === 'global' ? t('common.saving_data') : 'Guardar umbrales'}
+                <Save className="size-3.5" /> {saving === 'global' ? t('common.saving_data') : `${t('common.save')} umbrales`}
               </Button>
             </form>
           </CardContent>

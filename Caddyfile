@@ -1,11 +1,53 @@
 {
     # Global options
     email admin@ziay.co
+    # Sprint 7A: register the rate_limit directive (from the caddy-ratelimit
+    # plugin baked into Dockerfile.caddy) before reverse_proxy so per-route
+    # rate-limit zones are evaluated prior to proxying the request upstream.
+    order rate_limit before reverse_proxy
 }
 
 # ZIAY reverse proxy — HTTPS auto-provisioned via Let's Encrypt
 # Set APP_DOMAIN env var on the deploy host (e.g. ziay.co)
 {$APP_DOMAIN:localhost} {
+    # ── Rate limiting (Sprint 7A) ───────────────────────────────────────────
+    # Three zones with progressively stricter ceilings:
+    #   api_zone  → 60 req/min per IP across /api/*
+    #   auth_zone → 5 req/min per IP for /api/auth/* (brute-force defence)
+    #   ai_zone   → 10 req/min per IP for AI orchestration endpoints
+    # Excess requests receive 429 Too Many Requests from the plugin before
+    # the request is forwarded to Next.js or any upstream micro-service.
+
+    # General API
+    @api path /api/*
+    rate_limit @api {
+        zone api_zone {
+            key {remote_host}
+            events 60
+            window 1m
+        }
+    }
+
+    # Stricter limit for auth endpoints (login / register / OTP)
+    @auth path /api/auth/*
+    rate_limit @auth {
+        zone auth_zone {
+            key {remote_host}
+            events 5
+            window 1m
+        }
+    }
+
+    # Very strict limit for AI orchestration endpoints
+    @ai path /api/ai-reply /api/orchestrate /api/agents/*
+    rate_limit @ai {
+        zone ai_zone {
+            key {remote_host}
+            events 10
+            window 1m
+        }
+    }
+
     # Compression
     encode zstd gzip
 

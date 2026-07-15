@@ -93,11 +93,8 @@ export const metadata: Metadata = {
     },
   },
   icons: {
-    icon: [
-      { url: "https://z-cdn.chatglm.cn/z-ai/static/logo.svg" },
-      { url: "/favicon.ico", sizes: "any" },
-    ],
-    apple: "/apple-touch-icon.png",
+    icon: "/icon.svg",
+    apple: "/icon.svg",
   },
 };
 

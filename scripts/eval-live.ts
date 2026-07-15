@@ -15,6 +15,11 @@
  * remarketing). Cada caso nuevo añade ~$0.001 al costo del harness — total
  * ~$0.011 por run completo.
  *
+ * SPRINT-AI-FINAL-001 §3 — añadido un 2do caso `vision` con URL de imagen
+ * real (inline en el user input, el adapter chat() es texto-only). El
+ * eval "real" con VLM multimodal está en scripts/eval-vlm.ts. Total: 12
+ * casos, ~$0.012 por run completo.
+ *
  * Usage:  bun run scripts/eval-live.ts
  * Requiere: ZAI_API_KEY en .env (o el provider alternativo configurado vía
  * LLM_PROVIDER).
@@ -149,6 +154,24 @@ const EVAL_CASES: EvalCase[] = [
     userInput:
       'Descripción de la imagen: short de pijama color azul con estampado de estrellas, talla M, marca ZIAY. SKU visible en la franja: SHORT-AZUL-M. Confianza alta en la identificación.',
     description: 'Vision (mock) — should return producto + atributos from description',
+  },
+  // SPRINT-AI-FINAL-001 §3 — caso vision con URL de imagen real. El
+  // adapter de chat() sigue siendo texto-only (no puede invocar zai-vlm
+  // directamente), pero le pasamos la URL + una descripción corta al
+  // LLM para que genere el JSON esperado. Esto valida el contrato del
+  // agente vision cuando el input es una URL (caso real del webhook de
+  // WhatsApp cuando el cliente manda una foto del catálogo).
+  //
+  // El eval "real" con VLM (zai-vlm/glm-4.6v) está en scripts/eval-vlm.ts
+  // — invoca `identifyImage` del vision pipeline para pasar la imagen
+  // al modelo multimodal y validar la salida del pipeline completo.
+  {
+    agentName: 'vision',
+    systemPrompt:
+      'Eres un agente que identifica productos de una imagen. Devuelve JSON con producto, categoria, atributos (objeto clave-valor), y altText.',
+    userInput:
+      'Imagen: https://images.unsplash.com/photo-1571513722275-4b41940f54b8?w=400 (short de pijama azul, tela fría, tiras ajustables)',
+    description: 'Vision agent — product identification from image URL',
   },
   {
     // Esquema NovedadesSchema: { tipo: string, severidad: baja|media|

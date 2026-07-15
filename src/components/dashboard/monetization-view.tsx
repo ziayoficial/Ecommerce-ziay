@@ -261,7 +261,7 @@ export function MonetizationView() {
                 Cuando los pedidos por agente_whatsapp se despachen, las comisiones reconocidas aparecerán aquí automáticamente.
               </p>
               <Button variant="outline" size="sm" className="mt-4 gap-1.5" onClick={() => load(true)} disabled={refreshing}>
-                <RefreshCw className={cn('size-3.5', refreshing && 'animate-spin')} /> Refrescar
+                <RefreshCw className={cn('size-3.5', refreshing && 'animate-spin')} /> {t('common.refresh')}
               </Button>
             </div>
           ) : (

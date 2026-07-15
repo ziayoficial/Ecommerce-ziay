@@ -15,6 +15,7 @@ import {
 import {
   InputOTP, InputOTPGroup, InputOTPSeparator, InputOTPSlot,
 } from '@/components/ui/input-otp'
+import { t } from '@/lib/i18n'
 
 // ───────────────────────────────────────────────────────────────────────────
 // Wallet2FAWarning — inline alert shown when 2FA is not enabled
@@ -80,13 +81,13 @@ export function Wallet2FADialog({
               <QRCodeSVG value={uri} size={180} />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Secreto (cópialo si no puedes escanear)</Label>
-              <div className="font-mono text-[11px] p-2 rounded bg-muted break-all">{secret}</div>
+              <Label htmlFor="2fa-secret" className="text-xs text-muted-foreground">Secreto (cópialo si no puedes escanear)</Label>
+              <div id="2fa-secret" className="font-mono text-[11px] p-2 rounded bg-muted break-all">{secret}</div>
             </div>
             {backup.length > 0 && (
               <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">Códigos de respaldo (guárdalos en un lugar seguro)</Label>
-                <div className="grid grid-cols-2 gap-1 p-2 rounded bg-muted">
+                <Label htmlFor="2fa-backup-codes" className="text-xs text-muted-foreground">Códigos de respaldo (guárdalos en un lugar seguro)</Label>
+                <div id="2fa-backup-codes" className="grid grid-cols-2 gap-1 p-2 rounded bg-muted">
                   {backup.map((c, i) => (
                     <div key={i} className="font-mono text-[11px] tabular-nums">{c}</div>
                   ))}
@@ -95,8 +96,8 @@ export function Wallet2FADialog({
             )}
             <Separator />
             <div className="space-y-2">
-              <Label>Código de verificación</Label>
-              <InputOTP maxLength={6} value={totpToken} onChange={setTotpToken}>
+              <Label htmlFor="2fa-verify-code">Código de verificación</Label>
+              <InputOTP id="2fa-verify-code" maxLength={6} value={totpToken} onChange={setTotpToken}>
                 <InputOTPGroup>
                   <InputOTPSlot index={0} />
                   <InputOTPSlot index={1} />
@@ -111,7 +112,7 @@ export function Wallet2FADialog({
               </InputOTP>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+              <Button variant="outline" onClick={() => onOpenChange(false)}>{t('common.cancel')}</Button>
               <Button onClick={onVerify} disabled={totpToken.length !== 6}>
                 <QrCode className="size-4" /> Verificar y activar
               </Button>

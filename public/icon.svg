@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ZIAY PWA icon — maskable-safe.
+
+  Design (viewBox 0 0 30 30):
+    - Full-bleed emerald background (fills 100% of canvas → safe for maskable
+      purpose: when the OS crops to a circle / squircle, no transparent
+      corners leak through).
+    - The ZIAY "Z" glyph (white) sits inside the central 80% safe zone
+      (paths span x ∈ [5.7, 24.3], y ∈ [7.1, 22.91] → 19% padding each side,
+      well within the 10% maskable-safe threshold).
+
+  Used by:
+    - public/manifest.json  → "purpose": "any maskable"
+    - src/app/layout.tsx     → metadata.icons.icon + metadata.icons.apple
+
+  Replaces the missing PNG icons (icon-192.png, icon-512.png,
+  apple-touch-icon.png) referenced by the previous manifest. Modern browsers
+  (Chrome 116+, Firefox 117+, Safari 17+) support SVG icons in PWA manifests
+  and as <link rel="icon"> — no PNG rasterization pipeline required.
+-->
+<svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 30 30">
+  <defs>
+    <style type="text/css">
+      .bg{fill:#10b981;}
+      .z{fill:#FFFFFF;}
+    </style>
+  </defs>
+  <rect class="bg" x="0" y="0" width="30" height="30" rx="6" />
+  <g class="z">
+    <path d="M15.47,7.1l-1.3,1.85c-0.2,0.29-0.54,0.47-0.9,0.47h-7.1V7.09C6.16,7.1,15.47,7.1,15.47,7.1z"/>
+    <polygon points="24.3,7.1 13.14,22.91 5.7,22.91 16.86,7.1"/>
+    <path d="M14.53,22.91l1.31-1.86c0.2-0.29,0.54-0.47,0.9-0.47h7.09v2.33H14.53z"/>
+  </g>
+</svg>

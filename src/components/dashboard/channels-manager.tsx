@@ -244,7 +244,7 @@ export function ChannelsManager() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={async () => {
                 if (!confirmDeactivate) return
@@ -514,7 +514,7 @@ function ChannelDialog({ open, onOpenChange, channel, tenantId, onSaved }: {
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} className="gap-1.5"><X className="size-3.5" /> Cancelar</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)} className="gap-1.5"><X className="size-3.5" /> {t('common.cancel')}</Button>
           <Button onClick={save} disabled={saving || !name || !displayName} className="gap-1.5">
             {saving ? t('common.saving_data') : <><Save className="size-3.5" /> {t('common.save')}</>}
           </Button>

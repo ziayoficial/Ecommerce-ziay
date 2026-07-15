@@ -15,6 +15,7 @@ import {
 import { cn } from '@/lib/utils'
 import { formatCurrency } from '@/lib/format'
 import { useTenantId } from '@/hooks/use-tenant'
+import { t } from '@/lib/i18n'
 import { toast } from 'sonner'
 import {
   KANBAN_STAGES, KANBAN_ACCENT, KanbanStageId,
@@ -387,7 +388,7 @@ export function KanbanView() {
           <p className="text-sm text-muted-foreground max-w-md mt-1">Cuando entren pedidos desde Mensajería aparecerán aquí, agrupados por etapa del embudo §15.1. Podrás arrastrarlos entre columnas para actualizar su estado.</p>
         </div>
         <Button variant="outline" size="sm" onClick={() => loadOrders()} disabled={refreshing} className="gap-1.5">
-          <RefreshCw className={cn('size-3.5', refreshing && 'animate-spin')} /> Refrescar
+          <RefreshCw className={cn('size-3.5', refreshing && 'animate-spin')} /> {t('common.refresh')}
         </Button>
       </div>
     )
@@ -436,7 +437,7 @@ export function KanbanView() {
           )}
           <Button variant="outline" size="sm" onClick={loadOrders} disabled={refreshing} className="gap-1.5">
             <RefreshCw className={cn('size-3.5', refreshing && 'animate-spin')} />
-            Refrescar
+            {t('common.refresh')}
           </Button>
         </div>
       </div>

@@ -21,6 +21,7 @@ import {
 import { cn } from '@/lib/utils'
 import { timeAgo } from '@/lib/format'
 import { useTenantId } from '@/hooks/use-tenant'
+import { t } from '@/lib/i18n'
 import { toast } from 'sonner'
 import {
   Store, Users, Share2, Plus, Package, RefreshCw, CheckCircle2,
@@ -239,7 +240,7 @@ export function MarketplaceView() {
             </div>
             <Button onClick={saveConfig} disabled={savingConfig} size="sm">
               {savingConfig ? <RefreshCw className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
-              Guardar
+              {t('common.save')}
             </Button>
             {data.leadConfig && (
               <Badge variant="outline" className="text-[10px]">
@@ -405,7 +406,7 @@ function PublishListingDialog({
         </div>
       </div>
       <DialogFooter>
-        <Button variant="outline" onClick={onClose}>Cancelar</Button>
+        <Button variant="outline" onClick={onClose}>{t('common.cancel')}</Button>
         <Button onClick={submit} disabled={saving}>
           {saving ? <RefreshCw className="size-4 animate-spin" /> : <Plus className="size-4" />}
           Publicar

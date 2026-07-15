@@ -23,6 +23,9 @@ volumes:
   chat_data:
   caddy_data:
   caddy_config:
+  # Sprint 7A — monitoring stack volumes
+  prometheus_data:
+  grafana_data:
 
 services:
   # ── 1. PostgreSQL (prod database) ────────────────────────────────────────
@@ -173,11 +176,16 @@ services:
       start_period: 30s
 
   # ── 9. Chat service (socket.io mini-service) ─────────────────────────────
+  # Sprint 7A: switched from the bind-mount `bun --hot` dev mode to a
+  # multi-stage production build (mini-services/chat-service/Dockerfile).
+  # Build context is the repo root so the Dockerfile's COPY paths (which
+  # reference mini-services/chat-service/*) resolve correctly.
   chat-service:
-    image: oven/bun:1
+    build:
+      context: .
+      dockerfile: mini-services/chat-service/Dockerfile
     restart: unless-stopped
     networks: [commerceflow]
-    working_dir: /app
     env_file: [.env]
     environment:
       CHAT_SERVICE_PORT: "3003"
@@ -187,9 +195,7 @@ services:
       redis:
         condition: service_healthy
     volumes:
-      - ./mini-services/chat-service:/app
       - chat_data:/app/data
-    command: ["bun", "--hot", "index.ts"]
     ports:
       - "3003:3003"
     healthcheck:
@@ -230,3 +236,57 @@ services:
     ports:
       - "1025:1025"  # SMTP
       - "8025:8025"  # Web UI
+
+  # ── 12. Prometheus (metrics scrape + alert evaluation) ───────────────────
+  # Sprint 7A — pulls metrics from /api/metrics on the app + chat service
+  # every 15s, evaluates alerts.yml rules, fires alerts to Alertmanager.
+  prometheus:
+    image: prom/prometheus:latest
+    restart: unless-stopped
+    networks: [commerceflow]
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/alerts.yml:/etc/prometheus/rules.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+
+  # ── 13. Alertmanager (alert routing → PagerDuty / Slack / email) ──────────
+  # Sprint 7A — receives alerts from Prometheus and routes them to the
+  # correct receiver based on the severity / team labels set in alerts.yml.
+  alertmanager:
+    image: prom/alertmanager:latest
+    restart: unless-stopped
+    networks: [commerceflow]
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+
+  # ── 14. Grafana (dashboards) ──────────────────────────────────────────────
+  # Sprint 7A — auto-provisioned datasources (Prometheus + Loki) and the
+  # ZIAY overview dashboard from monitoring/grafana-dashboard.json. Admin
+  # password is configurable via $GRAFANA_ADMIN_PASSWORD (default: admin).
+  grafana:
+    image: grafana/grafana:latest
+    restart: unless-stopped
+    networks: [commerceflow]
+    ports:
+      - "3001:3000"
+    volumes:
+      - ./monitoring/grafana-datasource.yml:/etc/grafana/provisioning/datasources/datasource.yml:ro
+      - ./monitoring/grafana-dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml:ro
+      - ./monitoring/grafana-dashboard.json:/var/lib/grafana/dashboards/ziay-overview.json:ro
+      - grafana_data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    depends_on:
+      - prometheus

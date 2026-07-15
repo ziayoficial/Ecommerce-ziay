@@ -1,0 +1,20 @@
+# Grafana dashboard provisioning for ZIAY
+# SPRINT-INFRA-FINAL-001 · Sprint 7A — auto-load dashboards from JSON files.
+#
+# Mounted into the Grafana container at
+#   /etc/grafana/provisioning/dashboards/dashboards.yml
+# by docker-compose.yml. Grafana watches /var/lib/grafana/dashboards/*.json
+# (the directory mounted from monitoring/grafana-dashboard.json on the host)
+# and imports / hot-reloads them on file change.
+
+apiVersion: 1
+
+providers:
+  - name: 'ZIAY Dashboards'
+    orgId: 1
+    folder: 'ZIAY'
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /var/lib/grafana/dashboards

@@ -23,6 +23,7 @@ import {
 
 import { shortDate, shortTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
+import { t } from '@/lib/i18n'
 
 import {
   attemptStatusMeta, redeliveryStatusMeta, type RedeliveryRequest,
@@ -206,7 +207,7 @@ function RedeliveryCard({ request, onAction, tenantId }: {
               <CheckCircle2 className="size-3" /> Completar
             </Button>
             <Button size="sm" variant="outline" className="h-7 text-xs text-rose-600" onClick={() => patch({ action: 'cancel' }, 'Reintento cancelado')}>
-              <XCircle className="size-3" /> Cancelar
+              <XCircle className="size-3" /> {t('common.cancel')}
             </Button>
             <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => patch({ action: 'add_attempt' }, 'Nuevo intento agregado')}>
               <Plus className="size-3" /> Agregar intento
@@ -225,7 +226,7 @@ function RedeliveryCard({ request, onAction, tenantId }: {
               }}
               disabled={busy || !newAddr.trim()}
             >
-              Guardar
+              {t('common.save')}
             </Button>
           </div>
         )}
@@ -241,7 +242,7 @@ function RedeliveryCard({ request, onAction, tenantId }: {
               }}
               disabled={busy || !agentNote.trim()}
             >
-              Guardar
+              {t('common.save')}
             </Button>
           </div>
         )}

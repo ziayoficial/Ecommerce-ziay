@@ -206,7 +206,7 @@ export function OverviewView() {
             <MessagesSquare className="size-4" /> Ir a Mensajería
           </a>
           <Button variant="outline" size="sm" onClick={() => fetchData(true)} disabled={refreshing} className="gap-1.5">
-            <RefreshCw className={cn('size-3.5', refreshing && 'animate-spin')} /> Refrescar
+            <RefreshCw className={cn('size-3.5', refreshing && 'animate-spin')} /> {t('common.refresh')}
           </Button>
         </div>
       </div>

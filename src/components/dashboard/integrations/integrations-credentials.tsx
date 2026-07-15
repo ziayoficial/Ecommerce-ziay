@@ -32,6 +32,7 @@ import {
 } from '@/components/ui/tooltip'
 
 import { cn } from '@/lib/utils'
+import { t } from '@/lib/i18n'
 
 import {
   type CredentialState, type CredentialsResponse,
@@ -427,7 +428,7 @@ function CredentialCard({
         <div className="flex items-center gap-2 pt-1">
           <Button size="sm" onClick={onSave} disabled={busy === 'save'} className="gap-1.5 flex-1">
             {busy === 'save' ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />}
-            Guardar
+            {t('common.save')}
           </Button>
           <Button
             size="sm"

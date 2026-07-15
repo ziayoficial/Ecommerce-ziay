@@ -344,7 +344,7 @@ export function CaseDetailPanel({
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEvidenceOpen(false)}>Cancelar</Button>
+            <Button variant="outline" onClick={() => setEvidenceOpen(false)}>{t('common.cancel')}</Button>
             <Button onClick={doAddEvidence} disabled={busy}>
               {busy && <Loader2 className="size-4 animate-spin mr-1" />}
               Agregar

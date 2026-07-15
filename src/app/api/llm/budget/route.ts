@@ -4,18 +4,36 @@ import { resolveTenantId, requireRole, requireTenantAccess } from '@/lib/auth-he
 import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 import { db } from '@/lib/db'
 // SPRINT-AI-AGENTS-003 §3 — endpoint para consultar + configurar el
-// presupuesto diario de LLM por tenant. Lee/escribe el Setting
-// `llm_daily_budget_usd::{tenantId}` que consume `getTenantBudget`.
+// presupuesto diario de LLM por tenant. Lee/escribe los Settings
+// `llm_daily_budget_usd::{tenantId}` y `llm_monthly_budget_usd::{tenantId}`
+// que consumen `getTenantBudget` y `getTenantMonthlyBudget`.
+//
+// SPRINT-AI-FINAL-001 §2 — añadido soporte para el cap mensual además
+// del diario. El GET ahora devuelve ambos blocks (`daily` + `monthly`).
+// El POST acepta `budgetUsd` (diario, existente) y `monthlyBudgetUsd`
+// (mensual, nuevo, opcional). Se puede actualizar uno solo o ambos en
+// una sola llamada.
 import {
   getTenantBudget,
+  getTenantMonthlyBudget,
   invalidateBudgetCache,
 } from '@/lib/llm/budget'
 
 // GET /api/llm/budget?tenantId=X
 //
-// Devuelve el presupuesto diario configurado para el tenant + el gasto
-// acumulado hoy + el restante. Tenant users → siempre su propio tenant;
-// platform admins → pueden consultar cualquier tenant vía `?tenantId=`.
+// Devuelve los presupuestos diario + mensual configurados para el tenant
+// + el gasto acumulado + el restante para cada uno. Tenant users → siempre
+// su propio tenant; platform admins → pueden consultar cualquier tenant
+// vía `?tenantId=`.
+//
+// Respuesta:
+//   {
+//     tenantId,
+//     // Top-level (backward-compat con Sprint 6B): diario.
+//     budget, spent, remaining, resetAt,
+//     // SPRINT-AI-FINAL-001 §2 — bloque mensual adicional.
+//     monthly: { budget, spent, remaining, resetAt }
+//   }
 export const GET = withErrorHandling(async (req: NextRequest) => {
   const tenantIdParam = req.nextUrl.searchParams.get('tenantId') || undefined
   const { error, tenantId } = await resolveTenantId(tenantIdParam)
@@ -30,27 +48,45 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
     )
   }
 
-  const { budget, spent, remaining } = await getTenantBudget(tenantId)
+  const daily = await getTenantBudget(tenantId)
+  const monthly = await getTenantMonthlyBudget(tenantId)
 
   return NextResponse.json({
     tenantId,
-    budget,
-    spent,
-    remaining,
-    resetAt: nextResetIso(),
+    // Top-level: daily (backward-compat — Sprint 6B devolvía estos campos).
+    budget: daily.budget,
+    spent: daily.spent,
+    remaining: daily.remaining,
+    resetAt: nextDailyResetIso(),
+    // SPRINT-AI-FINAL-001 §2 — bloque mensual. Mismo shape que el daily.
+    monthly: {
+      budget: monthly.budget,
+      spent: monthly.spent,
+      remaining: monthly.remaining,
+      resetAt: nextMonthlyResetIso(),
+    },
   })
 })
 
 // POST /api/llm/budget
-// Body: { tenantId: string, budgetUsd: number }
+// Body: { tenantId: string, budgetUsd?: number, monthlyBudgetUsd?: number }
 //
-// Admin-only. Actualiza el presupuesto diario del tenant. Crea o actualiza
-// el Setting `llm_daily_budget_usd::{tenantId}`. Invalida el cache para
-// que el siguiente check refleje el cambio inmediatamente.
+// Admin-only. Actualiza uno o ambos presupuestos del tenant. Crea o actualiza
+// los Settings `llm_daily_budget_usd::{tenantId}` y/o
+// `llm_monthly_budget_usd::{tenantId}`. Invalida los caches para que el
+// siguiente check refleje el cambio inmediatamente.
+//
+// Al menos uno de `budgetUsd` o `monthlyBudgetUsd` debe estar presente.
+// Los dos son opcionales individualmente para soportar updates parciales
+// (cambiar solo el diario, solo el mensual, o ambos en una sola llamada).
 const SetBudgetSchema = z.object({
   tenantId: z.string().min(1),
-  budgetUsd: z.number().positive().max(10_000),
-}).strict()
+  budgetUsd: z.number().positive().max(10_000).optional(),
+  monthlyBudgetUsd: z.number().positive().max(100_000).optional(),
+}).strict().refine(
+  (data) => data.budgetUsd !== undefined || data.monthlyBudgetUsd !== undefined,
+  { message: 'Debe proporcionar al menos budgetUsd o monthlyBudgetUsd' },
+)
 
 export const POST = withErrorHandling(async (req: NextRequest) => {
   // Admin-only: cambiar el presupuesto de LLM puede tener impacto financiero
@@ -69,7 +105,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     )
   }
 
-  const { tenantId, budgetUsd } = parsed.data
+  const { tenantId, budgetUsd, monthlyBudgetUsd } = parsed.data
 
   // Verificar que el admin pertenece al tenant que intenta modificar
   // (requireRole ya valida que sea admin, pero `requireTenantAccess`
@@ -77,29 +113,49 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   const { error: tenantError } = await requireTenantAccess(tenantId)
   if (tenantError) return tenantError
 
-  const key = `llm_daily_budget_usd::${tenantId}`
-  // Upsert: si el Setting ya existe (key es @unique), lo actualiza; si no,
-  // lo crea. El valor se guarda como string (el schema de Setting es
-  // `value String` — no es numérico).
-  await db.setting.upsert({
-    where: { key },
-    update: { value: String(budgetUsd) },
-    create: { key, value: String(budgetUsd) },
-  })
+  // Upsert del Setting diario (si se proporcionó). El valor se guarda como
+  // string (el schema de Setting es `value String` — no es numérico).
+  if (budgetUsd !== undefined) {
+    const dailyKey = `llm_daily_budget_usd::${tenantId}`
+    await db.setting.upsert({
+      where: { key: dailyKey },
+      update: { value: String(budgetUsd) },
+      create: { key: dailyKey, value: String(budgetUsd) },
+    })
+  }
 
-  // Invalidar el cache para que el siguiente checkBudgetBeforeCall refleje
-  // el nuevo presupuesto sin esperar los 5 min del TTL.
+  // Upsert del Setting mensual (si se proporcionó).
+  if (monthlyBudgetUsd !== undefined) {
+    const monthlyKey = `llm_monthly_budget_usd::${tenantId}`
+    await db.setting.upsert({
+      where: { key: monthlyKey },
+      update: { value: String(monthlyBudgetUsd) },
+      create: { key: monthlyKey, value: String(monthlyBudgetUsd) },
+    })
+  }
+
+  // Invalidar AMBOS caches para que el siguiente checkBudgetBeforeCall
+  // refleje el nuevo presupuesto sin esperar los TTLs (5 min diario,
+  // 15 min mensual).
   invalidateBudgetCache(tenantId)
 
-  const { budget, spent, remaining } = await getTenantBudget(tenantId)
+  // Devolver el estado actualizado (ambos budgets).
+  const daily = await getTenantBudget(tenantId)
+  const monthly = await getTenantMonthlyBudget(tenantId)
 
   return NextResponse.json({
     ok: true,
     tenantId,
-    budget,
-    spent,
-    remaining,
-    resetAt: nextResetIso(),
+    budget: daily.budget,
+    spent: daily.spent,
+    remaining: daily.remaining,
+    resetAt: nextDailyResetIso(),
+    monthly: {
+      budget: monthly.budget,
+      spent: monthly.spent,
+      remaining: monthly.remaining,
+      resetAt: nextMonthlyResetIso(),
+    },
   })
 })
 
@@ -108,8 +164,22 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
  * el contador diario). Útil para que el dashboard muestre "reinicia en X
  * horas" al admin.
  */
-function nextResetIso(): string {
+function nextDailyResetIso(): string {
   const next = new Date()
   next.setHours(24, 0, 0, 0) // próxima medianoche local
+  return next.toISOString()
+}
+
+/**
+ * SPRINT-AI-FINAL-001 §2 — devuelve la fecha ISO del primer día del mes
+ * siguiente (cuando se reinicia el contador mensual). Ej: si hoy es
+ * 2024-03-15, devuelve 2024-04-01T00:00:00 (en TZ local, expresado como
+ * ISO UTC).
+ */
+function nextMonthlyResetIso(): string {
+  const now = new Date()
+  // Primer día del mes siguiente. Si estamos en diciembre (mes 11),
+  // `setMonth(12)` automáticamente pasa al enero del año siguiente.
+  const next = new Date(now.getFullYear(), now.getMonth() + 1, 1, 0, 0, 0, 0)
   return next.toISOString()
 }

@@ -21014,3 +21014,49 @@ Created `docs/DEPLOY-PASO-A-PASO.md` — comprehensive Spanish-language step-by-
 - Release v0.3.0 tag → ya existe `v0.3.0` git tag.
 - Demo para clientes usando `PRESENTACION-E2E-TESTS.html` actualizada con QA scorecard 9.9/10.
 - Auditoría externa — la scorecard 9.9/10 (vs 9.0/10 previo a QA) valida que el producto está listo para producción.
+
+---
+
+## SPRINT-GUIA-COMPORTAMIENTO-001 — Guía de comportamiento de agentes
+
+**Goal:** Documentar cómo configurar reglas NUNCA/SIEMPRE, dónde van en n8n, y mejores prácticas.
+
+**Entregable:** `docs/GUIA-COMPORTAMIENTO-AGENTES.md` — 663 líneas, 10 secciones.
+
+### Contenido
+
+1. **Conceptos NUNCA vs SIEMPRE** — definición + características + ejemplos
+2. **Dónde se configuran** — tabla con 4 capas (ZIAY, n8n, Generador, ChateaPro)
+3. **Arquitectura de 4 capas** — diagrama de flujo ZIAY + diagrama ChateaPro
+4. **Reglas en ZIAY (código)** — ubicación de archivos + cómo se inyectan + anti-inyección + Zod + confidence
+5. **Reglas en n8n** — estructura de workflow + respuesta (NO van en n8n) + excepción
+6. **Reglas en ChateaPro/Generador** — estructura del prompt + orden de secciones + por qué
+7. **Mejores prácticas investigadas** — 5 fuentes:
+   - Constitutional AI (Anthropic 2022)
+   - OpenAI Prompt Engineering Guide (2024)
+   - Guardrails AI Best Practices (2024)
+   - Mejor práctica para n8n
+   - Mejor práctica para ChateaPro
+8. **Catálogo completo** — 28 reglas NUNCA + 17 reglas SIEMPRE = 45 reglas
+9. **Cómo crear reglas personalizadas** — en ZIAY + en Generador + en n8n (con advertencia)
+10. **Anti-patrones** — 5 errores comunes con ejemplos de MAL vs BIEN
+
+### Respuesta a la pregunta del usuario
+
+**¿Dónde deben ir las reglas en n8n?**
+→ NO van en n8n. n8n es un orquestador que llama a la API de ZIAY. Las reglas viven en ZIAY (system prompt del agente). Si se usa ChateaPro sin ZIAY, las reglas van en el Generador HTML que produce el prompt para pegar en ChateaPro.
+
+### Investigación realizada
+
+- Constitutional AI (Anthropic): reglas al inicio del system prompt + específicas + NUNCA+SIEMPRE
+- OpenAI: reglas atómicas + IDs + máx 30 reglas
+- Guardrails AI: fallback explícito + capas múltiples + logging
+- Mejor práctica n8n: n8n no contiene reglas, solo orquesta
+- Mejor práctica ChateaPro: reglas del Generador en system message
+
+Stage Summary:
+- Guía creada (663 líneas, 10 secciones)
+- 45 reglas catalogadas (28 NUNCA + 17 SIEMPRE)
+- 5 fuentes investigadas
+- 5 anti-patrones documentados
+- Lint: 0 errores

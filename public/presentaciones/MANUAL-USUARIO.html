@@ -1,0 +1,983 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ZIAY · Manual de Usuario</title>
+<style>
+/* ═══ RESET + BASE ═══ */
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0a0f0d;--bg2:#0f1614;--bg3:#141d1a;--bg-card:#111815;
+  --green:#10b981;--green-d:#059669;--green-l:#34d399;
+  --text:#e8f0ec;--dim:#8a9a93;--dimmer:#5a6a63;
+  --amber:#f59e0b;--rose:#f43f5e;--sky:#0ea5e9;--violet:#8b5cf6;
+  --radius:12px;
+  --font:'Inter','Segoe UI',system-ui,-apple-system,sans-serif;
+  --mono:'SF Mono','Fira Code','Consolas',monospace;
+}
+html{scroll-behavior:smooth}
+body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:1.6;overflow-x:hidden}
+
+/* ═══ SLIDE SYSTEM ═══ */
+.slide{min-height:100vh;display:flex;flex-direction:column;position:relative;padding:48px 64px;border-bottom:1px solid rgba(255,255,255,0.06)}
+.slide-num{position:absolute;top:24px;right:32px;font-size:11px;color:var(--dimmer);letter-spacing:1px;font-family:var(--mono);z-index:1}
+.slide-eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:600;color:var(--green);text-transform:uppercase;letter-spacing:2px;margin-bottom:8px}
+.slide-eyebrow .dot{width:8px;height:8px;border-radius:50%;background:var(--green)}
+.slide h1{font-size:42px;font-weight:800;letter-spacing:-1px;margin-bottom:8px;line-height:1.15}
+.slide h2{font-size:28px;font-weight:700;letter-spacing:-0.5px;margin-bottom:8px}
+.slide h3{font-size:18px;font-weight:600;color:var(--dim);margin-bottom:6px}
+.slide .lead{font-size:17px;color:var(--dim);max-width:720px;margin-bottom:32px}
+
+/* ═══ COVER SLIDE ═══ */
+.cover{background:linear-gradient(135deg,var(--bg) 0%,var(--bg2) 50%,var(--bg3) 100%);justify-content:center;align-items:center;text-align:center;padding:48px}
+.cover-logo{font-size:80px;font-weight:900;letter-spacing:-3px;color:var(--green);margin-bottom:8px;line-height:1}
+.cover-tag{font-size:20px;color:var(--dim);margin-bottom:40px;font-weight:300}
+.cover-meta{display:flex;gap:32px;font-size:13px;color:var(--dimmer);font-family:var(--mono)}
+.cover-meta span{display:flex;align-items:center;gap:6px}
+
+/* ═══ GRID + CARDS ═══ */
+.grid{display:grid;gap:20px;margin-top:8px}
+.grid-2{grid-template-columns:repeat(2,1fr)}
+.grid-3{grid-template-columns:repeat(3,1fr)}
+.grid-4{grid-template-columns:repeat(4,1fr)}
+.card{background:var(--bg-card);border:1px solid rgba(255,255,255,0.08);border-radius:var(--radius);padding:24px;position:relative;z-index:1}
+.card-icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;margin-bottom:12px}
+.card h3{color:var(--text);font-size:15px;font-weight:600;margin-bottom:4px}
+.card p{font-size:13px;color:var(--dim);line-height:1.5}
+
+/* ═══ TABLES ═══ */
+.table-wrap{overflow-x:auto;margin-top:8px;border-radius:var(--radius);border:1px solid rgba(255,255,255,0.08)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{background:var(--bg2);padding:12px 16px;text-align:left;font-weight:600;color:var(--green);text-transform:uppercase;font-size:11px;letter-spacing:1px;white-space:nowrap}
+td{padding:10px 16px;border-top:1px solid rgba(255,255,255,0.05);color:var(--text)}
+td.dim{color:var(--dim)}
+
+/* ═══ BADGES ═══ */
+.badge{display:inline-flex;align-items:center;gap:4px;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:600}
+.badge-green{background:rgba(16,185,129,0.12);color:var(--green-l)}
+.badge-amber{background:rgba(245,158,11,0.12);color:var(--amber)}
+.badge-rose{background:rgba(244,63,94,0.12);color:var(--rose)}
+.badge-sky{background:rgba(14,165,233,0.12);color:var(--sky)}
+.badge-violet{background:rgba(139,92,246,0.12);color:var(--violet)}
+
+/* ═══ CODE ═══ */
+code{font-family:var(--mono);font-size:12px;background:var(--bg3);padding:2px 8px;border-radius:4px;color:var(--green-l)}
+.kbd{display:inline-block;padding:2px 8px;font-family:var(--mono);font-size:12px;background:var(--bg3);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:var(--text)}
+
+/* ═══ MOCK UI ═══ */
+.mock{background:var(--bg2);border:1px solid rgba(255,255,255,0.1);border-radius:16px;overflow:hidden;position:relative;z-index:1;margin-top:16px;box-shadow:0 8px 32px rgba(0,0,0,0.3)}
+.mock-bar{display:flex;align-items:center;gap:8px;padding:10px 16px;background:var(--bg3);border-bottom:1px solid rgba(255,255,255,0.08)}
+.mock-dot{width:10px;height:10px;border-radius:50%}
+.mock-dot.r{background:#ef4444}.mock-dot.y{background:#f59e0b}.mock-dot.g{background:#10b981}
+.mock-body{display:flex;min-height:400px}
+.mock-sidebar{width:200px;background:var(--bg);border-right:1px solid rgba(255,255,255,0.06);padding:12px 8px;flex-shrink:0}
+.mock-nav-item{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:8px;font-size:12px;color:var(--dim);margin-bottom:2px;cursor:default}
+.mock-nav-item.active{background:rgba(16,185,129,0.12);color:var(--green-l);font-weight:600}
+.mock-nav-item .ico{width:16px;height:16px;border-radius:4px;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:10px}
+.mock-content{flex:1;padding:20px;overflow:hidden}
+.mock-topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.06)}
+.mock-search{background:var(--bg3);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:6px 12px;font-size:12px;color:var(--dimmer);width:200px}
+.mock-kpi{background:var(--bg-card);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:16px;position:relative;z-index:1}
+.mock-kpi .val{font-size:24px;font-weight:800;color:var(--text)}
+.mock-kpi .lbl{font-size:11px;color:var(--dim);margin-bottom:4px}
+.mock-kpi .delta{font-size:11px;font-weight:600;margin-top:4px}
+
+/* ═══ PROGRESS ═══ */
+.progress{position:fixed;top:0;left:0;height:3px;background:var(--green);z-index:9999;transition:width 0.3s}
+
+/* ═══ SECTION DIVIDER ═══ */
+.divider{display:flex;align-items:center;gap:12px;margin:24px 0 16px}
+.divider .line{flex:1;height:1px;background:rgba(255,255,255,0.08)}
+.divider .label{font-size:11px;color:var(--dimmer);text-transform:uppercase;letter-spacing:2px;font-weight:600}
+
+/* ═══ STEP LIST ═══ */
+.steps{list-style:none;counter-reset:step}
+.steps li{counter-increment:step;padding:12px 0 12px 48px;position:relative;font-size:14px;color:var(--text)}
+.steps li::before{content:counter(step);position:absolute;left:0;top:12px;width:28px;height:28px;border-radius:50%;background:var(--green);color:var(--bg);font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center}
+
+/* ═══ FLEX HELPERS ═══ */
+.flex{display:flex}
+.flex-col{flex-direction:column}
+.items-center{align-items:center}
+.gap-4{gap:16px}.gap-6{gap:24px}.gap-8{gap:32px}
+.mt-4{margin-top:16px}.mt-6{margin-top:24px}.mt-8{margin-top:32px}
+.mb-4{margin-bottom:16px}.mb-6{margin-bottom:24px}
+.text-dim{color:var(--dim)}
+.text-sm{font-size:13px}.text-xs{font-size:11px}
+.font-mono{font-family:var(--mono)}
+.font-bold{font-weight:700}
+.w-full{width:100%}
+
+/* ═══ Z-OVERLAP PREVENTION ═══ */
+/* All decorative elements MUST have pointer-events:none and z-index:0 */
+.decor,.decor *{pointer-events:none;z-index:0;position:absolute}
+.content-layer{position:relative;z-index:1}
+/* No element should use negative margins */
+.no-overlap{overflow:hidden;isolation:isolate}
+</style>
+</head>
+<body>
+
+<!-- PROGRESS BAR -->
+<div class="progress" id="progress" style="width:0%"></div>
+
+<!-- ═══ SLIDE 1: PORTADA ═══ -->
+<section class="slide cover no-overlap" id="s1">
+  <div class="content-layer" style="display:flex;flex-direction:column;align-items:center">
+    <div class="cover-logo">ZIAY</div>
+    <div class="cover-tag">Comercio Conversacional + Atribución Inteligente</div>
+    <div style="font-size:32px;font-weight:700;margin-bottom:8px">Manual de Usuario</div>
+    <div style="font-size:15px;color:var(--dim);margin-bottom:40px">v0.3.0 "Comercio Agéntico" · Julio 2026</div>
+    <div class="cover-meta">
+      <span>📱 16 módulos</span>
+      <span>🤖 26 agentes IA</span>
+      <span>🔒 5 protocolos</span>
+      <span>🌎 7 monedas</span>
+    </div>
+    <div style="margin-top:48px;font-size:13px;color:var(--dimmer)">Indisutex SAS · Bogotá, Colombia</div>
+  </div>
+</section>
+
+<!-- ═══ SLIDE 2: ÍNDICE ═══ -->
+<section class="slide no-overlap" id="s2">
+  <span class="slide-num">02 / 30</span>
+  <div class="content-layer">
+    <div class="slide-eyebrow"><span class="dot"></span> Contenido</div>
+    <h1>¿Qué cubre este manual?</h1>
+    <p class="lead">27 secciones que documentan cada módulo, función y flujo de la plataforma ZIAY.</p>
+    <div class="grid grid-3 mt-6">
+      <div class="card"><div class="card-icon" style="background:rgba(16,185,129,0.12)">🚀</div><h3>Primeros Pasos</h3><p>Login, cuentas demo, roles, navegación, atajos</p></div>
+      <div class="card"><div class="card-icon" style="background:rgba(14,165,233,0.12)">📊</div><h3>16 Módulos</h3><p>Resumen, Mensajería, Catálogo, Pedidos, Kanban, y más</p></div>
+      <div class="card"><div class="card-icon" style="background:rgba(139,92,246,0.12)">🤖</div><h3>Agentes de IA</h3><p>Orquestador, pipeline 9 pasos, costos, presupuestos</p></div>
+      <div class="card"><div class="card-icon" style="background:rgba(245,158,11,0.12)">⚖️</div><h3>Compliance</h3><p>Ley 2573, 1581, 1480, 1098, DIAN — 6 módulos</p></div>
+      <div class="card"><div class="card-icon" style="background:rgba(244,63,94,0.12)">🔗</div><h3>Protocolos</h3><p>AP2, UCP, ACP, MCP, A2A — 5 protocolos agénticos</p></div>
+      <div class="card"><div class="card-icon" style="background:rgba(16,185,129,0.12)">🛠️</div><h3>Soporte</h3><p>Troubleshooting, glosario, contactos, PWA</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ SLIDE 3: LOGIN ═══ -->
+<section class="slide no-overlap" id="s3">
+  <span class="slide-num">03 / 30</span>
+  <div class="content-layer">
+    <div class="slide-eyebrow"><span class="dot"></span> Primeros Pasos</div>
+    <h1>Inicio de Sesión</h1>
+    <p class="lead">Acceso con 3 roles de demostración. Un clic para entrar.</p>
+    <div class="grid grid-2 mt-6">
+      <div>
+        <h3>Cuentas de Demostración</h3>
+        <div class="table-wrap mt-4">
+          <table>
+            <thead><tr><th>Rol</th><th>Correo</th><th>Contraseña</th></tr></thead>
+            <tbody>
+              <tr><td><span class="badge badge-green">Admin</span></td><td>valentina@saramantha.co</td><td><code>demo123</code></td></tr>
+              <tr><td><span class="badge badge-sky">Agente</span></td><td>camila@saramantha.co</td><td><code>demo123</code></td></tr>
+              <tr><td><span class="badge badge-violet">Trafficker</span></td><td>sebastian@trafficker.co</td><td><code>demo123</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <ol class="steps mt-6">
+          <li>Ve a la URL de tu instancia ZIAY</li>
+          <li>Ingresa correo y contraseña — o usa un botón de demo</li>
+          <li>Haz clic en <strong>Iniciar sesión</strong></li>
+          <li>El dashboard carga automáticamente en <strong>Resumen</strong></li>
+        </ol>
+      </div>
+      <!-- MOCK: Login screen -->
+      <div class="mock">
+        <div class="mock-bar"><div class="mock-dot r"></div><div class="mock-dot y"></div><div class="mock-dot g"></div><span style="font-size:11px;color:var(--dimmer);margin-left:8px">ZIAY · Login</span></div>
+        <div style="padding:32px;display:flex;flex-direction:column;align-items:center;gap:16px">
+          <div style="font-size:36px;font-weight:900;color:var(--green)">ZIAY</div>
+          <div style="font-size:13px;color:var(--dim);text-align:center;max-width:280px">Tu negocio conversacional, atribuido de extremo a extremo</div>
+          <div style="width:100%;max-width:280px;display:flex;flex-direction:column;gap:12px">
+            <div style="background:var(--bg3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:10px 12px;font-size:13px;color:var(--dimmer)">📧 valentina@saramantha.co</div>
+            <div style="background:var(--bg3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:10px 12px;font-size:13px;color:var(--dimmer)">🔒 ••••••••</div>
+            <div style="background:var(--green);color:var(--bg);border-radius:8px;padding:10px;text-align:center;font-size:13px;font-weight:700">Iniciar sesión</div>
+            <div style="display:flex;flex-direction:column;gap:6px;margin-top:4px">
+              <div style="background:var(--bg3);border:1px solid rgba(255,255,255,0.06);border-radius:6px;padding:8px;text-align:center;font-size:11px;color:var(--dim)">Entrar como Admin</div>
+              <div style="background:var(--bg3);border:1px solid rgba(255,255,255,0.06);border-radius:6px;padding:8px;text-align:center;font-size:11px;color:var(--dim)">Entrar como Agente</div>
+              <div style="background:var(--bg3);border:1px solid rgba(255,255,255,0.06);border-radius:6px;padding:8px;text-align:center;font-size:11px;color:var(--dim)">Entrar como Trafficker</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ SLIDE 4: ROLES ═══ -->
+<section class="slide no-overlap" id="s4">
+  <span class="slide-num">04 / 30</span>
+  <div class="content-layer">
+    <div class="slide-eyebrow"><span class="dot"></span> Roles y Permisos</div>
+    <h1>6 Roles con Acceso Diferenciado</h1>
+    <p class="lead">Cada rol ve solo los módulos relevantes para su función.</p>
+    <div class="table-wrap mt-6">
+      <table>
+        <thead><tr><th>Módulo</th><th>Admin</th><th>Agent</th><th>Trafficker</th><th>Finance</th><th>Support</th></tr></thead>
+        <tbody>
+          <tr><td>Resumen</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td></tr>
+          <tr><td>Mensajería</td><td>✅</td><td>✅</td><td>—</td><td>—</td><td>✅</td></tr>
+          <tr><td>Catálogo</td><td>✅</td><td>✅</td><td>—</td><td>—</td><td>—</td></tr>
+          <tr><td>Pedidos</td><td>✅</td><td>✅</td><td>—</td><td>✅</td><td>✅</td></tr>
+          <tr><td>Kanban</td><td>✅</td><td>✅</td><td>—</td><td>—</td><td>✅</td></tr>
+          <tr><td>Orquestador</td><td>✅</td><td>✅</td><td>—</td><td>—</td><td>—</td></tr>
+          <tr><td>Costos de IA</td><td>✅</td><td>—</td><td>✅</td><td>✅</td><td>—</td></tr>
+          <tr><td>Atribución</td><td>✅</td><td>—</td><td>✅</td><td>—</td><td>—</td></tr>
+          <tr><td>Monetización</td><td>✅</td><td>—</td><td>—</td><td>✅</td><td>—</td></tr>
+          <tr><td>Wallet</td><td>✅</td><td>—</td><td>✅</td><td>✅</td><td>—</td></tr>
+          <tr><td>Logística</td><td>✅</td><td>—</td><td>—</td><td>—</td><td>✅</td></tr>
+          <tr><td>Novedades</td><td>✅</td><td>✅</td><td>—</td><td>—</td><td>✅</td></tr>
+          <tr><td>Gobernanza</td><td>✅</td><td>—</td><td>—</td><td>✅</td><td>✅</td></tr>
+          <tr><td>Integraciones</td><td>✅</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+          <tr><td>Configuración</td><td>✅</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ SLIDE 5: NAVEGACIÓN + MOCK DASHBOARD ═══ -->
+<section class="slide no-overlap" id="s5">
+  <span class="slide-num">05 / 30</span>
+  <div class="content-layer">
+    <div class="slide-eyebrow"><span class="dot"></span> Navegación</div>
+    <h1>Dashboard — Vista General</h1>
+    <p class="lead">16 módulos accesibles desde el sidebar. Búsqueda rápida con <span class="kbd">⌘K</span></p>
+    <!-- MOCK: Full dashboard -->
+    <div class="mock">
+      <div class="mock-bar"><div class="mock-dot r"></div><div class="mock-dot y"></div><div class="mock-dot g"></div><span style="font-size:11px;color:var(--dimmer);margin-left:8px">ZIAY · Dashboard</span></div>
+      <div class="mock-body">
+        <!-- Sidebar -->
+        <div class="mock-sidebar">
+          <div style="padding:8px 12px;margin-bottom:8px"><span style="font-size:16px;font-weight:900;color:var(--green)">ZIAY</span></div>
+          <div style="font-size:9px;color:var(--dimmer);padding:4px 12px;text-transform:uppercase;letter-spacing:1px">Operación</div>
+          <div class="mock-nav-item active"><span class="ico">📊</span> Resumen</div>
+          <div class="mock-nav-item"><span class="ico">💬</span> Mensajería <span style="margin-left:auto;background:var(--rose);color:#fff;font-size:9px;padding:1px 6px;border-radius:8px">3</span></div>
+          <div class="mock-nav-item"><span class="ico">🖼️</span> Catálogo</div>
+          <div class="mock-nav-item"><span class="ico">🛒</span> Pedidos</div>
+          <div class="mock-nav-item"><span class="ico">📋</span> Kanban</div>
+          <div class="mock-nav-item"><span class="ico">⚙️</span> Orquestador</div>
+          <div class="mock-nav-item"><span class="ico">💰</span> Costos IA</div>
+          <div class="mock-nav-item"><span class="ico">🎯</span> Atribución <span style="margin-left:auto;background:var(--amber);color:#fff;font-size:9px;padding:1px 6px;border-radius:8px">2</span></div>
+          <div class="mock-nav-item"><span class="ico">💵</span> Monetización</div>
+          <div class="mock-nav-item"><span class="ico">👛</span> Wallet</div>
+          <div class="mock-nav-item"><span class="ico">🚚</span> Logística</div>
+          <div class="mock-nav-item"><span class="ico">🏪</span> Marketplace</div>
+          <div class="mock-nav-item"><span class="ico">⚠️</span> Novedades</div>
+          <div class="mock-nav-item"><span class="ico">🛡️</span> Gobernanza</div>
+          <div class="mock-nav-item"><span class="ico">🔌</span> Integraciones</div>
+          <div class="mock-nav-item"><span class="ico">⚙️</span> Configuración</div>
+        </div>
+        <!-- Content -->
+        <div class="mock-content">
+          <div class="mock-topbar">
+            <div style="font-size:13px;color:var(--dim)">Dashboard / <span style="color:var(--text);font-weight:600">Resumen</span></div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <div class="mock-search">🔍 Buscar… ⌘K</div>
+              <div style="width:32px;height:32px;border-radius:50%;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:12px">🔔</div>
+              <div style="width:32px;height:32px;border-radius:50%;background:var(--green);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--bg)">VR</div>
+            </div>
+          </div>
+          <!-- KPIs -->
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px">
+            <div class="mock-kpi"><div class="lbl">Ingresos (14d)</div><div class="val">$2.4M</div><div class="delta" style="color:var(--green-l)">↑ 12% vs anterior</div></div>
+            <div class="mock-kpi"><div class="lbl">ROAS</div><div class="val">2.8x</div><div class="delta" style="color:var(--green-l)">↑ 0.3x</div></div>
+            <div class="mock-kpi"><div class="lbl">Pedidos</div><div class="val">87</div><div class="delta" style="color:var(--green-l)">↑ 8</div></div>
+            <div class="mock-kpi"><div class="lbl">Inversión pauta</div><div class="val">$890K</div><div class="delta" style="color:var(--dim)">— 2%</div></div>
+          </div>
+          <!-- Chart placeholder -->
+          <div style="background:var(--bg-card);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:16px;height:120px;display:flex;align-items:flex-end;gap:4px">
+            <div style="flex:1;display:flex;align-items:flex-end;gap:3px;height:100%">
+              <div style="flex:1;height:40%;background:rgba(16,185,129,0.3);border-radius:3px"></div>
+              <div style="flex:1;height:55%;background:rgba(16,185,129,0.4);border-radius:3px"></div>
+              <div style="flex:1;height:45%;background:rgba(16,185,129,0.3);border-radius:3px"></div>
+              <div style="flex:1;height:70%;background:rgba(16,185,129,0.5);border-radius:3px"></div>
+              <div style="flex:1;height:60%;background:rgba(16,185,129,0.4);border-radius:3px"></div>
+              <div style="flex:1;height:85%;background:rgba(16,185,129,0.6);border-radius:3px"></div>
+              <div style="flex:1;height:75%;background:rgba(16,185,129,0.5);border-radius:3px"></div>
+              <div style="flex:1;height:90%;background:rgba(16,185,129,0.7);border-radius:3px"></div>
+              <div style="flex:1;height:65%;background:rgba(16,185,129,0.4);border-radius:3px"></div>
+              <div style="flex:1;height:80%;background:rgba(16,185,129,0.6);border-radius:3px"></div>
+              <div style="flex:1;height:95%;background:var(--green);border-radius:3px"></div>
+              <div style="flex:1;height:70%;background:rgba(16,185,129,0.5);border-radius:3px"></div>
+              <div style="flex:1;height:88%;background:rgba(16,185,129,0.6);border-radius:3px"></div>
+              <div style="flex:1;height:78%;background:rgba(16,185,129,0.5);border-radius:3px"></div>
+            </div>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-top:4px;font-size:9px;color:var(--dimmer)">
+            <span>Actualizado hace 2 min</span>
+            <span>🔄 Refrescar</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ SLIDE 6: MENSAJERÍA + MOCK ═══ -->
+<section class="slide no-overlap" id="s6">
+  <span class="slide-num">06 / 30</span>
+  <div class="content-layer">
+    <div class="slide-eyebrow"><span class="dot"></span> Módulo 1</div>
+    <h1>Mensajería — WhatsApp + Messenger + IG</h1>
+    <p class="lead">Centro unificado de conversaciones con 9 agentes de IA integrados.</p>
+    <!-- MOCK: Messenger -->
+    <div class="mock">
+      <div class="mock-bar"><div class="mock-dot r"></div><div class="mock-dot y"></div><div class="mock-dot g"></div><span style="font-size:11px;color:var(--dimmer);margin-left:8px">ZIAY · Mensajería</span></div>
+      <div style="display:flex;height:380px">
+        <!-- Conv list -->
+        <div style="width:220px;border-right:1px solid rgba(255,255,255,0.06);overflow-y:auto">
+          <div style="padding:10px 12px;border-bottom:1px solid rgba(255,255,255,0.06)"><div style="background:var(--bg3);border-radius:8px;padding:6px 10px;font-size:11px;color:var(--dimmer)">🔍 Buscar…</div></div>
+          <div style="padding:10px 12px;background:rgba(16,185,129,0.08);border-left:3px solid var(--green)">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px"><span style="font-size:12px;font-weight:600">María González</span><span style="font-size:9px;color:var(--dimmer)">2m</span></div>
+            <div style="font-size:11px;color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">¿Tienen short en talla M?</div>
+          </div>
+          <div style="padding:10px 12px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px"><span style="font-size:12px;font-weight:600">Carlos Ruiz</span><span style="font-size:9px;color:var(--dimmer)">15m</span></div>
+            <div style="font-size:11px;color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Tú: Perfecto, te envío la guía</div>
+          </div>
+          <div style="padding:10px 12px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px"><span style="font-size:12px;font-weight:600">Ana Torres</span><span style="background:var(--rose);color:#fff;font-size:9px;padding:1px 6px;border-radius:8px">2</span></div>
+            <div style="font-size:11px;color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Quiero devolver el pedido</div>
+          </div>
+          <div style="padding:10px 12px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px"><span style="font-size:12px;font-weight:600">Juan Pérez</span><span style="font-size:9px;color:var(--dimmer)">1h</span></div>
+            <div style="font-size:11px;color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Tú: ¡Gracias por tu compra!</div>
+          </div>
+        </div>
+        <!-- Chat -->
+        <div style="flex:1;display:flex;flex-direction:column">
+          <div style="padding:10px 16px;border-bottom:1px solid rgba(255,255,255,0.06);display:flex;align-items:center;gap:8px">
+            <div style="width:32px;height:32px;border-radius:50%;background:var(--violet);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff">MG</div>
+            <div><div style="font-size:12px;font-weight:600">María González</div><div style="font-size:10px;color:var(--green-l)">● En línea</div></div>
+          </div>
+          <div style="flex:1;padding:16px;overflow-y:auto;display:flex;flex-direction:column;gap:8px">
+            <div style="align-self:flex-start;background:var(--bg3);border-radius:12px;padding:8px 14px;max-width:70%;font-size:13px">Hola, ¿tienen short de pijama en talla M?</div>
+            <div style="align-self:flex-end;background:var(--green-d);border-radius:12px;padding:8px 14px;max-width:70%;font-size:13px;color:#fff">¡Hola María! Sí, tenemos el Short Tira en talla M 🩳 El precio es $16.500 COP. ¿Te interesa?</div>
+            <div style="align-self:flex-start;background:var(--bg3);border-radius:12px;padding:8px 14px;max-width:70%;font-size:13px">Sí, ¿tienen en color azul?</div>
+            <div style="align-self:flex-start;display:flex;gap:4px;padding:4px 0">
+              <div style="width:6px;height:6px;border-radius:50%;background:var(--dim);animation:bounce 1s infinite"></div>
+              <div style="width:6px;height:6px;border-radius:50%;background:var(--dim);animation:bounce 1s infinite 0.2s"></div>
+              <div style="width:6px;height:6px;border-radius:50%;background:var(--dim);animation:bounce 1s infinite 0.4s"></div>
+            </div>
+          </div>
+          <div style="padding:8px 16px;border-top:1px solid rgba(255,255,255,0.06)">
+            <div style="display:flex;gap:4px;margin-bottom:6px">
+              <span style="background:var(--bg3);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:3px 8px;font-size:10px;color:var(--dim)">💭 "¡Claro!"</span>
+              <span style="background:var(--bg3);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:3px 8px;font-size:10px;color:var(--dim)">📦 Ver catálogo</span>
+              <span style="background:var(--bg3);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:3px 8px;font-size:10px;color:var(--dim)">💰 Cotizar</span>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <div style="flex:1;background:var(--bg3);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:8px 12px;font-size:12px;color:var(--dimmer)">Escribe un mensaje…</div>
+              <div style="width:32px;height:32px;border-radius:8px;background:var(--green);display:flex;align-items:center;justify-content:center;font-size:14px">➤</div>
+            </div>
+            <div style="font-size:9px;color:var(--dimmer);margin-top:4px">Enter enviar · ⇧+Enter salto</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="grid grid-3 mt-6">
+      <div class="card"><h3>9 Agentes IA</h3><p>Perfilamiento, discurso, cotización, catálogo, objeciones, dirección, logística, checkout, visión</p></div>
+      <div class="card"><h3>Respuestas Rápidas</h3><p>5 chips con respuestas comunes sobre el composer — 1 clic para enviar</p></div>
+      <div class="card"><h3>Comandos WhatsApp</h3><p><code>SI</code> acepta marketing · <code>STOP</code> cancela · <code>RETRACTO</code> solicita retracto</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ SLIDE 7: CATÁLOGO VISUAL + MOCK ═══ -->
+<section class="slide no-overlap" id="s7">
+  <span class="slide-num">07 / 30</span>
+  <div class="content-layer">
+    <div class="slide-eyebrow"><span class="dot"></span> Módulo 2</div>
+    <h1>Catálogo Visual</h1>
+    <p class="lead">Visualización en cuadrícula o lista con búsqueda, filtros y chatear con IA.</p>
+    <!-- MOCK: Catalog -->
+    <div class="mock">
+      <div class="mock-bar"><div class="mock-dot r"></div><div class="mock-dot y"></div><div class="mock-dot g"></div><span style="font-size:11px;color:var(--dimmer);margin-left:8px">ZIAY · Catálogo Visual</span></div>
+      <div style="padding:16px">
+        <!-- Filters bar -->
+        <div style="display:flex;gap:8px;margin-bottom:16px;align-items:center">
+          <div style="background:var(--bg3);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:6px 12px;font-size:12px;color:var(--dimmer);flex:1">🔍 Buscar producto, SKU, diseño…</div>
+          <div style="background:var(--bg3);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:6px 12px;font-size:11px;color:var(--dim)">Todos los diseños ▾</div>
+          <div style="background:var(--bg3);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:6px 12px;font-size:11px;color:var(--dim)">Todas ▾</div>
+          <div style="background:var(--bg3);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:6px 12px;font-size:11px;color:var(--dim)">Nombre ▾</div>
+          <div style="display:flex;gap:2px;background:var(--bg3);border-radius:8px;padding:2px">
+            <div style="padding:4px 8px;border-radius:6px;background:rgba(16,185,129,0.15);font-size:11px;color:var(--green-l)">▦</div>
+            <div style="padding:4px 8px;font-size:11px;color:var(--dim)">☰</div>
+          </div>
+        </div>
+        <!-- Product grid -->
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div style="background:var(--bg-card);border:1px solid rgba(255,255,255,0.06);border-radius:10px;overflow:hidden">
+            <div style="height:100px;background:linear-gradient(135deg,#1a2a25,#0f1614);display:flex;align-items:center;justify-content:center;font-size:32px">🩳</div>
+            <div style="padding:8px 10px"><div style="font-size:12px;font-weight:600">Short Tira</div><div style="font-size:10px;color:var(--dim)">SKU: PIJ-001 · Stock: 480</div><div style="font-size:13px;font-weight:700;color:var(--green-l);margin-top:2px">$16.500</div></div>
+          </div>
+          <div style="background:var(--bg-card);border:1px solid rgba(255,255,255,0.06);border-radius:10px;overflow:hidden">
+            <div style="height:100px;background:linear-gradient(135deg,#1a2a25,#0f1614);display:flex;align-items:center;justify-content:center;font-size:32px">👖</div>
+            <div style="padding:8px 10px"><div style="font-size:12px;font-weight:600">Pantalón Tira</div><div style="font-size:10px;color:var(--dim)">SKU: PIJ-002 · Stock: 320</div><div style="font-size:13px;font-weight:700;color:var(--green-l);margin-top:2px">$19.000</div></div>
+          </div>
+          <div style="background:var(--bg-card);border:1px solid rgba(255,255,255,0.06);border-radius:10px;overflow:hidden">
+            <div style="height:100px;background:linear-gradient(135deg,#1a2a25,#0f1614);display:flex;align-items:center;justify-content:center;font-size:32px">👗</div>
+            <div style="padding:8px 10px"><div style="font-size:12px;font-weight:600">Batola</div><div style="font-size:10px;color:var(--dim)">SKU: PIJ-003 · Stock: 240</div><div style="font-size:13px;font-weight:700;color:var(--green-l);margin-top:2px">$23.000</div></div>
+          </div>
+          <div style="background:var(--bg-card);border:1px solid rgba(255,255,255,0.06);border-radius:10px;overflow:hidden">
+            <div style="height:100px;background:linear-gradient(135deg,#1a2a25,#0f1614);display:flex;align-items:center;justify-content:center;font-size:32px">🩳</div>
+            <div style="padding:8px 10px"><div style="font-size:12px;font-weight:600">Short Stitch</div><div style="font-size:10px;color:var(--dim)">SKU: PIJ-004 · Stock: 180</div><div style="font-size:13px;font-weight:700;color:var(--green-l);margin-top:2px">$18.500</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ SLIDE 8: PEDIDOS + MOCK ═══ -->
+<section class="slide no-overlap" id="s8">
+  <span class="slide-num">08 / 30</span>
+  <div class="content-layer">
+    <div class="slide-eyebrow"><span class="dot"></span> Módulo 3</div>
+    <h1>Pedidos & Pagos</h1>
+    <p class="lead">Gestión completa con estados, exportación CSV, acciones masivas y retracto.</p>
+    <!-- MOCK: Orders table -->
+    <div class="mock">
+      <div class="mock-bar"><div class="mock-dot r"></div><div class="mock-dot y"></div><div class="mock-dot g"></div><span style="font-size:11px;color:var(--dimmer);margin-left:8px">ZIAY · Pedidos</span></div>
+      <div style="padding:16px">
+        <div style="display:flex;gap:8px;margin-bottom:12px">
+          <div style="background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.2);border-radius:20px;padding:3px 10px;font-size:11px;color:var(--green-l)">Pagado · 45</div>
+          <div style="background:var(--bg3);border:1px solid rgba(255,255,255,0.08);border-radius:20px;padding:3px 10px;font-size:11px;color:var(--dim)">Pendiente · 12</div>
+          <div style="background:var(--bg3);border:1px solid rgba(255,255,255,0.08);border-radius:20px;padding:3px 10px;font-size:11px;color:var(--dim)">Enviado · 23</div>
+          <div style="background:var(--bg3);border:1px solid rgba(255,255,255,0.08);border-radius:20px;padding:3px 10px;font-size:11px;color:var(--dim)">Todos · 87</div>
+          <div style="margin-left:auto;background:var(--bg3);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:4px 10px;font-size:11px;color:var(--dim)">📥 Exportar CSV</div>
+        </div>
+        <div style="overflow-x:auto">
+          <table style="font-size:12px">
+            <thead><tr><th>☐</th><th>Pedido</th><th>Cliente</th><th>Items</th><th>Total</th><th>Estado</th><th>Pago</th><th>Acción</th></tr></thead>
+            <tbody>
+              <tr><td>☐</td><td><strong>CF-200087</strong><br><span style="font-size:10px;color:var(--dimmer)">14 Jul, 10:23</span></td><td>María González<br><span style="font-size:10px;color:var(--dimmer)">+57 300 111 2233</span></td><td>2× Short Tira<br>1× Pantalón</td><td><strong>$52.000</strong></td><td><span class="badge badge-green">Pagado</span></td><td><span class="badge badge-sky">Anticipado</span></td><td><span style="font-size:11px;color:var(--amber);cursor:pointer">↩ Retracto</span></td></tr>
+              <tr><td>☐</td><td><strong>CF-200086</strong><br><span style="font-size:10px;color:var(--dimmer)">14 Jul, 08:15</span></td><td>Carlos Ruiz<br><span style="font-size:10px;color:var(--dimmer)">+57 301 222 3344</span></td><td>1× Batola</td><td><strong>$23.000</strong></td><td><span class="badge badge-amber">Enviado</span></td><td><span class="badge badge-green">Pagado</span></td><td>—</td></tr>
+              <tr><td>☐</td><td><strong>CF-200085</strong><br><span style="font-size:10px;color:var(--dimmer)">13 Jul, 16:42</span></td><td>Ana Torres<br><span style="font-size:10px;color:var(--dimmer)">+57 302 333 4455</span></td><td>3× Short Hello Kitty</td><td><strong>$55.500</strong></td><td><span class="badge badge-rose">Cancelado</span></td><td><span class="badge badge-violet">Reembolsado</span></td><td>—</td></tr>
+              <tr><td>☐</td><td><strong>CF-200084</strong><br><span style="font-size:10px;color:var(--dimmer)">13 Jul, 14:10</span></td><td>Juan Pérez<br><span style="font-size:10px;color:var(--dimmer)">+57 303 444 5566</span></td><td>1× Short Stitch</td><td><strong>$18.500</strong></td><td><span class="badge badge-amber">Pendiente</span></td><td><span class="badge badge-amber">COD</span></td><td>—</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="grid grid-3 mt-6">
+      <div class="card"><h3>Exportar CSV</h3><p>Formato Excel con BOM UTF-8 · Todos o solo selección</p></div>
+      <div class="card"><h3>Acciones Masivas</h3><p>Checkbox + barra flotante: mover estado, exportar selección</p></div>
+      <div class="card"><h3>Retracto (Ley 1480)</h3><p>Botón en pedidos <5 días · cancela + reembolsa automáticamente</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ SLIDE 9: KANBAN + MOCK ═══ -->
+<section class="slide no-overlap" id="s9">
+  <span class="slide-num">09 / 30</span>
+  <div class="content-layer">
+    <div class="slide-eyebrow"><span class="dot"></span> Módulo 4</div>
+    <h1>Kanban Operativo — 8 Columnas</h1>
+    <p class="lead">Drag & Drop con WIP limits, indicador de estancamiento y columnas colapsables.</p>
+    <!-- MOCK: Kanban -->
+    <div class="mock">
+      <div class="mock-bar"><div class="mock-dot r"></div><div class="mock-dot y"></div><div class="mock-dot g"></div><span style="font-size:11px;color:var(--dimmer);margin-left:8px">ZIAY · Kanban</span></div>
+      <div style="padding:12px;overflow-x:auto">
+        <div style="display:flex;gap:8px;min-width:900px">
+          <div style="flex:1;background:var(--bg3);border-radius:8px;padding:8px;min-width:140px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><span style="font-size:11px;font-weight:600">📥 Lead entra</span><span style="font-size:9px;color:var(--dimmer)">3/8</span></div>
+            <div style="background:var(--bg-card);border-radius:6px;padding:8px;margin-bottom:4px;font-size:10px"><strong>CF-200087</strong><br><span style="color:var(--dim)">María G. · $52K</span></div>
+            <div style="background:var(--bg-card);border-radius:6px;padding:8px;margin-bottom:4px;font-size:10px"><strong>CF-200088</strong><br><span style="color:var(--dim)">Pedro M. · $18K</span></div>
+          </div>
+          <div style="flex:1;background:var(--bg3);border-radius:8px;padding:8px;min-width:140px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><span style="font-size:11px;font-weight:600">💬 Cotizando</span><span style="font-size:9px;color:var(--amber)">7/10 ⚠</span></div>
+            <div style="background:var(--bg-card);border-radius:6px;padding:8px;margin-bottom:4px;font-size:10px;border-left:3px solid var(--amber)"><strong>CF-200084</strong><br><span style="color:var(--dim)">Juan P. · $18.5K</span><br><span style="font-size:9px;color:var(--amber)">🕐 4 días</span></div>
+            <div style="background:var(--bg-card);border-radius:6px;padding:8px;margin-bottom:4px;font-size:10px"><strong>CF-200086</strong><br><span style="color:var(--dim)">Carlos R. · $23K</span></div>
+          </div>
+          <div style="flex:1;background:var(--bg3);border-radius:8px;padding:8px;min-width:140px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><span style="font-size:11px;font-weight:600">✅ Datos complet.</span><span style="font-size:9px;color:var(--dimmer)">2/12</span></div>
+            <div style="background:var(--bg-card);border-radius:6px;padding:8px;margin-bottom:4px;font-size:10px"><strong>CF-200083</strong><br><span style="color:var(--dim)">Laura V. · $34K</span></div>
+          </div>
+          <div style="flex:1;background:var(--bg3);border-radius:8px;padding:8px;min-width:140px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><span style="font-size:11px;font-weight:600">💳 Pago confir.</span><span style="font-size:9px;color:var(--dimmer)">1/15</span></div>
+            <div style="background:var(--bg-card);border-radius:6px;padding:8px;margin-bottom:4px;font-size:10px"><strong>CF-200082</strong><br><span style="color:var(--dim)">Sofia R. · $16.5K</span></div>
+          </div>
+          <div style="flex:1;background:rgba(16,185,129,0.06);border-radius:8px;padding:8px;min-width:140px;border:1px solid rgba(16,185,129,0.15)">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><span style="font-size:11px;font-weight:600;color:var(--green-l)">📦 Despachado</span><span style="font-size:9px;color:var(--dimmer)">5/25</span></div>
+            <div style="background:var(--bg-card);border-radius:6px;padding:8px;margin-bottom:4px;font-size:10px"><strong>CF-200080</strong><br><span style="color:var(--dim)">Diego A. · $41K</span></div>
+          </div>
+          <div style="flex:1;background:rgba(16,185,129,0.1);border-radius:8px;padding:8px;min-width:140px;border:1px solid rgba(16,185,129,0.2)">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><span style="font-size:11px;font-weight:600;color:var(--green)">✅ Entregado</span><span style="font-size:9px;color:var(--dimmer)">8/30</span></div>
+            <div style="background:var(--bg-card);border-radius:6px;padding:8px;margin-bottom:4px;font-size:10px"><strong>CF-200078</strong><br><span style="color:var(--dim)">María L. · $23K</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ SLIDE 10: ORQUESTADOR + MOCK ═══ -->
+<section class="slide no-overlap" id="s10">
+  <span class="slide-num">10 / 30</span>
+  <div class="content-layer">
+    <div class="slide-eyebrow"><span class="dot"></span> Módulo 5</div>
+    <h1>Orquestador — Pipeline de 9 Agentes</h1>
+    <p class="lead">Ejecuta 9 agentes IA en secuencia para procesar conversaciones end-to-end.</p>
+    <!-- MOCK: Orchestrator -->
+    <div class="mock">
+      <div class="mock-bar"><div class="mock-dot r"></div><div class="mock-dot y"></div><div class="mock-dot g"></div><span style="font-size:11px;color:var(--dimmer);margin-left:8px">ZIAY · Orquestador</span></div>
+      <div style="padding:16px">
+        <div style="display:flex;gap:8px;margin-bottom:16px">
+          <div style="background:var(--green);color:var(--bg);border-radius:8px;padding:8px 16px;font-size:12px;font-weight:700">▶ Ejecutar todo</div>
+          <div style="background:var(--bg3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:8px 16px;font-size:12px;color:var(--text)">⏭ Siguiente paso</div>
+          <div style="background:var(--bg3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:8px 16px;font-size:12px;color:var(--dim)">↻ Reiniciar</div>
+          <div style="margin-left:auto;display:flex;align-items:center;gap:8px"><span style="font-size:11px;color:var(--dim)">Escenario:</span><div style="background:var(--bg3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:6px 12px;font-size:11px">Lead mayorista ▾</div></div>
+        </div>
+        <!-- Progress bar -->
+        <div style="display:flex;gap:4px;margin-bottom:16px">
+          <div style="flex:1;height:4px;background:var(--green);border-radius:2px"></div>
+          <div style="flex:1;height:4px;background:var(--green);border-radius:2px"></div>
+          <div style="flex:1;height:4px;background:var(--green);border-radius:2px"></div>
+          <div style="flex:1;height:4px;background:var(--green);border-radius:2px"></div>
+          <div style="flex:1;height:4px;background:var(--green);border-radius:2px"></div>
+          <div style="flex:1;height:4px;background:var(--amber);border-radius:2px"></div>
+          <div style="flex:1;height:4px;background:var(--bg3);border-radius:2px"></div>
+          <div style="flex:1;height:4px;background:var(--bg3);border-radius:2px"></div>
+          <div style="flex:1;height:4px;background:var(--bg3);border-radius:2px"></div>
+        </div>
+        <!-- Pipeline steps -->
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+          <div style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.2);border-radius:8px;padding:10px"><div style="font-size:10px;color:var(--green-l);margin-bottom:4px">✅ Paso 1</div><div style="font-size:12px;font-weight:600">Perfilamiento</div><div style="font-size:10px;color:var(--dim);margin-top:4px">Mayorista · 85% confianza</div></div>
+          <div style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.2);border-radius:8px;padding:10px"><div style="font-size:10px;color:var(--green-l);margin-bottom:4px">✅ Paso 2</div><div style="font-size:12px;font-weight:600">Discurso</div><div style="font-size:10px;color:var(--dim);margin-top:4px">Saludo enviado · 1.2s</div></div>
+          <div style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.2);border-radius:8px;padding:10px"><div style="font-size:10px;color:var(--green-l);margin-bottom:4px">✅ Paso 3</div><div style="font-size:12px;font-weight:600">Catálogo</div><div style="font-size:10px;color:var(--dim);margin-top:4px">3 productos recomendados</div></div>
+          <div style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.2);border-radius:8px;padding:10px"><div style="font-size:10px;color:var(--green-l);margin-bottom:4px">✅ Paso 4</div><div style="font-size:12px;font-weight:600">Cotización</div><div style="font-size:10px;color:var(--dim);margin-top:4px">Total: $52.000 COP</div></div>
+          <div style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.2);border-radius:8px;padding:10px"><div style="font-size:10px;color:var(--green-l);margin-bottom:4px">✅ Paso 5</div><div style="font-size:12px;font-weight:600">Objeciones</div><div style="font-size:10px;color:var(--dim);margin-top:4px">Precio justo resuelto</div></div>
+          <div style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.3);border-radius:8px;padding:10px"><div style="font-size:10px;color:var(--amber);margin-bottom:4px">⏳ Paso 6 — Ejecutando</div><div style="font-size:12px;font-weight:600">Dirección</div><div style="font-size:10px;color:var(--dim);margin-top:4px">Esperando respuesta…</div></div>
+          <div style="background:var(--bg3);border:1px solid rgba(255,255,255,0.06);border-radius:8px;padding:10px;opacity:0.5"><div style="font-size:10px;color:var(--dimmer);margin-bottom:4px">⏸ Paso 7</div><div style="font-size:12px;font-weight:600">Logística</div></div>
+          <div style="background:var(--bg3);border:1px solid rgba(255,255,255,0.06);border-radius:8px;padding:10px;opacity:0.5"><div style="font-size:10px;color:var(--dimmer);margin-bottom:4px">⏸ Paso 8</div><div style="font-size:12px;font-weight:600">Checkout</div></div>
+          <div style="background:var(--bg3);border:1px solid rgba(255,255,255,0.06);border-radius:8px;padding:10px;opacity:0.5"><div style="font-size:10px;color:var(--dimmer);margin-bottom:4px">⏸ Paso 9</div><div style="font-size:12px;font-weight:600">Visión</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ SLIDE 11: COSTOS IA + MOCK ═══ -->
+<section class="slide no-overlap" id="s11">
+  <span class="slide-num">11 / 30</span>
+  <div class="content-layer">
+    <div class="slide-eyebrow"><span class="dot"></span> Módulo 6</div>
+    <h1>Costos de IA — Presupuesto y Uso</h1>
+    <p class="lead">Tracking de tokens, costo y latencia por agente, modelo y día. Presupuestos diarios + mensuales.</p>
+    <!-- MOCK: LLM Costs -->
+    <div class="mock">
+      <div class="mock-bar"><div class="mock-dot r"></div><div class="mock-dot y"></div><div class="mock-dot g"></div><span style="font-size:11px;color:var(--dimmer);margin-left:8px">ZIAY · Costos de IA</span></div>
+      <div style="padding:16px">
+        <!-- Budget cards -->
+        <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:16px">
+          <div style="background:var(--bg-card);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:14px">
+            <div style="font-size:11px;color:var(--dim);margin-bottom:4px">Presupuesto diario</div>
+            <div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:22px;font-weight:800">$4.32</span><span style="font-size:12px;color:var(--dim)">/ $10.00</span></div>
+            <div style="height:4px;background:var(--bg3);border-radius:2px;margin-top:8px;overflow:hidden"><div style="height:100%;width:43%;background:var(--green);border-radius:2px"></div></div>
+            <div style="font-size:10px;color:var(--dim);margin-top:4px">$5.68 restante · 43% usado</div>
+          </div>
+          <div style="background:var(--bg-card);border:1px solid rgba(245,158,11,0.2);border-radius:10px;padding:14px">
+            <div style="font-size:11px;color:var(--dim);margin-bottom:4px">Presupuesto mensual</div>
+            <div style="display:flex;justify-content:space-items:baseline"><span style="font-size:22px;font-weight:800;color:var(--amber)">$168.50</span><span style="font-size:12px;color:var(--dim)">/ $200.00</span></div>
+            <div style="height:4px;background:var(--bg3);border-radius:2px;margin-top:8px;overflow:hidden"><div style="height:100%;width:84%;background:var(--amber);border-radius:2px"></div></div>
+            <div style="font-size:10px;color:var(--amber);margin-top:4px">⚠ 84% usado · $31.50 restante</div>
+          </div>
+        </div>
+        <!-- KPIs -->
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px">
+          <div style="background:var(--bg-card);border:1px solid rgba(255,255,255,0.06);border-radius:8px;padding:10px"><div style="font-size:10px;color:var(--dim)">Costo 30d</div><div style="font-size:18px;font-weight:800">$168.50</div></div>
+          <div style="background:var(--bg-card);border:1px solid rgba(255,255,255,0.06);border-radius:8px;padding:10px"><div style="font-size:10px;color:var(--dim)">Tokens</div><div style="font-size:18px;font-weight:800">8.2M</div></div>
+          <div style="background:var(--bg-card);border:1px solid rgba(255,255,255,0.06);border-radius:8px;padding:10px"><div style="font-size:10px;color:var(--dim)">Llamadas</div><div style="font-size:18px;font-weight:800">1,247</div></div>
+          <div style="background:var(--bg-card);border:1px solid rgba(255,255,255,0.06);border-radius:8px;padding:10px"><div style="font-size:10px;color:var(--dim)">Latencia avg</div><div style="font-size:18px;font-weight:800">1.8s</div></div>
+        </div>
+        <!-- By agent table -->
+        <div style="background:var(--bg-card);border:1px solid rgba(255,255,255,0.06);border-radius:8px;padding:12px">
+          <div style="font-size:13px;font-weight:600;margin-bottom:8px">Desglose por agente</div>
+          <table style="font-size:11px;width:100%">
+            <thead><tr><th style="text-align:left;padding:4px 0">Agente</th><th style="text-align:right">Llamadas</th><th style="text-align:right">Tokens</th><th style="text-align:right">Costo</th></tr></thead>
+            <tbody>
+              <tr><td style="padding:3px 0">discurso</td><td style="text-align:right">342</td><td style="text-align:right">2.1M</td><td style="text-align:right;font-weight:600;color:var(--green-l)">$42.30</td></tr>
+              <tr><td style="padding:3px 0">cotizacion</td><td style="text-align:right">218</td><td style="text-align:right">1.8M</td><td style="text-align:right;font-weight:600;color:var(--green-l)">$36.80</td></tr>
+              <tr><td style="padding:3px 0">perfilamiento</td><td style="text-align:right">198</td><td style="text-align:right">1.2M</td><td style="text-align:right;font-weight:600;color:var(--green-l)">$24.50</td></tr>
+              <tr><td style="padding:3px 0">catalog</td><td style="text-align:right">156</td><td style="text-align:right">980K</td><td style="text-align:right;font-weight:600;color:var(--green-l)">$19.90</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ SLIDE 12: ATRIBUCIÓN + MOCK ═══ -->
+<section class="slide no-overlap" id="s12">
+  <span class="slide-num">12 / 30</span>
+  <div class="content-layer">
+    <div class="slide-eyebrow"><span class="dot"></span> Módulo 7</div>
+    <h1>Atribución de Pauta — CPA · ROAS · ROI</h1>
+    <p class="lead">Mide el rendimiento real de anuncios vs las ventas atribuidas. Detecta canibalización.</p>
+    <!-- MOCK: Ads -->
+    <div class="mock">
+      <div class="mock-bar"><div class="mock-dot r"></div><div class="mock-dot y"></div><div class="mock-dot g"></div><span style="font-size:11px;color:var(--dimmer);margin-left:8px">ZIAY · Atribución de Pauta</span></div>
+      <div style="padding:16px">
+        <div style="display:flex;gap:8px;margin-bottom:12px">
+          <div style="background:var(--bg3);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:6px 12px;font-size:11px;color:var(--dimmer);flex:1">🔍 Buscar ad ID o nombre…</div>
+          <div style="background:var(--bg3);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:6px 12px;font-size:11px;color:var(--dim)">Todas las plataformas ▾</div>
+          <div style="background:rgba(244,63,94,0.12);border:1px solid rgba(244,63,94,0.2);border-radius:8px;padding:6px 12px;font-size:11px;color:var(--rose);font-weight:600">🛑 Apagar canibalizadores</div>
+        </div>
+        <div style="overflow-x:auto">
+          <table style="font-size:11px;width:100%">
+            <thead><tr><th style="text-align:left;padding:6px 8px">Anuncio</th><th>Plataforma</th><th>Inversión</th><th>CTR</th><th>Conv. rep.</th><th>Ventas reales</th><th>ROAS</th><th>Veredicto</th></tr></thead>
+            <tbody>
+              <tr style="border-top:1px solid rgba(255,255,255,0.04)"><td style="padding:6px 8px"><strong>Short verano 2026</strong><br><span style="font-size:9px;color:var(--dimmer)">ID: 1202401</span></td><td><span class="badge badge-sky">Meta</span></td><td style="text-align:right">$180K</td><td style="text-align:right">2.3%</td><td style="text-align:right">23</td><td style="text-align:right;font-weight:600">18</td><td style="text-align:right;font-weight:700;color:var(--green-l)">2.8x</td><td><span class="badge badge-green">Escalar</span></td></tr>
+              <tr style="border-top:1px solid rgba(255,255,255,0.04)"><td style="padding:6px 8px"><strong>Pijamas invierno</strong><br><span style="font-size:9px;color:var(--dimmer)">ID: 1202402</span></td><td><span class="badge badge-violet">TikTok</span></td><td style="text-align:right">$320K</td><td style="text-align:right">1.8%</td><td style="text-align:right">45</td><td style="text-align:right;font-weight:600">12</td><td style="text-align:right;font-weight:700;color:var(--rose)">0.9x</td><td><span class="badge badge-rose">Apagar</span></td></tr>
+              <tr style="border-top:1px solid rgba(255,255,255,0.04)"><td style="padding:6px 8px"><strong>Catálogo completo</strong><br><span style="font-size:9px;color:var(--dimmer)">ID: 1202403</span></td><td><span class="badge badge-amber">Google</span></td><td style="text-align:right">$250K</td><td style="text-align:right">1.5%</td><td style="text-align:right">18</td><td style="text-align:right;font-weight:600">15</td><td style="text-align:right;font-weight:700;color:var(--amber)">1.4x</td><td><span class="badge badge-amber">Optimizar</span></td></tr>
+              <tr style="border-top:1px solid rgba(255,255,255,0.04)"><td style="padding:6px 8px"><strong>🔥 Batola promoción</strong><br><span style="font-size:9px;color:var(--dimmer);color:var(--violet)">⚠ Canibaliza</span></td><td><span class="badge badge-sky">Meta</span></td><td style="text-align:right">$140K</td><td style="text-align:right">3.1%</td><td style="text-align:right">31</td><td style="text-align:right;font-weight:600">3</td><td style="text-align:right;font-weight:700;color:var(--rose)">0.2x</td><td><span class="badge badge-rose">Apagar</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ SLIDE 13: WALLET + MOCK ═══ -->
+<section class="slide no-overlap" id="s13">
+  <span class="slide-num">13 / 30</span>
+  <div class="content-layer">
+    <div class="slide-eyebrow"><span class="dot"></span> Módulo 8</div>
+    <h1>Wallet — Balance, Retiros y 2FA</h1>
+    <p class="lead">Billetera digital con TOTP, retiros con doble factor y códigos de respaldo.</p>
+    <div class="grid grid-2 mt-6">
+      <!-- MOCK: Wallet -->
+      <div class="mock">
+        <div class="mock-bar"><div class="mock-dot r"></div><div class="mock-dot y"></div><div class="mock-dot g"></div><span style="font-size:11px;color:var(--dimmer);margin-left:8px">ZIAY · Wallet</span></div>
+        <div style="padding:16px">
+          <!-- Balance card -->
+          <div style="background:linear-gradient(135deg,rgba(16,185,129,0.15),rgba(16,185,129,0.05));border:1px solid rgba(16,185,129,0.2);border-radius:12px;padding:20px;margin-bottom:12px">
+            <div style="font-size:11px;color:var(--dim)">Balance disponible</div>
+            <div style="font-size:32px;font-weight:900;color:var(--green-l);margin-top:4px">$342.500</div>
+            <div style="display:flex;gap:16px;margin-top:8px;font-size:10px;color:var(--dim)"><span>Pendiente: $45.000</span><span>Retirado: $1.2M</span></div>
+          </div>
+          <!-- Quick actions -->
+          <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:12px">
+            <div style="background:var(--green);color:var(--bg);border-radius:8px;padding:8px;text-align:center;font-size:12px;font-weight:700">💸 Solicitar retiro</div>
+            <div style="background:var(--bg3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:8px;text-align:center;font-size:12px;color:var(--text)">🏦 Registrar cuenta</div>
+            <div style="background:var(--bg3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:8px;text-align:center;font-size:12px;color:var(--text)">🔐 Activar 2FA</div>
+            <div style="background:var(--bg3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:8px;text-align:center;font-size:12px;color:var(--text)">📋 Transacciones</div>
+          </div>
+          <!-- Recent transactions -->
+          <div style="background:var(--bg-card);border:1px solid rgba(255,255,255,0.06);border-radius:8px;padding:10px">
+            <div style="font-size:11px;font-weight:600;margin-bottom:6px">Transacciones recientes</div>
+            <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.04)"><span style="font-size:11px">Comisión · CF-200087</span><span style="font-size:11px;color:var(--green-l);font-weight:600">+$2.340</span></div>
+            <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.04)"><span style="font-size:11px">Comisión · CF-200086</span><span style="font-size:11px;color:var(--green-l);font-weight:600">+$1.035</span></div>
+            <div style="display:flex;justify-content:space-between;padding:4px 0"><span style="font-size:11px">Retiro · Bancolombia</span><span style="font-size:11px;color:var(--rose);font-weight:600">-$200.000</span></div>
+          </div>
+        </div>
+      </div>
+      <!-- 2FA info -->
+      <div>
+        <h3>Seguridad 2FA (TOTP)</h3>
+        <ol class="steps mt-4">
+          <li>Descarga Google Authenticator o Authy</li>
+          <li>En Wallet → "Activar 2FA"</li>
+          <li>Escanea el código QR con la app</li>
+          <li>Guarda los 10 códigos de respaldo en un lugar seguro</li>
+          <li>Cada retiro requiere el código de 6 dígitos</li>
+        </ol>
+        <div class="card mt-6" style="border-color:rgba(244,63,94,0.2)">
+          <h3 style="color:var(--rose)">⚠ Importante</h3>
+          <p>Los códigos de respaldo son de un solo uso. Si los agotas, debes reactivar 2FA. Los secretos están encriptados con AES-256-GCM.</p>
+        </div>
+        <div class="card mt-4">
+          <h3>Proceso de Retiro</h3>
+          <p>1. Solicitas con monto + código 2FA<br>2. Estado: <span class="badge badge-amber">pending_2fa</span><br>3. Admin/Finance aprueba<br>4. Estado: <span class="badge badge-green">processed</span> · Balance descontado</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ SLIDE 14: COMPLIANCE ═══ -->
+<section class="slide no-overlap" id="s14">
+  <span class="slide-num">14 / 30</span>
+  <div class="content-layer">
+    <div class="slide-eyebrow"><span class="dot"></span> Compliance Regulatorio</div>
+    <h1>6 Módulos de Compliance Colombia</h1>
+    <p class="lead">Cumplimiento integral de leyes colombianas con automatización integrada.</p>
+    <div class="grid grid-3 mt-6">
+      <div class="card" style="border-color:rgba(16,185,129,0.2)">
+        <div class="card-icon" style="background:rgba(16,185,129,0.12)">⚖️</div>
+        <h3>Ley 2573 de 2026</h3>
+        <p>Suplantación de identidad. KYC gate para crédito/cuotas. Verificación trazable con evidence hash. Vigencia 90 días.</p>
+        <span class="badge badge-green" style="margin-top:8px">✅ Implementado</span>
+      </div>
+      <div class="card" style="border-color:rgba(14,165,233,0.2)">
+        <div class="card-icon" style="background:rgba(14,165,233,0.12)">🔐</div>
+        <h3>Ley 1581 de 2012</h3>
+        <p>Protección de datos. Consent records por propósito. DSR (acceso/borrado/portabilidad). Retención automática diaria.</p>
+        <span class="badge badge-green" style="margin-top:8px">✅ Implementado</span>
+      </div>
+      <div class="card" style="border-color:rgba(245,158,11,0.2)">
+        <div class="card-icon" style="background:rgba(245,158,11,0.12)">↩️</div>
+        <h3>Ley 1480 Art 47</h3>
+        <p>Derecho al retracto. 5 días para cancelar. Reembolso automático vía pasarela. Plazo legal: 30 días.</p>
+        <span class="badge badge-green" style="margin-top:8px">✅ Implementado</span>
+      </div>
+      <div class="card" style="border-color:rgba(139,92,246,0.2)">
+        <div class="card-icon" style="background:rgba(139,92,246,0.12)">👶</div>
+        <h3>Ley 1098 de 2006</h3>
+        <p>Infancia y adolescencia. Age gate + consentimiento parental. Bloqueo de checkout para menores sin autorización.</p>
+        <span class="badge badge-green" style="margin-top:8px">✅ Implementado</span>
+      </div>
+      <div class="card" style="border-color:rgba(244,63,94,0.2)">
+        <div class="card-icon" style="background:rgba(244,63,94,0.12)">🧾</div>
+        <h3>Decreto 745/2014 (DIAN)</h3>
+        <p>Facturación electrónica. CUFE (SHA-384). Integración Alegra. Envío automático a DIAN + email al cliente.</p>
+        <span class="badge badge-green" style="margin-top:8px">✅ Alegra adapter</span>
+      </div>
+      <div class="card" style="border-color:rgba(16,185,129,0.2)">
+        <div class="card-icon" style="background:rgba(16,185,129,0.12)">🛡️</div>
+        <h3>Gobernanza AP2</h3>
+        <p>Mandatos revocables. Límites por categoría. Escalación a humano. Determinación de responsabilidad.</p>
+        <span class="badge badge-green" style="margin-top:8px">✅ Implementado</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ SLIDE 15: PROTOCOLOS ═══ -->
+<section class="slide no-overlap" id="s15">
+  <span class="slide-num">15 / 30</span>
+  <div class="content-layer">
+    <div class="slide-eyebrow"><span class="dot"></span> Protocolos Agénticos</div>
+    <h1>5 Protocolos para Interoperabilidad con IA</h1>
+    <p class="lead">ZIAY puede ser descubierto y usado por agentes externos (Gemini, ChatGPT, Copilot, Claude).</p>
+    <div class="table-wrap mt-6">
+      <table>
+        <thead><tr><th>Protocolo</th><th>Endpoint</th><th>Función</th><th>Estado</th></tr></thead>
+        <tbody>
+          <tr><td><strong>AP2</strong></td><td><code>/api/ap2/mandates</code></td><td>Mandatos firmados (Intent → Cart → Payment) con ed25519 / W3C VC</td><td><span class="badge badge-green">✅ Activo</span></td></tr>
+          <tr><td><strong>UCP</strong></td><td><code>/.well-known/ucp</code></td><td>Manifest de capacidades + state machine de checkout</td><td><span class="badge badge-green">✅ Activo</span></td></tr>
+          <tr><td><strong>ACP</strong></td><td><code>/.well-known/acp</code></td><td>Checkout para ChatGPT/Copilot con bearer auth firmado</td><td><span class="badge badge-green">✅ Activo</span></td></tr>
+          <tr><td><strong>MCP</strong></td><td><code>/api/mcp</code></td><td>JSON-RPC 2.0 con 4 tools para Claude/ChatGPT</td><td><span class="badge badge-green">✅ Activo</span></td></tr>
+          <tr><td><strong>A2A</strong></td><td><code>/.well-known/agent-card</code></td><td>Agent card para discovery agente-a-agente</td><td><span class="badge badge-green">✅ Activo</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="grid grid-4 mt-6">
+      <div class="card"><h3>4 MCP Tools</h3><p style="font-size:12px"><code>ziay_search_catalog</code><br><code>ziay_create_checkout</code><br><code>ziay_get_order_status</code><br><code>ziay_list_payment_methods</code></p></div>
+      <div class="card"><h3>4 UCP Capabilities</h3><p style="font-size:12px">Checkout<br>Identity Linking<br>Order<br>Payment Token Exchange</p></div>
+      <div class="card"><h3>3 AP2 Mandates</h3><p style="font-size:12px">Intent (usuario autoriza)<br>Cart (comercio arma)<br>Payment (pago verificado)</p></div>
+      <div class="card"><h3>ed25519 Signing</h3><p style="font-size:12px">Claves por tenant<br>W3C Verifiable Credentials<br>Non-repudiable</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ SLIDE 16: INTEGRACIONES ═══ -->
+<section class="slide no-overlap" id="s16">
+  <span class="slide-num">16 / 30</span>
+  <div class="content-layer">
+    <div class="slide-eyebrow"><span class="dot"></span> Módulo 9</div>
+    <h1>Catálogo e Integraciones — 19 Adaptadores</h1>
+    <p class="lead">Conexiones con e-commerce, logística, pagos, pauta y IA — todas con credenciales encriptadas.</p>
+    <div class="grid grid-4 mt-6">
+      <div class="card"><div class="card-icon" style="background:rgba(14,165,233,0.12)">🛒</div><h3>E-commerce (4)</h3><p>WooCommerce · Shopify · Supabase · Oracle</p></div>
+      <div class="card"><div class="card-icon" style="background:rgba(245,158,11,0.12)">🚚</div><h3>Logística (3)</h3><p>Dropi · 99envios · Aveonline</p></div>
+      <div class="card"><div class="card-icon" style="background:rgba(16,185,129,0.12)">💳</div><h3>Pagos (4 + 4 locales)</h3><p>MP · Wompi · Stripe · PayU<br>PSE · PIX · OXXO · SPEI</p></div>
+      <div class="card"><div class="card-icon" style="background:rgba(139,92,246,0.12)">🎯</div><h3>Pauta (2)</h3><p>Google Ads · TikTok Ads</p></div>
+    </div>
+    <div class="grid grid-3 mt-6">
+      <div class="card">
+        <h3>💸 Cotizador de Flete</h3>
+        <p>Ingresa ciudad + país + unidades → cotiza con Dropi, 99envios y Aveonline simultáneamente. Compara precios.</p>
+      </div>
+      <div class="card">
+        <h3>👁️ Identificador VLM</h3>
+        <p>Pega URL de imagen → la IA (glm-4.6v) identifica el producto. Devuelve SKU, categoría y confianza.</p>
+      </div>
+      <div class="card">
+        <h3>🔐 Credenciales Seguras</h3>
+        <p>Cada integración tiene panel expandible. Campos enmascarados (****). Encriptados AES-256-GCM. Rotación de secrets con grace period.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ SLIDE 17: MÓDULOS RESTANTES ═══ -->
+<section class="slide no-overlap" id="s17">
+  <span class="slide-num">17 / 30</span>
+  <div class="content-layer">
+    <div class="slide-eyebrow"><span class="dot"></span> Módulos 10-16</div>
+    <h1>Monetización · Logística · Marketplace · Novedades · Gobernanza · Configuración</h1>
+    <div class="grid grid-2 mt-6">
+      <div class="card">
+        <h3>💵 Monetización</h3>
+        <p>Comisión escalonada sobre GMV: 4.5% (inicial) → 3.0% (medio) → 1.75% (premium). Reconocimiento en 2 momentos: 50% datos completados + 50% despachado. Factura DIAN con CUFE.</p>
+      </div>
+      <div class="card">
+        <h3>🚚 Inteligencia Logística</h3>
+        <p>Scores de clientes (0-100, VIP/Regular/En riesgo/Nuevo). Scores de transportadoras (on-time rate). Guías estancadas >3 días. Alertas de comportamiento.</p>
+      </div>
+      <div class="card">
+        <h3>🏪 Marketplace Cross-brand</h3>
+        <p>Catálogo unificado de las 4 marcas. Referir leads entre marcas con comisión. Configurar compartir leads + porcentaje.</p>
+      </div>
+      <div class="card">
+        <h3>⚠️ Novedades</h3>
+        <p>Sistema de incidencias post-venta. Casos NV-YYYY-XXXXX. Reintentos de entrega. Historial con mensajes + evidencia fotográfica.</p>
+      </div>
+      <div class="card">
+        <h3>🛡️ Gobernanza</h3>
+        <p>Escalaciones pendientes (aprobar/rechazar). Decisiones de IA con confidence + revisión humana. Reglas: orden >$5M, primera compra, cambio de pago. Responsabilidad: merchant vs agent_provider.</p>
+      </div>
+      <div class="card">
+        <h3>⚙️ Configuración</h3>
+        <p>Estrategia de pago por canal (Anticipado/COD/Híbrido). Umbrales del trafficker. Credenciales de canales. Webhooks & endpoints. Integraciones con estado real.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ SLIDE 18: PÁGINAS PÚBLICAS ═══ -->
+<section class="slide no-overlap" id="s18">
+  <span class="slide-num">18 / 30</span>
+  <div class="content-layer">
+    <div class="slide-eyebrow"><span class="dot"></span> Páginas Públicas</div>
+    <h1>11 Páginas sin Login</h1>
+    <p class="lead">Storefront, status page, compliance legal y documentación API — todas accesibles sin autenticación.</p>
+    <div class="grid grid-3 mt-6">
+      <div class="card"><h3>🏪 Storefront</h3><p><code>/t/[slug]</code> — Tienda pública por marca con catálogo SSR + JSON-LD SEO</p></div>
+      <div class="card"><h3>📦 Producto</h3><p><code>/t/[slug]/p/[sku]</code> — Página individual con Schema.org Product</p></div>
+      <div class="card"><h3>📊 Status Page</h3><p><code>/status</code> — Estado del sistema + uptime 90 días + incidentes</p></div>
+      <div class="card"><h3>📋 Directorio</h3><p><code>/directorio</code> — Lista de marcas con links a storefronts</p></div>
+      <div class="card"><h3>🔒 Privacidad</h3><p><code>/privacy</code> — Política Ley 1581 (datos personales)</p></div>
+      <div class="card"><h3>📜 Términos</h3><p><code>/terms</code> — Términos de servicio + derecho al retracto</p></div>
+      <div class="card"><h3>⚖️ Legal</h3><p><code>/legal</code> — Hub legal con links a todas las políticas</p></div>
+      <div class="card"><h3>👨‍👧 Consentimiento</h3><p><code>/compliance/parental-consent</code> — Ley 1098 (menores)</p></div>
+      <div class="card"><h3>📖 API Docs</h3><p><code>/docs</code> — ReDoc con 93 paths OpenAPI 3.1</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ SLIDE 19: ATAJOS + PWA ═══ -->
+<section class="slide no-overlap" id="s19">
+  <span class="slide-num">19 / 30</span>
+  <div class="content-layer">
+    <div class="slide-eyebrow"><span class="dot"></span> Productividad</div>
+    <h1>Atajos de Teclado + PWA</h1>
+    <div class="grid grid-2 mt-6">
+      <div>
+        <h3>Atajos Globales</h3>
+        <div class="table-wrap mt-4">
+          <table>
+            <thead><tr><th>Atajo</th><th>Acción</th></tr></thead>
+            <tbody>
+              <tr><td><span class="kbd">⌘K</span> / <span class="kbd">Ctrl+K</span></td><td>Paleta de comandos</td></tr>
+              <tr><td><span class="kbd">?</span></td><td>Paleta (alternativa)</td></tr>
+              <tr><td><span class="kbd">1</span> - <span class="kbd">9</span></td><td>Saltar a vista N</td></tr>
+              <tr><td><span class="kbd">Enter</span></td><td>Enviar mensaje (mensajería)</td></tr>
+              <tr><td><span class="kbd">⇧+Enter</span></td><td>Salto de línea (mensajería)</td></tr>
+              <tr><td><span class="kbd">Tab</span></td><td>Navegar elementos</td></tr>
+              <tr><td><span class="kbd">Esc</span></td><td>Cerrar dialog/paleta</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div>
+        <h3>App Instalable (PWA)</h3>
+        <div class="card mt-4">
+          <h3>📱 Android (Chrome)</h3>
+          <p>Menú ⋮ → "Agregar a pantalla de inicio" → Confirmar</p>
+        </div>
+        <div class="card mt-4">
+          <h3>🍎 iOS (Safari)</h3>
+          <p>Botón Compartir → "Agregar a inicio" → Confirmar</p>
+        </div>
+        <div class="card mt-4">
+          <h3>💻 Desktop</h3>
+          <p>Icono de instalación en barra de direcciones → "Instalar"</p>
+        </div>
+        <div class="card mt-4" style="border-color:rgba(16,185,129,0.2)">
+          <h3 style="color:var(--green-l)">Funciones Offline</h3>
+          <p>Service worker cachea el shell · Navegación offline muestra última versión · Sync automático al reconectar</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ SLIDE 20: TROUBLESHOOTING ═══ -->
+<section class="slide no-overlap" id="s20">
+  <span class="slide-num">20 / 30</span>
+  <div class="content-layer">
+    <div class="slide-eyebrow"><span class="dot"></span> Solución de Problemas</div>
+    <h1>Problemas Comunes y Soluciones</h1>
+    <div class="grid grid-2 mt-6">
+      <div class="card">
+        <h3>🔑 No puedo iniciar sesión</h3>
+        <p style="font-size:12px">• Credenciales incorrectas → usa botones de demo<br>• Página en blanco → limpia cache (Ctrl+Shift+R)<br>• Redirect loop → borra cookies del sitio<br>• "Error crítico" → contacta soporte@ziay.co</p>
+      </div>
+      <div class="card">
+        <h3>📊 No veo datos</h3>
+        <p style="font-size:12px">• Todo en cero → verifica tenant seleccionado<br>• Skeleton infinito → click "Refrescar"<br>• "Failed to load" → click "Reintentar"<br>• Datos antiguos → click "Refrescar"</p>
+      </div>
+      <div class="card">
+        <h3>🤖 La IA no responde</h3>
+        <p style="font-size:12px">• Sin respuesta → verifica orquestador no en pausa<br>• Respuesta tardía → timeout 15s, usa fallback<br>• Respuesta incorrecta → confidence <0.6, escala a humano<br>• "Presupuesto excedido" → admin aumenta en Costos IA</p>
+      </div>
+      <div class="card">
+        <h3>💬 WhatsApp no recibe</h3>
+        <p style="font-size:12px">• No llegan mensajes → verifica webhook en Meta Business<br>• Mensajes duplicados → 3 capas de deduplicación, verifica logs<br>• No se pueden enviar → verifica token Cloud API</p>
+      </div>
+      <div class="card">
+        <h3>👛 No puedo retirar</h3>
+        <p style="font-size:12px">• "2FA requerido" → ingresa código TOTP<br>• "2FA inválido" → verifica código actual (30s)<br>• 2FA no configurado → activa en Wallet<br>• "Pending processing" → espera aprobación admin</p>
+      </div>
+      <div class="card">
+        <h3>💳 Pago no procesa</h3>
+        <p style="font-size:12px">• Error en checkout → verifica credenciales en Integraciones<br>• Webhook no llega → verifica URL en plataforma<br>• Pago duplicado → sistema idempotente, verifica Pedidos<br>• PSE/PIX no disponible → verifica credenciales .env</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ SLIDE 21: MÉTRICAS + CIERRE ═══ -->
+<section class="slide cover no-overlap" id="s21">
+  <div class="content-layer" style="display:flex;flex-direction:column;align-items:center">
+    <div class="cover-logo" style="font-size:60px">ZIAY</div>
+    <div style="font-size:24px;font-weight:700;margin:16px 0">Manual de Usuario v0.3.0</div>
+    <div style="font-size:15px;color:var(--dim);margin-bottom:40px">Comercio Agéntico · LATAM · Julio 2026</div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;max-width:700px;width:100%">
+      <div style="text-align:center"><div style="font-size:28px;font-weight:900;color:var(--green-l)">16</div><div style="font-size:11px;color:var(--dim)">Módulos</div></div>
+      <div style="text-align:center"><div style="font-size:28px;font-weight:900;color:var(--green-l)">26</div><div style="font-size:11px;color:var(--dim)">Agentes IA</div></div>
+      <div style="text-align:center"><div style="font-size:28px;font-weight:900;color:var(--green-l)">5</div><div style="font-size:11px;color:var(--dim)">Protocolos</div></div>
+      <div style="text-align:center"><div style="font-size:28px;font-weight:900;color:var(--green-l)">8</div><div style="font-size:11px;color:var(--dim)">Pagos</div></div>
+    </div>
+    <div style="margin-top:48px;display:flex;gap:32px;font-size:13px;color:var(--dimmer)">
+      <span>📧 soporte@ziay.co</span>
+      <span>📱 soporte@ziay.co</span>
+      <span>🌐 ziay.co</span>
+    </div>
+    <div style="margin-top:24px;font-size:11px;color:var(--dimmer)">Indisutex SAS © 2026 · Bogotá, Colombia</div>
+  </div>
+</section>
+
+<style>
+@keyframes bounce{0%,100%{opacity:0.3;transform:translateY(0)}50%{opacity:1;transform:translateY(-3px)}}
+</style>
+
+<script>
+// Progress bar
+window.addEventListener('scroll',function(){
+  var h=document.documentElement;
+  var p=(h.scrollTop/(h.scrollHeight-h.clientHeight))*100;
+  document.getElementById('progress').style.width=p+'%';
+});
+</script>
+
+</body>
+</html>

@@ -20681,3 +20681,71 @@ Stage Summary:
 - Manual creado en docs/MANUAL-USUARIO.md (1,016 líneas)
 - Cubre 100% de la plataforma v0.3.0
 - Lint: 0 errores
+
+---
+
+## SPRINT-MANUAL-USUARIO-HTML-001 — Presentación HTML del manual de usuario
+
+**Goal:** Generar presentación HTML del manual de usuario con simulación de interfaz, garantizando cero overlaps.
+
+**Entregables:**
+- `public/presentaciones/MANUAL-USUARIO.html` (983 líneas)
+- `upload/MANUAL-USUARIO.html` (copia)
+
+### Características
+
+- **21 slides** cubriendo toda la plataforma ZIAY
+- **10 mockups de UI** simulando la interfaz real:
+  1. Login screen con botones de demo
+  2. Dashboard completo (sidebar + topbar + KPIs + chart)
+  3. Mensajería (lista de conversaciones + chat + typing indicator + quick replies)
+  4. Catálogo visual (grid de productos con filtros)
+  5. Pedidos (tabla con estados, badges, retracto)
+  6. Kanban (6 columnas con cards, WIP limits, stuck indicator)
+  7. Orquestador (pipeline 9 pasos con progress bar)
+  8. Costos de IA (budget cards + KPIs + tabla por agente)
+  9. Atribución de pauta (tabla con veredictos + canibalización)
+  10. Wallet (balance + quick actions + transacciones)
+
+### Prevención de overlaps (CRÍTICO)
+
+1. **`no-overlap` class** en cada slide con `overflow:hidden; isolation:isolate`
+2. **`content-layer` class** en todo el contenido con `position:relative; z-index:1`
+3. **`decor` class** con `pointer-events:none; z-index:0; position:absolute`
+4. **Sin márgenes negativos** en ningún elemento
+5. **Cards con `z-index:1`** explícito para estar sobre backgrounds
+6. **Sin elementos `position:absolute`** que puedan cubrir texto
+7. **Tablas con `overflow-x:auto`** para scroll horizontal en mobile
+8. **Progress bar con `z-index:9999`** pero `position:fixed` (no overlap)
+
+### Estructura de slides
+
+| # | Slide | Contenido |
+|---|-------|-----------|
+| 1 | Portada | Logo ZIAY + versión + métricas clave |
+| 2 | Índice | 6 tarjetas con categorías del manual |
+| 3 | Login | Cuentas demo + mock login screen |
+| 4 | Roles | Matriz de permisos 6 roles × 15 módulos |
+| 5 | Navegación | Mock dashboard completo con sidebar 16 módulos |
+| 6 | Mensajería | Mock chat con conversaciones + IA + quick replies |
+| 7 | Catálogo | Mock grid de productos con filtros |
+| 8 | Pedidos | Mock tabla con estados + retracto |
+| 9 | Kanban | Mock 6 columnas con cards + WIP + stuck |
+| 10 | Orquestador | Mock pipeline 9 pasos con progress bar |
+| 11 | Costos IA | Mock budget cards + KPIs + tabla |
+| 12 | Atribución | Mock tabla de anuncios con veredictos |
+| 13 | Wallet | Mock balance + acciones + transacciones + info 2FA |
+| 14 | Compliance | 6 cards (Ley 2573/1581/1480/1098/DIAN/Gobernanza) |
+| 15 | Protocolos | Tabla + 4 cards (AP2/UCP/ACP/MCP/A2A) |
+| 16 | Integraciones | 4 cards por categoría + 3 cards de funciones |
+| 17 | Módulos 10-16 | 6 cards (Monetización/Logística/Marketplace/Novedades/Gobernanza/Config) |
+| 18 | Páginas públicas | 9 cards con URLs |
+| 19 | Atajos + PWA | Tabla de atajos + guía instalación PWA |
+| 20 | Troubleshooting | 6 cards con problemas/soluciones |
+| 21 | Cierre | Métricas + contactos |
+
+Stage Summary:
+- Presentación HTML completa (983 líneas, 21 slides)
+- 10 mockups de UI simulando la interfaz real
+- Cero overlaps garantizado (no-overlap + content-layer + z-index hierarchy)
+- Lint: 0 errores

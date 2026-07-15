@@ -6,6 +6,10 @@
 // returned a JSON "invoice" that is NOT a DIAN-compliant factura electrónica.
 // Colombia has mandated electronic invoicing (factura electrónica) since 2019.
 //
+// SPRINT-LEGAL-FINAL-001 — wires the Alegra provider adapter (see
+// `src/lib/adapters/dian-alegra.ts` + ADR-0020). `submitToDian()` now
+// performs the real DIAN submission instead of returning a stub.
+//
 // What DIAN requires (Decreto 745 de 2014):
 //   - Validated by DIAN via API (recepción + aceptación)
 //   - Numeración consecutiva
@@ -15,22 +19,16 @@
 //   - Envío al cliente via email + acceptance
 //
 // This module generates a factura electrónica payload with CUFE and persists
-// it on the `Invoice` model (orderId-scoped rows). In production, the actual
-// DIAN submission should integrate with a DIAN-authorized provider:
-//   - Alegra (https://www.alegra.com)
-//   - Bsale (https://www.bsale.co)
-//   - Siigo (https://www.siigo.com)
-//
-// For now, we generate the CUFE hash + structured invoice data that a
-// provider can consume, and mark the invoice as `dianStatus: 'pending_submission'`.
-// `submitToDian()` is the integration seam — currently a stub that logs the
-// intent + returns `accepted: false` so the caller knows provider wiring is
-// still TODO.
+// it on the `Invoice` model (orderId-scoped rows). The actual DIAN submission
+// is delegated to the Alegra adapter — Alegra handles the XML signing +
+// digital certificate management that would otherwise require implementing
+// the full Resolución DIAN 165 de 2023 Anexo Técnico ourselves.
 // ───────────────────────────────────────────────────────────────────────────
 
 import crypto from 'crypto'
 import { db } from '@/lib/db'
 import { getLogger } from '@/lib/logger'
+import { getAlegraDianAdapter } from '@/lib/adapters/dian-alegra'
 
 const log = getLogger('compliance/dian-invoicing')
 
@@ -275,29 +273,136 @@ export async function generateDianInvoice(
 }
 
 /**
- * Submit invoice to DIAN via provider (Alegra/Bsale/Siigo).
+ * Submit invoice to DIAN via the Alegra provider adapter.
  *
- * Integration seam — currently a stub that logs the intent + returns
- * `accepted: false` so the caller can surface "ready for provider
- * submission" without crashing. The real implementation should:
- *   1. Fetch the Invoice row + its `metadata` payload.
- *   2. Call the provider API (Alegra `/invoices`, Bsale `/documents.json`,
- *      Siigo `/v1/invoices`).
- *   3. On 200 + provider-accepted: set `dianStatus = 'accepted'`.
- *   4. On 4xx/5xx: set `dianStatus = 'rejected'` + persist provider error.
- *   5. Return `{ accepted, message }`.
+ * SPRINT-LEGAL-FINAL-001 — replaces the previous stub. The flow:
+ *   1. Resolve the Alegra adapter; if not configured (env vars missing),
+ *      return `accepted: false` with a clear Spanish message so the
+ *      caller (the `/api/compliance/dian-invoice/[invoiceId]/submit`
+ *      route) can surface the configuration gap.
+ *   2. Fetch the Invoice row + its `metadata` payload (the
+ *      `DianInvoiceData` JSON persisted by `generateDianInvoice()`).
+ *   3. Call `adapter.createInvoice(...)` — Alegra creates + stamps +
+ *      submits to DIAN in one call. Returns CUFE + DIAN status.
+ *   4. Persist the Alegra-issued CUFE + status + validation URL back
+ *      onto the Invoice row (overwrites the local CUFE — Alegra's is
+ *      the authoritative one post-submission).
+ *   5. Best-effort: send the PDF to the customer via `adapter.sendByEmail`.
+ *   6. Return `{ accepted, message, cufe? }` so the caller can render
+ *      the result + persist the CUFE on the client side if needed.
+ *
+ * Non-fatal failures (Alegra not configured, network error, 4xx/5xx)
+ * return `accepted: false` with a descriptive message — the Invoice row
+ * is left in its previous state (`pending_submission` or whatever it
+ * was) so the caller can retry.
  */
 export async function submitToDian(
   invoiceId: string,
-): Promise<{ accepted: boolean; message: string }> {
-  const provider = process.env.DIAN_PROVIDER || 'alegra'
+): Promise<{ accepted: boolean; message: string; cufe?: string }> {
+  const adapter = getAlegraDianAdapter()
 
-  // TODO: integrate real provider API.
-  // For now, log + return pending so the caller can surface the state.
-  log.info({ invoiceId, provider }, 'DIAN submission (stub — integrate provider)')
+  if (!adapter.isConfigured()) {
+    return {
+      accepted: false,
+      message:
+        'Alegra no configurado. Configurar ALEGRA_TOKEN y ALEGRA_USERNAME para envío a DIAN.',
+    }
+  }
+
+  // Fetch the invoice + its structured data payload.
+  const invoice = await db.invoice.findUnique({ where: { id: invoiceId } })
+  if (!invoice) {
+    return { accepted: false, message: 'Factura no encontrada' }
+  }
+
+  const invoiceData = invoice.metadata
+    ? (JSON.parse(invoice.metadata) as DianInvoiceData)
+    : null
+  if (!invoiceData) {
+    return {
+      accepted: false,
+      message: 'Datos de factura no encontrados (metadata vacía)',
+    }
+  }
+
+  // Map DianInvoiceItem (unitPrice) → Alegra item shape (price).
+  // DianInvoiceData.items uses `unitPrice`; Alegra's createInvoice expects
+  // `price`. The two shapes are intentionally not identical so the
+  // DIAN-local payload stays decoupled from the provider API shape.
+  const items = (invoiceData.items || []).map((i) => ({
+    code: i.code,
+    description: i.description,
+    quantity: i.quantity,
+    price: i.unitPrice,
+    total: i.total,
+  }))
+
+  // Create in Alegra — Alegra submits to DIAN synchronously when
+  // `stamp.generate: true` is set in the body (handled inside the adapter).
+  const result = await adapter.createInvoice({
+    orderId: invoice.orderId || '',
+    tenantId: invoice.tenantId,
+    invoiceNumber: invoice.invoiceNumber || '',
+    emitterNit: invoiceData.emitterNit || '',
+    emitterName: invoiceData.emitterName || '',
+    receiverNit: invoiceData.receiverNit || '',
+    receiverName: invoiceData.receiverName || '',
+    receiverEmail: invoiceData.receiverEmail || '',
+    items,
+    subtotal: invoiceData.subtotal || 0,
+    ivaAmount: invoiceData.ivaAmount || 0,
+    total: invoiceData.total || invoice.amount || 0,
+  })
+
+  if (result) {
+    // Update invoice with the Alegra-issued CUFE + DIAN status. This
+    // overwrites the local CUFE computed in `generateDianInvoice()` —
+    // Alegra's CUFE is the authoritative one (it includes Alegra's
+    // software PIN + technical number, not our placeholders).
+    await db.invoice.update({
+      where: { id: invoiceId },
+      data: {
+        cufe: result.cufe,
+        dianStatus: result.dianStatus,
+        dianValidationUrl: result.dianValidationUrl,
+      },
+    })
+
+    // Best-effort: send the PDF to the customer. Failures are logged
+    // inside the adapter + don't affect the submission result.
+    if (result.pdfUrl && invoiceData.receiverEmail) {
+      await adapter
+        .sendByEmail(result.id, invoiceData.receiverEmail)
+        .catch(() => {})
+    }
+
+    log.info(
+      {
+        invoiceId,
+        alegraId: result.id,
+        dianStatus: result.dianStatus,
+        cufe: result.cufe.slice(0, 16) + '...',
+      },
+      'DIAN invoice submitted via Alegra',
+    )
+
+    return {
+      accepted: result.dianStatus === 'accepted',
+      message:
+        result.dianStatus === 'accepted'
+          ? `Factura aceptada por DIAN. CUFE: ${result.cufe.slice(0, 16)}...`
+          : `Factura enviada a DIAN. Estado: ${result.dianStatus}. CUFE: ${result.cufe?.slice(0, 16) || 'N/A'}...`,
+      cufe: result.cufe,
+    }
+  }
+
+  // `createInvoice` returned null — Alegra was configured but the call
+  // failed (network, 4xx, 5xx). The adapter already logged the error.
+  log.warn({ invoiceId }, 'Alegra createInvoice returned null — submission failed')
 
   return {
     accepted: false,
-    message: `DIAN submission via ${provider} not yet integrated. Invoice generated with CUFE — ready for provider submission.`,
+    message:
+      'Error al enviar factura a DIAN via Alegra. Revisar logs del servidor.',
   }
 }

@@ -23,6 +23,7 @@
 
 import { db } from '@/lib/db'
 import { getLogger } from '@/lib/logger'
+import { getPaymentAdapter } from '@/lib/adapters/payment-registry'
 
 const log = getLogger('compliance/retracto')
 
@@ -67,20 +68,24 @@ export interface RetractoResult {
 /**
  * Process a retracto request for an order.
  *
- * Steps (all inside a single DB transaction for atomicity):
+ * Steps:
  *   1. Validate the order exists + belongs to the tenant.
  *   2. Check the 5-day retracto window — reject if expired (Spanish msg).
  *   3. Reject if already cancelled.
  *   4. Set `status = 'cancelled'`, `cancelReason`, `cancelledAt`.
+ *      (Steps 1-4 inside a single DB transaction for atomicity.)
  *   5. Create an `OrderEvent` (type `retracto_requested`) with the refund
  *      deadline in the note (auditable timeline).
  *   6. Create an `AuditLog` row tagged `compliance.retracto` for the
  *      compliance audit trail.
- *
- * The actual payment-gateway refund (`paymentAdapter.refund(...)`) is NOT
- * triggered here — it's a follow-up task that depends on which gateway
- * processed the original payment (Wompi/Stripe/MercadoPago/PayU/PSE/PIX).
- * The refund deadline is computed + persisted so ops/finance can track SLA.
+ *   7. SPRINT-LEGAL-FINAL-001 — best-effort automated refund via the
+ *      payment gateway that processed the original payment (resolved by
+ *      `order.paymentGateway`). Fire-and-forget: the order cancellation
+ *      in step 4 is the source of truth; if the refund fails, an
+ *      `OrderEvent` (`refund_failed` / `refund_error`) is persisted so
+ *      ops/finance can process it manually before the 30-day deadline.
+ *      Non-blocking — the retracto itself always succeeds if the window
+ *      check passes.
  */
 export async function processRetracto(
   orderId: string,
@@ -158,12 +163,103 @@ export async function processRetracto(
     'Retracto processed (Ley 1480 Art 47)',
   )
 
-  // TODO: Initiate refund via payment gateway (if payment was processed).
-  // This would call paymentAdapter.refund(order.paymentRef, order.total) —
-  // the adapter is selected by `order.paymentGateway` (wompi | stripe |
-  // mercadopago | payu | pse | pix). Tracked as a follow-up — the refund
-  // deadline is already persisted so ops/finance can track SLA manually
-  // until the automated refund is wired.
+  // ── SPRINT-LEGAL-FINAL-001 — automated refund post-retracto ──────────
+  // Fire-and-forget: the order cancellation above (in the $transaction)
+  // is the source of truth. The refund is best-effort automation — if it
+  // fails, the audit log + OrderEvent below document the failure for
+  // manual processing before the 30-day deadline (Ley 1480 Art 47).
+  //
+  // Only attempt the refund if the order was actually paid via a gateway
+  // (skipped for COD / unpaid / already-refunded orders). The adapter is
+  // resolved by `order.paymentGateway` (mercadopago | wompi | stripe |
+  // payu). Local methods (pse / pix) return null from
+  // `getPaymentAdapter` — they don't implement the refund contract, so
+  // the refund is left for manual processing (logged below).
+  if (
+    order.paymentStatus === 'paid' &&
+    order.paymentRef &&
+    order.paymentGateway
+  ) {
+    try {
+      const adapter = getPaymentAdapter(order.paymentGateway)
+      if (adapter) {
+        const refundResult = await adapter.refund(order.paymentRef, order.total)
+
+        if (refundResult.success) {
+          // Update order payment status to refunded.
+          await db.order.update({
+            where: { id: orderId },
+            data: { paymentStatus: 'refunded' },
+          })
+
+          // OrderEvent — auditable timeline entry. OrderEvent has no
+          // tenantId in the schema (only orderId), so we don't pass it
+          // here (same as the retracto_requested event above). The
+          // PaymentAdapter contract returns `paymentId` (the gateway's
+          // refund reference), not `refundId` — see payment-adapter.ts.
+          await db.orderEvent.create({
+            data: {
+              orderId,
+              type: 'refund_processed',
+              note: `Reembolso procesado automáticamente por retracto. Ref: ${refundResult.paymentId || 'N/A'}`,
+            },
+          })
+
+          log.info(
+            { orderId, refundRef: refundResult.paymentId },
+            'Refund processed post-retracto',
+          )
+        } else {
+          // Refund failed — log + create alert event for manual
+          // processing before the 30-day deadline.
+          await db.orderEvent.create({
+            data: {
+              orderId,
+              type: 'refund_failed',
+              note: `Reembolso falló: ${refundResult.message || 'unknown'}. Procesar manualmente antes del ${refundDeadline.toLocaleDateString('es-CO')}.`,
+            },
+          })
+
+          log.warn(
+            { orderId, error: refundResult.message },
+            'Refund failed post-retracto',
+          )
+        }
+      } else {
+        // Gateway not supported by getPaymentAdapter (e.g. local methods
+        // pse/pix). Log so ops can pick it up — non-blocking.
+        await db.orderEvent.create({
+          data: {
+            orderId,
+            type: 'refund_failed',
+            note: `Gateway ${order.paymentGateway} no soporta reembolso automático. Procesar manualmente antes del ${refundDeadline.toLocaleDateString('es-CO')}.`,
+          },
+        })
+
+        log.warn(
+          { orderId, gateway: order.paymentGateway },
+          'No refund adapter for gateway post-retracto (manual refund required)',
+        )
+      }
+    } catch (error) {
+      // Non-blocking — the order is already cancelled, refund can be
+      // processed manually before the 30-day deadline.
+      log.error(
+        { err: error, orderId },
+        'Refund exception post-retracto (non-blocking)',
+      )
+
+      await db.orderEvent
+        .create({
+          data: {
+            orderId,
+            type: 'refund_error',
+            note: `Error al procesar reembolso: ${error instanceof Error ? error.message : 'unknown'}. Procesar manualmente antes del ${refundDeadline.toLocaleDateString('es-CO')}.`,
+          },
+        })
+        .catch(() => {}) // best-effort — don't fail the retracto on event-log error
+    }
+  }
 
   return {
     accepted: true,

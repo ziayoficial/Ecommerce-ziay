@@ -18182,3 +18182,268 @@ $ git tag --list | grep v0.3.0                  # → v0.3.0
    bump (+ matching `eslint-config-next` + `bun.lock` regen). If that
    bump is intentional, an ADR documenting the minor-version upgrade
    + its compatibility testing would close the loop.
+
+---
+
+## SPRINT-LEGAL-FINAL-001 — Automated refund post-retracto + DIAN Alegra adapter
+
+Closes the last remaining gap from `AUDIT-LEGAL-COMPLIANCE-001` (Legal
+compliance 9.8 → 10.0). Two integrations wired, no schema changes, no
+test files touched, no `src/components/` files touched. All 891 tests
+pass, lint + tsc both exit 0.
+
+### 1. Automated refund post-retracto (`src/lib/compliance/retracto.ts`)
+
+**Before:** `processRetracto()` cancelled the order + persisted the
+30-day refund deadline (Ley 1480 Art 47) in a `$transaction` + logged a
+TODO comment that the actual payment-gateway refund was a follow-up.
+
+**After:** Added a fire-and-forget refund block after the
+`$transaction`. The cancellation (inside the transaction) remains the
+source of truth; the refund is best-effort automation. Three outcomes
+are handled:
+
+| Outcome | Action |
+|---------|--------|
+| Refund success | `Order.paymentStatus` → `'refunded'`; `OrderEvent` type `refund_processed` with the gateway refund ref; `log.info` |
+| Refund failed (`refundResult.success === false`) | `OrderEvent` type `refund_failed` with the gateway error message + manual-processing deadline; `log.warn` |
+| Adapter not found (e.g. `paymentGateway === 'pse'`/`'pix'` — local methods that don't implement the refund contract) | `OrderEvent` type `refund_failed` with "gateway no soporta reembolso automático"; `log.warn` |
+| Exception thrown by `adapter.refund(...)` | `OrderEvent` type `refund_error` with the exception message; `log.error`. The event-log write itself is wrapped in `.catch(() => {})` so a DB failure can't fail the already-successful retracto. |
+
+The block only fires when `order.paymentStatus === 'paid' &&
+order.paymentRef && order.paymentGateway` — COD / unpaid / already-
+refunded orders skip it entirely. The 30-day deadline (`refundDeadline`)
+is included in every `refund_failed` / `refund_error` note so ops/finance
+knows the SLA when picking up the manual queue.
+
+**Adapter resolution:** `getPaymentAdapter(order.paymentGateway)` —
+returns the MercadoPago/Wompi/Stripe/PayU adapter for global gateways,
+`null` for local methods (pse/pix/oxxo/spei). The null branch is handled
+explicitly (see outcome table row 3) instead of silently skipping, so
+ops sees a clear "manual refund required" event for local-method
+orders.
+
+**Two intentional deviations from the task spec (both required for the
+code to compile + match the existing schema/contract):**
+
+1. **`refundResult.paymentId` instead of `refundResult.refundId`** —
+   the `PaymentAdapter` contract (`src/lib/adapters/payment-adapter.ts`)
+   returns `paymentId?: string` on `PaymentResult`, not `refundId`. The
+   field carries the gateway's refund reference (e.g. Stripe `re_xxx`,
+   Wompi `xxx_REF`). Using `refundId` would have failed tsc.
+
+2. **`refundResult.message` instead of `refundResult.error`** — same
+   reason. `PaymentResult` has `message?: string` for human-readable
+   errors (used by `stubNoCredentials` + every adapter's failure path).
+
+3. **`tenantId` omitted from `OrderEvent.create` calls** — the
+   `OrderEvent` schema has no `tenantId` column (only `orderId`), as
+   the existing `retracto_requested` event in the same file already
+   documents. Including `tenantId` would have failed tsc against the
+   Prisma generated types. The audit trail is preserved via the
+   `AuditLog` row (which DOES have `tenantId`) created inside the
+   `$transaction`.
+
+**Doc-comment update:** rewrote the `processRetracto()` JSDoc to add
+step 7 (the automated refund) and removed the stale TODO comment about
+"initiate refund via payment gateway".
+
+### 2. DIAN Alegra adapter (`src/lib/adapters/dian-alegra.ts` — NEW)
+
+New file per ADR-0020. Wraps the Alegra REST API
+(`https://api.alegra.com/api/v1`) for factura electrónica submission,
+status polling, and PDF email delivery. Singleton via
+`getAlegraDianAdapter()`.
+
+**Class `AlegraDianAdapter`:**
+- Constructor reads `ALEGRA_TOKEN` + `ALEGRA_USERNAME` from env, logs a
+  warning if either is missing (non-fatal — the adapter still
+  instantiates, `isConfigured()` returns false).
+- `isConfigured()` — true iff both env vars set.
+- `headers` getter — `Authorization: Bearer ${token}` +
+  `Content-Type: application/json` + `X-Account-Id: ${username}`.
+- `createInvoice(params)` — POST `/invoices` with `stamp.generate: true`
+  (tells Alegra to sign + submit to DIAN). 15s timeout via
+  `AbortSignal.timeout`. Returns `{ id, number, cufe, dianStatus,
+  dianValidationUrl, pdfUrl }` on 2xx, `null` on any error.
+- `checkStatus(invoiceId)` — GET `/invoices/${invoiceId}` for polling
+  the async DIAN validation. 10s timeout. Returns
+  `{ dianStatus, cufe? }` or `null`.
+- `sendByEmail(invoiceId, email)` — POST
+  `/invoices/${invoiceId}/email`. Best-effort, returns boolean.
+
+**Type-safety hardening vs. the task spec:** the task spec consumed the
+Alegra JSON response with untyped `data.id`, `data.number?.string`,
+`data.cufe`, etc. — fine at runtime but `tsc --noEmit` flags implicit
+`any`. Added an inline `as { ... }` cast on `res.json()` for both
+`createInvoice` and `checkStatus` so the response shape is documented +
+the field accesses type-check. Also handles Alegra's polymorphic
+`number` field (string in some API versions, `{ string: "..." }` tagged
+union in others) explicitly via `typeof data.number === 'string'`.
+
+**No tests added** — the task rules explicitly forbid touching test
+files. The adapter is straightforward fetch-and-parse; the existing
+DIAN tests (`tests/unit/compliance-edge-cases.test.ts` §3) cover the
+CUFE calculation + invoice generation path, which is unchanged.
+
+### 3. `submitToDian()` wired to Alegra (`src/lib/compliance/dian-invoicing.ts`)
+
+**Before:** stub that logged `"DIAN submission (stub — integrate
+provider)"` and returned `accepted: false` with the message `"DIAN
+submission via alegra not yet integrated..."`.
+
+**After:** full implementation. Flow:
+1. `getAlegraDianAdapter()` → if `!isConfigured()`, return
+   `accepted: false` with Spanish message naming the missing env vars.
+2. `db.invoice.findUnique({ where: { id: invoiceId } })` → 404 msg
+   "Factura no encontrada".
+3. Parse `invoice.metadata` as `DianInvoiceData` → 400 msg if empty.
+4. Map `DianInvoiceItem[]` (which uses `unitPrice`) → the Alegra item
+   shape (which uses `price`). The two shapes are intentionally
+   decoupled so the local DIAN payload (CUFE + Anexo Técnico fields)
+   stays independent of the provider API surface.
+5. `adapter.createInvoice(...)` → on success, persist the Alegra-issued
+   CUFE + `dianStatus` + `dianValidationUrl` back onto the Invoice row
+   (overwrites the local CUFE computed in `generateDianInvoice()` —
+   Alegra's is authoritative post-submission because it includes
+   Alegra's software PIN + technical number, not our placeholders).
+6. Best-effort `adapter.sendByEmail()` when the PDF URL + receiver
+   email are both present (wrapped in `.catch(() => {})` so an email
+   failure can't fail the submission).
+7. Return `{ accepted: boolean, message: string, cufe?: string }`.
+
+**Return type widened** from `{ accepted; message }` to
+`{ accepted; message; cufe?: string }`. The single caller
+(`/api/compliance/dian-invoice/[invoiceId]/submit/route.ts`) spreads
+`...result` into its `NextResponse.json(...)` so the new optional
+`cufe` field flows through to the API response with no route-handler
+changes needed. Backward-compatible.
+
+**Module header rewritten** — removed the "in production, the actual
+DIAN submission should integrate with a DIAN-authorized provider"
+paragraph + the "currently a stub" sentence, added a
+SPRINT-LEGAL-FINAL-001 paragraph pointing at the Alegra adapter +
+ADR-0020.
+
+### 4. `.env.example` — Alegra env vars
+
+Added a 17-line block immediately after the existing DIAN section
+(`DIAN_PROVIDER` / `DIAN_SOFTWARE_ID`). Documents `ALEGRA_API_BASE`
+(optional, defaults to the production API), `ALEGRA_TOKEN` (Bearer
+token), `ALEGRA_USERNAME` (account id, sent as `X-Account-Id` header).
+All three are commented out so the default state is "not configured" —
+matches the adapter's graceful-degradation contract.
+
+### Verification (all green)
+
+```bash
+$ bun run lint                                # → exit 0, 0 warnings
+$ npx tsc --noEmit                            # → exit 0, no output
+$ bunx vitest run                             # → 891/891 passed (48 files)
+
+# Spec verification greps
+$ grep "adapter.refund" src/lib/compliance/retracto.ts
+                                              # → line 186: refund call wired
+$ test -f src/lib/adapters/dian-alegra.ts && echo EXISTS
+                                              # → EXISTS
+$ grep "getAlegraDianAdapter" src/lib/compliance/dian-invoicing.ts
+                                              # → line 31 (import) + 302 (call)
+$ grep "ALEGRA_TOKEN" .env.example            # → 3 matches (existing comment +
+                                              #   new doc block + commented var)
+```
+
+### Rules compliance
+
+- ✓ **No `src/components/` files touched** — only `src/lib/compliance/`,
+  `src/lib/adapters/`, and `.env.example` modified.
+- ✓ **No test files touched** — no files under `tests/` or
+  `**/__tests__/` modified. The 891-test suite passes unchanged.
+- ✓ **No `prisma/schema.prisma` changes** — the existing `OrderEvent`,
+  `Order`, and `Invoice` models already have all the fields needed
+  (`Order.paymentStatus` / `paymentRef` / `paymentGateway` / `total`;
+  `OrderEvent.orderId` / `type` / `note`; `Invoice.cufe` / `dianStatus`
+  / `dianValidationUrl` / `invoiceNumber` / `metadata`).
+- ✓ **Spanish error messages** — every user-facing message in both new
+  code paths is Spanish (e.g. "Reembolso falló: ...", "Alegra no
+  configurado. Configurar ALEGRA_TOKEN y ALEGRA_USERNAME para envío a
+  DIAN.", "Factura aceptada por DIAN. CUFE: ..."). Code comments +
+  log messages are English (technical audience, consistent with the
+  rest of the codebase).
+- ✓ **Worklog appended** — this section.
+
+### Files changed summary
+
+**Existing files modified (3):**
+
+- `src/lib/compliance/retracto.ts` — added `getPaymentAdapter` import;
+  rewrote `processRetracto()` JSDoc (step 7 added, stale TODO removed);
+  added a ~95-line fire-and-forget refund block after the
+  `$transaction` (handles success / failure / no-adapter / exception
+  paths with appropriate `OrderEvent` rows + log levels).
+- `src/lib/compliance/dian-invoicing.ts` — added `getAlegraDianAdapter`
+  import; rewrote module header (removed "stub" language, added
+  SPRINT-LEGAL-FINAL-001 + ADR-0020 pointer); replaced the stub
+  `submitToDian()` with a full Alegra-backed implementation (~115
+  lines). Return type widened to include optional `cufe`.
+- `.env.example` — added a 17-line Alegra env-var block (3 commented-out
+  vars: `ALEGRA_API_BASE`, `ALEGRA_TOKEN`, `ALEGRA_USERNAME`) with
+  documentation of each + the graceful-degradation contract.
+
+**New files (1):**
+
+- `src/lib/adapters/dian-alegra.ts` — `AlegraDianAdapter` class +
+  `getAlegraDianAdapter()` factory. Three methods (`createInvoice`,
+  `checkStatus`, `sendByEmail`), each with timeout-bounded `fetch` +
+  structured logging on failure. Typed Alegra response shapes via
+  inline `as` casts. Singleton via module-level `_adapter`.
+
+### Next actions (follow-up, out of scope)
+
+1. **Unit-test the new refund block.** The fire-and-forget path has
+   four branches (success / refund-failed / no-adapter / exception)
+   that aren't covered by `tests/unit/compliance-edge-cases.test.ts`
+   (which only exercises the pure-function retracto helpers). A
+   `tests/unit/retracto-refund.test.ts` that mocks
+   `getPaymentAdapter` to return each branch + asserts the
+   `OrderEvent` rows + `Order.paymentStatus` updates would lock in
+   the contract. ~1.5 hours (mock setup is non-trivial — the
+   `getPaymentAdapter` factory + `db.orderEvent.create` both need
+   stubs). Tracked as a follow-up — the task rules forbid touching
+   test files this sprint.
+
+2. **Alegra webhook for async DIAN status.** `checkStatus()` polls,
+   which means an extra API call per invoice + a 5-60s window where
+   the DIAN status in our DB lags Alegra. Alegra supports webhook
+   callbacks for status changes — registering one would let us drop
+   the polling step + update `Invoice.dianStatus` in real time.
+   Requires a new `/api/webhooks/alegra` route + signature
+   verification. ~3 hours. Out of scope for this sprint (the
+   polling path works; the webhook is an optimization).
+
+3. **Retry queue for failed refunds.** When `adapter.refund(...)`
+   fails, the `OrderEvent` (`refund_failed` / `refund_error`) is the
+   only signal — ops has to read the event log + manually retry. A
+   `RefundRetry` table + a daily cron that re-attempts failed refunds
+   approaching the 30-day deadline would close the loop. ~4 hours.
+   Out of scope for this sprint (the manual-processing path is
+   documented + the deadline is in every failure note).
+
+4. **Multi-provider support (Bsale / Siigo).** The current
+   `submitToDian()` is hardcoded to Alegra (the `DIAN_PROVIDER` env
+   var is read by the original stub but ignored by the new
+   implementation). When a second tenant needs Bsale or Siigo, the
+   `getAlegraDianAdapter()` factory should be generalized to a
+   `getDianAdapter(provider)` registry mirroring
+   `getPaymentAdapter`. ~2 hours per provider (each has its own API
+   shape). Out of scope — ADR-0020 chose Alegra as the initial
+   provider; the adapter pattern makes the future swap
+   straightforward.
+
+5. **CUFE reconciliation.** When `submitToDian()` overwrites the
+   local CUFE with Alegra's, the local CUFE (computed with our
+   placeholder `DIAN_SOFTWARE_ID` + `TEC-${Date.now()}` technical
+   number) is lost. Storing it as `Invoice.metadata.localCufe`
+   before the overwrite would let us reconcile in case of a dispute.
+   ~30 minutes. Out of scope for this sprint (Alegra's CUFE is the
+   legally authoritative one; the local CUFE is a development-time
+   artifact).

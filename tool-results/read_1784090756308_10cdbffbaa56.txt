@@ -1,0 +1,659 @@
+     1→# ZIAY — Documento Técnico Completo v1.0
+     2→## Comercio Agéntico para E-commerce y C-commerce en LATAM
+     3→
+     4→> **Propósito:** Este documento contiene TODA la información técnica del proyecto ZIAY, sin omitir nada. Está diseñado para que otra IA (o equipo de desarrollo) pueda entender la foto completa desde todos los ángulos: arquitectura, features, código, gaps, escalabilidad y roadmap.
+     5→
+     6→---
+     7→
+     8→## 1. IDENTIDAD
+     9→
+    10→| Atributo | Valor |
+    11→|---|---|
+    12→| **Nombre del producto** | ZIAY |
+    13→| **Tagline** | Comercio Conversacional + Atribución Inteligente |
+    14→| **Empresa** | Indisutex SAS |
+    15→| **Mercado** | LATAM (Colombia, México, Perú, Chile, Argentina) |
+    16→| **Marcas demo** | Saramantha, Sublimados Majestic, Lovely Pijamas, Sueño de Reina |
+    17→| **Dominio planificado** | ziay.co |
+    18→| **Email contacto** | ventas@ziay.co |
+    19→| **Estado** | ~92% producción-ready (ver §10 Gaps) |
+    20→
+    21→---
+    22→
+    23→## 2. CIFRAS REALES VERIFICADAS EN DISCO
+    24→
+    25→| Recurso | Cantidad |
+    26→|---|---|
+    27→| Modelos Prisma | **62** |
+    28→| API Routes | **52** |
+    29→| Dashboard views (incluyendo sub-componentes) | **24** (14 navegables + 10 sub-componentes) |
+    30→| Agentes IA | **26** (28 archivos en prompts/) |
+    31→| Adapters | **22** (13 funcionales + 4 interfaces + 5 registros/utils) |
+    32→| Service layer | **10** archivos |
+    33→| Lib modules | **93** archivos en src/lib/ |
+    34→| Total archivos src/ | **238** (.ts + .tsx) |
+    35→| Test files | **10** (6 unit + 4 E2E = 108 tests) |
+    36→| Webhooks | **6** (con HMAC + idempotencia) |
+    37→| SSR pages | **5** (/login, /, /t/[slug], /t/[slug]/p/[sku], /vendedor) |
+    38→| Git commits | **45** |
+    39→| Worklog | **2,810 líneas** |
+    40→| Lint | 0 errors |
+    41→| TypeScript | 0 errors |
+    42→| Unit tests | 65/65 pass |
+    43→
+    44→---
+    45→
+    46→## 3. STACK TECNOLÓGICO
+    47→
+    48→### Core
+    49→
+    50→| Capa | Tecnología | Versión | Detalle |
+    51→|---|---|---|---|
+    52→| Framework | Next.js 16 | 16.1.3 | App Router, SSR + SPA híbrido, Turbopack |
+    53→| UI Library | React | 19 | use(), actions, streaming |
+    54→| Lenguaje | TypeScript | 5.x | strict mode, 0 errores |
+    55→| ORM | Prisma | 6.11.1 | 62 modelos, SQLite dev → PostgreSQL prod |
+    56→| Styling | Tailwind CSS | 4.x | oklch colors, dark mode, @custom-variant |
+    57→| UI Components | shadcn/ui | New York | 48 componentes (Radix primitives) |
+    58→| Runtime | Node.js | 20+ | Bun para dev/scripts |
+    59→
+    60→### Backend
+    61→
+    62→| Componente | Tecnología | Detalle |
+    63→|---|---|---|
+    64→| API | Next.js Route Handlers | 52 rutas REST |
+    65→| Auth | NextAuth.js v4 | Credentials + JWT + cookies httpOnly |
+    66→| Real-time | Socket.io 4.8.3 | Mini-service puerto 3003, rooms por tenant+conversation |
+    67→| Rate limiting | In-memory (middleware) | 60 req/min per IP global |
+    68→| Cache | In-memory LRU | Max 1000 entries, TTL, GC cada 5 min |
+    69→| Queue | BullMQ (opcional) | Env-gated, inline fallback en dev |
+    70→| Logger | pino + pino-pretty | Redacción de secrets, ISO timestamps |
+    71→| Error tracking | Sentry (opcional) | captureError() en APIs críticas |
+    72→| 2FA | otpauth | TOTP RFC 6238, AES-256-GCM encryption at rest |
+    73→
+    74→### IA
+    75→
+    76→| Componente | Tecnología | Detalle |
+    77→|---|---|---|
+    78→| LLM primario | ZAI (glm-4.6) | z-ai-web-dev-sdk, fallback determinístico por agente |
+    79→| VLM | ZAI (glm-4.6v) | Identificación de productos por imagen |
+    80→| Multi-provider | LLM Adapter | 4 providers: Zai, OpenAI, xAI, Ollama |
+    81→| Vision pipeline | src/lib/vision/pipeline.ts | identifyImage + enrichProductImage |
+    82→| Embeddings | src/lib/embeddings/service.ts | Hash determinístico 256-dim (dev), pgvector (prod) |
+    83→
+    84→### Base de Datos
+    85→
+    86→| Modo | Tecnología | Detalle |
+    87→|---|---|---|
+    88→| Dev | SQLite | file:./db/custom.db, 344KB |
+    89→| Prod | PostgreSQL 16 | docker-compose, PgBouncer, RLS policies |
+    90→| Migraciones | Prisma Migrate | prisma/migrations/0_init/migration.sql (1125 líneas) |
+    91→| Índices | 91 @@index en 45 modelos | tenantId, FKs, filtros comunes |
+    92→| RLS | src/lib/rls.ts | SQL policies para 10 modelos críticos |
+    93→
+    94→### Infraestructura
+    95→
+    96→| Componente | Tecnología | Detalle |
+    97→|---|---|---|
+    98→| Container | Docker | Multi-stage Dockerfile, node:20-alpine, standalone |
+    99→| Orquestación | Docker Compose | 11 servicios (postgres, redis, minio, nocodb, n8n, ollama, uptime-kuma, app, chat-service, caddy, mailhog) |
+   100→| Reverse proxy | Caddy 2.x | Auto-HTTPS, XTransformPort dynamic |
+   101→| CI/CD | GitHub Actions | 2 workflows: ci.yml (lint→tsc→test→build→e2e), deploy.yml |
+   102→| Monitoring | Uptime Kuma | /api/health/uptime ping |
+   103→| Backups | scripts/backup.sh | SQLite .backup + gzip + retención 30 días |
+   104→| Restore | scripts/restore.sh | Con safety backup pre-restore |
+   105→
+   106→---
+   107→
+   108→## 4. ARQUITECTURA
+   109→
+   110→### Diagrama
+   111→
+   112→```
+   113→┌─────────────────────────────────────────────────────────┐
+   114→│                    COMPRADOR (Cliente)                    │
+   115→│              WhatsApp · Messenger · Instagram             │
+   116→└──────────────────────────┬──────────────────────────────┘
+   117→                           │
+   118→                           ▼
+   119→┌─────────────────────────────────────────────────────────┐
+   120→│                CADDY GATEWAY (:81)                       │
+   121→│           Reverse proxy + auto-HTTPS                     │
+   122→│     XTransformPort → :3000 (Next.js) | :3003 (Socket)   │
+   123→└──────────┬───────────────────────────────┬─────────────┘
+   124→           │                               │
+   125→           ▼                               ▼
+   126→┌──────────────────────┐    ┌──────────────────────────┐
+   127→│  NEXT.JS 16 (:3000)  │    │  SOCKET.IO (:3003)       │
+   128→│  SSR + SPA híbrido   │    │  Rooms por tenant+conv   │
+   129→│                      │    │  Auth gate               │
+   130→│  52 API Routes       │◄──►│  Redis adapter (opcional)│
+   131→│  14 Dashboard views  │    │  Graceful shutdown       │
+   132→│  5 SSR Pages         │    └──────────────────────────┘
+   133→│  Auth middleware      │
+   134→│  Rate limiting (60/min)│
+   135→│  LRU Cache (1000 max) │
+   136→└──────────┬───────────┘
+   137→           │
+   138→    ┌──────┼──────┬──────────┬──────────┐
+   139→    ▼      ▼      ▼          ▼          ▼
+   140→  ┌────┐┌────┐┌────────┐┌────────┐┌────────┐
+   141→  │Svc ││ZAI ││Adapters││Webhooks││  Queue │
+   142→  │Layer││LLM ││  22    ││   6    ││BullMQ  │
+   143→  │ 10 ││+VLM││        ││HMAC+Idem││(opc)  │
+   144→  └──┬─┘└────┘└────────┘└────────┘└────────┘
+   145→     │
+   146→     ▼
+   147→┌─────────────────────────────────────────────────────────┐
+   148→│         SQLite (dev) → PostgreSQL (prod)                 │
+   149→│    62 modelos · 91 índices · RLS policies · migraciones  │
+   150→└─────────────────────────────────────────────────────────┘
+   151→```
+   152→
+   153→### Service Layer (NUEVA en Sprint 6)
+   154→
+   155→```
+   156→src/lib/services/
+   157→├── order.service.ts         — getOrders, getOrderById, updateOrder, getOrdersForKanban
+   158→├── conversation.service.ts  — getConversations, getConversationById, sendMessage, updateStatus
+   159→├── catalog.service.ts       — getProducts, getProductBySku, syncCatalog, sendToChat
+   160→├── novedades.service.ts     — getCases, getCaseById, createCase, updateCase, addEvidence
+   161→├── ads.service.ts           — getAds, updateAd, importAdSpend
+   162→├── monetization.service.ts  — getGMV, getCommissions, generateInvoice, getTramo
+   163→├── logistics.service.ts     — getScores, getStuckGuides, getAlerts, getCarrierScores
+   164→├── marketplace.service.ts   — getListings, getMyListings, getLeadConfig, getReferrals
+   165→├── overview.service.ts      — getKPIs, getChartData
+   166→└── index.ts                 — barrel export
+   167→```
+   168→
+   169→**Estado:** Los 10 servicios existen con try/catch + captureError + logging. Las 52 APIs aún llaman Prisma directamente (no migradas a services todavía). Los services están listos para el refactor de migración.
+   170→
+   171→### Seguridad (defense-in-depth)
+   172→
+   173→| Capa | Implementación |
+   174→|---|---|
+   175→| Auth | NextAuth v4 + Credentials + JWT + cookies httpOnly |
+   176→| RBAC | 6 roles: admin, agent, trafficker, finance, operator, marketing |
+   177→| Middleware | getToken() — rutas públicas vs protegidas, 401 JSON / 307 redirect |
+   178→| Auth coverage | 38/52 APIs con auth (14 públicas intencionalmente: webhooks, health, public) |
+   179→| HMAC Webhooks | 6 webhooks verifican firma (timingSafeEqual) |
+   180→| Rate limiting | 60 req/min per IP en TODAS las APIs protegidas (middleware edge) |
+   181→| 2FA TOTP | Google Authenticator, AES-256-GCM encryption at rest, backup codes con scrypt |
+   182→| RLS | SQL policies para PostgreSQL (10 modelos críticos) |
+   183→| Security headers | X-Frame-Options, X-Content-Type-Options, HSTS, Referrer-Policy, Permissions-Policy, CSP |
+   184→| Secret redaction | pino redacta password, secret, token, apiKey |
+   185→| Idempotencia | 6 webhooks con dedup (body+sig hash, 5min TTL) |
+   186→| NEXTAUTH_SECRET | Throw en producción si no hay env var |
+   187→| ENCRYPTION_KEY | Para encriptar TOTP secrets (AES-256-GCM) |
+   188→
+   189→---
+   190→
+   191→## 5. LOS 26 AGENTES IA
+   192→
+   193→### Pipeline A: Pre-venta (10 agentes)
+   194→
+   195→| # | Nombre | Función |
+   196→|---|---|---|
+   197→| 1 | buyer_behavior | Detecta devolvedores antes de vender (20.5% devolvedores en datos reales) |
+   198→| 2 | profile | Perfila: mayorista / emprendedor / detal / regalo |
+   199→| 3 | speech | Discurso de ventas personalizado por perfil |
+   200→| 4 | catalog | Muestra productos con imágenes en el chat (visual-first) |
+   201→| 5 | cart_builder | Arma carrito conversacional con descuentos por volumen |
+   202→| 6 | quote | Cotización con cross-sell, precios por volumen (3 tiers) |
+   203→| 7 | objection | Maneja objeciones: desconfianza, precio, talla, lo_pienso |
+   204→| 8 | address | Formulario de 11 campos en un solo mensaje (nombre, cédula, teléfono, dept, ciudad, dirección, barrio, horario, talla, diseño, cantidad) |
+   205→| 9 | logistics | Cotiza flete con Dropi/99envios/Aveonline, elige transportadora |
+   206→| 10 | checkout | Genera link de pago (MP/Wompi/Stripe/PayU) o confirma contra entrega |
+   207→
+   208→### Pipeline B: Post-venta (4 agentes)
+   209→
+   210→| # | Nombre | Función |
+   211→|---|---|---|
+   212→| 11 | guide_tracking | Sigue guías, alerta si estancadas (>3 días sin movimiento) |
+   213→| 12 | novedades | CRM de incidencias: crear caso, evidence, messages, resolution |
+   214→| 13 | redelivery | Reintentos de entrega con dirección corregida, máximo configurable |
+   215→| 14 | remarketing | Campañas de recuperación para clientes que no responden |
+   216→
+   217→### Pipeline C: Inteligencia (5 agentes)
+   218→
+   219→| # | Nombre | Función |
+   220→|---|---|---|
+   221→| 15 | customer_score | Puntúa clientes: confiables (100%), riesgo (1-49%), devolvedores (0%) |
+   222→| 16 | carrier_score | Puntúa transportadoras por tasa de entrega |
+   223→| 17 | product_enrichment | VLM glm-4.6v enriquece productos con SEO tags, materiales, colores |
+   224→| 18 | marketplace | Cross-brand: si no tienes producto, lo busca en otra marca |
+   225→| 19 | affiliator | Mide performance de traffickers, calcula comisiones |
+   226→
+   227→### Especializados (7 agentes)
+   228→
+   229→| # | Nombre | Función |
+   230→|---|---|---|
+   231→| 20 | vision | Identifica productos desde fotos del cliente (VLM glm-4.6v) |
+   232→| 21 | address_analysis | Valida direcciones de Colombia (vía + número, barrio, ciudad) |
+   233→| 22 | sales_retainer | Retiene ventas en abandono/cancelación |
+   234→| 23 | logistics_notifier | Notifica al comprador sobre su envío |
+   235→| 24 | traffic_orchestrator | Gestiona píxeles, SEO, AEO |
+   236→| 25 | guide_alert | Detecta guías estancadas, crea alertas |
+   237→| 26 | theme | Sugiere productos por tema/personaje (Stitch, Hello Kitty, Marvel) |
+   238→
+   239→### Implementación
+   240→
+   241→- **Ubicación:** `src/lib/agents/prompts/` (28 archivos — 26 agentes + types.ts + index.ts)
+   242→- **Cada agente:** función `build{Name}Prompt(ctx)` que retorna `{ system, user }`
+   243→- **Fallback:** cada agente tiene un fallback determinístico si el LLM falla
+   244→- **Orquestación:** POST /api/orchestrate con `action: 'full' | 'step'` y `pipeline: 'pre_sale' | 'post_sale' | 'intelligence'`
+   245→- **LLM:** ZAI glm-4.6 (primario), OpenAI GPT-4o (fallback en adapter.ts)
+   246→
+   247→---
+   248→
+   249→## 6. ADAPTERS (22 archivos)
+   250→
+   251→### Pagos (4 con HTTP real + HMAC webhook verify)
+   252→
+   253→| Adapter | Endpoint | Auth | Webhook verify |
+   254→|---|---|---|---|
+   255→| MercadoPago | api.mercadopago.com/checkout/preferences | Bearer token | HMAC-SHA256 (x-signature) |
+   256→| Wompi | production.wompi.co/v1/transactions | Public + Private key | HMAC-SHA256 (X-Events-Signature) |
+   257→| Stripe | api.stripe.com/v1/checkout/sessions | Secret key | HMAC-SHA256 (stripe-signature) |
+   258→| PayU | api.payulatam.com/payments-api/4.0/service.cgi | API key + MD5 signature | MD5 signature |
+   259→
+   260→### Catálogo (4 con HTTP real + fallback a DB local)
+   261→
+   262→| Adapter | Endpoint | Auth | Fallback |
+   263→|---|---|---|---|
+   264→| WooCommerce | {storeUrl}/wp-json/wc/v3/* | Basic Auth (consumer key:secret) | DB local |
+   265→| Shopify | {shop}/admin/api/2024-10/* | X-Shopify-Access-Token | DB local |
+   266→| Supabase | {url}/rest/v1/* | apikey + Bearer | DB local |
+   267→| WhatsApp Catalog | graph.facebook.com/v18.0/* | Bearer token | DB local |
+   268→
+   269→### Logística (3 con HTTP real + fallback a tarifas hardcodeadas)
+   270→
+   271→| Adapter | Endpoint | Fallback |
+   272→|---|---|---|
+   273→| Dropi | api.dropi.co/api/v1/* | 18 ciudades CO con tarifas realistas |
+   274→| 99envios | api.99envios.app/v1/* | Tarifas hardcodeadas (~5% más baratas que Dropi) |
+   275→| Aveonline | api.aveonline.co/api/* | Tarifas hardcodeadas (Antioquia strong) |
+   276→
+   277→### Pauta (2 con HTTP real)
+   278→
+   279→| Adapter | Endpoint |
+   280→|---|---|
+   281→| Google Ads | googleads.googleapis.com/v17/customers/{id}/googleAds:searchStream (GAQL) |
+   282→| TikTok Ads | business-api.tiktok.com/open_api/v1.3/report/integrated/get/ |
+   283→
+   284→### Interfaces + Registros (9 archivos)
+   285→
+   286→- EcommerceAdapter, LogisticsAdapter, PaymentAdapter, AdPlatformAdapter (4 interfaces)
+   287→- payment-registry, ads-registry, registry, payment-webhook-utils (4 registros/utils)
+   288→- credential-fields (1 registro de 20 integraciones con campos específicos)
+   289→
+   290→---
+   291→
+   292→## 7. FINTECH LAYER — Flujo E2E del Dinero
+   293→
+   294→### Flujo completo
+   295→
+   296→```
+   297→1. Cliente paga → Webhook (HMAC + idempotencia) → Order.paymentStatus = 'paid'
+   298→2. Vendedor confirma datos → Comisión ZIAY reconocida 50%
+   299→3. Vendedor despacha → Comisión ZIAY reconocida 100%
+   300→4. Trafficker registró venta → Sale.created (pending)
+   301→5. Vendedor confirma venta → Sale.confirmed + Wallet += commission ($transaction atómica)
+   302→6. Si vendedor falla → Sale.failed + Compensation automática ($transaction):
+   303→   - seller_no_ship: 100% | seller_delayed: 50% | seller_cancelled: 100%
+   304→   - delivery_failed: 50% | product_damaged: 25%
+   305→7. Fin de mes → POST /api/monetization/generate-invoice (GMV × tramo)
+   306→8. Trafficker retira → 2FA TOTP (AES-256-GCM decrypt) → $transaction atómica:
+   307→   - Balance -= amount
+   308→   - WalletTransaction outbound
+   309→   - WithdrawalRequest → completed
+   310→   - AuditLog created
+   311→9. Fee: 1% (min $1K COP) por retiro
+   312→```
+   313→
+   314→### Tramos de comisión ZIAY → marca
+   315→
+   316→| GMV mensual | Comisión | Ejemplo |
+   317→|---|---|---|
+   318→| < $10M COP | 4.5% | $450K sobre $10M |
+   319→| $10M-$40M COP | 3.0% | $900K sobre $30M |
+   320→| > $40M COP | 1.75% | $700K sobre $40M |
+   321→
+   322→### Wallet (seguridad)
+   323→
+   324→- TOTP secrets encriptados con AES-256-GCM antes de guardar en DB
+   325→- Backup codes hasheados con scrypt + salt (one-way)
+   326→- Retiros con $transaction atómica (balance + txn + withdrawal + audit)
+   327→- Rate limiting: GET 20/min, POST 10/min
+   328→- AUTH_SECRET: throw en producción si no hay NEXTAUTH_SECRET
+   329→
+   330→---
+   331→
+   332→## 8. DASHBOARD (14 módulos navegables)
+   333→
+   334→| # | Módulo | Función | API(s) |
+   335→|---|---|---|---|
+   336→| 1 | 📊 Resumen | KPIs, ROAS, CPA, gráficos | /api/overview (cache 60s) |
+   337→| 2 | 💬 Mensajería | Inbox unificado (WA+Messenger+IG) con imágenes | /api/conversations (paginated) |
+   338→| 3 | 🖼️ Catálogo Visual | Grid productos + chat IA embebido | /api/catalog/products (cache 5min) |
+   339→| 4 | 📦 Pedidos & Pagos | Tabla pedidos + links de pago | /api/orders (paginated) |
+   340→| 5 | 📋 Kanban | 8 columnas drag&drop (embudo §15.1) | /api/orders |
+   341→| 6 | 🎭 Orquestador | 3 pipelines de agentes IA | /api/orchestrate |
+   342→| 7 | 🎯 Atribución de Pauta | ROAS/CPA/ROI + verdict engine | /api/ads |
+   343→| 8 | 💵 Monetización | GMV + comisiones escalonadas | /api/monetization/gmv + commission |
+   344→| 9 | 👛 Wallet | Balance + retiros + 2FA + cuentas | /api/wallet |
+   345→| 10 | 🚚 Inteligencia Logística | Scores + guías stuck + alertas | /api/logistics-intelligence |
+   346→| 11 | 🏪 Marketplace | Cross-brand listings + referrals | /api/marketplace |
+   347→| 12 | ⚠️ Novedades | CRM incidencias (3 tabs) | /api/novedades + /api/redelivery |
+   348→| 13 | 🔌 Integraciones | Health + credenciales (20 integraciones) | /api/health + /api/integrations/credentials |
+   349→| 14 | ⚙️ Configuración | Estrategia pago + canales | /api/payments/config + /api/channels |
+   350→
+   351→### SSR Pages (5)
+   352→
+   353→| Página | URL | Schema.org |
+   354→|---|---|---|
+   355→| Login | /login | — |
+   356→| Dashboard | / | — |
+   357→| Storefront | /t/[slug] | OnlineStore + ItemList + FAQPage |
+   358→| Producto | /t/[slug]/p/[sku] | Product + BreadcrumbList + Offer |
+   359→| Vendedor | /vendedor | Person |
+   360→
+   361→### UX/UI
+   362→
+   363→- **Tema:** Emerald (oklch), dark mode con next-themes
+   364→- **Responsive:** Mobile (375px) + Desktop (1440px), hamburger menu en mobile
+   365→- **Loading:** Skeleton loaders que matchean contenido
+   366→- **Error states:** Alert + Reintentar en todas las vistas
+   367→- **Empty states:** Icon + mensaje + CTA
+   368→- **Chat:** Bubbles con gradient, read receipts SVG, avatars, typing indicator, quick replies, send button embebido
+   369→- **Scroll:** LRU thread con min-h-0 para flex scroll, custom scroll-thin
+   370→- **i18n:** Lightweight t() function con 3 locales (es-CO, es-MX, en-US)
+   371→
+   372→---
+   373→
+   374→## 9. MARCO DE COMERCIO AGÉNTICO
+   375→
+   376→### Nivel de autonomía (según Deloitte)
+   377→
+   378→ZIAY está en **Nivel 1-2**: los 26 agentes hacen el 95% del trabajo (investigan, perfilan, cotizan, cierran) y el humano solo supervisa casos edge.
+   379→
+   380→### C-commerce (Comercio Conversacional)
+   381→
+   382→| Feature | Estado | Detalle |
+   383→|---|---|---|
+   384→| Inbox unificado | ✅ | WhatsApp + Messenger + Instagram en un solo panel |
+   385→| Catálogo visual en chat | ✅ | Imágenes de productos renderizadas dentro de burbujas |
+   386→| Carrito conversacional | ✅ | ConversationalCart + CartItem models |
+   387→| Cotización automática | ✅ | Agent quote con precios por volumen (3 tiers) |
+   388→| Pago en el chat | ✅ | Link de pago generado dentro de la conversación |
+   389→| Seguimiento de envío | ✅ | Agent guide_tracking + alertas |
+   390→| CRM de novedades | ✅ | 3 tabs: Casos, Reintentos, Historial |
+   391→| Remarketing | ✅ | Campañas automáticas de recuperación |
+   392→| Score de clientes | ✅ | Confiables (100%), Riesgo (1-49%), Devolvedores (0%) |
+   393→| Multi-canal | ✅ | WA + Messenger + IG + (Telegram preparado) |
+   394→| Multi-tenant | ✅ | 5 marcas en un panel, aisladas (tenantId + RLS) |
+   395→| Multi-país | ✅ | country en Channel + address_analysis por país |
+   396→| Multi-IA | ✅ | 4 LLM providers (Zai, OpenAI, xAI, Ollama) |
+   397→| Multi-logística | ✅ | 3 proveedores (Dropi, 99envios, Aveonline) |
+   398→| Multi-pago | ✅ | 4 gateways (MP, Wompi, Stripe, PayU) |
+   399→| Multi-pauta | ✅ | 3 platforms (Meta, Google, TikTok) |
+   400→
+   401→### E-commerce (tradicional mejorado)
+   402→
+   403→| Feature | Estado | Detalle |
+   404→|---|---|---|
+   405→| Catálogo de productos | ✅ | 25 productos demo con imágenes Unsplash |
+   406→| Sync con Shopify/WooCommerce | ✅ | Adapters con HTTP real + fallback |
+   407→| Sync con Supabase | ✅ | Adapter con HTTP real |
+   408→| Inventario | ⚠️ | Stub (actualizarInventario existe pero no se llama automáticamente) |
+   409→| Órdenes | ✅ | 201 pedidos demo (embudo §15.1: 73% pending_confirmation) |
+   410→| Pagos online | ✅ | 4 gateways con createPaymentLink + verifyPayment + refund |
+   411→| Pagos contra entrega | ✅ | paymentMode: advance | cod | hybrid |
+   412→| Facturación | ✅ | POST /api/monetization/generate-invoice (auto GMV × tramo) |
+   413→
+   414→### Comercio Agéntico (AI agents que venden)
+   415→
+   416→| Feature | Estado | Detalle |
+   417→|---|---|---|
+   418→| Agentes autónomos | ✅ | 26 agentes, 3 pipelines, 95% automatizado |
+   419→| Perfilamiento automático | ✅ | Agent profile detecta tipo de cliente en tiempo real |
+   420→| Detección de devolvedores | ✅ | Agent buyer_behavior revisa historial antes de vender |
+   421→| Identificación por imagen | ✅ | Agent vision (VLM glm-4.6v) identifica productos desde fotos |
+   422→| Enriquecimiento de productos | ✅ | Agent product_enrichment genera SEO tags con VLM |
+   423→| Verdict engine automático | ✅ | Mata/escala ads con ROAS <0.8 / >3.0 sin intervención |
+   424→| CAPI server-side | ✅ | POST /api/conversions envía a Meta/Google/TikTok (async via queue) |
+   425→| Compensación automática | ✅ | Si vendedor falla, trafficker recibe compensación via $transaction |
+   426→| Marketplace cross-brand | ✅ | Si no tienes producto, IA lo busca en otra marca |
+   427→| SEO orgánico | ✅ | SSR con Schema.org, sitemap dinámico, robots.txt |
+   428→| Atribución real | ✅ | Cada venta conectada con el anuncio que la generó |
+   429→
+   430→### Diferenciadores únicos (ningún competidor tiene los 11)
+   431→
+   432→| # | Diferenciador | Beneficio |
+   433→|---|---|---|
+   434→| 1 | Detección automática de devolvedores | $600K/mes ahorrado |
+   435→| 2 | 26 agentes IA en equipo | 95% automatizado |
+   436→| 3 | Atribución real de pauta | $900K/mes ahorrado |
+   437→| 4 | Verdict engine automático | 24/7 optimización |
+   438→| 5 | CAPI server-side | +30% tracking |
+   439→| 6 | CRM de novedades logísticas | 70% menos tiempo |
+   440→| 7 | Wallet con 2FA para traffickers | Atrae affiliates |
+   441→| 8 | SEO público gratis | Tráfico orgánico |
+   442→| 9 | Multi-tenant real | Eficiencia multi-marca |
+   443→| 10 | Marketplace cross-brand | Ingresos extra |
+   444→| 11 | Catálogo + chat híbrido (imágenes) | 3x más conversión |
+   445→
+   446→---
+   447→
+   448→## 10. GAPS HONESTOS — Qué NO funciona al 100%
+   449→
+   450→### 🔴 Crítico (bloquea producción a escala)
+   451→
+   452→| # | Gap | Realidad | Solución |
+   453→|---|---|---|---|
+   454→| 1 | SQLite no escala | SQLite no soporta concurrencia real >50 usuarios | Migrar a PostgreSQL (env var change) |
+   455→| 2 | APIs no usan service layer | Los 10 services existen pero las 52 APIs llaman Prisma directo | Migrar APIs a usar services (1 semana) |
+   456→| 3 | Socket.io sin Redis en dev | En dev funciona, pero no escala a múltiples instancias | Configurar REDIS_URL en prod |
+   457→| 4 | Sin CDN para imágenes | Productos cargan desde Unsplash directamente | Configurar Cloudflare/AWS CDN |
+   458→| 5 | Idempotencia es in-memory | Se pierde al reiniciar el server | Usar Redis para idempotencia en prod |
+   459→
+   460→### 🟡 Alto (debería arreglarse)
+   461→
+   462→| # | Gap | Realidad |
+   463→|---|---|---|
+   464→| 6 | wallet-view.tsx (1100 líneas) | No se dividió (solo novedades-view se dividió) |
+   465→| 7 | integrations-view.tsx (956 líneas) | No se dividió |
+   466→| 8 | No hay A/B testing de prompts | No se puede comparar calidad de respuestas |
+   467→| 9 | No hay cache de respuestas LLM | Cada request al LLM cuesta dinero |
+   468→| 10 | No hay monitoreo real (Grafana) | Sentry existe pero no dashboards |
+   469→| 11 | Oracle adapter no existe | Solo mencionado en credential-fields |
+   470→| 12 | No hay i18n aplicado | t() existe pero no se usa en componentes |
+   471→
+   472→### 🟢 Medio (mejorar)
+   473→
+   474→| # | Gap |
+   475→|---|---|
+   476→| 13 | No hay voice agents (ASR+TTS) |
+   477→| 14 | No hay mobile app (React Native) |
+   478→| 15 | No hay ACP/MCP integration (agentic commerce protocols) |
+   479→| 16 | No hay webhook de NocoDB bidireccional |
+   480→| 17 | No hay rate limiting diferenciado por endpoint |
+   481→| 18 | No hay graceful shutdown en Next.js app (solo en chat-service) |
+   482→
+   483→### Lo que SÍ puedes hacer HOY (honesto)
+   484→
+   485→- ✅ Demo para clientes (5-10 usuarios, perfecto)
+   486→- ✅ Beta con 1-2 marcas (SQLite + in-memory cache aguanta)
+   487→- ✅ POC para inversión (features reales, 26 agentes, atribución)
+   488→- ✅ Vender a clientes pequeños (<50 conversaciones/día)
+   489→
+   490→### Lo que NO puedes hacer HOY
+   491→
+   492→- ❌ Producción con 50+ marcas (SQLite se cae)
+   493→- ❌ Alta disponibilidad (1 instancia, sin failover)
+   494→- ❌ 1000+ usuarios concurrentes (sin Redis + PostgreSQL + multi-instancia)
+   495→
+   496→---
+   497→
+   498→## 11. ESCALABILIDAD
+   499→
+   500→### Lo que SÍ tiene (preparado para escalar)
+   501→
+   502→| Feature | Implementación |
+   503→|---|---|
+   504→| Service layer | 10 servicios listos para desacoplar APIs de Prisma |
+   505→| LRU cache | Max 1000 entries con eviction (previene OOM) |
+   506→| Queue | BullMQ para procesos async (CAPI, sync, remarketing) |
+   507→| Socket.io Redis adapter | Multi-instancia (env-gated, dynamic import) |
+   508→| Rate limiting global | 60 req/min per IP en middleware edge |
+   509→| Paginación cursor | 3 APIs con ?cursor=X&limit=20 |
+   510→| Redis opcional | Cache + queue + socket adapter (todo env-gated) |
+   511→| PostgreSQL ready | Migraciones + instrucciones + RLS policies |
+   512→| Docker Compose | 11 servicios orquestados |
+   513→| CI/CD | GitHub Actions (lint→tsc→test→build→e2e) |
+   514→
+   515→### Lo que FALTA para escalar
+   516→
+   517→| # | Qué | Esfuerzo | Impacto |
+   518→|---|---|---|---|
+   519→| 1 | Migrar SQLite → PostgreSQL | 1 día (env var) | Concurrencia |
+   520→| 2 | Migrar APIs a service layer | 1 semana | Mantenibilidad |
+   521→| 3 | Configurar Redis en prod | 1 día | Cache + queue + socket |
+   522→| 4 | CDN para imágenes | 1 día | Carga rápida |
+   523→| 5 | PgBouncer connection pooling | Incluido en env var | Pool de conexiones |
+   524→| 6 | Multi-instancia Next.js | 1 día (docker scale) | Horizontal |
+   525→| 7 | Cache de respuestas LLM | 2 días | Costo |
+   526→| 8 | Dividir wallet-view + integrations-view | 2 días | Mantenibilidad |
+   527→
+   528→---
+   529→
+   530→## 12. TESTING
+   531→
+   532→| Suite | Archivos | Tests | Estado |
+   533→|---|---|---|---|
+   534→| Unit (Vitest) | 6 | 65 | ✅ ALL PASS |
+   535→| E2E (Playwright) | 4 | 43 | ✅ ALL PASS |
+   536→| **Total** | **10** | **108** | ✅ |
+   537→
+   538→### Unit tests
+   539→
+   540→| Archivo | Tests | Cubre |
+   541→|---|---|---|
+   542→| hmac.test.ts | 14 | verifyMetaSignature, timingSafeEqual |
+   543→| rate-limit.test.ts | 7 | Sliding window, 429 response |
+   544→| totp.test.ts | 14 | generateTOTPSecret (encriptado), verifyTOTP, backup codes |
+   545→| payment-adapter.test.ts | 6 | stubNoCredentials, PaymentResult |
+   546→| payment-registry.test.ts | 10 | getPaymentAdapter (4 gateways) |
+   547→| format.test.ts | 14 | formatCurrency COP, fechas |
+   548→
+   549→### E2E tests
+   550→
+   551→| Archivo | Tests | Cubre |
+   552→|---|---|---|
+   553→| auth.spec.ts | 8 | Login, logout, redirect, APIs protegidas |
+   554→| dashboard.spec.ts | 17 | 14 views navegables + contenido |
+   555→| ssr-pages.spec.ts | 7 | Storefront, producto, JSON-LD, sitemap |
+   556→| api.spec.ts | 11 | Health, agents, tenants, webhooks |
+   557→
+   558→---
+   559→
+   560→## 13. DATOS DE EJEMPLO (Seed)
+   561→
+   562→| Entidad | Cantidad | Detalle |
+   563→|---|---|---|
+   564→| Tenants | 5 | Saramantha, Majestic, Lovely, Reina, INTL |
+   565→| Users | 10 | 3 admins, 4 agents, 1 trafficker, 2 más |
+   566→| Products | 25 | Con imágenes Unsplash reales |
+   567→| Customers | 75 | Nombres colombianos, teléfonos, ciudades |
+   568→| Conversations | 82 | 20/tenant × 4 + 2 INTL |
+   569→| Messages | 629 | 8 templates: greeting → inquiry → price → address → payment → confirm |
+   570→| Orders | 201 | Matching embudo §15.1: 73% pending_confirmation |
+   571→| Novedades cases | 10 | Con evidence + messages + resolution |
+   572→| Buyer behaviors | 120 | 30/tenant, mix normal/caution/high_risk/blacklist |
+   573→| Guide movements | 20 | Mix de eventos |
+   574→| Trafficker | 1 | Sebastián, wallet $1.85M, 3 campaigns, 12 sales |
+   575→| Invoices | 4 | Saramantha 2026-07 |
+   576→| Ad spend | 168 | 9 ads × 14 días |
+   577→
+   578→### Credenciales demo
+   579→
+   580→| Rol | Email | Password |
+   581→|---|---|---|
+   582→| Admin | valentina@saramantha.co | demo123 |
+   583→| Agente | camila@saramantha.co | demo123 |
+   584→| Trafficker | sebastian@trafficker.co | demo123 |
+   585→
+   586→---
+   587→
+   588→## 14. DOCUMENTACIÓN Y PRESENTACIONES
+   589→
+   590→### Documentos MD
+   591→
+   592→| Documento | Líneas | Audiencia |
+   593→|---|---|---|
+   594→| README.md | 126 | Developers |
+   595→| PRODUCTION-CHECKLIST.md | ~80 | DevOps |
+   596→| .env.example | 55+ vars | Configuración |
+   597→| LECCIONES-APRENDIDAS.md | 22 lecciones | Equipo |
+   598→| INVESTIGACION-MERCADO-COMERCIO-AGENTICO.md | ~300 | Estrategia |
+   599→| INVESTIGACION-PLATAFORMA-AGENTES-IA.md | ~300 | Tecnología |
+   600→| GUIA-ONBOARDING-CLIENTES.md | 1,340 | Clientes (no técnico) |
+   601→| GUIA-DEPLOY-PRODUCCION.md | 1,179 | DevOps |
+   602→| GUIA-DEPLOY-AGENTES-N8N.md | 1,414 | Integradores |
+   603→
+   604→### Presentaciones HTML
+   605→
+   606→| Presentación | Slides | Audiencia |
+   607→|---|---|---|
+   608→| PRESENTACION-NO-TECNICOS | 17 | Clientes |
+   609→| PRESENTACION-DIFERENCIADORES | 16 | Cierre ventas |
+   610→| PRESENTACION-CLIENTES-COMPLETA | 26 | C-level |
+   611→| PRESENTACION-STACK-COMPLETO | 25 | Developers/CTOs |
+   612→| PRESENTACION-E2E-TESTS | 25 | QA |
+   613→| PRESENTACION-CUSTOMER-JOURNEYS | 26 | Product/UX |
+   614→
+   615→---
+   616→
+   617→## 15. ROADMAP
+   618→
+   619→### Completado (Sprints 1-6)
+   620→
+   621→| Sprint | Qué | Estado |
+   622→|---|---|---|
+   623→| 1 | Auth 28 APIs + error boundary + loading + .env.example + migraciones + Sentry | ✅ |
+   624→| 2 | Cache + timeout/retry + $transaction + rate limiting global | ✅ |
+   625→| 3 | Refactor prompts.ts (935→11L) + novedades-view (1295→8L) + logging | ✅ |
+   626→| 4 | PostgreSQL support + Redis opcional + idempotencia + graceful shutdown | ✅ |
+   627→| 5 | i18n + API docs + health mejorado + production checklist | ✅ |
+   628→| 6 | Service layer (10 archivos) + queue + LRU cache + Socket.io Redis + paginación + try/catch en 18 APIs | ✅ |
+   629→
+   630→### Pendiente
+   631→
+   632→| Sprint | Qué | Esfuerzo | Impacto |
+   633→|---|---|---|---|
+   634→| 7 | Migrar APIs a usar service layer | 1 semana | Mantenibilidad |
+   635→| 8 | Migrar SQLite → PostgreSQL + índices | 1 día | Concurrencia |
+   636→| 9 | Dividir wallet-view + integrations-view | 2 días | Mantenibilidad |
+   637→| 10 | CDN + cache LLM + A/B testing prompts | 1 semana | Performance + costo |
+   638→| 11 | Voice agents (Vapi AI) | 2 semanas | Nuevo canal |
+   639→| 12 | Mobile app (React Native) | 4 semanas | Nuevo canal |
+   640→| 13 | ACP/MCP integration | 2 semanas | Comercio agéntico estándar |
+   641→
+   642→---
+   643→
+   644→## 16. VEREDICTO HONESTO
+   645→
+   646→| Pregunta | Respuesta |
+   647→|---|---|
+   648→| **¿Es la arquitectura correcta?** | SÍ para MVP/beta. Service layer + queue + Redis preparan para escalar. |
+   649→| **¿Es robusta?** | PARCIALMENTE. 0 APIs sin try/catch ✅, pero APIs no usan service layer todavía. |
+   650→| **¿Es escalable?** | PREPARADA. Queue, LRU, Redis adapter, paginación existen. Falta PostgreSQL + multi-instancia. |
+   651→| **¿Soporta estrés?** | Hasta 100 usuarios con SQLite. 1000+ requiere PostgreSQL + Redis + multi-instancia. |
+   652→| **¿Está listo para producción?** | SÍ para beta con 1-5 marcas. NO para 50+ marcas sin PostgreSQL. |
+   653→| **¿Debería un cliente pagar por esto hoy?** | SÍ si es una marca pequeña (<50 conversaciones/día). NO si es enterprise. |
+   654→
+   655→---
+   656→
+   657→*Documento generado: Julio 2026 · ZIAY · Indisutex SAS · Bogotá, Colombia*
+   658→*45 commits · 238 archivos src/ · 2,810 líneas worklog · 108 tests · 0 lint/tsc errors*
+   659→

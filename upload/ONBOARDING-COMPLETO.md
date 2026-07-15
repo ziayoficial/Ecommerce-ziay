@@ -15,7 +15,7 @@
 2. [Arquitectura del producto](#2-arquitectura-del-producto)
 3. [Conceptos clave](#3-conceptos-clave)
 4. [Onboarding por rol](#4-onboarding-por-rol)
-5. [Tour por los 14 módulos del dashboard](#5-tour-por-los-14-módulos-del-dashboard)
+5. [Tour por los 21 módulos del dashboard](#5-tour-por-los-21-módulos-del-dashboard)
 6. [Los 26 agentes conversacionales](#6-los-26-agentes-conversacionales)
 7. [Los 3 pipelines de orquestación](#7-los-3-pipelines-de-orquestación)
 8. [Flujo de un pedido (embudo §15.1)](#8-flujo-de-un-pedido-embudo-151)
@@ -42,7 +42,7 @@ ZIAY resuelve esto unificando todo en un dashboard multi-tenant, capturando el `
 
 Al terminar este onboarding vas a ser capaz de:
 
-- Navegar los **14 módulos** del dashboard y saber qué hace cada uno.
+- Navegar los **21 módulos** del dashboard y saber qué hace cada uno.
 - Invocar los **26 agentes** conversacionales en el momento correcto.
 - Entender los **3 pipelines** (pre-venta, post-venta, inteligencia) y cuándo dispararlos.
 - Operar el Kanban de **8 columnas** del embudo §15.1.
@@ -90,8 +90,8 @@ Al terminar este onboarding vas a ser capaz de:
 ┌──────────────────────────────┐  ┌──────────────────────────────┐
 │   Next.js 16  (app, :3000)   │  │  chat-service  (:3003)        │
 │   ─ 5 SSR pages              │  │  Socket.io + Redis adapter    │
-│   ─ 44 API routes            │  │  Rooms por tenantId           │
-│   ─ 14 dashboard views (SPA) │◄─┤  Auth: socket.auth.tenantId   │
+│   ─ 94 API routes            │  │  Rooms por tenantId           │
+│   ─ 21 dashboard views (SPA) │◄─┤  Auth: socket.auth.tenantId   │
 └─────────────┬────────────────┘  └──────────────┬───────────────┘
               │                                  │
               └──────────────┬───────────────────┘
@@ -108,7 +108,7 @@ Al terminar este onboarding vas a ser capaz de:
                               ▼
 ┌──────────────────────────────────────────────────────────────────────────────┐
 │   Prisma 6  →  SQLite (dev)  /  PostgreSQL 16 + pgvector (prod)              │
-│   62 models · 91 @@index · 13 @@unique · schema de 1442 líneas               │
+│   71 models · 110 @@index · 19 @@unique · schema de 1822 líneas              │
 └──────────────────────────────────────────────────────────────────────────────┘
                               │
                               ▼
@@ -119,9 +119,9 @@ Al terminar este onboarding vas a ser capaz de:
 
 ### 2.2 Explicación
 
-ZIAY es una **aplicación híbrida SSR + SPA** construida sobre Next.js 16. El dashboard principal (`/`) es una SPA que cambia de vista en cliente (14 módulos), pero las páginas públicas de tenant y producto son **SSR** para SEO. El backend expone **44 rutas de API** dentro del mismo proceso Next.js, y un **mini-service Socket.io** separado (puerto 3003) maneja el tiempo real de mensajería.
+ZIAY es una **aplicación híbrida SSR + SPA** construida sobre Next.js 16. El dashboard principal (`/`) es una SPA que cambia de vista en cliente (21 módulos), pero las páginas públicas de tenant y producto son **SSR** para SEO. El backend expone **94 rutas de API** dentro del mismo proceso Next.js, y un **mini-service Socket.io** separado (puerto 3003) maneja el tiempo real de mensajería.
 
-La base de datos es **SQLite en desarrollo** y **PostgreSQL 16 + pgvector en producción**. El schema Prisma es portable — solo cambia el `DATABASE_URL`. Hay **62 modelos** que cubren desde `Tenant` hasta `NovedadCase` y `RedeliveryRequest`.
+La base de datos es **SQLite en desarrollo** y **PostgreSQL 16 + pgvector en producción**. El schema Prisma es portable — solo cambia el `DATABASE_URL`. Hay **71 modelos** que cubren desde `Tenant` hasta `NovedadCase` y `RedeliveryRequest`.
 
 La IA conversacional usa **z-ai-web-dev-sdk** por defecto (no requiere API key en dev), pero cada tenant puede configurar su propio `proveedorIa` (`zai`, `openai`, `xai`, `ollama`).
 
@@ -243,9 +243,9 @@ Antes de tocar el teclado, estos **9 conceptos** aparecen en cada pantalla. Si l
 
 ---
 
-## 5. Tour por los 14 módulos del dashboard
+## 5. Tour por los 21 módulos del dashboard
 
-Todos los módulos están en una sola ruta (`/`) y se cambian vía el sidebar izquierdo o atajos de teclado (⌘1-14, ⌘K para command palette).
+Todos los módulos están en una sola ruta (`/`) y se cambian vía el sidebar izquierdo o atajos de teclado (⌘1-21, ⌘K para command palette). Esta sección detalla los **14 módulos históricos principales**; los 7 módulos adicionales (governance, llm-costs, compliance, status page, admin/incidents, etc.) son extensiones v0.3.0 accesibles desde el mismo sidebar.
 
 ### 5.1 Resumen (overview)
 

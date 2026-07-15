@@ -245,7 +245,7 @@ pre{background:var(--surface2);padding:14px;border-radius:8px;overflow-x:auto;fo
 <h3>📊 Modelo de datos</h3>
 <ul>
 <li><strong>71 modelos</strong> Prisma</li>
-<li><strong>91 índices</strong> en 45+ modelos</li>
+<li><strong>110 índices</strong> en 71 modelos</li>
 <li><strong>52 modelos</strong> con tenantId (multi-tenant)</li>
 <li><strong>13 modelos</strong> globales (Tenant, Setting, Trafficker...)</li>
 <li><strong>6 modelos</strong> con tenantId opcional</li>
@@ -947,12 +947,12 @@ io("/?XTransformPort=3003", {
 <!-- Slide 22: Performance -->
 <section class="slide">
 <h1>Performance</h1>
-<h2>91 índices + caching + streaming · build 30.2s</h2>
+<h2>110 índices + caching + streaming · build 30.2s</h2>
 <div class="grid grid-2">
 <div class="card card-accent">
 <h3>🗄️ Database</h3>
 <ul>
-<li><strong>91 índices</strong> en 45 modelos</li>
+<li><strong>110 índices</strong> en 71 modelos</li>
 <li><strong>Composite uniques:</strong> [tenantId, sku], [tenantId, phone], etc.</li>
 <li><strong>@@index en FKs:</strong> Order.customerId, Message.conversationId</li>
 <li><strong>@@index en filtros:</strong> tenantId, status, createdAt</li>

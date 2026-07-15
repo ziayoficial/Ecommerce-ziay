@@ -66,9 +66,9 @@
 
 ## 2. Opción A — Docker Compose (recomendado)
 
-Esta opción levanta los **11 servicios** del `docker-compose.yml` en un solo comando.
+Esta opción levanta los **16 servicios** del `docker-compose.yml` en un solo comando.
 
-### 2.1 Los 11 servicios
+### 2.1 Los 16 servicios
 
 | # | Servicio | Imagen | Puerto | Rol |
 |---|----------|--------|--------|-----|
@@ -79,10 +79,16 @@ Esta opción levanta los **11 servicios** del `docker-compose.yml` en un solo co
 | 5 | `n8n` | `n8nio/n8n:latest` | 5678 | Workflow automation (11 flujos importables). |
 | 6 | `ollama` | `ollama/ollama:latest` | 11434 | LLM local opcional (`proveedorIa=ollama`). |
 | 7 | `uptime-kuma` | `louislam/uptime-kuma:1` | 3001 | Monitoreo de uptime + alertas. |
-| 8 | `app` | build local (Dockerfile) | 3000 | Next.js dashboard (44 APIs + 14 vistas). |
+| 8 | `app` | build local (Dockerfile) | 3000 | Next.js dashboard (94 APIs + 21 vistas). |
 | 9 | `chat-service` | build local | 3003 | Socket.io mini-service. |
 | 10 | `caddy` | build local (Dockerfile.caddy) | 80/443 | Reverse proxy + auto-HTTPS. |
-| 11 | (integrado en app) | — | — | Prisma ORM corre dentro del contenedor `app`. |
+| 11 | `mailhog` | `mailhog/mailhog:latest` | 1025/8025 | SMTP catch-all para dev/staging. |
+| 12 | `prometheus` | `prom/prometheus:latest` | 9090 | Metrics scraping + alerting. |
+| 13 | `alertmanager` | `prom/alertmanager:latest` | 9093 | Routing de alertas (Slack/PagerDuty). |
+| 14 | `grafana` | `grafana/grafana:latest` | 3000→3001 | Dashboards auto-provisioned (HTTP RPS, p95, DB pool, queue depth). |
+| 15 | `loki` | `grafana/loki:latest` | 3100 | Log aggregation (30-day retention). |
+| 16 | `promtail` | `grafana/promtail:latest` | — | Shipper pino → Loki. |
+| — | (integrado en app) | — | — | Prisma ORM corre dentro del contenedor `app`. |
 
 ### 2.2 Pasos
 
@@ -166,7 +172,7 @@ Cuando veas `✓ Ready` del servicio `app`, presiona `Ctrl+C` (los logs siguen c
 docker compose ps
 ```
 
-Debes ver 10 servicios con estado `Up` (uptime-kuma es opcional, levántalo con `--profile monitoring`).
+Debes ver 15+ servicios con estado `Up` (uptime-kuma es opcional, levántalo con `--profile monitoring`; el stack de observabilidad prometheus/grafana/loki/promtail también es opcional).
 
 #### Paso A.7 — Migrar DB a Postgres + activar pgvector + RLS
 
@@ -474,7 +480,7 @@ Para equipos que prefieren managed services. **Importante**: Socket.io no funcio
 ┌─────────────────────────────────────────────────────────────┐
 │  Vercel (frontend + API routes serverless)                  │
 │  • Next.js build con `next build`                            │
-│  • Dashboard + SSR pages + 44 API routes (sin WebSocket)    │
+│  • Dashboard + SSR pages + 94 API routes (sin WebSocket)    │
 └────────────────────────────┬────────────────────────────────┘
                              │
                              ▼
@@ -678,7 +684,7 @@ Marca cada ítem como ✅ cuando verifiques:
 - [ ] **HTTPS funciona**: `curl -I https://commerceflow.tudominio.com/` retorna `HTTP/2 200`.
 - [ ] **Certificado válido**: `echo \| openssl s_client -connect commerceflow.tudominio.com:443 2>/dev/null \| openssl x509 -noout -dates`.
 - [ ] **Firewall**: ufw solo abre 22, 80, 443. Postgres (5432) y Redis (6379) NO expuestos.
-- [ ] **Docker services Up**: `docker compose ps` muestra 10+ servicios `Up`.
+- [ ] **Docker services Up**: `docker compose ps` muestra 15+ servicios `Up`.
 - [ ] **Logs limpios**: `docker compose logs --tail=100 app` sin errores ni warnings.
 
 ### Base de datos
@@ -686,12 +692,12 @@ Marca cada ítem como ✅ cuando verifiques:
 - [ ] **pgvector activo**: `psql -c "SELECT extname FROM pg_extension;"` muestra `vector` y `pgcrypto`.
 - [ ] **RLS activo**: `psql -c "SELECT tablename FROM pg_tables WHERE schemaname='public';"` → para cada tabla, `SELECT relrowsecurity FROM pg_class WHERE relname='<table>';` retorna `t`.
 - [ ] **Seed cargado**: `psql -c "SELECT COUNT(*) FROM Tenant;"` retorna al menos 5.
-- [ ] **62 modelos Prisma**: `bunx prisma db pull --print | grep "^model " | wc -l` retorna 62.
+- [ ] **71 modelos Prisma**: `bunx prisma db pull --print | grep "^model " | wc -l` retorna 71.
 
 ### Aplicación
 - [ ] **Health 23/23**: `curl /api/health | jq '.summary'` → `{ "ok": 23, "warning": 0, "error": 0, "not_configured": 0 }`.
 - [ ] **26 agentes**: `curl /api/agents | jq '.agents | length'` → `26`.
-- [ ] **14 módulos**: carga el dashboard y verifica que el sidebar muestra 14 ítems.
+- [ ] **21 módulos**: carga el dashboard y verifica que el sidebar muestra 21 ítems.
 - [ ] **5 SSR pages**: `curl /t/saramantha`, `curl /t/saramantha/p/<sku>`, `curl /sitemap.xml`, `curl /robots.txt` retornan 200.
 - [ ] **Socket.io**: en el dashboard, abre mensajería. La consola del browser muestra `socket connected`.
 - [ ] **Tema claro/oscuro**: toggle funciona y persiste en localStorage.
@@ -1168,7 +1174,7 @@ Antes de go-live en producción seria:
 | Auditoría completa | `AUDIT-REPORT.md` (1202 líneas) |
 | Onboarding | `upload/ONBOARDING-COMPLETO.md` (~700 líneas) |
 | README del proyecto | `README.md` (689 líneas) |
-| Bitácora | `worklog.md` (2209 líneas) |
+| Bitácora | `worklog.md` (~19,300 líneas en v0.3.0) |
 | Health endpoint | `https://tu-dominio/api/health` |
 | Issues | GitHub Issues del repo |
 | Security disclosures | `security@indisutex.com` (privado) |
@@ -1176,4 +1182,4 @@ Antes de go-live en producción seria:
 ---
 
 **Última actualización:** sincronizada con `worklog.md` tras el sprint `AUTOFIX-A + REPORT-001`.
-**Versión del documento:** 2.0 — reemplaza la versión anterior (que cubría solo Docker Compose con 9 servicios).
+**Versión del documento:** 3.0 — sincronizada con `worklog.md` v0.3.0 (cubre Docker Compose con 16 servicios + monitoring stack + 94 APIs + 21 vistas).

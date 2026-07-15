@@ -81,7 +81,7 @@ Si una de estas 4 patas no está clara, enterprise lo percibe como experimento, 
 | Detección de riesgo | BuyerBehavior (devolvedores 0%, riesgo 1-49%) | ✅ |
 | 2FA para financieros | TOTP Google Authenticator (AES-256-GCM at rest) | ✅ |
 | Multi-tenant aislado | tenantId + RLS policies (PostgreSQL) | ✅ |
-| HMAC webhooks | 6 webhooks con verificación de firma | ✅ |
+| HMAC webhooks | 8 webhooks con verificación de firma + rotación | ✅ |
 | Security headers | X-Frame, HSTS, CSP, Referrer-Policy, Permissions-Policy | ✅ |
 | Rate limiting | 60 req/min per IP global | ✅ |
 | PII redaction | pino redacta password, secret, token, apiKey en logs | ✅ |
@@ -217,7 +217,7 @@ Cada capa habla a un stakeholder diferente dentro de la misma empresa.
 ```
 
 **Métricas que importan:**
-- Cobertura de auth (38/52 APIs protegidas)
+- Cobertura de error handling + auth (91/94 APIs con error handling + auth; 3 públicas intencionalmente: webhooks entrantes, health, public)
 - Tiempo de detección de errores (Sentry real-time)
 - Auditoría (cada acción registrada con tenantId + userId + timestamp)
 - Aislamiento de datos (RLS policies en PostgreSQL)

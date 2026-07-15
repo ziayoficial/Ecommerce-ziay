@@ -68,7 +68,7 @@
 ## 🏗️ Lecciones de Arquitectura
 
 ### L6. SQLite es suficiente para dev, insuficiente para prod
-**Contexto:** SQLite funciona perfectamente en desarrollo (0 config, file-based). Pero 91 índices en 45 modelos son necesarios porque SQLite hace sequential scan sin ellos.
+**Contexto:** SQLite funciona perfectamente en desarrollo (0 config, file-based). Pero los índices son necesarios porque SQLite hace sequential scan sin ellos. En v0.3.0 hay **110 @@index en 55+ modelos** (en v0.1.0 eran 91 en 45 modelos).
 
 **Lección:** No esperar a producción para añadir índices. El schema Prisma debe declarar `@@index` desde el día 1. SQLite lo ignora silenciosamente; Postgres lo necesita.
 
@@ -142,7 +142,7 @@
 ---
 
 ### L14. Los índices de DB no son opcionales — son requisitos
-**Contexto:** Solo 3 de 62 modelos Prisma declaraban `@@index`. Consultas como `db.order.findMany({ where: { tenantId } })` hacían sequential scan en SQLite.
+**Contexto:** Solo 3 de 62 modelos Prisma declaraban `@@index` (estado v0.1.0; hoy v0.3.0 son **71 modelos** con 110 `@@index`). Consultas como `db.order.findMany({ where: { tenantId } })` hacían sequential scan en SQLite.
 
 **Lección:** Cada campo que aparece en un `where`, `orderBy`, o `include` debe tener índice. FKs siempre necesitan índice. En SQLite es lento; en Postgres es catastrófico.
 
@@ -304,7 +304,7 @@
 
 ### L30. Los ADRs son esenciales para decisiones arquitectónicas (21 ADRs)
 
-**Contexto:** Sin ADRs, las decisiones se perdían en el worklog (18,000+ líneas) o en mensajes de Slack. "¿Por qué ed25519 y no RSA?" → 30 min de grep en el worklog. "¿Por qué BullMQ y no cron?" → depende de quién preguntes.
+**Contexto:** Sin ADRs, las decisiones se perdían en el worklog (19,276 líneas en v0.3.0) o en mensajes de Slack. "¿Por qué ed25519 y no RSA?" → 30 min de grep en el worklog. "¿Por qué BullMQ y no cron?" → depende de quién preguntes.
 
 **Lección:** Cada decisión arquitectónica no-obvia debe tener un ADR con: (1) contexto, (2) decisión, (3) alternativas consideradas, (4) consecuencias. Los ADRs son inmutables (no se editan, se reemplazan por ADRs nuevos). Viven en `docs/adr/` con numbering secuencial. El README indexa todos.
 
@@ -380,9 +380,9 @@ const orders = await db.order.findMany({ where: { tenantId } });
 | Componentes UI (shadcn) | 48 | 48 |
 | Agentes conversacionales | 26 | 26 |
 | Pipelines | 3 (19 pasos totales) | 3 (19 pasos totales) |
-| Adapters | 18 | 22 |
+| Adapters | 18 | **25** |
 | Webhooks | 6 (con HMAC) | **8** (HMAC + idempotency + signature rotation) |
-| Índices DB | 91 en 45 modelos | 91 en 45 modelos |
+| Índices DB | 91 en 45 modelos | **110 en 55+ modelos + 19 @@unique** |
 | Test files | 10 | **48** |
 | Tests | 108 | **891** |
 | ADRs | 0 | **21** (README + 20) |
@@ -393,9 +393,9 @@ const orders = await db.order.findMany({ where: { tenantId } });
 | Métodos de pago | 4 | **8** (4 card + 4 local LATAM) |
 | Docker services | 11 | **16** |
 | Compliance modules | 0 | **6** (KYC, consent, retention, age-gate, retracto, DIAN) |
-| Documentación (líneas) | 12,284 | 18,000+ |
+| Documentación (líneas) | 12,284 | 19,000+ |
 | Presentaciones (slides) | 102 | 135+ |
-| Worklog (líneas) | 2,463 | 18,000+ |
+| Worklog (líneas) | 2,463 | 19,276 |
 | Lint errors / warnings | 0 / N/A | **0 / 0** |
 | TSC errors | 0 | **0** |
 | Redocly errors | N/A | **0** |
@@ -411,7 +411,7 @@ const orders = await db.order.findMany({ where: { tenantId } });
 
 2. **La seguridad es sólida** — HMAC en webhooks, 2FA en wallet, tenant guards en APIs, rooms en Socket.io, rate limiting en rutas LLM.
 
-3. **La documentación es completa** — 12,284 líneas cubren todas las audiencias: developers (README), DevOps (Deploy), usuarios (Onboarding), QA (E2E), clientes (Presentaciones), no-técnicos (Lenguaje natural).
+3. **La documentación es completa** — 19,000+ líneas cubren todas las audiencias: developers (README), DevOps (Deploy), usuarios (Onboarding), QA (E2E), clientes (Presentaciones), no-técnicos (Lenguaje natural).
 
 4. **El futuro es claro** — Roadmap a 5 ciclos: TOTP encryption, Postgres migration, RLS, pgvector, OCR/CLIP, i18n, mobile app, K8s, voice agents.
 

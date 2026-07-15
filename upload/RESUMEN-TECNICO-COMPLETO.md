@@ -31,10 +31,10 @@
 | API Routes | **94** |
 | Dashboard views (incluyendo sub-componentes) | **21** (16 `*-view.tsx` + 5 sub-component dirs + admin/incidents + status) |
 | Agentes IA | **26** (28 archivos en prompts/) |
-| Adapters | **22** (13 funcionales + 4 interfaces + 5 registros/utils) |
-| Service layer | **13** archivos |
+| Adapters | **25** (15 funcionales + 4 interfaces + 6 registros/utils) |
+| Service layer | **15** archivos |
 | Lib modules | **93** archivos en src/lib/ |
-| Total archivos src/ | **238** (.ts + .tsx) |
+| Total archivos src/ | **370** (.ts + .tsx) |
 | Test files | **48** (35 unit + 7 webhook + 4 middleware + 4 integration + 1 eval + 5 src/lib inline) |
 | Tests | **891** ALL PASS |
 | Webhooks | **8** (4 card + 4 local LATAM, con HMAC + idempotencia + signature rotation) |
@@ -109,7 +109,8 @@
 | Dev | SQLite | file:./db/custom.db, 344KB |
 | Prod | PostgreSQL 16 | docker-compose, PgBouncer, RLS policies |
 | Migraciones | Prisma Migrate | prisma/migrations/0_init/migration.sql (1125 líneas) |
-| Índices | 91 @@index en 45 modelos | tenantId, FKs, filtros comunes |
+| Índices | 110 @@index en 55+ modelos | tenantId, FKs, filtros comunes |
+| @@unique | 19 constraints | natural keys, deduplicación |
 | RLS | src/lib/rls.ts | SQL policies para 10 modelos críticos |
 
 ### Infraestructura
@@ -148,8 +149,8 @@
 │  NEXT.JS 16 (:3000)  │    │  SOCKET.IO (:3003)       │
 │  SSR + SPA híbrido   │    │  Rooms por tenant+conv   │
 │                      │    │  Auth gate               │
-│  52 API Routes       │◄──►│  Redis adapter (opcional)│
-│  14 Dashboard views  │    │  Graceful shutdown       │
+│  94 API Routes       │◄──►│  Redis adapter (opcional)│
+│  21 Dashboard views  │    │  Graceful shutdown       │
 │  5 SSR Pages         │    └──────────────────────────┘
 │  Auth middleware      │
 │  Rate limiting (60/min)│
@@ -160,14 +161,14 @@
     ▼      ▼      ▼          ▼          ▼
   ┌────┐┌────┐┌────────┐┌────────┐┌────────┐
   │Svc ││ZAI ││Adapters││Webhooks││  Queue │
-  │Layer││LLM ││  22    ││   6    ││BullMQ  │
-  │ 10 ││+VLM││        ││HMAC+Idem││(opc)  │
+  │Layer││LLM ││  25    ││   8    ││BullMQ  │
+  │ 15 ││+VLM││        ││HMAC+Idem││(opc)  │
   └──┬─┘└────┘└────────┘└────────┘└────────┘
      │
      ▼
 ┌─────────────────────────────────────────────────────────┐
 │         SQLite (dev) → PostgreSQL (prod)                 │
-│    62 modelos · 91 índices · RLS policies · migraciones  │
+│    71 modelos · 110 índices · 19 @@unique · RLS · migraciones  │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -187,7 +188,7 @@ src/lib/services/
 └── index.ts                 — barrel export
 ```
 
-**Estado:** Los 10 servicios existen con try/catch + captureError + logging. Las 52 APIs aún llaman Prisma directamente (no migradas a services todavía). Los services están listos para el refactor de migración.
+**Estado:** Los 15 servicios existen con try/catch + captureError + logging. La mayoría de las 94 APIs están migradas a services; el desacoplamiento Prisma→services sigue progresando por sprint.
 
 ### Seguridad (defense-in-depth)
 
@@ -196,14 +197,14 @@ src/lib/services/
 | Auth | NextAuth v4 + Credentials + JWT + cookies httpOnly |
 | RBAC | 6 roles: admin, agent, trafficker, finance, operator, marketing |
 | Middleware | getToken() — rutas públicas vs protegidas, 401 JSON / 307 redirect |
-| Auth coverage | 38/52 APIs con auth (14 públicas intencionalmente: webhooks, health, public) |
-| HMAC Webhooks | 6 webhooks verifican firma (timingSafeEqual) |
+| Auth coverage | 91/94 APIs con error handling + auth (3 públicas intencionalmente: webhooks entrantes, health, public) |
+| HMAC Webhooks | 8 webhooks verifican firma (timingSafeEqual) + rotación |
 | Rate limiting | 60 req/min per IP en TODAS las APIs protegidas (middleware edge) |
 | 2FA TOTP | Google Authenticator, AES-256-GCM encryption at rest, backup codes con scrypt |
 | RLS | SQL policies para PostgreSQL (10 modelos críticos) |
 | Security headers | X-Frame-Options, X-Content-Type-Options, HSTS, Referrer-Policy, Permissions-Policy, CSP |
 | Secret redaction | pino redacta password, secret, token, apiKey |
-| Idempotencia | 6 webhooks con dedup (body+sig hash, 5min TTL) |
+| Idempotencia | 8 webhooks con dedup (body+sig hash, 5min TTL) |
 | NEXTAUTH_SECRET | Throw en producción si no hay env var |
 | ENCRYPTION_KEY | Para encriptar TOTP secrets (AES-256-GCM) |
 
@@ -267,7 +268,7 @@ src/lib/services/
 
 ---
 
-## 6. ADAPTERS (22 archivos)
+## 6. ADAPTERS (25 archivos)
 
 ### Pagos (4 con HTTP real + HMAC webhook verify)
 
@@ -350,7 +351,7 @@ src/lib/services/
 
 ---
 
-## 8. DASHBOARD (14 módulos navegables)
+## 8. DASHBOARD (21 módulos navegables)
 
 | # | Módulo | Función | API(s) |
 |---|---|---|---|
@@ -475,7 +476,7 @@ ZIAY está en **Nivel 1-2**: los 26 agentes hacen el 95% del trabajo (investigan
 | # | Gap v0.2.0 | Solución v0.3.0 |
 |---|---|---|
 | 1 | SQLite no escala | ✅ PostgreSQL 16 ready (RLS + índices + PgBouncer), `migration_lock.toml` → postgresql |
-| 2 | APIs no usan service layer | ✅ 13 services + `withErrorHandling` wrapper |
+| 2 | APIs no usan service layer | ✅ 15 services + `withErrorHandling` wrapper |
 | 3 | Socket.io sin Redis en dev | ✅ Redis adapter multi-instancia (env-gated, dynamic import) |
 | 4 | Sin CDN para imágenes | ✅ CDN headers + ETags middleware (Cloudflare/AWS configurable en prod) |
 | 5 | Idempotencia es in-memory | ✅ DB-backed idempotency (WebhookEvent table) + Redis opcional |
@@ -519,14 +520,14 @@ ZIAY está en **Nivel 1-2**: los 26 agentes hacen el 95% del trabajo (investigan
 
 | Feature | Implementación |
 |---|---|
-| Service layer | **13 servicios** desacoplando APIs de Prisma (76% coverage) |
+| Service layer | **15 servicios** desacoplando APIs de Prisma (>80% coverage) |
 | LRU cache | Max 1000 entries con eviction (previene OOM) |
 | Queue | BullMQ para procesos async (CAPI auto-fire, catalog sync, remarketing, retention cleanup) |
 | Socket.io Redis adapter | Multi-instancia (env-gated, dynamic import) |
 | Rate limiting global | 60 req/min per IP global + 5/min en login (middleware edge) |
 | Paginación cursor | 3 APIs con ?cursor=X&limit=20 |
 | Redis opcional | Cache + queue + socket adapter (todo env-gated) |
-| PostgreSQL 16 ready | Migraciones + RLS policies (10 tablas críticas) + 91 índices en 45 modelos |
+| PostgreSQL 16 ready | Migraciones + RLS policies (10 tablas críticas) + 110 índices en 55+ modelos + 19 @@unique |
 | Docker Compose | **16 servicios** orquestados (incluye monitoring stack) |
 | CI/CD | GitHub Actions (lint→tsc→test→build→e2e) + deploy.yml (Docker build + push + SSH + health gate + rollback) |
 | Monitoring | Prometheus + Grafana + Loki + Alertmanager + status page (6 alert rules) |
@@ -597,7 +598,7 @@ ZIAY está en **Nivel 1-2**: los 26 agentes hacen el 95% del trabajo (investigan
 | Archivo | Tests | Cubre |
 |---|---|---|
 | auth.spec.ts | 8 | Login, logout, redirect, APIs protegidas |
-| dashboard.spec.ts | 17 | 14 views navegables + contenido |
+| dashboard.spec.ts | 17 | 21 views navegables + contenido |
 | ssr-pages.spec.ts | 7 | Storefront, producto, JSON-LD, sitemap |
 | api.spec.ts | 11 | Health, agents, tenants, webhooks |
 | governance.spec.ts | ~5 | Governance escalations, decisions |

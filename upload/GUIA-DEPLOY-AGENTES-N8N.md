@@ -162,7 +162,7 @@ del docker-compose y que ambos servicios estén en el mismo `networks:` block.
                             ▼
                    ┌─────────────────┐
                    │  Prisma + PG    │
-                   │  (62 modelos)   │
+                   │  (71 modelos)   │
                    └─────────────────┘
 ```
 
@@ -1352,7 +1352,7 @@ N8N_ALLOWED_ORIGINS=https://dashboard.tudominio.com,http://localhost:3000
 - **Auditoría**: `AUDIT-REPORT.md` (1202 líneas)
 - **Worklog**: `worklog.md` (cycle 1 completo)
 - **n8n docs**: https://docs.n8n.io
-- **Docker compose reference**: `docker-compose.yml` (11 servicios)
+- **Docker compose reference**: `docker-compose.yml` (16 servicios en v0.3.0)
 
 ---
 

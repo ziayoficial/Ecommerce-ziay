@@ -295,7 +295,7 @@ El comercio agéntico es **la próxima revolución del retail**, comparable a lo
 3. ✅ **Tiene atribución real** (CPA/ROAS/ROI + CAPI server-side)
 4. ✅ **Tiene wallet con 2FA** (fintech layer para affiliates)
 5. ✅ **Tiene SSR SEO** (cada tienda = URL indexable)
-6. ✅ **Está 95% producción-ready** (108 tests, CI/CD, Docker, auth)
+6. ✅ **Está 95% producción-ready** (891 tests, CI/CD, Docker, auth)
 
 **La ventana de oportunidad es ahora.** En 12-18 meses, los gigantes (Shopify, Meta, OpenAI) llegarán a LATAM. ZIAY tiene esa ventana para capturar 100+ marcas y establecerse como el líder regional.
 

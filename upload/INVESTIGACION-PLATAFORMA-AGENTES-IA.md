@@ -82,7 +82,7 @@ Después de investigar 30+ plataformas, frameworks y tools, la recomendación pa
 - ✅ Control total del código
 - ✅ Latencia mínima (sin hops)
 - ✅ Debugging fácil
-- ✅ Tests automatizados (108 tests)
+- ✅ Tests automatizados (891 tests)
 
 **Contras:**
 - ❌ No visual (cambiar prompts requiere deploy)
@@ -245,7 +245,7 @@ Casos complejos → LangGraph (Python microservice)
 
 ### ¿Por qué NO LangGraph/CrewAI ahora?
 
-1. **ZIAY ya funciona** — 26 agentes, 3 pipelines, 108 tests. No romper lo que funciona.
+1. **ZIAY ya funciona** — 26 agentes, 3 pipelines, 891 tests. No romper lo que funciona.
 2. **Python overhead** — agregar un microservice Python adds complejidad innecesaria
 3. **n8n hace lo mismo** — orquestación visual + retry + schedule, sin código
 4. **LangGraph es overkill** — para 26 agentes secuenciales, un switch/case es suficiente

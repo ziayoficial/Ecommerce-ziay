@@ -90,6 +90,7 @@
     "@mermaid-js/mermaid-cli": "^11.16.0",
     "@next/bundle-analyzer": "^16.2.10",
     "@playwright/test": "^1.61.1",
+    "@redocly/cli": "^2.39.0",
     "@tailwindcss/postcss": "^4",
     "@types/bcryptjs": "^3.0.0",
     "@types/react": "^19",

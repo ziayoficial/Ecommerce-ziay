@@ -66,9 +66,16 @@ export class PayUAdapter implements PaymentAdapter {
    * Calcula la firma MD5 que PayU exige en `order.signature` y en la
    * verificación del webhook. Formato:
    *   `{apiKey}~{merchantId}~{reference}~{amount}~{currency}~{state}`
+   *
+   * SPRINT-FIXES-FINAL-001 §4 — `apiKeyOverride` opcional para soportar
+   * rotación de credenciales. Cuando se pasa (típicamente con
+   * `PAYU_WEBHOOK_SECRET_OLD` desde el webhook route), se usa esa API key
+   * en lugar de `this.apiKey` para computar la firma MD5. El `merchantId`
+   * no se rota (es estable), así que no se sobreescribe.
    */
-  private sign(reference: string, amount: number, currency: string, state: string): string {
-    const raw = `${this.apiKey}~${this.merchantId}~${reference}~${amount}~${currency}~${state}`
+  private sign(reference: string, amount: number, currency: string, state: string, apiKeyOverride?: string): string {
+    const apiKey = apiKeyOverride ?? this.apiKey
+    const raw = `${apiKey}~${this.merchantId}~${reference}~${amount}~${currency}~${state}`
     return crypto.createHash('md5').update(raw).digest('hex')
   }
 
@@ -278,8 +285,14 @@ export class PayUAdapter implements PaymentAdapter {
    * route normaliza ambos y pasa la firma como `signature` aquí.
    *
    * @see https://developers.payulatam.com/latam/en/docs/integrations/api-integration/notifications.html
+   *
+   * SPRINT-FIXES-FINAL-001 §4 — `secretOverride` opcional para rotación.
+   * En PayU, el "secreto" que se rota es la API key (el `merchantId` es
+   * estable). Cuando se pasa, se interpreta como la API key anterior
+   * (`PAYU_WEBHOOK_SECRET_OLD`) y se usa para computar la firma MD5 —
+   * útil durante el grace period de rotación.
    */
-  webhookVerify(rawBody: string, signature: string): boolean {
+  webhookVerify(rawBody: string, signature: string, secretOverride?: string): boolean {
     // Dev-mode fallback: if no creds configured, throw in production (forged
     // webhooks would be silently accepted) and allow in dev with a warning.
     // FIX-REALTIME-WEBHOOKS-001 · R3.
@@ -300,7 +313,7 @@ export class PayUAdapter implements PaymentAdapter {
       const currency = String(body?.currency ?? body?.currency_iso ?? '')
       const state = String(body?.state_pol ?? body?.state ?? '')
       if (!reference || !amount || !currency || !state) return false
-      const expected = this.sign(reference, amount, currency, state)
+      const expected = this.sign(reference, amount, currency, state, secretOverride)
       return safeEqual(expected, signature)
     } catch {
       return false

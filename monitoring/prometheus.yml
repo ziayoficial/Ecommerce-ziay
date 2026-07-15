@@ -12,6 +12,15 @@
 # Inside a container, `localhost` resolves to the container itself, so
 # the previous config scraped nothing but its own loopback. The
 # `alerting.alertmanagers` block pushes evaluated alerts to Alertmanager.
+#
+# SPRINT-INFRA-FINAL-002 · §4 — added per-job `scrape_timeout` and richer
+# labels. The app job (15s interval / 10s timeout) leaves 5s of slack
+# before Prometheus considers the target down; the chat-service job
+# (30s interval / 5s timeout) is polled less often because its `/health`
+# endpoint only flips on socket.io failures. Added `instance: 'app-1'`
+# so dashboards can distinguish multiple app replicas once we scale
+# horizontally (the `instance` label Prometheus auto-sets from the
+# target URL is the same for every replica behind `app:3000`).
 global:
   scrape_interval: 15s
   evaluation_interval: 15s
@@ -27,14 +36,21 @@ alerting:
 scrape_configs:
   - job_name: 'ziay-app'
     metrics_path: '/api/metrics'
+    scrape_interval: 15s
+    scrape_timeout: 10s
     static_configs:
       - targets: ['app:3000']
         labels:
           service: 'ziay'
           env: 'production'
+          instance: 'app-1'
 
   - job_name: 'ziay-chat-service'
+    metrics_path: '/health'
+    scrape_interval: 30s
+    scrape_timeout: 5s
     static_configs:
       - targets: ['chat-service:3003']
         labels:
           service: 'chat-service'
+          env: 'production'

@@ -316,8 +316,13 @@ services:
   # SPRINT-MONITORING-FIX-001 · #3 — receives structured log streams pushed
   # by Promtail (job #16 below) and exposes them to Grafana via the
   # `loki` datasource (already provisioned in grafana-datasource.yml).
-  # Default `local-config.yaml` keeps retention modest; for prod swap in
-  # a boltdb-shipper config with S3 chunks backend.
+  #
+  # SPRINT-INFRA-FINAL-002 · §2 — switched from the image's bundled
+  # `local-config.yaml` (no retention, no ingestion limits) to the
+  # repo-managed `monitoring/loki-config.yml` (30-day retention, 10 MB/s
+  # ingestion cap, 10k streams/tenant, boltdb-shipper index on the
+  # filesystem). The config is bind-mounted read-only at the path Loki's
+  # default entrypoint expects, so the `command:` line still works.
   loki:
     image: grafana/loki:latest
     restart: unless-stopped
@@ -326,6 +331,7 @@ services:
       - "3100:3100"
     volumes:
       - loki-data:/loki
+      - ./monitoring/loki-config.yml:/etc/loki/local-config.yaml:ro
     command: -config.file=/etc/loki/local-config.yaml
 
   # ── 16. Promtail (log shipper → Loki) ─────────────────────────────────────

@@ -15,6 +15,8 @@
 | 0011 | Webhook Error Handling (Always 200 + Body Status) | 2026-07-15 | Accepted |
 | 0012 | Multi-Currency LATAM Support | 2026-07-15 | Accepted |
 | 0013 | Local Payment Methods (PSE/PIX/OXXO/SPEI) | 2026-07-15 | Accepted |
+| 0014 | Input Sanitization Strategy | 2026-07-15 | Accepted |
+| 0015 | CORS + CSRF Hardening | 2026-07-15 | Accepted |
 
 ## How to create a new ADR
 

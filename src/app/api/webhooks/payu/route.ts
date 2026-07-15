@@ -26,6 +26,9 @@ import { PayUAdapter } from '@/lib/adapters/payu'
 import { applyPaymentUpdate, safeAudit } from '@/lib/adapters/payment-webhook-utils'
 import { isDuplicateWebhook, isDuplicateWebhookDB, generateWebhookId } from '@/lib/middleware/idempotency'
 import { withWebhookErrorHandling } from '@/lib/middleware/webhook-error-handler'
+import { getLogger } from '@/lib/logger'
+
+const logger = getLogger('webhook:payu')
 
 /** Map de códigos `state_pol` de PayU a strings canónicos. */
 const PAYU_STATE_POL_MAP: Record<string, string> = {
@@ -92,6 +95,26 @@ export const POST = withWebhookErrorHandling(async (req: NextRequest) => {
       { error: 'Webhook verification configuration error' },
       { status: 500 },
     )
+  }
+
+  if (!sigValid) {
+    // SPRINT-FIXES-FINAL-001 §4 — Webhook signature rotation grace period.
+    // Try the OLD API key (if configured) when the current key fails to
+    // verify — supports hot-rotation of PAYU_API_KEY without dropping
+    // in-flight webhooks signed with the previous key. The adapter's
+    // `webhookVerify` accepts an optional `secretOverride` (interpreted
+    // as the alternate API key for PayU's MD5 signature) for this purpose.
+    const oldSecret = process.env.PAYU_WEBHOOK_SECRET_OLD
+    if (oldSecret) {
+      try {
+        sigValid = adapter.webhookVerify(rawBody, signature, oldSecret)
+      } catch {
+        sigValid = false
+      }
+      if (sigValid) {
+        logger.warn('Webhook verified with OLD secret — rotation in progress')
+      }
+    }
   }
 
   if (!sigValid) {

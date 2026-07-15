@@ -375,6 +375,20 @@ export default async function StatusPage() {
           <p>Para soporte: soporte@ziay.co</p>
           <p className="mt-1">Actualizado cada 30 segundos</p>
         </div>
+
+        {/* SPRINT-ADMIN-INCIDENTS-001 — discrete admin link. Visible to
+            everyone (the route is auth-protected — non-admins land on
+            /login, then get bounced by the client-side role guard). Kept
+            low-contrast so casual visitors ignore it but on-call SREs
+            have a one-click entry from the public status page. */}
+        <div className="mt-8 text-center">
+          <a
+            href="/admin/incidents"
+            className="text-xs text-muted-foreground hover:text-foreground"
+          >
+            Gestión de incidentes (admin)
+          </a>
+        </div>
       </div>
     </main>
   )

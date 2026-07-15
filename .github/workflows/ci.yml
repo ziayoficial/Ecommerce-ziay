@@ -38,6 +38,25 @@ jobs:
       - run: bunx vitest run
 
   # ──────────────────────────────────────────────────────────────────────────
+  # openapi-spec job — Sprint 12D. Runs @redocly/cli lint against the
+  # OpenAPI spec. `continue-on-error: true` means warnings don't fail the
+  # build; only hard parse/schema errors (which would also break the docs
+  # site / ReDoc rendering) bubble up. Runs in parallel with lint /
+  # typecheck / unit-tests so it doesn't add wall-clock time.
+  # ──────────────────────────────────────────────────────────────────────────
+  openapi-spec:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - run: bun install
+      - name: Validate OpenAPI spec
+        run: npx @redocly/cli lint docs/openapi.yaml
+        continue-on-error: true  # warnings don't fail the build
+
+  # ──────────────────────────────────────────────────────────────────────────
   # build job — pushes Prisma schema + runs `next build` against PostgreSQL
   # so migrations are tested against the same DB engine as production.
   # Sprint 5C: previously used SQLite (`file:./test.db`); now uses a real

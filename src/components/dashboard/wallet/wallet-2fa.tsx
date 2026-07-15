@@ -1,5 +1,9 @@
 // ZIAY — Wallet 2FA section (warning alert) + the 2FA setup/verify dialog.
 // Split out from wallet-view.tsx in SPRINT8-VIEWS-SPLIT-001.
+//
+// SPRINT-FIXES-FINAL-001 §2 — full i18n pass. All user-visible Spanish
+// strings extracted to `wallet.2fa_*` keys in src/lib/i18n.ts (all 4
+// locales: es-CO, es-MX, en-US, pt-BR).
 
 import { QRCodeSVG } from 'qrcode.react'
 
@@ -27,10 +31,10 @@ export function Wallet2FAWarning({ onOpenTwoFactor }: { onOpenTwoFactor: () => v
       <ShieldAlert className="size-4 text-amber-600" />
       <AlertTitle className="text-amber-700 dark:text-amber-300">2FA no activado</AlertTitle>
       <AlertDescription className="text-muted-foreground">
-        Activa la autenticación en dos pasos para proteger tus retiros. Sin 2FA, cualquier solicitud de retiro queda pendiente de verificación manual.
+        {t('wallet.2fa_desc')}
         <div className="mt-2">
           <Button size="sm" onClick={onOpenTwoFactor}>
-            <Lock className="size-4" /> Activar 2FA ahora
+            <Lock className="size-4" /> {t('wallet.2fa_activate')}
           </Button>
         </div>
       </AlertDescription>
@@ -62,12 +66,20 @@ export function Wallet2FADialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ShieldCheck className="size-5 text-emerald-600" />
-            {stage === 'setup' ? 'Configurar 2FA' : 'Verifica tu autenticador'}
+            {stage === 'setup'
+              ? t('wallet.2fa_title')
+              : t('wallet.2fa_pending')}
           </DialogTitle>
           <DialogDescription>
             {stage === 'setup'
               ? 'Generando tu secreto TOTP…'
-              : 'Escanea este QR con Google Authenticator, Authy o 1Password e ingresa el código de 6 dígitos.'}
+              : (
+                <>
+                  {t('wallet.2fa_scan_qr')}
+                  {' '}
+                  {t('wallet.2fa_enter_code')}
+                </>
+              )}
           </DialogDescription>
         </DialogHeader>
 
@@ -81,12 +93,16 @@ export function Wallet2FADialog({
               <QRCodeSVG value={uri} size={180} />
             </div>
             <div className="space-y-1">
-              <p className="text-sm font-medium">Secreto (cópialo si no puedes escanear)</p>
+              <p className="text-sm font-medium">{t('wallet.2fa_secret')}</p>
               <div id="2fa-secret" className="font-mono text-[11px] p-2 rounded bg-muted break-all">{secret}</div>
             </div>
             {backup.length > 0 && (
               <div className="space-y-1">
-                <p className="text-sm font-medium">Códigos de respaldo (guárdalos en un lugar seguro)</p>
+                <p className="text-sm font-medium">
+                  {t('wallet.2fa_backup_codes')}
+                  {' '}
+                  ({t('wallet.2fa_save_codes')})
+                </p>
                 <div id="2fa-backup-codes" className="grid grid-cols-2 gap-1 p-2 rounded bg-muted">
                   {backup.map((c, i) => (
                     <div key={i} className="font-mono text-[11px] tabular-nums">{c}</div>
@@ -96,7 +112,7 @@ export function Wallet2FADialog({
             )}
             <Separator />
             <div className="space-y-2">
-              <Label htmlFor="2fa-verify-code">Código de verificación</Label>
+              <Label htmlFor="2fa-verify-code">{t('wallet.2fa_verify_code')}</Label>
               <InputOTP id="2fa-verify-code" maxLength={6} value={totpToken} onChange={setTotpToken}>
                 <InputOTPGroup>
                   <InputOTPSlot index={0} />
@@ -114,7 +130,7 @@ export function Wallet2FADialog({
             <DialogFooter>
               <Button variant="outline" onClick={() => onOpenChange(false)}>{t('common.cancel')}</Button>
               <Button onClick={onVerify} disabled={totpToken.length !== 6}>
-                <QrCode className="size-4" /> Verificar y activar
+                <QrCode className="size-4" /> {t('wallet.2fa_verify')}
               </Button>
             </DialogFooter>
           </div>

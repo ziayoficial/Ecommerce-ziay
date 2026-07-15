@@ -2,14 +2,14 @@
 
 ## Architecture
 - [Architecture Overview](../upload/MAESTRO-arquitectura.md)
-- [Technical Summary](../upload/RESUMEN-TECNICO.md)
+- [Technical Summary](../upload/RESUMEN-TECNICO-COMPLETO.md)
 - [ERD (auto-generated)](./erd.svg)
 - [ERD (Mermaid)](./ERD.md)
 - [ADRs](./adr/README.md)
 
 ## Onboarding
-- [Getting Started](../upload/GUIA-INICIO-RAPIDO.md)
-- [Operator Onboarding](../upload/GUIA-OPERADOR.md)
+- [Getting Started](../upload/GUIA-ONBOARDING-CLIENTES.md)
+- [Operator Onboarding](../upload/ONBOARDING-COMPLETO.md)
 - [API Cookbook](./API-COOKBOOK.md)
 - [Contributing](../CONTRIBUTING.md)
 - [Style Guide](./STYLE_GUIDE.md)
@@ -21,9 +21,9 @@
 - [Meta Agent Decision](./META-AGENT-DECISION.md)
 
 ## Research
-- [Market Research](../upload/INVESTIGACION-MERCADO.md)
-- [Agent Platform Research](../upload/INVESTIGACION-PLATAFORMAS-AGENTES.md)
-- [Enterprise Plan](../upload/PLAN-ENTERPRISE.md)
+- [Market Research](../upload/INVESTIGACION-MERCADO-COMERCIO-AGENTICO.md)
+- [Agent Platform Research](../upload/INVESTIGACION-PLATAFORMA-AGENTES-IA.md)
+- [Enterprise Plan](../upload/PLAN-ENTERPRISE-COMERCIO-AGENTICO.md)
 - [Lessons Learned](../upload/LECCIONES-APRENDIDAS.md)
 
 ## API

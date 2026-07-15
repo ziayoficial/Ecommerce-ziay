@@ -207,12 +207,18 @@ export class MercadoPagoAdapter implements PaymentAdapter {
    * MercadoPago envía el header `x-signature` con formato `ts=<ts>,v1=<hex>`.
    * El HMAC es `HMAC-SHA256(secret, "<ts>.<body>")`.
    * @see https://www.mercadopago.com.co/developers/es/docs/your-integrations/notifications/webhooks/webhooks-mp
+   *
+   * SPRINT-FIXES-FINAL-001 §4 — `secretOverride` opcional para rotación.
+   * Cuando se pasa, se usa ese secreto en lugar de `this.webhookSecret`
+   * (útil para verificar con `MERCADOPAGO_WEBHOOK_SECRET_OLD` durante el
+   * grace period de rotación).
    */
-  webhookVerify(rawBody: string, signature: string): boolean {
+  webhookVerify(rawBody: string, signature: string, secretOverride?: string): boolean {
+    const secret = secretOverride ?? this.webhookSecret
     // Dev-mode fallback: if no secret configured, throw in production (forged
     // webhooks would be silently accepted) and allow in dev with a warning.
     // FIX-REALTIME-WEBHOOKS-001 · R3.
-    if (!this.webhookSecret) {
+    if (!secret) {
       if (process.env.NODE_ENV === 'production') {
         throw new Error('MercadoPago webhook secret not configured in production')
       }
@@ -227,7 +233,7 @@ export class MercadoPagoAdapter implements PaymentAdapter {
     const v1 = parts.v1
     if (!ts || !v1) return false
     const manifest = `${ts}.${rawBody}`
-    const expected = crypto.createHmac('sha256', this.webhookSecret).update(manifest).digest('hex')
+    const expected = crypto.createHmac('sha256', secret).update(manifest).digest('hex')
     return safeEqual(expected, v1)
   }
 }

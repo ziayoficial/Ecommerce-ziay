@@ -19,6 +19,48 @@ info:
   license:
     name: Proprietary
 
+tags:
+  - name: Auth
+    description: Authentication endpoints
+  - name: Overview
+    description: Dashboard overview + KPIs
+  - name: Orders
+    description: Order management
+  - name: Conversations
+    description: WhatsApp/Messenger conversations
+  - name: Catalog
+    description: Product catalog
+  - name: Ads
+    description: Ad attribution + management
+  - name: Monetization
+    description: Commission + invoicing
+  - name: Wallet
+    description: Trafficker wallet + withdrawals
+  - name: Logistics
+    description: Shipping + tracking
+  - name: Novedades
+    description: Post-sale incidents
+  - name: Marketplace
+    description: Cross-brand marketplace
+  - name: Channels
+    description: WhatsApp/Messenger/Instagram channels
+  - name: Agents
+    description: AI agent execution
+  - name: Protocols
+    description: AP2/UCP/ACP/MCP/A2A protocol endpoints
+  - name: Compliance
+    description: KYC + consent + retention + DIAN + retracto
+  - name: Governance
+    description: Mandates + escalations + decisions
+  - name: Finance
+    description: LLM costs + channel contribution
+  - name: Monitoring
+    description: Health + metrics + status
+  - name: Webhooks
+    description: Payment + messaging webhook receivers
+  - name: Public
+    description: Public endpoints (no auth)
+
 servers:
   - url: https://ziay.co
     description: Production
@@ -169,6 +211,7 @@ paths:
   # ─────────────────────────────────────────────────────────────────────
   /api:
     get:
+      tags: [Monitoring]
       summary: API root / identity
       description: Returns the API name + status. Requires auth.
       security:
@@ -181,6 +224,7 @@ paths:
 
   /api/health:
     get:
+      tags: [Monitoring]
       summary: Full health check (integrations + runtime)
       description: Reports DB, Redis, LLM provider, adapter, webhook, disk, and runtime metrics. Cached 30s. Returns 503 on overall `error`.
       security: []
@@ -197,6 +241,7 @@ paths:
 
   /api/health/live:
     get:
+      tags: [Monitoring]
       summary: Liveness probe
       description: Kubernetes / load balancer liveness. No DB touch.
       security: []
@@ -206,6 +251,7 @@ paths:
 
   /api/health/ready:
     get:
+      tags: [Monitoring]
       summary: Readiness probe
       description: DB + critical integrations ready to serve traffic.
       security: []
@@ -217,6 +263,7 @@ paths:
 
   /api/health/uptime:
     get:
+      tags: [Monitoring]
       summary: Uptime + process metrics
       description: Process uptime, memory, pid, Node version.
       security: []
@@ -226,6 +273,7 @@ paths:
 
   /api/metrics:
     get:
+      tags: [Monitoring]
       summary: Prometheus metrics
       description: Prometheus text-format counters + histograms for scraping.
       security: []
@@ -238,6 +286,7 @@ paths:
   # ─────────────────────────────────────────────────────────────────────
   /api/auth/[...nextauth]:
     get:
+      tags: [Auth]
       summary: NextAuth handler (GET)
       description: Sign-in pages, session lookup, csrf token.
       security: []
@@ -245,6 +294,7 @@ paths:
         '200':
           description: NextAuth response (HTML/JSON).
     post:
+      tags: [Auth]
       summary: NextAuth handler (POST)
       description: Credentials sign-in / form submissions / sign-out.
       security: []
@@ -256,6 +306,7 @@ paths:
 
   /api/tenants:
     get:
+      tags: [Public]
       summary: List tenants
       description: Platform admins see all; tenant users see their own.
       security:
@@ -266,6 +317,7 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
     post:
+      tags: [Public]
       summary: Create tenant (onboarding)
       description: Create a new tenant — platform admin only.
       security:
@@ -282,6 +334,7 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
     patch:
+      tags: [Public]
       summary: Update tenant config
       description: Update name, currency, country, AI provider, etc.
       security:
@@ -300,6 +353,7 @@ paths:
 
   /api/public/tenants:
     get:
+      tags: [Public]
       summary: Public tenant directory
       description: Slugs + display names for the login tenant picker. No sensitive fields.
       security: []
@@ -312,6 +366,7 @@ paths:
   # ─────────────────────────────────────────────────────────────────────
   /api/catalog/products:
     get:
+      tags: [Catalog]
       summary: List catalog products
       description: Search + pagination over the tenant's product catalog.
       security:
@@ -330,6 +385,7 @@ paths:
 
   /api/catalog/send-to-chat:
     post:
+      tags: [Catalog]
       summary: Send product card to chat
       description: Push a product card into an active conversation (chat-up sell flow).
       security:
@@ -348,6 +404,7 @@ paths:
 
   /api/catalog/sync:
     get:
+      tags: [Catalog]
       summary: Catalog sync status
       description: Last sync status + audit log entry.
       security:
@@ -358,6 +415,7 @@ paths:
         '200':
           description: Sync status.
     post:
+      tags: [Catalog]
       summary: Trigger catalog sync
       description: Enqueue a background sync job from the external platform (WooCommerce/Shopify/etc.).
       security:
@@ -379,6 +437,7 @@ paths:
 
   /api/public/catalog:
     get:
+      tags: [Public]
       summary: Public catalog endpoint
       description: Product list for storefront / AI agent discovery (no auth).
       security: []
@@ -394,6 +453,7 @@ paths:
 
   /api/product-enrichment:
     get:
+      tags: [Catalog]
       summary: List product enrichments + pending
       description: Existing ProductEnrichment rows + products that still lack enrichment.
       security:
@@ -404,6 +464,7 @@ paths:
         '200':
           description: '{ enrichments, pending }'
     post:
+      tags: [Catalog]
       summary: Enrich a product (VLM)
       description: Call the VLM (glm-4.6v) to analyze the product image and upsert ProductEnrichment.
       security:
@@ -430,6 +491,7 @@ paths:
   # ─────────────────────────────────────────────────────────────────────
   /api/orders:
     get:
+      tags: [Orders]
       summary: List orders (cursor-paginated)
       description: Filter by status / mode / search query. Cursor-based pagination (max 100).
       security:
@@ -456,6 +518,7 @@ paths:
 
   /api/orders/{id}:
     patch:
+      tags: [Orders]
       summary: Update order
       description: Update status / payment status. Optional `event` is recorded atomically in a transaction.
       security:
@@ -498,6 +561,7 @@ paths:
 
   /api/overview:
     get:
+      tags: [Overview]
       summary: Dashboard overview KPIs
       description: Revenue, orders, conversations, ads KPIs for a tenant + date range.
       security:
@@ -514,6 +578,7 @@ paths:
   # ─────────────────────────────────────────────────────────────────────
   /api/conversations:
     get:
+      tags: [Conversations]
       summary: List conversations (cursor-paginated)
       description: Filter by status / channel / search query.
       security:
@@ -538,6 +603,7 @@ paths:
         '200':
           description: Paginated conversations + nextCursor + hasMore.
     post:
+      tags: [Conversations]
       summary: Send a conversation message
       description: Routes through conversationService so WhatsApp adapter delivers + TTR is stamped.
       security:
@@ -564,6 +630,7 @@ paths:
 
   /api/conversations/{id}:
     get:
+      tags: [Conversations]
       summary: Fetch conversation detail
       description: Single conversation with messages + customer + channel context.
       security:
@@ -582,6 +649,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
     patch:
+      tags: [Conversations]
       summary: Update conversation
       description: Update status / priority / assignee.
       security:
@@ -604,6 +672,7 @@ paths:
 
   /api/ai-reply:
     post:
+      tags: [Agents]
       summary: Generate AI draft reply
       description: Generate an AI draft reply for a conversation message (uses the tenant's LLM adapter).
       security:
@@ -623,6 +692,7 @@ paths:
   # ─────────────────────────────────────────────────────────────────────
   /api/channels:
     get:
+      tags: [Channels]
       summary: List channels
       description: List channels for a tenant. Tokens are masked (hasToken flags only).
       security:
@@ -633,6 +703,7 @@ paths:
         '200':
           description: Channel list with masked credentials.
     post:
+      tags: [Channels]
       summary: Create channel
       description: Add a new channel (WhatsApp / Messenger / Instagram / Telegram). Validates per-type required fields.
       security:
@@ -659,6 +730,7 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
     patch:
+      tags: [Channels]
       summary: Update channel
       description: Update a channel (e.g., rotate credentials). Tenant ownership verified.
       security:
@@ -680,6 +752,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
     delete:
+      tags: [Channels]
       summary: Deactivate channel (soft delete)
       description: Soft-delete a channel — preserves conversation history.
       security:
@@ -698,6 +771,7 @@ paths:
 
   /api/integrations/credentials:
     get:
+      tags: [Channels]
       summary: List integration credentials (masked)
       description: List credential Setting rows (`cred::*` keys) with masked values.
       security:
@@ -706,6 +780,7 @@ paths:
         '200':
           description: Masked credential list.
     post:
+      tags: [Channels]
       summary: Create / update integration credential
       description: Upsert a `cred::*` Setting row.
       security:
@@ -720,6 +795,7 @@ paths:
         '200':
           description: Upserted credential.
     put:
+      tags: [Channels]
       summary: Replace integration credential
       description: Replace a `cred::*` Setting row.
       security:
@@ -734,6 +810,7 @@ paths:
         '200':
           description: Replaced credential.
     delete:
+      tags: [Channels]
       summary: Delete integration credential
       description: Delete a `cred::*` Setting row.
       security:
@@ -753,6 +830,7 @@ paths:
   # ─────────────────────────────────────────────────────────────────────
   /api/ads:
     get:
+      tags: [Ads]
       summary: Ad-level performance
       description: Per-ad spend, ROAS, CPA, ROI, cannibalization detection, kill recommendation.
       security:
@@ -770,6 +848,7 @@ paths:
 
   /api/ads/{id}:
     patch:
+      tags: [Ads]
       summary: Kill / pause / resume / scale an ad
       description: Pushes the action to the ad platform (simulated in dev).
       security:
@@ -802,6 +881,7 @@ paths:
 
   /api/ads/import:
     post:
+      tags: [Ads]
       summary: Import ad spend from platform
       description: Importa spend/impressions/clicks de Google/TikTok Ads. Rate-limited (20 req/min).
       security:
@@ -830,6 +910,7 @@ paths:
 
   /api/conversions:
     get:
+      tags: [Ads]
       summary: List conversion events
       description: Server-side pixel events + stats (sent / failed / pending).
       security:
@@ -840,6 +921,7 @@ paths:
         '200':
           description: '{ events, stats }'
     post:
+      tags: [Ads]
       summary: Fire conversion event (CAPI)
       description: Server-side pixel fire (Meta CAPI / Google MP / TikTok Events API). Enqueues a `capi-fire` job.
       security:
@@ -866,6 +948,7 @@ paths:
 
   /api/trafficker:
     get:
+      tags: [Wallet]
       summary: List traffickers
       description: Trafficker roster + wallet balance + campaign performance.
       security:
@@ -876,6 +959,7 @@ paths:
         '200':
           description: Trafficker list.
     post:
+      tags: [Wallet]
       summary: Create trafficker
       description: Onboard a new trafficker for a tenant.
       security:
@@ -892,6 +976,7 @@ paths:
 
   /api/remarketing:
     get:
+      tags: [Agents]
       summary: List remarketing campaigns
       description: List scheduled remarketing touches (win-back / cross-sell).
       security:
@@ -902,6 +987,7 @@ paths:
         '200':
           description: Remarketing campaign list.
     post:
+      tags: [Agents]
       summary: Create remarketing campaign
       description: Schedule a new remarketing touch.
       security:
@@ -916,6 +1002,7 @@ paths:
         '201':
           description: Created campaign.
     patch:
+      tags: [Agents]
       summary: Update remarketing campaign
       description: Pause / resume / reschedule.
       security:
@@ -935,6 +1022,7 @@ paths:
   # ─────────────────────────────────────────────────────────────────────
   /api/agents:
     get:
+      tags: [Agents]
       summary: List available agents
       description: Saramantha agent registry (cached 1 hour).
       security:
@@ -945,6 +1033,7 @@ paths:
 
   /api/agents/{agentName}:
     get:
+      tags: [Agents]
       summary: Agent metadata
       description: Fetch metadata for a single agent (schema, label).
       security:
@@ -961,6 +1050,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
     post:
+      tags: [Agents]
       summary: Invoke an agent
       description: Call an agent with a context payload — returns reply + confidence + agent name. Rate-limited (10 req/min/IP).
       security:
@@ -992,6 +1082,7 @@ paths:
 
   /api/orchestrate:
     post:
+      tags: [Agents]
       summary: Orchestrate multi-agent flow
       description: Run a multi-agent orchestration (profile → quote → checkout → etc.).
       security:
@@ -1011,6 +1102,7 @@ paths:
   # ─────────────────────────────────────────────────────────────────────
   /api/ap2/mandates:
     get:
+      tags: [Protocols]
       summary: List mandates
       description: List AP2 mandates for a tenant, optionally filtered by userId/type/status.
       security:
@@ -1035,6 +1127,7 @@ paths:
         '200':
           description: Mandate list.
     post:
+      tags: [Protocols]
       summary: Create Intent Mandate
       description: Create a signed W3C VC Intent Mandate — first link in the Intent → Cart → Payment chain.
       security:
@@ -1068,6 +1161,7 @@ paths:
 
   /api/ap2/mandates/{id}:
     get:
+      tags: [Protocols]
       summary: Fetch mandate by id
       description: Fetch a single AP2 mandate (full VC payload + signature verification status).
       security:
@@ -1084,6 +1178,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
     patch:
+      tags: [Protocols]
       summary: Update mandate
       description: Advance status (active→consumed), stamp orderId / paymentRef.
       security:
@@ -1114,6 +1209,7 @@ paths:
 
   /api/ap2/mandates/{id}/revoke:
     patch:
+      tags: [Protocols]
       summary: Revoke mandate (with cascade)
       description: Revoke an AP2 mandate. Cascades to children (Intent → Cart → Payment) in a single transaction.
       security:
@@ -1142,6 +1238,7 @@ paths:
 
   /api/ap2/mandates/cart:
     post:
+      tags: [Protocols]
       summary: Create Cart Mandate
       description: Create a Cart Mandate signed by the agent (parent = Intent).
       security:
@@ -1158,6 +1255,7 @@ paths:
 
   /api/ap2/mandates/payment:
     post:
+      tags: [Protocols]
       summary: Create Payment Mandate
       description: Create a Payment Mandate signed by the agent (parent = Cart, intentCartHash binds to Intent+Cart).
       security:
@@ -1177,6 +1275,7 @@ paths:
   # ─────────────────────────────────────────────────────────────────────
   /api/ucp/v1/checkout:
     post:
+      tags: [Protocols]
       summary: UCP checkout — create session
       description: Create a UCP checkout session bound to a signed mandate.
       security:
@@ -1193,6 +1292,7 @@ paths:
 
   /api/ucp/v1/checkout/{sessionId}:
     get:
+      tags: [Protocols]
       summary: UCP checkout — fetch session
       description: Fetch a UCP checkout session by id (read-only).
       security:
@@ -1209,6 +1309,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
     patch:
+      tags: [Protocols]
       summary: UCP checkout — advance session
       description: Advance a UCP checkout session through its state machine.
       security:
@@ -1231,6 +1332,7 @@ paths:
 
   /api/ucp/v1/identity-linking:
     post:
+      tags: [Protocols]
       summary: UCP identity linking
       description: Bind an external AI agent identity to a platform user (per UCP spec).
       security:
@@ -1247,6 +1349,7 @@ paths:
 
   /api/ucp/v1/order/{orderId}:
     get:
+      tags: [Protocols]
       summary: UCP order fetch
       description: Read-only order access for an external AI agent (per UCP spec).
       security:
@@ -1263,6 +1366,7 @@ paths:
 
   /api/ucp/v1/payment-token-exchange:
     post:
+      tags: [Protocols]
       summary: UCP payment token exchange
       description: Swap a signed mandate for a one-time payment token (per UCP spec).
       security:
@@ -1282,6 +1386,7 @@ paths:
   # ─────────────────────────────────────────────────────────────────────
   /api/acp/v1/checkout:
     post:
+      tags: [Protocols]
       summary: ACP checkout
       description: Agentic Commerce Protocol checkout endpoint (ChatGPT/Copilot).
       security:
@@ -1298,6 +1403,7 @@ paths:
 
   /api/acp/v1/orders/{id}:
     get:
+      tags: [Protocols]
       summary: ACP order fetch
       description: Read-only order access for an external AI agent (per ACP spec).
       security:
@@ -1314,6 +1420,7 @@ paths:
 
   /api/acp/v1/refunds:
     post:
+      tags: [Protocols]
       summary: ACP refund
       description: Initiate a refund via ACP (external AI agent).
       security:
@@ -1333,6 +1440,7 @@ paths:
   # ─────────────────────────────────────────────────────────────────────
   /api/mcp:
     post:
+      tags: [Protocols]
       summary: MCP JSON-RPC endpoint
       description: Model Context Protocol for Claude/ChatGPT tool calling.
       security:
@@ -1357,6 +1465,7 @@ paths:
 
   /.well-known/ucp:
     get:
+      tags: [Protocols]
       summary: UCP manifest
       security: []
       description: Universal Commerce Protocol manifest for AI agent discovery.
@@ -1366,6 +1475,7 @@ paths:
 
   /.well-known/acp:
     get:
+      tags: [Protocols]
       summary: ACP manifest
       security: []
       description: Agentic Commerce Protocol manifest for ChatGPT/Copilot.
@@ -1375,6 +1485,7 @@ paths:
 
   /.well-known/agent-card:
     get:
+      tags: [Protocols]
       summary: A2A agent card
       security: []
       description: Agent-to-Agent discovery card.
@@ -1387,6 +1498,7 @@ paths:
   # ─────────────────────────────────────────────────────────────────────
   /api/payments/config:
     get:
+      tags: [Monetization]
       summary: List payment config
       description: Payment strategy per channel + non-credential global thresholds.
       security:
@@ -1395,6 +1507,7 @@ paths:
         '200':
           description: '{ channels, global }'
     patch:
+      tags: [Monetization]
       summary: Update payment config
       description: Update a channel's payment strategy + whitelisted global Setting keys.
       security:
@@ -1411,6 +1524,7 @@ paths:
 
   /api/payments/create-link:
     post:
+      tags: [Monetization]
       summary: Create payment link
       description: Create a payment link for an order (checkout URL).
       security:
@@ -1427,6 +1541,7 @@ paths:
 
   /api/payments/local:
     post:
+      tags: [Monetization]
       summary: Create local payment (PSE/PIX/OXXO/SPEI)
       description: LATAM cash/bank-transfer flow. Resolves currency + tax, creates Order, calls adapter, stamps paymentRef atomically.
       security:
@@ -1455,6 +1570,7 @@ paths:
 
   /api/payments/local/{reference}/status:
     get:
+      tags: [Monetization]
       summary: Poll local payment status
       description: Check the status of a local payment reference.
       security:
@@ -1476,6 +1592,7 @@ paths:
   # ─────────────────────────────────────────────────────────────────────
   /api/shipping/guide:
     post:
+      tags: [Logistics]
       summary: Create shipping guide
       description: Create a shipping guide with the configured logistics adapter (Dropi/99envios/AveOnline).
       security:
@@ -1492,6 +1609,7 @@ paths:
 
   /api/shipping/quote:
     post:
+      tags: [Logistics]
       summary: Get shipping rate quotes
       description: Get rate quotes from one or more carriers for an address + package.
       security:
@@ -1508,6 +1626,7 @@ paths:
 
   /api/guide-movements:
     get:
+      tags: [Logistics]
       summary: List guide movements
       description: Tracking movement events per guide.
       security:
@@ -1522,6 +1641,7 @@ paths:
         '200':
           description: '{ movements }'
     post:
+      tags: [Logistics]
       summary: Create guide movement
       description: Append a tracking event (picked_up / in_transit / delivered / exception). Best-effort cascades a Shipment status update.
       security:
@@ -1538,6 +1658,7 @@ paths:
 
   /api/logistics-intelligence:
     get:
+      tags: [Logistics]
       summary: Logistics intelligence insights
       description: Carrier performance, delivery SLA, exception rates.
       security:
@@ -1553,6 +1674,7 @@ paths:
   # ─────────────────────────────────────────────────────────────────────
   /api/wallet:
     get:
+      tags: [Wallet]
       summary: List wallet accounts + balances
       description: Per trafficker / marketplace.
       security:
@@ -1563,6 +1685,7 @@ paths:
         '200':
           description: Wallet account list + balances.
     post:
+      tags: [Wallet]
       summary: Create wallet transaction
       description: Deposit / withdrawal / commission credit. Admin/finance role required.
       security:
@@ -1579,6 +1702,7 @@ paths:
 
   /api/monetization/commission:
     get:
+      tags: [Monetization]
       summary: List commission entries
       description: Per trafficker / marketplace / order.
       security:
@@ -1589,6 +1713,7 @@ paths:
         '200':
           description: Commission entry list.
     post:
+      tags: [Monetization]
       summary: Upsert commission entry
       description: Create / upsert a commission entry (uses upsert to avoid the POST race condition). Admin/finance role.
       security:
@@ -1605,6 +1730,7 @@ paths:
 
   /api/monetization/generate-invoice:
     post:
+      tags: [Monetization]
       summary: Generate commission invoice
       description: Generate an invoice PDF for trafficker/marketplace commissions in a date range. Admin/finance role.
       security:
@@ -1621,6 +1747,7 @@ paths:
 
   /api/monetization/gmv:
     get:
+      tags: [Monetization]
       summary: GMV aggregation
       description: Gross Merchandise Volume per tenant / channel / period. Admin/finance role.
       security:
@@ -1634,6 +1761,7 @@ paths:
 
   /api/marketplace:
     get:
+      tags: [Marketplace]
       summary: Marketplace listings + referrals + stats
       description: Other tenants' active listings, my listings, lead-share config, referrals sent/received + stats.
       security:
@@ -1644,6 +1772,7 @@ paths:
         '200':
           description: '{ listings, myListings, leadConfig, referrals, currentTenant, stats }'
     post:
+      tags: [Marketplace]
       summary: Marketplace action dispatch
       description: '`publish_listing` | `update_config` | `create_referral` (discriminated union on `action`).'
       security:
@@ -1667,6 +1796,7 @@ paths:
   # ─────────────────────────────────────────────────────────────────────
   /api/compliance/consent:
     get:
+      tags: [Compliance]
       summary: List consent records
       description: Lista los consentimientos de un data subject (Ley 1581 de 2012).
       security:
@@ -1682,6 +1812,7 @@ paths:
         '200':
           description: '{ consents }'
     post:
+      tags: [Compliance]
       summary: Register consent
       description: Registra un consentimiento (Ley 1581 de 2012 — protección de datos personales).
       security:
@@ -1712,6 +1843,7 @@ paths:
         '201':
           description: Created consent record.
     delete:
+      tags: [Compliance]
       summary: Revoke consent
       description: Revoke a consent (granted=false, revokedAt=now).
       security:
@@ -1732,6 +1864,7 @@ paths:
 
   /api/compliance/dian-invoice:
     post:
+      tags: [Compliance]
       summary: Generate DIAN invoice draft
       description: Generate a DIAN electronic invoice draft for an order (Ley 1819 — facturación electrónica).
       security:
@@ -1748,6 +1881,7 @@ paths:
 
   /api/compliance/dian-invoice/{invoiceId}/submit:
     post:
+      tags: [Compliance]
       summary: Submit DIAN invoice
       description: Submit a DIAN invoice to the tax authority (DIAN) for formal acceptance.
       security:
@@ -1764,6 +1898,7 @@ paths:
 
   /api/compliance/dsr:
     post:
+      tags: [Compliance]
       summary: Data Subject Request
       description: DSR — access / deletion / portability (Ley 1581 Art. 8).
       security:
@@ -1780,6 +1915,7 @@ paths:
 
   /api/compliance/kyc:
     get:
+      tags: [Compliance]
       summary: List KYC records
       description: KYC verification records (Ley 2573 Colombia — required for credit/installments).
       security:
@@ -1790,6 +1926,7 @@ paths:
         '200':
           description: KYC record list.
     post:
+      tags: [Compliance]
       summary: Create KYC request
       description: Create a KYC verification request for a customer.
       security:
@@ -1806,6 +1943,7 @@ paths:
 
   /api/compliance/kyc/{id}/verify:
     post:
+      tags: [Compliance]
       summary: Verify KYC
       description: Mark a KYC request as verified or rejected (manual review decision).
       security:
@@ -1828,6 +1966,7 @@ paths:
 
   /api/compliance/retention:
     get:
+      tags: [Compliance]
       summary: Retention policy + volumes
       description: Retention policy matrix (Ley 1581 Art 11 + Estatuto Tributario Art 632) + current data volumes. Admin only.
       security:
@@ -1836,6 +1975,7 @@ paths:
         '200':
           description: '{ policy, legalBasis, currentVolumes, lastRun }'
     post:
+      tags: [Compliance]
       summary: Trigger retention sweep
       description: Trigger a retention sweep immediately (admin-only, idempotent).
       security:
@@ -1846,6 +1986,7 @@ paths:
 
   /api/compliance/retention/cron:
     get:
+      tags: [Compliance]
       summary: Daily retention sweep (cron)
       description: Cron-triggered daily retention sweep. Idempotent.
       security:
@@ -1860,6 +2001,7 @@ paths:
 
   /api/compliance/retracto:
     post:
+      tags: [Compliance]
       summary: Process retracto
       description: Procesa un retracto de venta (Ley 1480 Estatuto del Consumidor — derecho de retracto 14 días).
       security:
@@ -1879,6 +2021,7 @@ paths:
   # ─────────────────────────────────────────────────────────────────────
   /api/governance/decisions:
     get:
+      tags: [Governance]
       summary: List DecisionLog entries
       description: Governance DecisionLog entries (verifiable intent audit trail).
       security:
@@ -1889,6 +2032,7 @@ paths:
         '200':
           description: Decision log list.
     post:
+      tags: [Governance]
       summary: Record governance decision
       description: Record a new governance decision (escalation, age-gate override, mandate enforcement).
       security:
@@ -1905,6 +2049,7 @@ paths:
 
   /api/governance/decisions/{id}:
     get:
+      tags: [Governance]
       summary: Fetch DecisionLog by id
       description: Fetch a single DecisionLog entry.
       security:
@@ -1921,6 +2066,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
     patch:
+      tags: [Governance]
       summary: Update governance decision
       description: Update a decision (e.g., resolve an escalation).
       security:
@@ -1943,6 +2089,7 @@ paths:
 
   /api/governance/escalations:
     get:
+      tags: [Governance]
       summary: List escalations
       description: Pending governance escalations (age-gate, KYC, mandate override requests).
       security:
@@ -1953,6 +2100,7 @@ paths:
         '200':
           description: Escalation list.
     post:
+      tags: [Governance]
       summary: Create escalation
       description: Create a new governance escalation for human review.
       security:
@@ -1969,6 +2117,7 @@ paths:
 
   /api/governance/liability:
     post:
+      tags: [Governance]
       summary: Record liability entry
       description: Record who is accountable when an agent acts on behalf of a user.
       security:
@@ -1988,6 +2137,7 @@ paths:
   # ─────────────────────────────────────────────────────────────────────
   /api/audit/{id}/verifiable:
     get:
+      tags: [Governance]
       summary: Build audit-log Verifiable Credential
       description: Build a W3C Verifiable Credential for an audit log entry (signed with the tenant keypair).
       security:
@@ -2009,6 +2159,7 @@ paths:
   # ─────────────────────────────────────────────────────────────────────
   /api/novedades:
     get:
+      tags: [Novedades]
       summary: List novedades
       description: Post-sale cases — complaints, returns, refunds.
       security:
@@ -2023,6 +2174,7 @@ paths:
         '200':
           description: Case list.
     post:
+      tags: [Novedades]
       summary: Create novedad
       description: Open a new post-sale case.
       security:
@@ -2037,6 +2189,7 @@ paths:
         '201':
           description: Created case.
     patch:
+      tags: [Novedades]
       summary: Dispatch novedad action
       description: '`assign` | `resolve` | `add_evidence` | `add_message` | `escalate` | `close`.'
       security:
@@ -2061,6 +2214,7 @@ paths:
 
   /api/novedades/{id}:
     get:
+      tags: [Novedades]
       summary: Fetch novedad detail
       description: Single case with events + assignee + customer.
       security:
@@ -2075,6 +2229,7 @@ paths:
         '200':
           description: Case detail.
     patch:
+      tags: [Novedades]
       summary: Update novedad
       description: Update case fields (status, priority, assignment).
       security:
@@ -2097,6 +2252,7 @@ paths:
 
   /api/redelivery:
     get:
+      tags: [Novedades]
       summary: List redelivery requests
       description: Failed/returned orders with attempt history + status stats.
       security:
@@ -2111,6 +2267,7 @@ paths:
         '200':
           description: '{ stats, requests }'
     post:
+      tags: [Novedades]
       summary: Create redelivery request
       description: Create a new RedeliveryRequest. Auto-schedules attempt #1.
       security:
@@ -2127,6 +2284,7 @@ paths:
         '201':
           description: '{ request, attempt }'
     patch:
+      tags: [Novedades]
       summary: Dispatch redelivery action
       description: '`confirm_address` | `schedule` | `assign_human` | `complete` | `cancel` | `add_attempt`.'
       security:
@@ -2154,6 +2312,7 @@ paths:
   # ─────────────────────────────────────────────────────────────────────
   /api/finance/channel-contribution:
     get:
+      tags: [Finance]
       summary: Channel contribution margin
       description: Per-channel revenue minus ad spend minus channel cost (WhatsApp Cloud API fee, Meta Ads platform fee).
       security:
@@ -2167,6 +2326,7 @@ paths:
 
   /api/finance/channel-cost/sync:
     post:
+      tags: [Finance]
       summary: Sync channel costs
       description: Import channel-cost rows from external sources (Meta Ads platform fee, WhatsApp Cloud API).
       security:
@@ -2186,6 +2346,7 @@ paths:
   # ─────────────────────────────────────────────────────────────────────
   /api/llm/budget:
     get:
+      tags: [Finance]
       summary: Get tenant LLM budget
       description: Daily budget + spent + remaining for the tenant's LLM calls.
       security:
@@ -2196,6 +2357,7 @@ paths:
         '200':
           description: '{ budget, spent, remaining }'
     post:
+      tags: [Finance]
       summary: Set tenant LLM budget
       description: Update the daily LLM budget cap. Admin only.
       security:
@@ -2212,6 +2374,7 @@ paths:
 
   /api/llm/costs:
     get:
+      tags: [Finance]
       summary: List LLM costs
       description: Per-tenant / provider / day cost aggregation.
       security:
@@ -2228,6 +2391,7 @@ paths:
   # ─────────────────────────────────────────────────────────────────────
   /api/analytics/web-vitals:
     post:
+      tags: [Monitoring]
       summary: Receive Core Web Vitals
       description: Browser-side web-vitals beacon (no auth).
       security: []
@@ -2243,6 +2407,7 @@ paths:
 
   /api/buyer-behavior:
     get:
+      tags: [Agents]
       summary: List buyer-behavior records
       description: BuyerBehavior records + risk-level stats.
       security:
@@ -2253,6 +2418,7 @@ paths:
         '200':
           description: '{ behaviors, stats }'
     post:
+      tags: [Agents]
       summary: Upsert buyer-behavior record
       description: Upsert by (tenantId, phone). When riskLevel is 'high_risk'/'blacklist', also creates a BehaviorAlert.
       security:
@@ -2269,6 +2435,7 @@ paths:
 
   /api/notifications:
     get:
+      tags: [Monitoring]
       summary: List notifications
       description: Inbox for the current user.
       security:
@@ -2277,6 +2444,7 @@ paths:
         '200':
           description: Notification list.
     post:
+      tags: [Monitoring]
       summary: Create notification
       description: System-generated — user mentions, escalations.
       security:
@@ -2296,6 +2464,7 @@ paths:
   # ─────────────────────────────────────────────────────────────────────
   /api/webhooks/meta:
     get:
+      tags: [Webhooks]
       summary: Meta webhook verification
       description: Meta webhook subscribe/verify handshake (`hub.mode=subscribe`, `hub.verify_token`).
       security: []
@@ -2316,6 +2485,7 @@ paths:
         '200':
           description: hub.challenge echoed back.
     post:
+      tags: [Webhooks]
       summary: Meta webhook inbound
       description: Meta (Instagram/Facebook) webhook for messaging events, leadgen, etc.
       security:
@@ -2332,6 +2502,7 @@ paths:
 
   /api/webhooks/whatsapp:
     get:
+      tags: [Webhooks]
       summary: WhatsApp webhook verification
       description: WhatsApp Cloud API webhook verify handshake.
       security: []
@@ -2352,6 +2523,7 @@ paths:
         '200':
           description: hub.challenge echoed back.
     post:
+      tags: [Webhooks]
       summary: WhatsApp webhook inbound
       description: WhatsApp Cloud API inbound message / status webhook.
       security:
@@ -2368,6 +2540,7 @@ paths:
 
   /api/webhooks/stripe:
     post:
+      tags: [Webhooks]
       summary: Stripe webhook
       description: Stripe payment_intent.* / charge.* events.
       security:
@@ -2384,6 +2557,7 @@ paths:
 
   /api/webhooks/mercadopago:
     post:
+      tags: [Webhooks]
       summary: MercadoPago webhook
       description: MercadoPago payment notifications.
       security: []
@@ -2399,6 +2573,7 @@ paths:
 
   /api/webhooks/payu:
     post:
+      tags: [Webhooks]
       summary: PayU webhook
       description: PayU payment status callbacks.
       security: []
@@ -2414,6 +2589,7 @@ paths:
 
   /api/webhooks/pix:
     post:
+      tags: [Webhooks]
       summary: PIX webhook
       description: Brazilian PIX payment webhook.
       security: []
@@ -2429,6 +2605,7 @@ paths:
 
   /api/webhooks/pse:
     post:
+      tags: [Webhooks]
       summary: PSE webhook
       description: Colombian PSE bank-transfer payment webhook.
       security: []
@@ -2444,6 +2621,7 @@ paths:
 
   /api/webhooks/wompi:
     post:
+      tags: [Webhooks]
       summary: Wompi webhook
       description: Wompi (Colombia) payment webhook.
       security:
@@ -2458,48 +2636,3 @@ paths:
         '200':
           description: '{ status: "ok" }'
 
-tags:
-  - name: Health
-    description: Health, metrics, uptime.
-  - name: Auth
-    description: Authentication + tenants.
-  - name: Catalog
-    description: Catalog products + sync + enrichment.
-  - name: Orders
-    description: Orders + dashboard overview.
-  - name: Conversations
-    description: Conversations + AI reply.
-  - name: Channels
-    description: Channels + integration credentials.
-  - name: Ads
-    description: Ad performance + spend import + conversions.
-  - name: Agents
-    description: Saramantha agent registry + invocation.
-  - name: AP2
-    description: AP2 Intent / Cart / Payment Mandates (W3C VCs).
-  - name: UCP
-    description: Universal Commerce Protocol (AI agent checkout).
-  - name: ACP
-    description: Agentic Commerce Protocol (ChatGPT/Copilot checkout).
-  - name: MCP
-    description: Model Context Protocol (Claude/ChatGPT tool calling).
-  - name: Payments
-    description: Payment config + links + local payments (PSE/PIX/OXXO/SPEI).
-  - name: Logistics
-    description: Shipping guides + quotes + movements.
-  - name: Wallet
-    description: Wallet + commissions + GMV + marketplace.
-  - name: Compliance
-    description: Ley 1581 / Ley 2573 / Ley 1480 / DIAN compliance.
-  - name: Governance
-    description: Verifiable intent audit trail + escalations + liability.
-  - name: Audit
-    description: Audit log verifiable credentials.
-  - name: Novedades
-    description: Post-sale cases + redelivery.
-  - name: Finance
-    description: Channel contribution margin + cost sync.
-  - name: LLM
-    description: LLM budget + cost tracking.
-  - name: Webhooks
-    description: Gateway callbacks (Meta, WhatsApp, Stripe, Wompi, etc.).

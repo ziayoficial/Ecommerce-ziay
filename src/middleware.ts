@@ -31,6 +31,14 @@ const AUTH_SECRET: string = (() => {
 //
 // EVERYTHING ELSE requires a valid NextAuth JWT.
 //
+// ADMIN ROUTES (/admin/**, e.g. /admin/incidents): NOT in PUBLIC_PATTERNS,
+// so the middleware requires a valid NextAuth JWT to reach them — a logged-
+// out user is redirected to /login. The middleware does NOT distinguish
+// admin vs. non-admin (the JWT's `role` claim would require a DB lookup
+// that isn't Edge-compatible), so admin pages add a client-side
+// `useSession` role guard + a server-side `requireRole(['admin'])` check
+// inside their route handlers. See SPRINT-ADMIN-INCIDENTS-001.
+//
 // RATE LIMITING: every non-public /api/** route is rate-limited per IP
 // (60 req / 60s) using a simple in-memory counter. The middleware runs
 // in the Edge runtime so we can't import @/lib/middleware/rate-limit

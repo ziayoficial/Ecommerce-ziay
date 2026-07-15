@@ -505,7 +505,16 @@ describe('conversationService.sendMessage', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 describe('conversationService.updateStatus', () => {
   it('updates status when patch.status is provided', async () => {
+    // Sprint 11A clear-on-close: cuando status='closed', el servicio hace un
+    // findUnique para detectar si hay pipelineMemory poblada; si la hay,
+    // añade `pipelineMemory: null` al update para limpiarla. El mock debe
+    // devolver una conversación CON memoria para que el guard dispare y el
+    // assert del update incluya `pipelineMemory: null`.
     const updated = { id: 'c-1', status: 'closed' }
+    vi.mocked(db.conversation.findUnique).mockResolvedValue({
+      id: 'c-1',
+      pipelineMemory: '[]', // has memory → will be cleared on close
+    } as any)
     db.conversation.update.mockResolvedValue(updated)
 
     const result = await conversationService.updateStatus('c-1', {
@@ -515,7 +524,7 @@ describe('conversationService.updateStatus', () => {
     expect(result).toEqual(updated)
     expect(db.conversation.update).toHaveBeenCalledWith({
       where: { id: 'c-1' },
-      data: { status: 'closed' },
+      data: { status: 'closed', pipelineMemory: null },
     })
   })
 

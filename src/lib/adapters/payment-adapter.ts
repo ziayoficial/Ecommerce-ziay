@@ -57,8 +57,16 @@ export interface PaymentAdapter {
   verifyPayment(paymentId: string): Promise<PaymentResult>
   /** Reembolso total (sin `amount`) o parcial (con `amount`) de un pago. */
   refund(paymentId: string, amount?: number): Promise<PaymentResult>
-  /** Verifica la firma HMAC/MD5 de un webhook entrante. */
-  webhookVerify(rawBody: string, signature: string): boolean
+  /**
+   * Verifica la firma HMAC/MD5 de un webhook entrante.
+   *
+   * SPRINT-FIXES-FINAL-001 §4 — `secretOverride` opcional para soportar
+   * rotación de secretos en caliente. Cuando se pasa, el adapter usa ese
+   * secreto en lugar del configurado en env (útil para verificar con el
+   * secreto anterior durante el grace period de rotación). Cuando se omite,
+   * el adapter usa su secreto interno (comportamiento original).
+   */
+  webhookVerify(rawBody: string, signature: string, secretOverride?: string): boolean
 }
 
 /**

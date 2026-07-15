@@ -24,6 +24,9 @@ import { StripeAdapter } from '@/lib/adapters/stripe'
 import { applyPaymentUpdate, safeAudit } from '@/lib/adapters/payment-webhook-utils'
 import { isDuplicateWebhook, isDuplicateWebhookDB, generateWebhookId } from '@/lib/middleware/idempotency'
 import { withWebhookErrorHandling } from '@/lib/middleware/webhook-error-handler'
+import { getLogger } from '@/lib/logger'
+
+const logger = getLogger('webhook:stripe')
 
 /**
  * Stripe webhook handler.
@@ -67,6 +70,28 @@ export const POST = withWebhookErrorHandling(async (req: NextRequest) => {
       { error: 'Webhook verification configuration error' },
       { status: 500 },
     )
+  }
+
+  if (!sigValid) {
+    // SPRINT-FIXES-FINAL-001 §4 — Webhook signature rotation grace period.
+    // Try the OLD secret (if configured) when the current secret fails to
+    // verify — supports hot-rotation without dropping in-flight webhooks
+    // signed with the previous secret. The adapter's `webhookVerify`
+    // accepts an optional `secretOverride` for this purpose.
+    const oldSecret = process.env.STRIPE_WEBHOOK_SECRET_OLD
+    if (oldSecret) {
+      try {
+        sigValid = adapter.webhookVerify(rawBody, signature, oldSecret)
+      } catch {
+        // If the old-secret path throws (defensive — shouldn't normally
+        // happen since oldSecret is non-empty here), fall through to the
+        // invalid_signature branch.
+        sigValid = false
+      }
+      if (sigValid) {
+        logger.warn('Webhook verified with OLD secret — rotation in progress')
+      }
+    }
   }
 
   if (!sigValid) {

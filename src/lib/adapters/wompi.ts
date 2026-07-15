@@ -193,12 +193,18 @@ export class WompiAdapter implements PaymentAdapter {
    * Wompi envía el header `X-Events-Signature: <hex>` con HMAC-SHA256 del body
    * usando `WOMPI_EVENT_SECRET` (también llamado "events secret" en el dashboard).
    * @see https://docs.wompi.co/docs/en/co/apks-de-seguridad
+   *
+   * SPRINT-FIXES-FINAL-001 §4 — `secretOverride` opcional para rotación.
+   * Cuando se pasa, se usa ese secreto en lugar de `this.eventSecret`
+   * (útil para verificar con `WOMPI_EVENT_SECRET_OLD` durante el grace
+   * period de rotación).
    */
-  webhookVerify(rawBody: string, signature: string): boolean {
+  webhookVerify(rawBody: string, signature: string, secretOverride?: string): boolean {
+    const secret = secretOverride ?? this.eventSecret
     // Dev-mode fallback: if no secret configured, throw in production (forged
     // webhooks would be silently accepted) and allow in dev with a warning.
     // FIX-REALTIME-WEBHOOKS-001 · R3.
-    if (!this.eventSecret) {
+    if (!secret) {
       if (process.env.NODE_ENV === 'production') {
         throw new Error('Wompi event secret not configured in production')
       }
@@ -208,7 +214,7 @@ export class WompiAdapter implements PaymentAdapter {
       return true
     }
     if (!signature) return false
-    const expected = createHmac('sha256', this.eventSecret).update(rawBody).digest('hex')
+    const expected = createHmac('sha256', secret).update(rawBody).digest('hex')
     return safeEqual(expected, signature)
   }
 }

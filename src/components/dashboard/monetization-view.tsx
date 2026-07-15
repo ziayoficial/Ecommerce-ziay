@@ -96,7 +96,7 @@ export function MonetizationView() {
   if (error) {
     return (
       <section aria-label="Monetización">
-        <Alert variant="destructive" className="animate-fade-in-up">
+        <Alert variant="destructive" className="animate-fade-in-up" role="alert">
           <AlertCircle className="size-4" />
           <AlertTitle>Error al cargar la monetización</AlertTitle>
           <AlertDescription className="flex items-center justify-between gap-3 flex-wrap">

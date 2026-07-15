@@ -29,9 +29,11 @@ import {
   Tabs, TabsContent, TabsList, TabsTrigger,
 } from '@/components/ui/tabs'
 
-import { Activity, AlertTriangle } from 'lucide-react'
+import { Activity, AlertTriangle, RefreshCw } from 'lucide-react'
 
 import { type WalletData } from './wallet-shared'
+import { timeAgo } from '@/lib/format'
+import { cn } from '@/lib/utils'
 import { WalletBalance, WalletQuickActions } from './wallet-balance'
 import { WalletTransactions } from './wallet-transactions'
 import { WalletWithdrawals } from './wallet-withdrawals'
@@ -45,6 +47,8 @@ export function WalletView() {
 
   const [data, setData] = useState<WalletData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [errMessage, setErrMessage] = useState<string | null>(null)
   const [pulse, setPulse] = useState(true)
   const [tab, setTab] = useState('transactions')
@@ -54,9 +58,10 @@ export function WalletView() {
   const [withdrawalOpen, setWithdrawalOpen] = useState(false)
   const [accountOpen, setAccountOpen] = useState(false)
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (showRefreshing = false) => {
     if (!email) return
-    setLoading(true)
+    if (showRefreshing) setRefreshing(true)
+    else setLoading(true)
     setErrMessage(null)
     try {
       const res = await fetch(`/api/wallet`, { credentials: 'include' })
@@ -80,15 +85,18 @@ export function WalletView() {
           twoFactor: null,
         }
         setData(demoData)
+        setLastUpdated(new Date())
         return
       }
       const j = (await res.json()) as WalletData
       setData(j)
+      setLastUpdated(new Date())
     } catch (e: unknown) {
       setErrMessage(e instanceof Error ? e.message : 'Failed to load wallet')
       setData(null)
     } finally {
       setLoading(false)
+      setRefreshing(false)
       setPulse(false)
     }
   }, [email])
@@ -268,7 +276,7 @@ export function WalletView() {
   if (errMessage || !data) {
     return (
       <div className="space-y-4">
-        <Alert variant="destructive">
+        <Alert variant="destructive" role="alert">
           <AlertTriangle className="size-4" />
           <AlertTitle>No se pudo cargar la wallet</AlertTitle>
           <AlertDescription>
@@ -288,6 +296,21 @@ export function WalletView() {
 
   return (
     <div className="space-y-6 animate-fade-in-up">
+      {/* ── Header: last-updated + refresh ────────────────────────────── */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="text-[10px] sm:text-xs text-foreground/70 truncate">
+          {lastUpdated ? (
+            <span>Actualizado hace <strong className="text-foreground tabular-nums font-medium">{timeAgo(lastUpdated.toISOString())}</strong></span>
+          ) : (
+            <span>Datos de muestra</span>
+          )}
+        </div>
+        <Button variant="outline" size="sm" onClick={() => void load(true)} disabled={refreshing} className="gap-1.5 h-9 px-3">
+          <RefreshCw className={cn('size-3.5', refreshing && 'animate-spin')} />
+          {refreshing ? 'Actualizando…' : 'Actualizar'}
+        </Button>
+      </div>
+
       {/* ── Balance card (gradient emerald + pulse) ────────────────────── */}
       <WalletBalance data={data} pulse={pulse} twoFactorEnabled={twoFactorEnabled} />
 

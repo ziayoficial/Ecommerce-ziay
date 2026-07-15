@@ -80,47 +80,49 @@ export function CustomerScoresTab({
           </div>
         ) : (
           <ScrollArea className="max-h-96">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="min-w-[120px]">Teléfono</TableHead>
-                  <TableHead className="w-24">Categoría</TableHead>
-                  <TableHead className="text-right w-20">Score</TableHead>
-                  <TableHead className="text-right w-20">Pedidos</TableHead>
-                  <TableHead className="text-right w-24">Entregados</TableHead>
-                  <TableHead className="text-right w-24">Devueltos</TableHead>
-                  <TableHead className="w-28">Último pedido</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredCustomers.map((c) => {
-                  const meta = categoryMeta(c.category)
-                  return (
-                    <TableRow key={c.id}>
-                      <TableCell className="font-mono text-xs whitespace-nowrap">{c.phone}</TableCell>
-                      <TableCell>
-                        <span className={cn('text-[10px] font-semibold px-1.5 py-0.5 rounded whitespace-nowrap', meta.cls)}>
-                          {meta.label}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums whitespace-nowrap font-medium">
-                        {c.score.toFixed(0)}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums whitespace-nowrap">{c.totalPedidos}</TableCell>
-                      <TableCell className="text-right tabular-nums whitespace-nowrap text-emerald-600 dark:text-emerald-400">
-                        {c.pedidosEntregados}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums whitespace-nowrap text-rose-600 dark:text-rose-400">
-                        {c.pedidosDevueltos}
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                        {c.lastOrderAt ? shortDate(c.lastOrderAt) : '—'}
-                      </TableCell>
-                    </TableRow>
-                  )
-                })}
-              </TableBody>
-            </Table>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="min-w-[120px]">Teléfono</TableHead>
+                    <TableHead className="w-24">Categoría</TableHead>
+                    <TableHead className="text-right w-20">Score</TableHead>
+                    <TableHead className="text-right w-20">Pedidos</TableHead>
+                    <TableHead className="text-right w-24">Entregados</TableHead>
+                    <TableHead className="text-right w-24">Devueltos</TableHead>
+                    <TableHead className="w-28">Último pedido</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredCustomers.map((c) => {
+                    const meta = categoryMeta(c.category)
+                    return (
+                      <TableRow key={c.id}>
+                        <TableCell className="font-mono text-xs whitespace-nowrap">{c.phone}</TableCell>
+                        <TableCell>
+                          <span className={cn('text-[10px] font-semibold px-1.5 py-0.5 rounded whitespace-nowrap', meta.cls)}>
+                            {meta.label}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums whitespace-nowrap font-medium">
+                          {c.score.toFixed(0)}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums whitespace-nowrap">{c.totalPedidos}</TableCell>
+                        <TableCell className="text-right tabular-nums whitespace-nowrap text-emerald-600 dark:text-emerald-400">
+                          {c.pedidosEntregados}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums whitespace-nowrap text-rose-600 dark:text-rose-400">
+                          {c.pedidosDevueltos}
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                          {c.lastOrderAt ? shortDate(c.lastOrderAt) : '—'}
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
+                </TableBody>
+              </Table>
+            </div>
           </ScrollArea>
         )}
       </CardContent>
@@ -211,54 +213,56 @@ export function CarrierScoresTab({
             </div>
           ) : (
             <ScrollArea className="max-h-96">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="min-w-[140px]">Transportadora</TableHead>
-                    <TableHead className="text-right w-20">Score</TableHead>
-                    <TableHead className="text-right w-20">Guías</TableHead>
-                    <TableHead className="text-right w-24">Entregadas</TableHead>
-                    <TableHead className="text-right w-24">Devueltas</TableHead>
-                    <TableHead className="text-right w-28">Entrega %</TableHead>
-                    <TableHead className="text-right w-24">Días prom.</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {carriers.map((c) => {
-                    const rate = c.totalGuias > 0 ? (c.entregadas / c.totalGuias) * 100 : 0
-                    return (
-                      <TableRow key={c.id}>
-                        <TableCell className="font-medium whitespace-nowrap truncate max-w-[180px]">
-                          {c.carrierName}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums whitespace-nowrap font-medium">
-                          {c.score.toFixed(0)}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums whitespace-nowrap">{c.totalGuias}</TableCell>
-                        <TableCell className="text-right tabular-nums whitespace-nowrap text-emerald-600 dark:text-emerald-400">
-                          {c.entregadas}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums whitespace-nowrap text-rose-600 dark:text-rose-400">
-                          {c.devueltas}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums whitespace-nowrap">
-                          <span className={cn(
-                            'text-xs font-semibold px-1.5 py-0.5 rounded',
-                            rate >= 80 ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' :
-                            rate >= 50 ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300' :
-                            'bg-rose-500/10 text-rose-700 dark:text-rose-300',
-                          )}>
-                            {formatPercent(rate, 0)}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums whitespace-nowrap text-xs">
-                          {c.avgDeliveryDays != null ? `${c.avgDeliveryDays.toFixed(1)}d` : '—'}
-                        </TableCell>
-                      </TableRow>
-                    )
-                  })}
-                </TableBody>
-              </Table>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="min-w-[140px]">Transportadora</TableHead>
+                      <TableHead className="text-right w-20">Score</TableHead>
+                      <TableHead className="text-right w-20">Guías</TableHead>
+                      <TableHead className="text-right w-24">Entregadas</TableHead>
+                      <TableHead className="text-right w-24">Devueltas</TableHead>
+                      <TableHead className="text-right w-28">Entrega %</TableHead>
+                      <TableHead className="text-right w-24">Días prom.</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {carriers.map((c) => {
+                      const rate = c.totalGuias > 0 ? (c.entregadas / c.totalGuias) * 100 : 0
+                      return (
+                        <TableRow key={c.id}>
+                          <TableCell className="font-medium whitespace-nowrap truncate max-w-[180px]">
+                            {c.carrierName}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums whitespace-nowrap font-medium">
+                            {c.score.toFixed(0)}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums whitespace-nowrap">{c.totalGuias}</TableCell>
+                          <TableCell className="text-right tabular-nums whitespace-nowrap text-emerald-600 dark:text-emerald-400">
+                            {c.entregadas}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums whitespace-nowrap text-rose-600 dark:text-rose-400">
+                            {c.devueltas}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums whitespace-nowrap">
+                            <span className={cn(
+                              'text-xs font-semibold px-1.5 py-0.5 rounded',
+                              rate >= 80 ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' :
+                              rate >= 50 ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300' :
+                              'bg-rose-500/10 text-rose-700 dark:text-rose-300',
+                            )}>
+                              {formatPercent(rate, 0)}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums whitespace-nowrap text-xs">
+                            {c.avgDeliveryDays != null ? `${c.avgDeliveryDays.toFixed(1)}d` : '—'}
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
             </ScrollArea>
           )}
         </CardContent>

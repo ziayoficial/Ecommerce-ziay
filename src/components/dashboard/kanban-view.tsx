@@ -13,7 +13,7 @@ import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
-import { formatCurrency } from '@/lib/format'
+import { formatCurrency, timeAgo } from '@/lib/format'
 import { useTenantId } from '@/hooks/use-tenant'
 import { t } from '@/lib/i18n'
 import { toast } from 'sonner'
@@ -267,6 +267,7 @@ export function KanbanView() {
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [activeId, setActiveId] = useState<string | null>(null)
   const [collapsedCols, setCollapsedCols] = useState<Partial<Record<KanbanStageId, boolean>>>({})
@@ -288,6 +289,7 @@ export function KanbanView() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data = await res.json()
       setOrders(data.orders || [])
+      setLastUpdated(new Date())
     } catch (err) {
       console.error('Kanban fetch failed', err)
       setError('No se pudieron cargar los pedidos del tablero.')
@@ -364,7 +366,7 @@ export function KanbanView() {
 
   if (error) {
     return (
-      <Alert variant="destructive" className="animate-fade-in-up">
+      <Alert variant="destructive" className="animate-fade-in-up" role="alert">
         <AlertCircle className="size-4" />
         <AlertTitle>Error al cargar el tablero</AlertTitle>
         <AlertDescription className="flex items-center justify-between gap-3 flex-wrap">
@@ -434,6 +436,11 @@ export function KanbanView() {
               <span className="font-medium tabular-nums">{shippedPct}%</span>
               <span>despachado</span>
             </div>
+          )}
+          {lastUpdated && (
+            <span className="hidden sm:inline text-[10px] text-foreground/70 tabular-nums truncate max-w-[14rem]">
+              Actualizado hace <strong className="text-foreground font-medium">{timeAgo(lastUpdated.toISOString())}</strong>
+            </span>
           )}
           <Button variant="outline" size="sm" onClick={loadOrders} disabled={refreshing} className="gap-1.5">
             <RefreshCw className={cn('size-3.5', refreshing && 'animate-spin')} />

@@ -362,7 +362,7 @@ export function SettingsView() {
           {[
             { label: 'WhatsApp inbound', url: 'POST /api/webhooks/whatsapp' },
             { label: 'Meta (Messenger/IG/Ads)', url: 'POST /api/webhooks/meta' },
-            { label: 'Verify token', url: 'commerceflow_verify (configurable en .env)' },
+            { label: 'Verify token', url: 'ziay_verify (configurable en .env)' },
             { label: 'Atribución por click_id', url: 'fbclid / gclid / ttclid capturado al aterrizar' },
           ].map((w) => (
             <div key={w.label} className="flex items-center justify-between p-2.5 rounded-lg bg-muted/40 border">

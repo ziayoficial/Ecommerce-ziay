@@ -190,7 +190,7 @@ export function GovernanceView() {
   if (error && escalations.length === 0 && decisions.length === 0) {
     return (
       <section aria-label="Gobernanza">
-        <Alert variant="destructive" className="animate-fade-in-up">
+        <Alert variant="destructive" className="animate-fade-in-up" role="alert">
           <AlertCircle className="size-4" />
           <AlertTitle>Error al cargar gobernanza</AlertTitle>
           <AlertDescription className="flex items-center justify-between gap-3 flex-wrap">

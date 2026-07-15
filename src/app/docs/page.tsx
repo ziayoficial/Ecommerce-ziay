@@ -20,6 +20,7 @@ export const metadata: Metadata = {
 export default function DocsPage() {
   return (
     <main className="min-h-screen">
+      <h1 className="sr-only">Documentación de API</h1>
       <RedocScript />
       <div id="redoc-container" />
     </main>

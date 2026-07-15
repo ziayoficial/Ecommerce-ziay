@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as SonnerToaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AuthSessionProvider } from "@/components/providers/auth-session-provider";
+import { RegisterSW } from "@/components/pwa/register-sw";
 
 // ───────────────────────────────────────────────────────────────────────────
 // Fonts — `display: 'swap'` is the next/font default but we set it
@@ -54,6 +55,7 @@ export const metadata: Metadata = {
   authors: [{ name: "Indisutex SAS" }],
   creator: "Indisutex SAS",
   publisher: "Indisutex SAS",
+  manifest: "/manifest.json",
   alternates: {
     canonical: BASE_URL,
   },
@@ -67,10 +69,10 @@ export const metadata: Metadata = {
       "Plataforma de comercio conversacional para LATAM. WhatsApp, Messenger, Instagram con atribución de pauta y agentes IA.",
     images: [
       {
-        url: "/og-default.png",
+        url: "/og-default.svg",
         width: 1200,
         height: 630,
-        alt: "ZIAY · Comercio Conversacional + Atribución Inteligente",
+        alt: "ZIAY",
       },
     ],
   },
@@ -79,7 +81,7 @@ export const metadata: Metadata = {
     title: "ZIAY · Comercio Conversacional + Atribución Inteligente",
     description:
       "Plataforma de comercio conversacional para LATAM. WhatsApp, Messenger, Instagram con atribución de pauta y agentes IA.",
-    images: ["/og-default.png"],
+    images: ["/og-default.svg"],
   },
   robots: {
     index: true,
@@ -194,6 +196,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
       >
+        <RegisterSW />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: safeJsonLd(orgJsonLd) }}

@@ -248,7 +248,7 @@ export function MessengerView() {
           {loading ? (
             <div className="p-3 space-y-2">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-16" />)}</div>
           ) : error ? (
-            <Alert variant="destructive" className="m-3">
+            <Alert variant="destructive" className="m-3" role="alert">
               <AlertCircle className="size-4" />
               <AlertTitle>Error</AlertTitle>
               <AlertDescription className="flex items-center justify-between gap-2 flex-wrap">

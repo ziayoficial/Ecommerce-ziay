@@ -490,7 +490,7 @@ function ChannelDialog({ open, onOpenChange, channel, tenantId, onSaved }: {
               </div>
               <div className="space-y-1">
                 <Label htmlFor="cd-ig-handle" className="text-xs">Account ID (handle)</Label>
-                <Input id="cd-ig-handle" value={accountId} onChange={(e) => setAccountId(e.target.value)} placeholder="@commerceflow" className="h-9" />
+                <Input id="cd-ig-handle" value={accountId} onChange={(e) => setAccountId(e.target.value)} placeholder="@ziay" className="h-9" />
               </div>
               <div className="col-span-2 space-y-1">
                 <Label htmlFor="cd-ig-token" className="text-xs">Access Token {channel && '(dejar vacío para mantener actual)'}</Label>
@@ -504,7 +504,7 @@ function ChannelDialog({ open, onOpenChange, channel, tenantId, onSaved }: {
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label htmlFor="cd-verify-token" className="text-xs">Verify Token (webhook)</Label>
-              <Input id="cd-verify-token" value={verifyToken} onChange={(e) => setVerifyToken(e.target.value)} placeholder="commerceflow_verify" className="h-9 font-mono text-xs" />
+              <Input id="cd-verify-token" value={verifyToken} onChange={(e) => setVerifyToken(e.target.value)} placeholder="ziay_verify" className="h-9 font-mono text-xs" />
             </div>
             <div className="space-y-1">
               <Label htmlFor="cd-app-secret" className="text-xs">App Secret (HMAC)</Label>

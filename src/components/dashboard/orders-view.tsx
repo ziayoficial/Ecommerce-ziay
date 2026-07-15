@@ -241,7 +241,7 @@ export function OrdersView() {
 
   if (error) {
     return (
-      <Alert variant="destructive" className="animate-fade-in-up">
+      <Alert variant="destructive" className="animate-fade-in-up" role="alert">
         <AlertCircle className="size-4" />
         <AlertTitle>Error al cargar los pedidos</AlertTitle>
         <AlertDescription className="flex items-center justify-between gap-3 flex-wrap">

@@ -147,7 +147,7 @@ export function CatalogVisualView() {
   if (error) {
     return (
       <section aria-label="Catálogo visual">
-        <Alert variant="destructive" className="animate-fade-in-up">
+        <Alert variant="destructive" className="animate-fade-in-up" role="alert">
           <AlertCircle className="size-4" />
           <AlertTitle>Error al cargar el catálogo</AlertTitle>
           <AlertDescription className="flex items-center justify-between gap-3 flex-wrap">

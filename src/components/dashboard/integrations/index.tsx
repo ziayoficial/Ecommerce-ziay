@@ -16,12 +16,13 @@
 
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import Image from 'next/image'
 import { toast } from 'sonner'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
@@ -30,10 +31,10 @@ import {
 
 import { cn } from '@/lib/utils'
 import { useTenantId } from '@/hooks/use-tenant'
-import { formatCurrency } from '@/lib/format'
+import { formatCurrency, timeAgo } from '@/lib/format'
 
 import {
-  ShoppingBag, Truck, Plug, Package, Zap, Database,
+  ShoppingBag, Truck, Plug, Package, Zap, Database, RefreshCw,
 } from 'lucide-react'
 
 import {
@@ -50,6 +51,8 @@ export function IntegrationsView() {
   const [activeCatalog, setActiveCatalog] = useState<string>('')
   const [activeLogistics, setActiveLogistics] = useState<string>('')
   const [checksLoading, setChecksLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
 
   const [products, setProducts] = useState<Product[]>([])
   const [prodLoading, setProdLoading] = useState(true)
@@ -67,7 +70,53 @@ export function IntegrationsView() {
   const [viLoading, setViLoading] = useState(false)
   const [viResult, setViResult] = useState<VisionResult | null>(null)
 
-  // Load health + products
+  const fetchHealth = useCallback(async () => {
+    if (!tenantId) return
+    setChecksLoading(true)
+    try {
+      const r = await fetch(`/api/health?tenantId=${tenantId}`)
+      const d = await r.json()
+      const all = (d.checks || []) as HealthCheck[]
+      setChecks(all)
+      // Resolve the active catalog / logistics adapter from the tenant-specific health rows
+      const cat = all.find(c => c.name === 'tenant_catalog_adapter')
+      const log = all.find(c => c.name === 'tenant_logistics_adapter')
+      if (cat) setActiveCatalog((cat.detail.match(/'([^']+)'/)?.[1] || '').trim())
+      if (log) setActiveLogistics((log.detail.match(/'([^']+)'/)?.[1] || '').trim())
+    } catch {
+      // keep previous state on error
+    } finally {
+      setChecksLoading(false)
+    }
+  }, [tenantId])
+
+  const fetchProducts = useCallback(async (query: string) => {
+    if (!tenantId) return
+    setProdLoading(true)
+    try {
+      const r = await fetch(`/api/catalog/products?tenantId=${tenantId}&q=${encodeURIComponent(query)}`)
+      const d = await r.json()
+      setProducts(d.products || [])
+    } catch {
+      // keep previous state on error
+    } finally {
+      setProdLoading(false)
+    }
+  }, [tenantId])
+
+  const refreshAll = useCallback(async (showRefreshing = false) => {
+    if (!tenantId) return
+    if (showRefreshing) setRefreshing(true)
+    else setChecksLoading(true)
+    try {
+      await Promise.all([fetchHealth(), fetchProducts(prodQ)])
+      setLastUpdated(new Date())
+    } finally {
+      setRefreshing(false)
+    }
+  }, [tenantId, fetchHealth, fetchProducts, prodQ])
+
+  // Load health (mount + tenantId change)
   useEffect(() => {
     if (!tenantId) return
     let cancelled = false
@@ -82,6 +131,7 @@ export function IntegrationsView() {
       if (cat) setActiveCatalog((cat.detail.match(/'([^']+)'/)?.[1] || '').trim())
       if (log) setActiveLogistics((log.detail.match(/'([^']+)'/)?.[1] || '').trim())
       setChecksLoading(false)
+      setLastUpdated(new Date())
     }).catch(() => { if (!cancelled) setChecksLoading(false) })
 
     return () => { cancelled = true }
@@ -161,6 +211,21 @@ export function IntegrationsView() {
 
   return (
     <div className="space-y-6 animate-fade-in-up">
+      {/* ── Header: last-updated + refresh ─────────────────────────────── */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="text-[10px] sm:text-xs text-foreground/70 truncate">
+          {lastUpdated ? (
+            <span>Actualizado hace <strong className="text-foreground tabular-nums font-medium">{timeAgo(lastUpdated.toISOString())}</strong></span>
+          ) : (
+            <span>Cargando estado…</span>
+          )}
+        </div>
+        <Button variant="outline" size="sm" onClick={() => void refreshAll(true)} disabled={refreshing} className="gap-1.5 h-9 px-3">
+          <RefreshCw className={cn('size-3.5', refreshing && 'animate-spin')} />
+          {refreshing ? 'Actualizando…' : 'Actualizar'}
+        </Button>
+      </div>
+
       {/* Header — summary */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>

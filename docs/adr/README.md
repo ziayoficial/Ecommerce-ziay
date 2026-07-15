@@ -20,6 +20,8 @@
 | 0016 | SSR Shell with Client Islands for Dashboard | 2026-07-15 | Accepted |
 | 0017 | FxRate Persistence for Cold-Start FX Rates | 2026-07-15 | Accepted |
 | 0018 | Webhook Signature Rotation with Grace Period | 2026-07-15 | Accepted |
+| 0019 | Automated Refund Post-Retracto | 2026-07-15 | Accepted |
+| 0020 | DIAN Electronic Invoicing via Alegra | 2026-07-15 | Accepted |
 
 ## How to create a new ADR
 

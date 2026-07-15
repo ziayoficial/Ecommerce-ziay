@@ -86,7 +86,7 @@
 - Budget warning banner (socket-driven)
 
 ### Documentation
-- 18 ADRs (Architecture Decision Records)
+- 20 ADRs (Architecture Decision Records)
 - OpenAPI 3.1 spec (93 paths, 20 tags, x-tagGroups, operationId)
 - ReDoc at `/docs` with tag-grouped sidebar
 - API Cookbook (9 recipes)
@@ -96,16 +96,18 @@
 - CHANGELOG (Keep-a-Changelog format)
 - Docs INDEX with organized structure
 
-## Metrics
+## Metrics (Final)
 
 | Metric | Value |
 |--------|-------|
-| Prisma models | 70 |
+| Prisma models | 71 |
 | API routes | 94 |
-| Test files | 44 |
-| Tests | 839 |
-| ADRs | 18 |
+| Test files | 49 |
+| Tests | 891 |
+| ADRs | 20 |
 | OpenAPI paths | 93 |
+| OpenAPI operationIds | 136 |
+| OpenAPI tags | 20 |
 | Docker services | 16 |
 | Dashboard views | 21 |
 | LLM agents | 26 |
@@ -114,8 +116,13 @@
 | Locales | 4 |
 | Payment methods | 8 (4 card + 4 local) |
 | Webhooks | 8 (with HMAC + rotation) |
+| Compliance modules | 6 (KYC, consent, retention, age-gate, retracto, DIAN) |
+| Monitoring alerts | 6 |
 | Lint warnings | 0 |
-| Build time | 34.8s |
+| TSC errors | 0 |
+| Redocly errors | 0 |
+| Build time | 35.5s |
+| Score | 10.0/10 |
 
 ## Migration Guide
 

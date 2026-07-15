@@ -78,6 +78,11 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
       city: o.city,
       createdAt: o.createdAt,
       paidAt: o.paidAt,
+      // SPRINT-COMPLIANCE-FINAL-001 · P3 — expose the stamped retracto deadline
+      // (Ley 1480 Art 47) so the orders-view dashboard can render a "Retracto"
+      // button only while the 5-day window is open. Null for legacy orders
+      // created before SPRINT-DIAN-RETRACTO-001 (button stays hidden).
+      retractoWindowUntil: o.retractoWindowUntil,
       sourceAd: o.sourceAd ? { id: o.sourceAd.id, name: o.sourceAd.name, externalId: o.sourceAd.externalId } : null,
       sourceCampaign: o.sourceCampaign,
       sourcePlatform: o.sourcePlatform,

@@ -23,16 +23,22 @@ import { formatCurrency, shortDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { useTenantId } from '@/hooks/use-tenant'
+import { isWithinRetractoWindow } from '@/lib/compliance/retracto'
 import {
   CreditCard, Truck, CheckCircle2, Clock, XCircle, Search,
   TrendingUp, Wallet, Percent, Package, Download, ChevronDown,
   ChevronRight, RefreshCw, AlertCircle, Inbox, SlidersHorizontal,
+  RotateCcw,
 } from 'lucide-react'
 
 type Order = {
   id: string; number: string; status: string; paymentMode: string; paymentStatus: string
   subtotal: number; discount: number; codFee: number; total: number; currency: string
   country?: string; city?: string; createdAt: string; paidAt: string | null
+  // SPRINT-COMPLIANCE-FINAL-001 · P3 — Ley 1480 Art 47 retracto deadline
+  // stamped at order creation. Null for legacy orders. The dashboard renders
+  // a "Retracto" button only while this is in the future.
+  retractoWindowUntil?: string | null
   sourceAd: { id: string; name: string; externalId: string } | null
   sourceCampaign?: string; sourcePlatform?: string
   customer: { id: string; name: string; phone?: string; country?: string }
@@ -195,6 +201,43 @@ export function OrdersView() {
     setOrders(prev => prev.map(o => o.id === id ? { ...o, status, ...(paymentStatus ? { paymentStatus } : {}) } : o))
     toast.success(`Pedido actualizado a "${status}"`)
   }
+
+  // ── SPRINT-COMPLIANCE-FINAL-001 · P3 — retracto handler (Ley 1480 Art 47) ──
+  // Cancels the order + persists the 30-day refund deadline via the
+  // `/api/compliance/retracto` endpoint. The button is only rendered while
+  // `order.retractoWindowUntil` is in the future (see the row actions cell),
+  // but we re-check `isWithinRetractoWindow(order.createdAt)` here as
+  // defense-in-depth against clock skew / race between render and click.
+  const handleRetracto = useCallback(async (order: Order) => {
+    if (!tenantId) return
+    if (!isWithinRetractoWindow(new Date(order.createdAt))) {
+      toast.error('El plazo de 5 días para retracto (Ley 1480 Art 47) ya venció.')
+      return
+    }
+    if (!confirm(`¿Solicitar retracto para la orden ${order.number}? Esto cancelará la orden y procesará el reembolso.`)) {
+      return
+    }
+    try {
+      const res = await fetch('/api/compliance/retracto', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId: order.id,
+          tenantId,
+          reason: 'Solicitado desde dashboard',
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        toast.success(data.message || 'Retracto procesado')
+        loadOrders(true)
+      } else {
+        toast.error(data.error || data.message || 'Error al procesar retracto')
+      }
+    } catch {
+      toast.error('Error de conexión')
+    }
+  }, [tenantId, loadOrders])
 
   if (error) {
     return (
@@ -453,20 +496,39 @@ export function OrdersView() {
                           </div>
                         </TableCell>
                         <TableCell className="text-right">
-                          <Select onValueChange={(v) => {
-                            const eventMap: Record<string, string> = { paid: 'paid', shipped: 'shipped', delivered: 'delivered', cancelled: 'cancelled' }
-                            const payMap: Record<string, string> = { paid: 'paid' }
-                            updateStatus(o.id, v, payMap[v], eventMap[v])
-                          }} defaultValue="">
-                            <SelectTrigger className="h-8 w-32 text-xs ml-auto"><SelectValue placeholder="Mover a..." /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="paid">Marcar pagado</SelectItem>
-                              <SelectItem value="preparing">Preparando</SelectItem>
-                              <SelectItem value="shipped">Enviar</SelectItem>
-                              <SelectItem value="delivered">Entregado</SelectItem>
-                              <SelectItem value="cancelled">Cancelar</SelectItem>
-                            </SelectContent>
-                          </Select>
+                          <div className="flex items-center justify-end gap-1.5">
+                            {/* SPRINT-COMPLIANCE-FINAL-001 · P3 — Retracto button.
+                                Visible only while the 5-day window (Ley 1480 Art 47)
+                                is open AND the order isn't already cancelled. */}
+                            {o.retractoWindowUntil &&
+                              new Date(o.retractoWindowUntil) > new Date() &&
+                              o.status !== 'cancelled' && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="text-amber-600 border-amber-500/30 hover:bg-amber-500/10 h-8 px-2 text-xs gap-1"
+                                  onClick={() => handleRetracto(o)}
+                                  aria-label={`Solicitar retracto para pedido ${o.number}`}
+                                >
+                                  <RotateCcw className="size-3" />
+                                  Retracto
+                                </Button>
+                              )}
+                            <Select onValueChange={(v) => {
+                              const eventMap: Record<string, string> = { paid: 'paid', shipped: 'shipped', delivered: 'delivered', cancelled: 'cancelled' }
+                              const payMap: Record<string, string> = { paid: 'paid' }
+                              updateStatus(o.id, v, payMap[v], eventMap[v])
+                            }} defaultValue="">
+                              <SelectTrigger className="h-8 w-32 text-xs"><SelectValue placeholder="Mover a..." /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="paid">Marcar pagado</SelectItem>
+                                <SelectItem value="preparing">Preparando</SelectItem>
+                                <SelectItem value="shipped">Enviar</SelectItem>
+                                <SelectItem value="delivered">Entregado</SelectItem>
+                                <SelectItem value="cancelled">Cancelar</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
                         </TableCell>
                       </TableRow>
                     )

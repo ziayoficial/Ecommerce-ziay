@@ -105,6 +105,12 @@ const PUBLIC_PATTERNS: Array<RegExp | string> = [
   // handler (NOT NextAuth) so external cron callers (system cron, Vercel
   // Cron, GitHub Actions) can hit it without a session cookie.
   '/api/compliance/retention/cron',
+  // SPRINT-MONITORING-FIX-001 · #4 — Alertmanager webhook receiver.
+  // Authenticated by `Authorization: Bearer $ALERTMANAGER_WEBHOOK_SECRET`
+  // inside the route handler (NOT NextAuth) so the Alertmanager container
+  // (no NextAuth session) can POST firing/resolved alerts that auto-create
+  // StatusIncident rows.
+  '/api/monitoring/alertmanager-webhook',
   // SPRINT-DOCS-POLISH-001 · #4 — ReDoc API documentation viewer. Public
   // (no NextAuth session) so external developers + AI agents can read the
   // OpenAPI spec without credentials. The HTML page loads ReDoc standalone

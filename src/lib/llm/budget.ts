@@ -28,6 +28,11 @@
 
 import { db } from '@/lib/db'
 import { logger } from '@/lib/logger'
+// SPRINT-AI-FINAL-002 §2 — emitter para alertas de presupuesto al dashboard.
+// `emitToTenant` es fire-and-forget (maneja sus propios errores
+// internamente con `.catch` y `void fetch(...)`), no necesita await ni
+// `.catch` del caller.
+import { emitToTenant } from '@/lib/chat-emit'
 
 /**
  * Presupuesto diario por defecto cuando el tenant no tiene override en
@@ -170,7 +175,13 @@ export async function getTenantMonthlyBudget(tenantId: string): Promise<{ budget
 /**
  * SPRINT-AI-FINAL-001 §2 — verifica el presupuesto DIARIO antes de una
  * llamada LLM. Extraído del antiguo `checkBudgetBeforeCall` (que ahora
- * orquesta diario + mensual). Devuelve `{allowed, remaining, message?}`.
+ * orquesta diario + mensual). Devuelve `{allowed, remaining, budget,
+ * spent, message?}`.
+ *
+ * SPRINT-AI-FINAL-002 §2 — `budget` + `spent` se exponen en el return
+ * para que `checkBudgetBeforeCall` pueda calcular el porcentaje de uso
+ * y emitir el warning al 80% sin tener que llamar `getTenantBudget` de
+ * nuevo (se aprovecha el mismo cache lookup).
  *
  * No lanza — errores de DB se loguean y se permite la llamada (fail-open):
  * preferimos servir al usuario y arriesgar over-spend antes que bloquear
@@ -179,6 +190,8 @@ export async function getTenantMonthlyBudget(tenantId: string): Promise<{ budget
 export async function checkDailyBudget(tenantId: string): Promise<{
   allowed: boolean
   remaining: number
+  budget: number
+  spent: number
   message?: string
 }> {
   try {
@@ -189,11 +202,13 @@ export async function checkDailyBudget(tenantId: string): Promise<{
       return {
         allowed: false,
         remaining: 0,
+        budget,
+        spent,
         message: `Presupuesto diario de LLM excedido ($${spent.toFixed(4)}/$${budget.toFixed(2)}). Reinicia mañana.`,
       }
     }
 
-    return { allowed: true, remaining }
+    return { allowed: true, remaining, budget, spent }
   } catch (err) {
     // Fail-open: si no podemos verificar el presupuesto (DB caída, etc.),
     // permitimos la llamada para no bloquear todo el tráfico LLM. El
@@ -203,7 +218,9 @@ export async function checkDailyBudget(tenantId: string): Promise<{
       { err: err instanceof Error ? err.message : String(err), tenantId },
       'Daily budget check failed — failing open (allowing LLM call)',
     )
-    return { allowed: true, remaining: Infinity }
+    // budget: 0 deshabilita el check del 80% en checkBudgetBeforeCall
+    // (no sabemos cuánto se ha gastado, no tiene sentido emitir warning).
+    return { allowed: true, remaining: Infinity, budget: 0, spent: 0 }
   }
 }
 
@@ -212,12 +229,17 @@ export async function checkDailyBudget(tenantId: string): Promise<{
  * llamada LLM. Mismo contrato que `checkDailyBudget`. Fail-open ante
  * errores de DB (igual que el diario).
  *
+ * SPRINT-AI-FINAL-002 §2 — `budget` + `spent` expuestos en el return
+ * (mismo motivo que `checkDailyBudget`).
+ *
  * El `remaining` se reinicia el 1ro de cada mes (cuando `getTenantMonthlyBudget`
  * calcula un nuevo `monthStart`).
  */
 export async function checkMonthlyBudget(tenantId: string): Promise<{
   allowed: boolean
   remaining: number
+  budget: number
+  spent: number
   message?: string
 }> {
   try {
@@ -228,17 +250,19 @@ export async function checkMonthlyBudget(tenantId: string): Promise<{
       return {
         allowed: false,
         remaining: 0,
+        budget,
+        spent,
         message: `Presupuesto mensual de LLM excedido ($${spent.toFixed(4)}/$${budget.toFixed(2)}). Se reinicia el próximo mes.`,
       }
     }
 
-    return { allowed: true, remaining }
+    return { allowed: true, remaining, budget, spent }
   } catch (err) {
     logger.warn(
       { err: err instanceof Error ? err.message : String(err), tenantId },
       'Monthly budget check failed — failing open (allowing LLM call)',
     )
-    return { allowed: true, remaining: Infinity }
+    return { allowed: true, remaining: Infinity, budget: 0, spent: 0 }
   }
 }
 
@@ -254,6 +278,15 @@ export async function checkMonthlyBudget(tenantId: string): Promise<{
  *      entre diario y mensual) — útil para que el caller pueda mostrar
  *      "te quedan $X" sabiendo que es el cap más cercano a agotarse.
  *
+ * SPRINT-AI-FINAL-002 §2 — warning al 80% (no bloqueante). Si diario o
+ * mensual están entre 80% y 100%, se emite un `llm:budget_warning` al
+ * room del tenant vía socket (el dashboard puede mostrar un banner) y
+ * se loguea como warn. La llamada LLM sigue permitida — la idea es que
+ * el operador pueda reaccionar (subir el cap, investigar el pico) antes
+ * de que el budget se agote del todo y empiece a recibir 429s. El
+ * `warning` humano-legible se incluye en el return para que el caller
+ * pueda también mostrarlo si lo desea (p.ej. en el log de la request).
+ *
  * No lanza — errores de DB se loguean y se permite la llamada (fail-open):
  * preferimos servir al usuario y arriesgar over-spend antes que bloquear
  * todo el tráfico de LLM por un problema transitorio de la DB.
@@ -262,6 +295,7 @@ export async function checkBudgetBeforeCall(tenantId: string): Promise<{
   allowed: boolean
   remaining: number
   message?: string
+  warning?: string
 }> {
   const dailyCheck = await checkDailyBudget(tenantId)
   if (!dailyCheck.allowed) return dailyCheck
@@ -269,11 +303,61 @@ export async function checkBudgetBeforeCall(tenantId: string): Promise<{
   const monthlyCheck = await checkMonthlyBudget(tenantId)
   if (!monthlyCheck.allowed) return monthlyCheck
 
+  // SPRINT-AI-FINAL-002 §2 — porcentaje de uso para el warning al 80%.
+  // Si `budget === 0` (fail-open path de checkDailyBudget/checkMonthlyBudget
+  // cuando la DB está caída), el pct queda en 0 → no se emite warning
+  // (no sabemos cuánto se ha gastado, no tiene sentido).
+  const dailyPct = dailyCheck.budget > 0 ? (dailyCheck.spent / dailyCheck.budget) * 100 : 0
+  const monthlyPct = monthlyCheck.budget > 0 ? (monthlyCheck.spent / monthlyCheck.budget) * 100 : 0
+
+  // 80% warning (not blocking). Se construye un mensaje humano-legible y
+  // se emite al room del tenant. `emitToTenant` es fire-and-forget (maneja
+  // sus propios errores internamente con `void fetch(...).catch(...)`),
+  // no necesita await ni .catch del caller. Si el chat-service está caído,
+  // el warning se pierde pero la llamada LLM sigue su curso.
+  let warning: string | undefined
+  if (dailyPct >= 80 && dailyPct < 100) {
+    warning = `Presupuesto diario al ${Math.round(dailyPct)}% ($${dailyCheck.spent.toFixed(4)}/$${dailyCheck.budget.toFixed(2)})`
+    logger.warn({ tenantId, dailyPct }, 'LLM budget 80% warning')
+
+    // Emit socket event (best-effort) — el dashboard puede mostrar un
+    // banner de advertencia con el pct + remaining.
+    emitToTenant(tenantId, 'llm:budget_warning', {
+      type: 'daily',
+      pct: Math.round(dailyPct),
+      spent: dailyCheck.spent,
+      budget: dailyCheck.budget,
+      remaining: dailyCheck.remaining,
+      message: warning,
+    })
+  }
+
+  if (monthlyPct >= 80 && monthlyPct < 100) {
+    // Si ambos (diario y mensual) dispararon warning, el mensual tiene
+    // prioridad — el cap mensual es más relevante para el operador (se
+    // reinicia en 1 mes, vs. mañana para el diario).
+    warning = `Presupuesto mensual al ${Math.round(monthlyPct)}% ($${monthlyCheck.spent.toFixed(4)}/$${monthlyCheck.budget.toFixed(2)})`
+    logger.warn({ tenantId, monthlyPct }, 'LLM monthly budget 80% warning')
+
+    emitToTenant(tenantId, 'llm:budget_warning', {
+      type: 'monthly',
+      pct: Math.round(monthlyPct),
+      spent: monthlyCheck.spent,
+      budget: monthlyCheck.budget,
+      remaining: monthlyCheck.remaining,
+      message: warning,
+    })
+  }
+
   // Ambos pasaron — devolver el remaining más restrictivo. Si alguno
   // fail-open (Infinity), Math.min cae al finito del otro. Si ambos
   // fail-open (DB caída), devuelve Infinity — el caller puede usarlo como
   // señal de "no se pudo verificar, asumiendo ilimitado".
-  return { allowed: true, remaining: Math.min(dailyCheck.remaining, monthlyCheck.remaining) }
+  return {
+    allowed: true,
+    remaining: Math.min(dailyCheck.remaining, monthlyCheck.remaining),
+    warning,
+  }
 }
 
 /**

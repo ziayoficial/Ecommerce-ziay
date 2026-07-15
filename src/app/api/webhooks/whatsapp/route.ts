@@ -341,6 +341,179 @@ export const POST = withWebhookErrorHandling(async (req: NextRequest) => {
       }
     }
 
+    // ── SPRINT-COMPLIANCE-FINAL-001 · P1 — marketing consent keyword handler ──
+    // Ley 1581 de 2012 (habeas data) + WhatsApp commerce convention: the
+    // consumer manages their own marketing consent via keywords. These are
+    // SYSTEM COMMANDS, not conversation messages — we DON'T persist a Message
+    // row for them, and we ACK 200 with `status: 'keyword_handled'` so the
+    // dashboard / chat-service doesn't render them as customer messages.
+    //
+    // Keywords (exact match, case-insensitive, trimmed):
+    //   OPT_IN : SI | ACEPTO | CONFIRMO | OK
+    //   OPT_OUT: STOP | BAJA | CANCELAR | SALIR | NO
+    //   HELP   : AYUDA | HELP | INFO
+    //
+    // Idempotency: a duplicate "SI" just re-grants (no-op if already granted);
+    // a duplicate "STOP" just re-revokes (updateMany is idempotent).
+    // Failures are captured but never break the webhook — the inbound is
+    // still persisted below as a normal message so an agent can intervene.
+    const textContent = (parsed.text || '').toUpperCase().trim()
+    const CONSENT_KEYWORDS: { OPT_IN: string[]; OPT_OUT: string[]; HELP: string[] } = {
+      OPT_IN: ['SI', 'ACEPTO', 'CONFIRMO', 'OK'],
+      OPT_OUT: ['STOP', 'BAJA', 'CANCELAR', 'SALIR', 'NO'],
+      HELP: ['AYUDA', 'HELP', 'INFO'],
+    }
+
+    if (parsed.type === 'text' && CONSENT_KEYWORDS.OPT_IN.includes(textContent)) {
+      try {
+        // ConsentRecord has no composite @@unique on (tenantId, dataSubjectId,
+        // purpose) — only an @@index. We can't `upsert` by composite key, so
+        // findFirst + (update | create) is the portable pattern (mirrors the
+        // consent route's approach).
+        const existingConsent = await db.consentRecord.findFirst({
+          where: {
+            tenantId,
+            dataSubjectId: customer.id,
+            dataSubjectType: 'customer',
+            purpose: 'marketing',
+          },
+          select: { id: true },
+        })
+        const proofPayload = JSON.stringify({
+          source: 'whatsapp_keyword',
+          keyword: textContent,
+          phone: parsed.from,
+          timestamp: new Date().toISOString(),
+        })
+        if (existingConsent) {
+          await db.consentRecord.update({
+            where: { id: existingConsent.id },
+            data: {
+              granted: true,
+              grantedAt: new Date(),
+              revokedAt: null,
+              revokeReason: null,
+              proofPayload,
+            },
+          })
+        } else {
+          await db.consentRecord.create({
+            data: {
+              tenantId,
+              dataSubjectId: customer.id,
+              dataSubjectType: 'customer',
+              purpose: 'marketing',
+              legalBasis: 'consent',
+              granted: true,
+              grantedAt: new Date(),
+              proofPayload,
+            },
+          })
+        }
+
+        // Send confirmation (best-effort, non-blocking).
+        const optInAdapter = await getWhatsAppAdapter(tenantId)
+        if (optInAdapter) {
+          optInAdapter
+            .sendText(parsed.from, '✅ Confirmaste recibir mensajes marketing. Responde STOP para cancelar.')
+            .catch((err) =>
+              log.warn(
+                { from: parsed.from, err: err instanceof Error ? err.message : String(err) },
+                'opt-in reply failed (non-blocking)',
+              ),
+            )
+        }
+        log.info({ customerId: customer.id, tenantId, keyword: textContent }, 'Marketing consent granted via WhatsApp')
+        return NextResponse.json({ received: true, status: 'keyword_handled' })
+      } catch (consentErr) {
+        captureError(consentErr as Error, {
+          action: 'webhook.wa.consent_opt_in',
+          tenantId,
+          customerId: customer.id,
+        })
+        log.warn(
+          { err: consentErr instanceof Error ? consentErr.message : String(consentErr) },
+          'OPT_IN keyword handler failed — continuing with normal flow',
+        )
+      }
+    }
+
+    if (parsed.type === 'text' && CONSENT_KEYWORDS.OPT_OUT.includes(textContent)) {
+      try {
+        // Revoke ALL currently-granted marketing consent records for this
+        // customer (defensive — there should be at most one, but updateMany
+        // is idempotent + handles legacy duplicates).
+        await db.consentRecord.updateMany({
+          where: {
+            dataSubjectId: customer.id,
+            dataSubjectType: 'customer',
+            purpose: 'marketing',
+            granted: true,
+          },
+          data: {
+            granted: false,
+            revokedAt: new Date(),
+            revokeReason: 'WhatsApp opt-out keyword',
+          },
+        })
+
+        const optOutAdapter = await getWhatsAppAdapter(tenantId)
+        if (optOutAdapter) {
+          optOutAdapter
+            .sendText(parsed.from, '❌ Cancelaste los mensajes marketing. No te enviaremos más promociones.')
+            .catch((err) =>
+              log.warn(
+                { from: parsed.from, err: err instanceof Error ? err.message : String(err) },
+                'opt-out reply failed (non-blocking)',
+              ),
+            )
+        }
+        log.info({ customerId: customer.id, tenantId, keyword: textContent }, 'Marketing consent revoked via WhatsApp')
+        return NextResponse.json({ received: true, status: 'keyword_handled' })
+      } catch (consentErr) {
+        captureError(consentErr as Error, {
+          action: 'webhook.wa.consent_opt_out',
+          tenantId,
+          customerId: customer.id,
+        })
+        log.warn(
+          { err: consentErr instanceof Error ? consentErr.message : String(consentErr) },
+          'OPT_OUT keyword handler failed — continuing with normal flow',
+        )
+      }
+    }
+
+    if (parsed.type === 'text' && CONSENT_KEYWORDS.HELP.includes(textContent)) {
+      try {
+        const helpAdapter = await getWhatsAppAdapter(tenantId)
+        if (helpAdapter) {
+          helpAdapter
+            .sendText(
+              parsed.from,
+              '📱 Comandos:\n• SI — recibir promociones\n• STOP — cancelar promociones\n• AYUDA — este mensaje\n• RETRACTO — retracto de compra (Ley 1480 Art 47)',
+            )
+            .catch((err) =>
+              log.warn(
+                { from: parsed.from, err: err instanceof Error ? err.message : String(err) },
+                'help reply failed (non-blocking)',
+              ),
+            )
+        }
+        log.info({ customerId: customer.id, tenantId, keyword: textContent }, 'Help keyword handled via WhatsApp')
+        return NextResponse.json({ received: true, status: 'keyword_handled' })
+      } catch (helpErr) {
+        captureError(helpErr as Error, {
+          action: 'webhook.wa.consent_help',
+          tenantId,
+          customerId: customer.id,
+        })
+        log.warn(
+          { err: helpErr instanceof Error ? helpErr.message : String(helpErr) },
+          'HELP keyword handler failed — continuing with normal flow',
+        )
+      }
+    }
+
     // ── Persist the inbound Message row ────────────────────────────────
     const message = await db.message.create({
       data: {

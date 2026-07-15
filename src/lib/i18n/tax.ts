@@ -71,6 +71,12 @@ export const TAX_CONFIGS: Record<string, TaxConfig> = {
   },
 }
 
+export interface ReducedRateItem {
+  sku: string
+  rate: number
+  amount: number
+}
+
 export interface TaxBreakdown {
   subtotal: number
   taxRate: number
@@ -79,6 +85,12 @@ export interface TaxBreakdown {
   shippingTax: number
   total: number
   exemptItems: string[]
+  // SPRINT-COMPLIANCE-FINAL-001 · P2 — per-product reduced-rate tracking.
+  // Items taxed at a reduced VAT rate (food, books) instead of the standard
+  // rate. Each entry records the SKU, the applied rate, and the item line
+  // total (price × quantity) so the persisted `Order.taxBreakdown` JSON is
+  // auditable per-line for DIAN / AFIP / SAT reconciliation.
+  reducedRateItems: ReducedRateItem[]
 }
 
 /**
@@ -89,10 +101,13 @@ export interface TaxBreakdown {
  *      taxable base AND listed in `exemptItems` (by SKU) for transparency.
  *   2. If `foodReducedRate` is set and the item category is `alimentos`, the
  *      item is taxed at the reduced rate (its taxable base is scaled so the
- *      flat `vatRate` × scaled-base == reduced-rate × full-price).
- *   3. All other items are taxed at the full `vatRate`.
- *   4. Shipping tax = `shipping × vatRate` when `appliesToShipping`.
- *   5. Total = subtotal + taxAmount + shipping + shippingTax.
+ *      flat `vatRate` × scaled-base == reduced-rate × full-price). The SKU
+ *      is also recorded in `reducedRateItems` for per-line audit.
+ *   3. If `booksReducedRate` is set and the item category is `libros`, the
+ *      same reduced-rate logic applies. (SPRINT-COMPLIANCE-FINAL-001.)
+ *   4. All other items are taxed at the full `vatRate`.
+ *   5. Shipping tax = `shipping × vatRate` when `appliesToShipping`.
+ *   6. Total = subtotal + taxAmount + shipping + shippingTax.
  *
  * Unknown countries fall back to the US config (no VAT) — the caller should
  * still receive a TaxBreakdown so the order can be persisted, but with
@@ -107,6 +122,7 @@ export function calculateTax(params: {
 }): TaxBreakdown {
   const config = TAX_CONFIGS[params.countryCode?.toUpperCase()] || TAX_CONFIGS.US
   const exemptItems: string[] = []
+  const reducedRateItems: ReducedRateItem[] = []
 
   let subtotal = 0
   let taxableAmount = 0
@@ -115,14 +131,32 @@ export function calculateTax(params: {
     const itemTotal = item.price * item.quantity
     subtotal += itemTotal
 
+    // Per-product exemption — category is on the country's exempt list.
     if (config.exemptCategories.includes(item.category)) {
       exemptItems.push(item.sku)
-    } else if (config.foodReducedRate && item.category === 'alimentos') {
-      // Scale the taxable base so the full vatRate × scaled-base == reduced × full.
-      // taxableAmount += itemTotal * (foodReducedRate / vatRate)
-      taxableAmount += (itemTotal * config.foodReducedRate) / config.vatRate
-    } else {
+      continue
+    }
+
+    // Per-product reduced rate — food (alimentos) or books (libros). The
+    // taxable base is scaled so the aggregate `vatRate × taxableAmount`
+    // yields the correct reduced-rate tax for this line.
+    let rate = config.vatRate
+    if (config.foodReducedRate && item.category === 'alimentos') {
+      rate = config.foodReducedRate
+      reducedRateItems.push({ sku: item.sku, rate, amount: itemTotal })
+    } else if (config.booksReducedRate && item.category === 'libros') {
+      rate = config.booksReducedRate
+      reducedRateItems.push({ sku: item.sku, rate, amount: itemTotal })
+    }
+
+    if (rate === config.vatRate) {
       taxableAmount += itemTotal
+    } else {
+      // Scale so `vatRate × scaled-base == reduced × full-price`.
+      // Guard against a zero `vatRate` (US fallback) — a reduced rate never
+      // applies there because `foodReducedRate`/`booksReducedRate` are unset
+      // for the US config, so this branch is unreachable in practice.
+      taxableAmount += (itemTotal * rate) / config.vatRate
     }
   }
 
@@ -140,6 +174,7 @@ export function calculateTax(params: {
     shippingTax,
     total: Math.round(total * 100) / 100,
     exemptItems,
+    reducedRateItems,
   }
 }
 

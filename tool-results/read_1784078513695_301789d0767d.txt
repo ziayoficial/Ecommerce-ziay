@@ -1,0 +1,510 @@
+     1→'use client'
+     2→import { useCallback, useEffect, useMemo, useState } from 'react'
+     3→import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+     4→import { Badge } from '@/components/ui/badge'
+     5→import { Button } from '@/components/ui/button'
+     6→import { Input } from '@/components/ui/input'
+     7→import { Skeleton } from '@/components/ui/skeleton'
+     8→import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+     9→import { Checkbox } from '@/components/ui/checkbox'
+    10→import {
+    11→  Collapsible, CollapsibleContent, CollapsibleTrigger,
+    12→} from '@/components/ui/collapsible'
+    13→import {
+    14→  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+    15→} from '@/components/ui/table'
+    16→import {
+    17→  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+    18→} from '@/components/ui/select'
+    19→import {
+    20→  Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger,
+    21→} from '@/components/ui/tooltip'
+    22→import { formatCurrency, shortDate } from '@/lib/format'
+    23→import { cn } from '@/lib/utils'
+    24→import { toast } from 'sonner'
+    25→import { useTenantId } from '@/hooks/use-tenant'
+    26→import {
+    27→  CreditCard, Truck, CheckCircle2, Clock, XCircle, Search,
+    28→  TrendingUp, Wallet, Percent, Package, Download, ChevronDown,
+    29→  ChevronRight, RefreshCw, AlertCircle, Inbox, SlidersHorizontal,
+    30→} from 'lucide-react'
+    31→
+    32→type Order = {
+    33→  id: string; number: string; status: string; paymentMode: string; paymentStatus: string
+    34→  subtotal: number; discount: number; codFee: number; total: number; currency: string
+    35→  country?: string; city?: string; createdAt: string; paidAt: string | null
+    36→  sourceAd: { id: string; name: string; externalId: string } | null
+    37→  sourceCampaign?: string; sourcePlatform?: string
+    38→  customer: { id: string; name: string; phone?: string; country?: string }
+    39→  items: { name: string; quantity: number; unitPrice: number }[]
+    40→}
+    41→
+    42→const statusMeta = (s: string) => {
+    43→  switch (s) {
+    44→    case 'new': return { label: 'Nuevo', cls: 'bg-slate-500/10 text-slate-700 dark:text-slate-300', icon: Clock }
+    45→    case 'pending_payment': return { label: 'Pago pendiente', cls: 'bg-amber-500/10 text-amber-700 dark:text-amber-300', icon: Clock }
+    46→    case 'paid': return { label: 'Pagado', cls: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300', icon: CheckCircle2 }
+    47→    case 'preparing': return { label: 'Preparando', cls: 'bg-sky-500/10 text-sky-700 dark:text-sky-300', icon: Package }
+    48→    case 'shipped': return { label: 'Enviado', cls: 'bg-violet-500/10 text-violet-700 dark:text-violet-300', icon: Truck }
+    49→    case 'delivered': return { label: 'Entregado', cls: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300', icon: CheckCircle2 }
+    50→    case 'returned': return { label: 'Devuelto', cls: 'bg-rose-500/10 text-rose-700 dark:text-rose-300', icon: XCircle }
+    51→    case 'cancelled': return { label: 'Cancelado', cls: 'bg-slate-500/10 text-slate-700 dark:text-slate-300', icon: XCircle }
+    52→    default: return { label: s, cls: 'bg-slate-500/10 text-slate-700 dark:text-slate-300', icon: Clock }
+    53→  }
+    54→}
+    55→
+    56→const platformMeta = (p?: string) => {
+    57→  switch (p) {
+    58→    case 'meta': return { label: 'Meta', cls: 'bg-sky-500/10 text-sky-700 dark:text-sky-300' }
+    59→    case 'google': return { label: 'Google', cls: 'bg-amber-500/10 text-amber-700 dark:text-amber-300' }
+    60→    case 'tiktok': return { label: 'TikTok', cls: 'bg-slate-900/10 text-slate-700 dark:text-slate-300' }
+    61→    case 'organic': return { label: 'Orgánico', cls: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' }
+    62→    default: return { label: p || '—', cls: 'bg-slate-500/10 text-slate-700 dark:text-slate-300' }
+    63→  }
+    64→}
+    65→
+    66→// All possible statuses — used to render quick-filter chips with counts.
+    67→const STATUS_OPTIONS = [
+    68→  { value: 'all', label: 'Todos' },
+    69→  { value: 'new', label: 'Nuevo' },
+    70→  { value: 'pending_payment', label: 'Pago pendiente' },
+    71→  { value: 'paid', label: 'Pagado' },
+    72→  { value: 'preparing', label: 'Preparando' },
+    73→  { value: 'shipped', label: 'Enviado' },
+    74→  { value: 'delivered', label: 'Entregado' },
+    75→  { value: 'returned', label: 'Devuelto' },
+    76→  { value: 'cancelled', label: 'Cancelado' },
+    77→] as const
+    78→
+    79→export function OrdersView() {
+    80→  const tenantId = useTenantId()
+    81→  const [orders, setOrders] = useState<Order[]>([])
+    82→  const [loading, setLoading] = useState(true)
+    83→  const [refreshing, setRefreshing] = useState(false)
+    84→  const [error, setError] = useState<string | null>(null)
+    85→  const [statusFilter, setStatusFilter] = useState('all')
+    86→  const [modeFilter, setModeFilter] = useState('all')
+    87→  const [q, setQ] = useState('')
+    88→  const [filtersOpen, setFiltersOpen] = useState(true)
+    89→  const [selected, setSelected] = useState<Record<string, boolean>>({})
+    90→
+    91→  const loadOrders = useCallback(async (showRefreshing = false) => {
+    92→    if (!tenantId) return
+    93→    if (showRefreshing) setRefreshing(true)
+    94→    try {
+    95→      setError(null)
+    96→      const res = await fetch(`/api/orders?status=${statusFilter}&mode=${modeFilter}&q=${encodeURIComponent(q)}&tenantId=${tenantId}`)
+    97→      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    98→      const d = await res.json()
+    99→      setOrders(d.orders || [])
+   100→    } catch (err) {
+   101→      console.error('Orders fetch failed', err)
+   102→      setError('No pudimos cargar los pedidos. Intenta de nuevo.')
+   103→    } finally {
+   104→      setLoading(false)
+   105→      setRefreshing(false)
+   106→    }
+   107→  }, [statusFilter, modeFilter, q, tenantId])
+   108→
+   109→  useEffect(() => { loadOrders() }, [loadOrders])
+   110→
+   111→  // ── Status counts for the quick-filter chips ──
+   112→  const statusCounts = useMemo(() => {
+   113→    const counts: Record<string, number> = { all: orders.length }
+   114→    for (const o of orders) counts[o.status] = (counts[o.status] || 0) + 1
+   115→    return counts
+   116→  }, [orders])
+   117→
+   118→  const advanceOrders = orders.filter(o => o.paymentMode === 'advance')
+   119→  const codOrders = orders.filter(o => o.paymentMode === 'cod')
+   120→  const totalRevenue = orders.reduce((s, o) => s + o.total, 0)
+   121→  const paidRevenue = orders.filter(o => o.paymentStatus === 'paid').reduce((s, o) => s + o.total, 0)
+   122→  const codPending = orders.filter(o => o.paymentMode === 'cod' && o.paymentStatus === 'cod_pending').length
+   123→  const prepDiscount = orders.reduce((s, o) => s + o.discount, 0)
+   124→
+   125→  // ── Bulk selection helpers ──
+   126→  const selectedIds = useMemo(() => Object.keys(selected).filter(id => selected[id]), [selected])
+   127→  const selectedCount = selectedIds.length
+   128→  const allSelected = orders.length > 0 && selectedCount === orders.length
+   129→  const someSelected = selectedCount > 0 && !allSelected
+   130→  function toggleAll(checked: boolean) {
+   131→    if (checked) {
+   132→      setSelected(Object.fromEntries(orders.map(o => [o.id, true])))
+   133→    } else {
+   134→      setSelected({})
+   135→    }
+   136→  }
+   137→  function toggleOne(id: string, checked: boolean) {
+   138→    setSelected(prev => ({ ...prev, [id]: checked }))
+   139→  }
+   140→
+   141→  // ── CSV export: client-side, no backend round-trip needed ──
+   142→  function exportCsv() {
+   143→    const target = selectedCount > 0 ? orders.filter(o => selected[o.id]) : orders
+   144→    if (target.length === 0) {
+   145→      toast.info('No hay pedidos para exportar')
+   146→      return
+   147→    }
+   148→    const headers = ['Número', 'Estado', 'Modo de pago', 'Pago status', 'Cliente', 'Ciudad', 'País', 'Items', 'Total', 'Descuento', 'Recargo COD', 'Campaña', 'Plataforma', 'Creado']
+   149→    const rows = target.map(o => [
+   150→      o.number, o.status, o.paymentMode, o.paymentStatus,
+   151→      o.customer.name, o.city || '', o.country || '',
+   152→      o.items.map(i => `${i.quantity}x ${i.name}`).join(' | '),
+   153→      o.total, o.discount, o.codFee,
+   154→      o.sourceCampaign || '', o.sourcePlatform || '',
+   155→      o.createdAt,
+   156→    ])
+   157→    const csv = [headers, ...rows]
+   158→      .map(r => r.map(cell => {
+   159→        const s = String(cell ?? '')
+   160→        // RFC 4180: wrap in quotes if contains comma/quote/newline, double the quotes.
+   161→        return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+   162→      }).join(','))
+   163→      .join('\n')
+   164→    // Prepend BOM so Excel reads UTF-8 correctly (accents, emojis).
+   165→    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
+   166→    const url = URL.createObjectURL(blob)
+   167→    const a = document.createElement('a')
+   168→    a.href = url
+   169→    a.download = `pedidos-${new Date().toISOString().slice(0, 10)}${selectedCount > 0 ? `-_${selectedCount}` : ''}.csv`
+   170→    document.body.appendChild(a)
+   171→    a.click()
+   172→    document.body.removeChild(a)
+   173→    URL.revokeObjectURL(url)
+   174→    toast.success(`${target.length} pedidos exportados a CSV`)
+   175→  }
+   176→
+   177→  async function bulkUpdateStatus(status: string) {
+   178→    if (selectedCount === 0) return
+   179→    await Promise.allSettled(selectedIds.map(id =>
+   180→      fetch(`/api/orders/${id}`, {
+   181→        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+   182→        body: JSON.stringify({ status }),
+   183→      })
+   184→    ))
+   185→    setOrders(prev => prev.map(o => selected[o.id] ? { ...o, status } : o))
+   186→    toast.success(`${selectedCount} pedidos actualizados a "${status}"`)
+   187→    setSelected({})
+   188→  }
+   189→
+   190→  const updateStatus = async (id: string, status: string, paymentStatus?: string, event?: string) => {
+   191→    await fetch(`/api/orders/${id}`, {
+   192→      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+   193→      body: JSON.stringify({ status, paymentStatus, event }),
+   194→    })
+   195→    setOrders(prev => prev.map(o => o.id === id ? { ...o, status, ...(paymentStatus ? { paymentStatus } : {}) } : o))
+   196→    toast.success(`Pedido actualizado a "${status}"`)
+   197→  }
+   198→
+   199→  if (error) {
+   200→    return (
+   201→      <Alert variant="destructive" className="animate-fade-in-up">
+   202→        <AlertCircle className="size-4" />
+   203→        <AlertTitle>Error al cargar los pedidos</AlertTitle>
+   204→        <AlertDescription className="flex items-center justify-between gap-3 flex-wrap">
+   205→          <span>{error}</span>
+   206→          <Button size="sm" variant="outline" onClick={() => loadOrders(true)} className="gap-1.5">
+   207→            <RefreshCw className="size-3.5" /> Reintentar
+   208→          </Button>
+   209→        </AlertDescription>
+   210→      </Alert>
+   211→    )
+   212→  }
+   213→
+   214→  return (
+   215→    <div className="space-y-6 animate-fade-in-up">
+   216→      {/* KPI strip */}
+   217→      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+   218→        <Card><CardContent className="p-4 flex items-center gap-3">
+   219→          <div className="size-10 rounded-xl bg-primary/10 text-primary ring-1 ring-primary/20 flex items-center justify-center"><Wallet className="size-5" /></div>
+   220→          <div><div className="text-lg font-bold">{formatCurrency(totalRevenue, 'COP', { compact: true })}</div><div className="text-xs text-muted-foreground">Ingresos totales</div></div>
+   221→        </CardContent></Card>
+   222→        <Card><CardContent className="p-4 flex items-center gap-3">
+   223→          <div className="size-10 rounded-xl bg-emerald-500/10 text-emerald-600 ring-1 ring-emerald-500/20 flex items-center justify-center"><CheckCircle2 className="size-5" /></div>
+   224→          <div><div className="text-lg font-bold">{formatCurrency(paidRevenue, 'COP', { compact: true })}</div><div className="text-xs text-muted-foreground">Cobrado efectivamente</div></div>
+   225→        </CardContent></Card>
+   226→        <Card><CardContent className="p-4 flex items-center gap-3">
+   227→          <div className="size-10 rounded-xl bg-amber-500/10 text-amber-600 ring-1 ring-amber-500/20 flex items-center justify-center"><Truck className="size-5" /></div>
+   228→          <div><div className="text-lg font-bold">{codPending}</div><div className="text-xs text-muted-foreground">COD pendientes de cobro</div></div>
+   229→        </CardContent></Card>
+   230→        <Card><CardContent className="p-4 flex items-center gap-3">
+   231→          <div className="size-10 rounded-xl bg-violet-500/10 text-violet-600 ring-1 ring-violet-500/20 flex items-center justify-center"><Percent className="size-5" /></div>
+   232→          <div><div className="text-lg font-bold">{formatCurrency(prepDiscount, 'COP', { compact: true })}</div><div className="text-xs text-muted-foreground">Descuentos por prepago</div></div>
+   233→        </CardContent></Card>
+   234→      </div>
+   235→
+   236→      {/* ── Status quick-filter chips with counts ── */}
+   237→      <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filtrar por estado">
+   238→        {STATUS_OPTIONS.map(opt => {
+   239→          const count = statusCounts[opt.value] || 0
+   240→          const isActive = statusFilter === opt.value
+   241→          if (opt.value !== 'all' && count === 0 && !isActive) return null
+   242→          return (
+   243→            <button
+   244→              key={opt.value}
+   245→              type="button"
+   246→              onClick={() => setStatusFilter(opt.value)}
+   247→              aria-pressed={isActive}
+   248→              className={cn(
+   249→                'inline-flex items-center gap-1.5 h-8 px-3 rounded-full text-xs font-medium border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+   250→                isActive
+   251→                  ? 'bg-primary text-primary-foreground border-primary'
+   252→                  : 'bg-background hover:bg-accent border-border'
+   253→              )}
+   254→            >
+   255→              {opt.label}
+   256→              {count > 0 && (
+   257→                <span className={cn(
+   258→                  'inline-flex items-center justify-center min-w-4 h-4 px-1 rounded-full text-[10px] tabular-nums',
+   259→                  isActive ? 'bg-primary-foreground/20 text-primary-foreground' : 'bg-muted text-muted-foreground'
+   260→                )}>{count}</span>
+   261→              )}
+   262→            </button>
+   263→          )
+   264→        })}
+   265→      </div>
+   266→
+   267→      {/* Filters (collapsible) */}
+   268→      <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
+   269→        <Card>
+   270→          <CollapsibleTrigger asChild>
+   271→            <CardHeader className="pb-3 cursor-pointer select-none hover:bg-muted/30 transition-colors">
+   272→              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+   273→                <div className="min-w-0">
+   274→                  <CardTitle className="text-base flex items-center gap-2">
+   275→                    <SlidersHorizontal className="size-4 text-primary" />
+   276→                    Pedidos
+   277→                    <Badge variant="outline" className="text-[10px] h-5 tabular-nums">{orders.length}</Badge>
+   278→                    {selectedCount > 0 && (
+   279→                      <Badge variant="secondary" className="text-[10px] h-5">{selectedCount} seleccionados</Badge>
+   280→                    )}
+   281→                  </CardTitle>
+   282→                  <CardDescription>{advanceOrders.length} anticipado · {codOrders.length} contra entrega</CardDescription>
+   283→                </div>
+   284→                <div className="flex flex-wrap gap-2 items-center">
+   285→                  <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); exportCsv() }} className="gap-1.5" aria-label="Exportar a CSV">
+   286→                    <Download className="size-3.5" /> <span className="hidden sm:inline">Exportar CSV</span>
+   287→                  </Button>
+   288→                  <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); loadOrders(true) }} disabled={refreshing} className="gap-1.5" aria-label="Refrescar pedidos">
+   289→                    <RefreshCw className={cn('size-3.5', refreshing && 'animate-spin')} />
+   290→                  </Button>
+   291→                  <Button variant="ghost" size="sm" className="gap-1" aria-label={filtersOpen ? 'Contraer filtros' : 'Expandir filtros'}>
+   292→                    {filtersOpen ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
+   293→                    <span className="hidden sm:inline">{filtersOpen ? 'Contraer' : 'Expandir'}</span>
+   294→                  </Button>
+   295→                </div>
+   296→              </div>
+   297→            </CardHeader>
+   298→          </CollapsibleTrigger>
+   299→          <CollapsibleContent>
+   300→            <CardContent className="pt-0 pb-4 px-6">
+   301→              <div className="flex flex-wrap gap-2 items-center">
+   302→                <div className="relative flex-1 min-w-[200px]">
+   303→                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+   304→                  <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar # pedido, cliente, ciudad..." className="pl-8 h-9" aria-label="Buscar pedidos" />
+   305→                </div>
+   306→                <Select value={modeFilter} onValueChange={setModeFilter}>
+   307→                  <SelectTrigger className="h-9 w-40"><SelectValue placeholder="Modo de pago" /></SelectTrigger>
+   308→                  <SelectContent>
+   309→                    <SelectItem value="all">Todos los pagos</SelectItem>
+   310→                    <SelectItem value="advance">Anticipado</SelectItem>
+   311→                    <SelectItem value="cod">Contra entrega</SelectItem>
+   312→                  </SelectContent>
+   313→                </Select>
+   314→                <Select value={statusFilter} onValueChange={setStatusFilter}>
+   315→                  <SelectTrigger className="h-9 w-40"><SelectValue placeholder="Estado" /></SelectTrigger>
+   316→                  <SelectContent>
+   317→                    <SelectItem value="all">Todos los estados</SelectItem>
+   318→                    <SelectItem value="new">Nuevo</SelectItem>
+   319→                    <SelectItem value="paid">Pagado</SelectItem>
+   320→                    <SelectItem value="preparing">Preparando</SelectItem>
+   321→                    <SelectItem value="shipped">Enviado</SelectItem>
+   322→                    <SelectItem value="delivered">Entregado</SelectItem>
+   323→                  </SelectContent>
+   324→                </Select>
+   325→              </div>
+   326→            </CardContent>
+   327→          </CollapsibleContent>
+   328→        </Card>
+   329→      </Collapsible>
+   330→
+   331→      {/* Bulk actions bar — visible only when at least one order is selected.
+   332→          On mobile it floats at the bottom (fixed); on md+ it sits inline above the table. */}
+   333→      {selectedCount > 0 && (
+   334→        <div
+   335→          role="region"
+   336→          aria-label="Acciones masivas"
+   337→          className="fixed md:static bottom-4 left-4 right-4 z-30 md:z-auto
+   338→                     flex items-center justify-between gap-3 p-3 rounded-lg border
+   339→                     bg-background md:bg-primary/5 shadow-lg md:shadow-none
+   340→                     animate-fade-in-up flex-wrap"
+   341→        >
+   342→          <div className="text-xs font-medium">{selectedCount} pedidos seleccionados</div>
+   343→          <div className="flex items-center gap-2 flex-wrap">
+   344→            <Select onValueChange={(v) => bulkUpdateStatus(v)} defaultValue="">
+   345→              <SelectTrigger className="h-8 w-44 text-xs"><SelectValue placeholder="Mover selección a…" /></SelectTrigger>
+   346→              <SelectContent>
+   347→                <SelectItem value="paid">Marcar pagado</SelectItem>
+   348→                <SelectItem value="preparing">Preparando</SelectItem>
+   349→                <SelectItem value="shipped">Enviar</SelectItem>
+   350→                <SelectItem value="delivered">Entregado</SelectItem>
+   351→                <SelectItem value="cancelled">Cancelar</SelectItem>
+   352→              </SelectContent>
+   353→            </Select>
+   354→            <Button variant="outline" size="sm" onClick={exportCsv} className="gap-1.5"><Download className="size-3.5" /> Exportar selección</Button>
+   355→            <Button variant="ghost" size="sm" onClick={() => setSelected({})} aria-label="Limpiar selección">Limpiar</Button>
+   356→          </div>
+   357→        </div>
+   358→      )}
+   359→
+   360→      <Card>
+   361→        <CardContent className="p-0">
+   362→          {loading ? (
+   363→            <div className="p-4 space-y-2">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-12" />)}</div>
+   364→          ) : orders.length === 0 ? (
+   365→            <div className="flex flex-col items-center justify-center text-center py-14 px-4 gap-3">
+   366→              <div className="size-14 rounded-2xl bg-muted/60 ring-1 ring-border flex items-center justify-center">
+   367→                <Inbox className="size-6 text-muted-foreground" />
+   368→              </div>
+   369→              <div>
+   370→                <p className="text-sm font-medium text-foreground">Sin pedidos con estos filtros</p>
+   371→                <p className="text-xs text-muted-foreground mt-1 max-w-sm">Prueba cambiando los filtros de estado o modo de pago, o espera a que entren nuevos pedidos desde Mensajería.</p>
+   372→              </div>
+   373→              <Button variant="outline" size="sm" onClick={() => { setStatusFilter('all'); setModeFilter('all'); setQ('') }} className="gap-1.5">Limpiar filtros</Button>
+   374→            </div>
+   375→          ) : (
+   376→            <div className="overflow-x-auto scroll-thin">
+   377→              <Table>
+   378→                <TableHeader>
+   379→                  <TableRow>
+   380→                    <TableHead className="w-10 sticky left-0 bg-background z-10">
+   381→                      <Checkbox
+   382→                        checked={allSelected ? true : someSelected ? 'indeterminate' : false}
+   383→                        onCheckedChange={(v) => toggleAll(!!v)}
+   384→                        aria-label="Seleccionar todos los pedidos"
+   385→                      />
+   386→                    </TableHead>
+   387→                    <TableHead className="w-32">Pedido</TableHead>
+   388→                    <TableHead className="min-w-[180px]">Cliente</TableHead>
+   389→                    <TableHead className="min-w-[240px]">Items</TableHead>
+   390→                    <TableHead className="w-28">Pago</TableHead>
+   391→                    <TableHead className="w-32">Total</TableHead>
+   392→                    <TableHead className="w-32">Estado</TableHead>
+   393→                    <TableHead className="min-w-[160px]">Atribución</TableHead>
+   394→                    <TableHead className="w-40 text-right">Acciones</TableHead>
+   395→                  </TableRow>
+   396→                </TableHeader>
+   397→                <TableBody>
+   398→                  {orders.map((o) => {
+   399→                    const sm = statusMeta(o.status)
+   400→                    const pm = platformMeta(o.sourcePlatform)
+   401→                    const StatusIcon = sm.icon
+   402→                    const isSel = !!selected[o.id]
+   403→                    return (
+   404→                      <TableRow key={o.id} className={cn('hover:bg-muted/40', isSel && 'bg-primary/5')} data-selected={isSel || undefined}>
+   405→                        <TableCell className="sticky left-0 bg-background z-10">
+   406→                          <Checkbox
+   407→                            checked={isSel}
+   408→                            onCheckedChange={(v) => toggleOne(o.id, !!v)}
+   409→                            aria-label={`Seleccionar pedido ${o.number}`}
+   410→                          />
+   411→                        </TableCell>
+   412→                        <TableCell>
+   413→                          <div className="font-mono font-medium text-sm">{o.number}</div>
+   414→                          <div className="text-[10px] text-muted-foreground">{shortDate(o.createdAt)}</div>
+   415→                        </TableCell>
+   416→                        <TableCell>
+   417→                          <div className="font-medium text-sm line-clamp-2 leading-tight" title={o.customer.name}>{o.customer.name}</div>
+   418→                          <div className="text-[11px] text-muted-foreground line-clamp-1" title={`${o.city || '—'}, ${o.country || '—'}`}>{o.city || '—'}{o.country ? `, ${o.country}` : ''}</div>
+   419→                        </TableCell>
+   420→                        <TableCell>
+   421→                          <div className="text-xs text-muted-foreground line-clamp-2 leading-snug" title={o.items.map(i => `${i.quantity}x ${i.name}`).join(', ')}>
+   422→                            {o.items.map(i => `${i.quantity}x ${i.name}`).join(', ')}
+   423→                          </div>
+   424→                        </TableCell>
+   425→                        <TableCell>
+   426→                          <Badge variant={o.paymentMode === 'advance' ? 'default' : 'secondary'} className="text-[10px] gap-1">
+   427→                            {o.paymentMode === 'advance' ? <><CreditCard className="size-3" /> Anticipado</> : <><Truck className="size-3" /> COD</>}
+   428→                          </Badge>
+   429→                          {o.paymentStatus === 'cod_pending' && <div className="text-[10px] text-amber-600 mt-0.5">Pendiente cobro</div>}
+   430→                          {o.paymentStatus === 'paid' && <div className="text-[10px] text-emerald-600 mt-0.5">Cobrado</div>}
+   431→                        </TableCell>
+   432→                        <TableCell>
+   433→                          <div className="font-semibold tabular-nums text-sm">{formatCurrency(o.total, o.currency)}</div>
+   434→                          {o.discount > 0 && <div className="text-[10px] text-emerald-600">-{formatCurrency(o.discount, 'COP', { compact: true })} prepago</div>}
+   435→                          {o.codFee > 0 && <div className="text-[10px] text-muted-foreground">+{formatCurrency(o.codFee)} envío COD</div>}
+   436→                        </TableCell>
+   437→                        <TableCell>
+   438→                          <TooltipProvider delayDuration={200}>
+   439→                            <UITooltip>
+   440→                              <TooltipTrigger asChild>
+   441→                                <span className={cn('inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full cursor-help')}>
+   442→                                  <StatusIcon className="size-3" /> {sm.label}
+   443→                                </span>
+   444→                              </TooltipTrigger>
+   445→                              <TooltipContent><p className="text-xs">Estado actual: {o.status}</p></TooltipContent>
+   446→                            </UITooltip>
+   447→                          </TooltipProvider>
+   448→                        </TableCell>
+   449→                        <TableCell className="min-w-[160px]">
+   450→                          <div className="flex flex-col gap-1">
+   451→                            <span className={cn('text-[10px] px-1.5 py-0.5 rounded inline-block w-fit whitespace-nowrap', pm.cls)}>{pm.label}</span>
+   452→                            {o.sourceAd && <span className="text-[10px] text-muted-foreground truncate max-w-[180px]" title={o.sourceAd.externalId}>{o.sourceAd.name}</span>}
+   453→                          </div>
+   454→                        </TableCell>
+   455→                        <TableCell className="text-right">
+   456→                          <Select onValueChange={(v) => {
+   457→                            const eventMap: Record<string, string> = { paid: 'paid', shipped: 'shipped', delivered: 'delivered', cancelled: 'cancelled' }
+   458→                            const payMap: Record<string, string> = { paid: 'paid' }
+   459→                            updateStatus(o.id, v, payMap[v], eventMap[v])
+   460→                          }} defaultValue="">
+   461→                            <SelectTrigger className="h-8 w-32 text-xs ml-auto"><SelectValue placeholder="Mover a..." /></SelectTrigger>
+   462→                            <SelectContent>
+   463→                              <SelectItem value="paid">Marcar pagado</SelectItem>
+   464→                              <SelectItem value="preparing">Preparando</SelectItem>
+   465→                              <SelectItem value="shipped">Enviar</SelectItem>
+   466→                              <SelectItem value="delivered">Entregado</SelectItem>
+   467→                              <SelectItem value="cancelled">Cancelar</SelectItem>
+   468→                            </SelectContent>
+   469→                          </Select>
+   470→                        </TableCell>
+   471→                      </TableRow>
+   472→                    )
+   473→                  })}
+   474→                </TableBody>
+   475→              </Table>
+   476→            </div>
+   477→          )}
+   478→        </CardContent>
+   479→      </Card>
+   480→
+   481→      {/* Payment strategy explainer */}
+   482→      <Card>
+   483→        <CardHeader>
+   484→          <CardTitle className="text-base flex items-center gap-2"><TrendingUp className="size-4 text-primary" /> Estrategia de pagos recomendada</CardTitle>
+   485→          <CardDescription>Cómo se decide anticipado vs. contra entrega por canal y país</CardDescription>
+   486→        </CardHeader>
+   487→        <CardContent>
+   488→          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+   489→            <div className="p-4 rounded-xl border bg-primary/5 space-y-2">
+   490→              <div className="flex items-center gap-2"><CreditCard className="size-4 text-primary" /><Badge variant="default">Anticipado</Badge></div>
+   491→              <p className="text-xs text-muted-foreground">Recomendado para internacional (Messenger/IG) y pedidos &gt; $250k en CO. Mejora flujo de caja, reduce devoluciones, descuenta 5-7% al cliente.</p>
+   492→              <div className="text-xs"><strong>Cobro:</strong> carrito ecommerce (Mercado Pago, Wompi, Stripe, PayU)</div>
+   493→            </div>
+   494→            <div className="p-4 rounded-xl border bg-amber-500/5 space-y-2">
+   495→              <div className="flex items-center gap-2"><Truck className="size-4 text-amber-600" /><Badge variant="secondary">Contra entrega</Badge></div>
+   496→              <p className="text-xs text-muted-foreground">Fuerte en Colombia y México para primera compra &lt; $250k. Reduce fricción, ideal para clientes nuevos desconfiados. Recargo de envío $8k CO / $60 MXN.</p>
+   497→              <div className="text-xs"><strong>Riesgo:</strong> ~12-18% rechazo en puerta (mitigar con confirmación + reglas)</div>
+   498→            </div>
+   499→            <div className="p-4 rounded-xl border bg-violet-500/5 space-y-2">
+   500→              <div className="flex items-center gap-2"><Percent className="size-4 text-violet-600" /><Badge variant="outline">Híbrido (configurable)</Badge></div>
+   501→              <p className="text-xs text-muted-foreground">Por canal o por país: muestra ambas opciones y deja al cliente elegir. El sistema sugiere prepago con descuento para tickets altos y COD para bajos.</p>
+   502→              <div className="text-xs"><strong>Reglas:</strong> configurables en <strong>Configuración → Estrategia de pago</strong></div>
+   503→            </div>
+   504→          </div>
+   505→        </CardContent>
+   506→      </Card>
+   507→    </div>
+   508→  )
+   509→}
+   510→

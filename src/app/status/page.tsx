@@ -1,5 +1,6 @@
 // SPRINT-MONITORING-002 · M-11 — public status page.
 // SPRINT-MONITORING-FINAL-001 — added incident history section.
+// SPRINT-COMPLIANCE-FINAL-001 · P4 — added 90-day uptime bar.
 //
 // Shows the current health of the platform (DB + chat service) at
 // /status. Added to PUBLIC_PATTERNS in middleware so unauthenticated
@@ -24,6 +25,11 @@
 //     (not `resolved`) plus those resolved within the last 30 days. The
 //     query is wrapped in try/catch so a missing table or DB error
 //     degrades the page silently (still shows the live checks above).
+//   - 90-day uptime bar (SPRINT-COMPLIANCE-FINAL-001 · P4): on each
+//     render we upsert a `StatusCheck` row for today (statuspage.io-style
+//     daily health snapshot), then load the last 90 days to render the
+//     colored squares. Wrapped in try/catch — a fresh DB without the
+//     `StatusCheck` table (pre-`db:push`) must NOT break the page.
 
 import { db } from '@/lib/db'
 import { Metadata } from 'next'
@@ -79,6 +85,54 @@ async function getRecentIncidents(): Promise<Incident[]> {
       take: 10,
     })
     return incidents as Incident[]
+  } catch {
+    return []
+  }
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// 90-day uptime bar (SPRINT-COMPLIANCE-FINAL-001 · P4)
+// ───────────────────────────────────────────────────────────────────────────
+// `StatusCheck` rows are 1-per-day snapshots of overall platform health.
+// `recordStatusCheck` upserts today's row so the status bar reflects the
+// latest live check; `getUptimeHistory` returns the last 90 days for
+// rendering. Both are wrapped in try/catch — a fresh DB without the
+// `StatusCheck` table (pre-`db:push`) must NOT break the page.
+interface StatusCheckRow {
+  id: string
+  date: Date
+  status: string
+  latency: number | null
+}
+
+/** Compute today's date at 00:00:00.000 local — the unique key for `StatusCheck`. */
+function todayAtMidnight(): Date {
+  const d = new Date()
+  d.setHours(0, 0, 0, 0)
+  return d
+}
+
+async function recordStatusCheck(status: string, latency: number | null): Promise<void> {
+  try {
+    const today = todayAtMidnight()
+    await db.statusCheck.upsert({
+      where: { date: today },
+      update: { status, latency },
+      create: { date: today, status, latency },
+    })
+  } catch {
+    // Silently degrade — the uptime bar just shows "Sin datos" for today.
+  }
+}
+
+async function getUptimeHistory(): Promise<StatusCheckRow[]> {
+  try {
+    const since = new Date(Date.now() - 90 * 86400_000)
+    return await db.statusCheck.findMany({
+      where: { date: { gte: since } },
+      orderBy: { date: 'asc' },
+      take: 90,
+    })
   } catch {
     return []
   }
@@ -156,14 +210,60 @@ const statusConfig: Record<CheckStatus, { label: string; color: string; dot: str
 }
 
 export default async function StatusPage() {
-  // Run the live checks + incident query in parallel — they hit different
-  // subsystems (DB ping + chat-service fetch vs. a Prisma SELECT) so
-  // parallelizing shaves a few hundred ms off the render.
-  const [{ checks, overall, timestamp }, incidents] = await Promise.all([
+  // Run the live checks + incident query + uptime history fetch in parallel —
+  // they hit different subsystems (DB ping + chat-service fetch vs. Prisma
+  // SELECTs) so parallelizing shaves a few hundred ms off the render.
+  const [{ checks, overall, timestamp }, incidents, uptimeHistory] = await Promise.all([
     getSystemStatus(),
     getRecentIncidents(),
+    getUptimeHistory(),
   ])
+
+  // SPRINT-COMPLIANCE-FINAL-001 · P4 — record today's StatusCheck row.
+  // Fire-and-forget AFTER the parallel fetch above so a slow upsert can't
+  // block the page render. We pass the DB check latency (most representative
+  // of platform health); if the DB check failed, latency is undefined and we
+  // record null. This must run AFTER `getSystemStatus` completes so the
+  // overall status is known.
+  const dbCheck = checks.find((c) => c.name === 'Base de datos')
+  void recordStatusCheck(overall, dbCheck?.latency ?? null)
+
   const overallConfig = statusConfig[overall]
+
+  // Build the 90-day uptime bar data — render oldest → newest (left → right).
+  // Days without a StatusCheck row render as muted ("Sin datos").
+  const uptimeBars = Array.from({ length: 90 }).map((_, i) => {
+    const date = new Date()
+    date.setHours(0, 0, 0, 0)
+    date.setDate(date.getDate() - (89 - i))
+    const check = uptimeHistory.find(
+      (c) => new Date(c.date).toDateString() === date.toDateString(),
+    )
+    const color = !check
+      ? 'bg-muted'
+      : check.status === 'operational'
+        ? 'bg-emerald-500'
+        : check.status === 'degraded'
+          ? 'bg-amber-500'
+          : 'bg-rose-500'
+    const statusLabel = !check
+      ? 'Sin datos'
+      : check.status === 'operational'
+        ? 'Operacional'
+        : check.status === 'degraded'
+          ? 'Degradado'
+          : 'Caído'
+    return { date, color, statusLabel, latency: check?.latency ?? null }
+  })
+
+  // Uptime % over the 90-day window (count of operational days / total days
+  // with data). Days without data are excluded from the denominator so a
+  // freshly-deployed StatusCheck table doesn't show 0%.
+  const daysWithData = uptimeHistory.length
+  const operationalDays = uptimeHistory.filter((c) => c.status === 'operational').length
+  const uptimePct = daysWithData > 0
+    ? Math.round((operationalDays / daysWithData) * 1000) / 10
+    : 100
 
   return (
     <main className="min-h-screen bg-background">
@@ -192,6 +292,31 @@ export default async function StatusPage() {
           <p className="text-sm text-muted-foreground mt-2">
             Última verificación: {new Date(timestamp).toLocaleString('es-CO')}
           </p>
+        </div>
+
+        {/* 90-day uptime bar — SPRINT-COMPLIANCE-FINAL-001 · P4 */}
+        <div className="rounded-lg border p-4 mb-8">
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-sm font-semibold">Disponibilidad últimos 90 días</h2>
+            <span className="text-sm tabular-nums text-muted-foreground">
+              {uptimePct.toFixed(1)}% uptime
+            </span>
+          </div>
+          <div className="flex gap-0.5 mt-2" role="img" aria-label="Barra de disponibilidad de 90 días">
+            {uptimeBars.map((bar, i) => (
+              <div
+                key={i}
+                className={`size-3 rounded-sm ${bar.color}`}
+                title={`${bar.date.toLocaleDateString('es-CO')}: ${bar.statusLabel}${
+                  bar.latency != null ? ` (${bar.latency}ms)` : ''
+                }`}
+              />
+            ))}
+          </div>
+          <div className="flex items-center justify-between mt-2 text-[10px] text-muted-foreground">
+            <span>hace 90 días</span>
+            <span>hoy</span>
+          </div>
         </div>
 
         {/* Individual checks */}

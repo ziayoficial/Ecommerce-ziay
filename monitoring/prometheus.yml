@@ -6,6 +6,12 @@
 # Run: `prometheus --config.file=monitoring/prometheus.yml`
 # Reload: `POST /-/reload` (or SIGHUP) — Prometheus hot-reloads the
 # rule files without dropping scrape state.
+#
+# SPRINT-MONITORING-FIX-001 · #1 — scrape targets now use the Docker
+# Compose service names (`app`, `chat-service`) instead of `localhost`.
+# Inside a container, `localhost` resolves to the container itself, so
+# the previous config scraped nothing but its own loopback. The
+# `alerting.alertmanagers` block pushes evaluated alerts to Alertmanager.
 global:
   scrape_interval: 15s
   evaluation_interval: 15s
@@ -13,17 +19,22 @@ global:
 rule_files:
   - alerts.yml
 
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']
+
 scrape_configs:
   - job_name: 'ziay-app'
     metrics_path: '/api/metrics'
     static_configs:
-      - targets: ['localhost:3000']
+      - targets: ['app:3000']
         labels:
           service: 'ziay'
           env: 'production'
 
   - job_name: 'ziay-chat-service'
     static_configs:
-      - targets: ['localhost:3003']
+      - targets: ['chat-service:3003']
         labels:
           service: 'chat-service'

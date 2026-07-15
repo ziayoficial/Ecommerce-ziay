@@ -52,6 +52,21 @@ route:
 
 receivers:
   - name: 'default'
+    # SPRINT-MONITORING-FIX-001 · #4 — POST every alert to the app's
+    # /api/monitoring/alertmanager-webhook endpoint so a `firing` alert
+    # auto-creates a StatusIncident row (and a `resolved` alert auto-marks
+    # the matching incident as resolved). The endpoint verifies a Bearer
+    # token (ALERTMANAGER_WEBHOOK_SECRET) shared with the app; the
+    # `${ALERTMANAGER_WEBHOOK_SECRET}` placeholder is expanded by
+    # Alertmanager's `--config.expand-env` flag (see docker-compose.yml).
+    # The same receiver still emails ops@ziay.co as a fallback.
+    webhook_configs:
+      - url: 'http://app:3000/api/monitoring/alertmanager-webhook'
+        send_resolved: true
+        http_config:
+          authorization:
+            type: 'Bearer'
+            credentials: '${ALERTMANAGER_WEBHOOK_SECRET}'
     email_configs:
       - to: 'ops@ziay.co'
         from: 'alerts@ziay.co'

@@ -11,11 +11,19 @@ import { db } from '@/lib/db'
 // una serie temporal diaria + un breakdown por agente — el shape exacto
 // que necesita un chart de Recharts en el dashboard.
 //
+// SPRINT-AI-FINAL-002 §3 — añadido `byModel` al breakdown. Permite al
+// dashboard mostrar qué modelos (glm-4.6, glm-4.5-air, embedding-3, etc.)
+// están consumiendo más budget — útil para identificar oportunidades de
+// optimización (migrar cargas no-críticas a modelos más baratos, capar
+// el uso de modelos premium, etc.). El select ya incluía `model` desde
+// Sprint 5B, así que no hay query extra.
+//
 // Respuesta:
 //   {
 //     period: { days, startDate, endDate },
 //     byDay:   [{ date, costUsd, totalTokens, callCount, avgLatencyMs }],
 //     byAgent: [{ agent, costUsd, totalTokens, callCount }],
+//     byModel: [{ model, costUsd, totalTokens, callCount }],
 //     total:   { costUsd, totalTokens, callCount }
 //   }
 //
@@ -77,10 +85,16 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
     orderBy: { createdAt: 'asc' },
   })
 
-  // Group by day (YYYY-MM-DD) + por agente — dos agregaciones en una sola
-  // pasada para no iterar dos veces.
+  // Group by day (YYYY-MM-DD) + por agente + por modelo — tres
+  // agregaciones en una sola pasada para no iterar tres veces.
   const byDay: Record<string, { cost: number; tokens: number; calls: number; totalLatency: number }> = {}
   const byAgent: Record<string, { cost: number; tokens: number; calls: number }> = {}
+  // SPRINT-AI-FINAL-002 §3 — breakdown por modelo LLM. Mismo shape que
+  // byAgent para que el dashboard pueda reusar el mismo componente de
+  // tabla/chart. `model` puede ser null en DecisionLogs persistidos antes
+  // de SPRINT-AI-LLM-ADAPTER-001 §A-6 (que añadió el tracking de model)
+  // — se normaliza a 'unknown' para que aparezca como fila propia.
+  const byModel: Record<string, { cost: number; tokens: number; calls: number }> = {}
 
   for (const log of logs) {
     const day = log.createdAt.toISOString().slice(0, 10) // YYYY-MM-DD
@@ -94,6 +108,12 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
     byAgent[log.agentName].cost += log.costUsd ?? 0
     byAgent[log.agentName].tokens += log.totalTokens ?? 0
     byAgent[log.agentName].calls += 1
+
+    const model = log.model || 'unknown'
+    if (!byModel[model]) byModel[model] = { cost: 0, tokens: 0, calls: 0 }
+    byModel[model].cost += log.costUsd ?? 0
+    byModel[model].tokens += log.totalTokens ?? 0
+    byModel[model].calls += 1
   }
 
   return NextResponse.json({
@@ -117,6 +137,19 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
     byAgent: Object.entries(byAgent)
       .map(([agent, data]) => ({
         agent,
+        costUsd: Math.round(data.cost * 10000) / 10000,
+        totalTokens: data.tokens,
+        callCount: data.calls,
+      }))
+      .sort((a, b) => b.costUsd - a.costUsd),
+    // SPRINT-AI-FINAL-002 §3 — breakdown por modelo LLM. Mismo shape que
+    // byAgent. Ordenado por costo desc — el dashboard puede mostrarlo
+    // como tabla o como pie chart. Útil para detectar si un modelo caro
+    // (glm-4.6) está siendo usado donde uno barato (glm-4.5-air)
+    // bastaría, o si un modelo legacy sigue generando costos.
+    byModel: Object.entries(byModel)
+      .map(([model, data]) => ({
+        model,
         costUsd: Math.round(data.cost * 10000) / 10000,
         totalTokens: data.tokens,
         callCount: data.calls,

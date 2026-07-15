@@ -448,7 +448,42 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     // precios cotizados, objeciones levantadas) — mejorando la coherencia
     // del pipeline. Cuando el array crece >20, callAgent invoca
     // `truncateWithSummary` para resumir antes de pasarlo al LLM.
-    const pipelineMemory: Message[] = []
+    //
+    // SPRINT-AI-FINAL-002 §1 — la memoria se persiste en
+    // `Conversation.pipelineMemory` al final del pipeline anterior y se
+    // carga aquí al inicio del nuevo. Da continuidad entre turnos de
+    // conversaciones multi-turno: el cliente responde al resultado del
+    // pipeline anterior y este nuevo pipeline arranca con los outputs de
+    // los 9 agentes previos como contexto (en vez de empezar desde cero).
+    // Se mantiene sólo el último slice(-30) para no crecer indefinidamente.
+    let pipelineMemory: Message[] = []
+    if (conversationId) {
+      const conv = await db.conversation.findUnique({
+        where: { id: conversationId },
+        select: { pipelineMemory: true },
+      })
+      if (conv?.pipelineMemory) {
+        try {
+          const parsed = JSON.parse(conv.pipelineMemory)
+          // Validar que cada entrada tenga shape de Message antes de
+          // inyectarla al pipeline — un JSON corrupto o con formato
+          // inesperado no debe romper el pipeline.
+          if (Array.isArray(parsed)) {
+            pipelineMemory = parsed.filter(
+              (m): m is Message =>
+                m !== null &&
+                typeof m === 'object' &&
+                typeof m.content === 'string' &&
+                (m.role === 'system' || m.role === 'user' || m.role === 'assistant'),
+            )
+          }
+        } catch {
+          // JSON inválido — arrancar con memoria vacía (comportamiento
+          // idéntico al anterior a SPRINT-AI-FINAL-002).
+          pipelineMemory = []
+        }
+      }
+    }
     for (const step of ORCHESTRATOR_STEPS) {
       log.info({ tenantId, action: 'full', stepId: step.id, agent: step.agent, index: step.index, memSize: pipelineMemory.length }, 'agent start')
       let reply = ''
@@ -529,6 +564,31 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
       { tenantId, scenarioId: scenario?.id, steps: timeline.length, errors: timeline.filter(t => t.error).length },
       'pipeline complete',
     )
+
+    // SPRINT-AI-FINAL-002 §1 — persistir la pipeline memory en la
+    // Conversation para que la próxima invocación del orchestrator sobre
+    // la misma conversación arranque con este contexto. Se guardan sólo
+    // las últimas 30 entradas (slice(-30)) para evitar crecimiento
+    // indefinido — con 9 steps por pipeline 'full', 30 entradas cubren
+    // ~3 invocaciones completas (suficiente para continuidad multi-turno).
+    // Best-effort: si la persistencia falla, no se rompe el pipeline (el
+    // response ya se construyó y se devuelve igual).
+    if (conversationId && pipelineMemory.length > 0) {
+      try {
+        await db.conversation.update({
+          where: { id: conversationId },
+          data: {
+            pipelineMemory: JSON.stringify(pipelineMemory.slice(-30)),
+          },
+        })
+      } catch (err) {
+        log.warn(
+          { err: err instanceof Error ? err.message : String(err), tenantId, conversationId },
+          'No se pudo persistir pipelineMemory en Conversation (non-blocking)',
+        )
+      }
+    }
+
     return NextResponse.json({
       ok: true,
       action: 'full',

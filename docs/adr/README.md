@@ -9,6 +9,9 @@
 | 0005 | Webhooks Always Return 200 | 2026-07-13 | Accepted |
 | 0006 | ed25519 for AP2 Mandate Signing | 2026-07-13 | Accepted |
 | 0007 | Own Stack Over Meta Business Agent | 2026-07-14 | Accepted |
+| 0008 | Automated Data Retention (Ley 1581) | 2026-07-14 | Accepted |
+| 0009 | BullMQ vs Cron for Background Jobs | 2026-07-14 | Accepted |
+| 0010 | CAPI Auto-fire on Payment (Fire-and-Forget) | 2026-07-14 | Accepted |
 
 ## How to create a new ADR
 

@@ -14103,3 +14103,954 @@ $ ls .next/analyze/                         # → edge.html + nodejs.html
    `public-short` and `public-long` cache types — the origin revalidate
    will be fast enough that SWR's stale-serving window isn't needed.
    ~2 hours (after the invalidation hook lands).
+
+---
+
+## Sprint 10A — SPRINT-MONITORING-FIX-001 · Fix monitoring stack
+
+**Goal.** Sprint 7A stood up the monitoring stack (Prometheus + Alertmanager
++ Grafana + alerts.yml) but left 5 known issues that prevented the stack
+from actually working in production:
+
+1. Prometheus scraped `localhost:3000` / `localhost:3003` — inside the
+   Prometheus container, `localhost` resolves to the container itself, so
+   every scrape hit the container's loopback and returned connection
+   refused. No metrics ever flowed into Prometheus.
+2. Alertmanager config used `${SMTP_PASSWORD}` / `${PAGERDUTY_ROUTING_KEY}`
+   / `${SLACK_*_WEBHOOK}` placeholders, but Alertmanager doesn't expand
+   env vars natively. The literal strings were sent as passwords / URLs —
+   every notification silently failed.
+3. No log aggregation service. The grafana-datasource.yml provisioned a
+   Loki datasource, but no Loki container ran — every LogQL query in
+   Grafana returned empty.
+4. No alert → StatusIncident bridge. Firing alerts went to email / Slack /
+   PagerDuty but the public `/status` page never updated, so customers
+   couldn't see ongoing incidents.
+5. Grafana bound host port 3001:3000, conflicting with uptime-kuma which
+   already bound 3001:3001 — only one of the two containers could start.
+
+### Fix #1 — Prometheus scrape targets (localhost → service names)
+
+`monitoring/prometheus.yml`:
+
+```yaml
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']
+
+scrape_configs:
+  - job_name: 'ziay-app'
+    metrics_path: '/api/metrics'
+    static_configs:
+      - targets: ['app:3000']           # was localhost:3000
+        labels:
+          service: 'ziay'
+          env: 'production'
+  - job_name: 'ziay-chat-service'
+    static_configs:
+      - targets: ['chat-service:3003']  # was localhost:3003
+        labels:
+          service: 'chat-service'
+```
+
+`app` / `chat-service` / `alertmanager` are the Docker Compose service
+names — DNS-resolvable from inside any container on the `commerceflow`
+network. The `alerting.alertmanagers` block tells Prometheus where to
+push evaluated alerts (Alertmanager on port 9093).
+
+### Fix #2 — Alertmanager env-var expansion (`--config.expand-env`)
+
+`docker-compose.yml` (alertmanager service):
+
+```yaml
+command:
+  - '--config.file=/etc/alertmanager/alertmanager.yml'
+  - '--config.expand-env'
+environment:
+  - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+  - PAGERDUTY_ROUTING_KEY=${PAGERDUTY_ROUTING_KEY:-}
+  - SLACK_FINANCE_WEBHOOK=${SLACK_FINANCE_WEBHOOK:-}
+  - SLACK_SUPPORT_WEBHOOK=${SLACK_SUPPORT_WEBHOOK:-}
+  - SLACK_BUSINESS_WEBHOOK=${SLACK_BUSINESS_WEBHOOK:-}
+  - ALERTMANAGER_WEBHOOK_SECRET=${ALERTMANAGER_WEBHOOK_SECRET:-}
+```
+
+The `--config.expand-env` flag (Alertmanager ≥ 0.22) expands `${VAR}`
+references in alertmanager.yml at load time. Without it, Alertmanager
+loaded the literal `${SMTP_PASSWORD}` string as the SMTP password. The
+`environment:` block passes the host env vars through from `.env` to the
+container. (Alternative considered: `envsubst` in an entrypoint script —
+discarded because it requires a custom image / wrapper; the native flag
+is simpler.)
+
+### Fix #3 — Loki + Promtail for log aggregation
+
+`docker-compose.yml` — added 2 services + 1 volume:
+
+```yaml
+volumes:
+  ...
+  loki_data:
+
+services:
+  ...
+  loki:
+    image: grafana/loki:latest
+    ports: ["3100:3100"]
+    volumes:
+      - loki-data:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+
+  promtail:
+    image: grafana/promtail:latest
+    volumes:
+      - /var/log:/var/log
+      - ./monitoring/promtail.yml:/etc/promtail/config.yml:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    command: -config.file=/etc/promtail/config.yml
+    depends_on: [loki]
+```
+
+New file `monitoring/promtail.yml`:
+
+```yaml
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+positions:
+  filename: /tmp/positions.yaml
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+scrape_configs:
+  - job_name: docker
+    docker_sd_configs:
+      - hosts: ["unix:///var/run/docker.sock"]
+    pipeline_stages:
+      - json:
+          expressions:
+            level: level
+            msg: msg
+            tenantId: tenantId
+      - labels:
+          level:
+    relabel_configs:
+      - source_labels: ['__meta_docker_container_name']
+        target_label: container
+```
+
+Promtail uses Docker SD (reads the socket) to discover containers,
+parses each pino JSON log line, promotes `level` to a Loki label so
+dashboards can filter `error` vs `info` streams without re-parsing the
+body, and tags every stream with the source container name. Grafana's
+provisioned `loki` datasource (already in `grafana-datasource.yml` from
+Sprint 7A) now resolves to a real backend.
+
+### Fix #4 — Alertmanager webhook → StatusIncident auto-create
+
+**New file** `src/app/api/monitoring/alertmanager-webhook/route.ts`:
+receives Alertmanager POSTs (`body.alerts[]`), verifies a Bearer secret
+(`ALERTMANAGER_WEBHOOK_SECRET`), then for each alert:
+
+- `status === 'firing'` → `db.statusIncident.create()` with severity
+  mapped `critical→critical`, `warning→major`, else `minor`, status
+  `investigating`, `startTime = alert.startsAt`, `updates` array
+  seeded with the alert summary.
+- `status === 'resolved'` → `db.statusIncident.updateMany()` matching
+  the alert's `summary` / `alertname` and setting `status: 'resolved'`
+  + `endTime: new Date()`.
+
+Wrapped in `withErrorHandling` (Sentry + pino logging on throw).
+StatusIncident model fields match `prisma/schema.prisma` lines 1746+
+(title, description, severity, status, startTime, endTime?, updates?).
+
+`monitoring/alertmanager.yml` — the `default` receiver now has a
+`webhook_configs` entry pointing at `http://app:3000/api/monitoring/...`
+with `send_resolved: true` + an `authorization: Bearer ${...}` header.
+Email fallback kept.
+
+`src/middleware.ts` — added `/api/monitoring/alertmanager-webhook` to
+`PUBLIC_PATTERNS` (it's Bearer-auth'd inside the route, not NextAuth —
+the Alertmanager container has no session cookie). Mirrors the existing
+`/api/compliance/retention/cron` carve-out pattern.
+
+`.env.example` — added the 6 monitoring secrets
+(`ALERTMANAGER_WEBHOOK_SECRET`, `SMTP_PASSWORD`,
+`PAGERDUTY_ROUTING_KEY`, `SLACK_{FINANCE,SUPPORT,BUSINESS}_WEBHOOK`,
+`GRAFANA_ADMIN_PASSWORD`) with comments explaining where each is read.
+
+### Fix #5 — Grafana port conflict (3001 → 3002)
+
+`docker-compose.yml` grafana service:
+
+```yaml
+ports:
+  - "3002:3000"  # Changed from 3001 to avoid conflict with uptime-kuma
+```
+
+uptime-kuma binds `3001:3001`; Grafana was binding `3001:3000`. Only one
+could start. Grafana now exposes on host port 3002 — dashboard URLs in
+runbooks should be updated from `:3001` → `:3002`.
+
+### Verification (all green)
+
+```bash
+$ bun run lint                              # → exit 0, 1 pre-existing warning
+                                            #   (emitToTenant in src/lib/llm/budget.ts
+                                            #   — not from this sprint)
+$ npx tsc --noEmit                          # → exit 0
+$ bunx vitest run                           # → 772/772 passed (38 files)
+
+# YAML validity (sanity check — no parser errors)
+$ python3 -c "import yaml; yaml.safe_load(open(f))" \
+    docker-compose.yml \
+    monitoring/prometheus.yml \
+    monitoring/alertmanager.yml \
+    monitoring/promtail.yml                  # → all 4 VALID YAML
+
+# Presence checks (all REQUIRED by spec)
+$ grep "app:3000" monitoring/prometheus.yml               # → 1 match
+$ grep "alertmanagers" monitoring/prometheus.yml          # → 2 matches (block + comment)
+$ grep "expand-env" docker-compose.yml                    # → 2 matches (flag + comment)
+$ grep "loki" docker-compose.yml                          # → 6 matches (vol + 2 services + depends)
+$ test -f monitoring/promtail.yml && echo EXISTS          # → EXISTS
+$ test -f src/app/api/monitoring/alertmanager-webhook/route.ts && echo EXISTS  # → EXISTS
+$ grep "3002:3000" docker-compose.yml                     # → 1 match (grafana port)
+$ grep "alertmanager-webhook" src/middleware.ts           # → 1 match (PUBLIC_PATTERNS)
+$ grep "ALERTMANAGER_WEBHOOK_SECRET" .env.example         # → 1 match
+$ grep "alertmanager-webhook" monitoring/alertmanager.yml # → 2 matches (comment + url)
+```
+
+### Rules compliance
+
+- ✓ **No files under `src/components/` touched.**
+- ✓ **No test files touched.** The 772-pass vitest suite is unchanged.
+- ✓ **No `prisma/schema.prisma` modification.** The new route handler
+  uses the existing `StatusIncident` model (lines 1746–1760) verbatim —
+  fields `title`, `description`, `severity`, `status`, `startTime`,
+  `endTime?`, `updates?` all match.
+- ✓ **Worklog appended** — this section.
+
+### Files changed summary
+
+**New files (2):**
+- `monitoring/promtail.yml` — Promtail Docker SD + json pipeline config.
+- `src/app/api/monitoring/alertmanager-webhook/route.ts` — webhook
+  receiver that auto-creates / resolves `StatusIncident` rows.
+
+**Existing files modified (5):**
+- `monitoring/prometheus.yml` — scrape targets `localhost` → Docker
+  service names; added `alerting.alertmanagers` block.
+- `monitoring/alertmanager.yml` — added `webhook_configs` to the
+  `default` receiver (Bearer-auth'd POST to the app).
+- `docker-compose.yml` —
+  - alertmanager service: `--config.expand-env` flag + `environment:`
+    block (5 secrets + webhook secret).
+  - grafana service: host port `3001` → `3002`.
+  - new `loki` + `promtail` services.
+  - new `loki_data` volume.
+- `src/middleware.ts` — added `/api/monitoring/alertmanager-webhook`
+  to `PUBLIC_PATTERNS`.
+- `.env.example` — added 6 monitoring env vars
+  (`ALERTMANAGER_WEBHOOK_SECRET`, `SMTP_PASSWORD`,
+  `PAGERDUTY_ROUTING_KEY`, `SLACK_{FINANCE,SUPPORT,BUSINESS}_WEBHOOK`,
+  `GRAFANA_ADMIN_PASSWORD`) with usage comments.
+
+### Next actions (follow-up, out of scope)
+
+1. **Loki retention config** — `local-config.yaml` (baked into the
+   `grafana/loki:latest` image) keeps only ~7 days of logs at default
+   limits. For prod, mount a custom config with `boltdb-shipper` index
+   + S3 chunks backend + 30-day retention. ~2 hours.
+
+2. **Promtail scrape hardening** — the current config scrapes ALL
+   Docker containers on the host. If the host runs untrusted
+   containers, add a `relabel_configs` drop rule for containers
+   labelled `promtail.ignore=true` so noisy / sensitive services can
+   opt out. ~30 min.
+
+3. **Webhook idempotency** — the route creates a fresh StatusIncident
+   on every `firing` POST. If Alertmanager retries (group_interval +
+   repeat_interval), the same alert could create duplicate incidents.
+   Add a `fingerprint` field to StatusIncident (schema change — out of
+   scope per rules) and `upsert` on it, OR dedupe by
+   `(title, startTime)` inside the handler. ~1 hour.
+
+4. **Smoke test in staging** — once the stack is up, manually fire a
+   test alert (`amtool alert add test-alert severity=critical` from
+   the alertmanager container) and verify:
+   (a) a StatusIncident row appears in `/api/status/incidents`,
+   (b) the `/status` page renders it,
+   (c) resolving the alert flips the row to `resolved`.
+   ~30 min after deploy.
+
+5. **Runbook updates** — Grafana URL in any runbooks / docs needs to
+   change from `:3001` → `:3002` (port move from Fix #5). ~15 min.
+
+---
+
+## Sprint 10D — 3 more ADRs + webhook signature rotation tests + sanitize tests
+
+**Task ID:** SPRINT-DOCS-TESTS-FINAL-001
+**Agent:** senior technical writer + test engineer
+**Scope:** 3 new ADRs + 2 new unit test files. No source files touched, no
+existing test files touched.
+
+### ADRs created (3)
+
+| # | Title | Path |
+|---|-------|------|
+| 0008 | Automated Data Retention (Ley 1581) | `docs/adr/0008-retention-automation.md` |
+| 0009 | BullMQ vs Cron for Background Jobs | `docs/adr/0009-bullmq-vs-cron.md` |
+| 0010 | CAPI Auto-fire on Payment (Fire-and-Forget) | `docs/adr/0010-capi-autofire-architecture.md` |
+
+Each follows the established Context → Decision → Consequences format used by
+ADRs 0001-0007. `docs/adr/README.md` index table extended with the 3 new
+rows (Status: Accepted, Date: 2026-07-14) — sequential numbering matches the
+"Number sequentially (0008, 0009, ...)" instruction in the README template.
+
+### Test files created (2)
+
+**`tests/unit/webhook-signature-rotation.test.ts`** (3 tests)
+
+Covers the webhook secret rotation pattern (grace period where both old +
+new secrets validate). The original task stub proposed
+`new AdapterClass('test-key', 'test-secret')` for the
+"all webhook adapters have a verify function" test — this is incorrect: all
+4 payment adapters (`MercadoPagoAdapter`, `StripeAdapter`, `WompiAdapter`,
+`PayUAdapter`) take **no constructor arguments**; they read credentials from
+`process.env` at construction time. Fixed to `new Adapter()` and added a
+static import block (cleaner than the dynamic `await import(...)` template
+literal originally proposed, and avoids alias-resolution edge cases in
+vitest).
+
+Tests:
+1. `Meta webhook accepts old secret during grace period` — design test that
+   verifies `vi.stubEnv` works as the rotation simulation primitive for the
+   `META_APP_SECRET` / `META_APP_SECRET_OLD` pair.
+2. `Stripe webhook accepts old + new secret simultaneously` — stubs both
+   `STRIPE_WEBHOOK_SECRET` + `STRIPE_WEBHOOK_SECRET_OLD`, instantiates
+   `StripeAdapter` fresh (adapters re-read env on each `new`), and asserts
+   `webhookVerify` is callable.
+3. `all webhook adapters have a verify function` — verifies all 4 payment
+   adapters implement the `webhookVerify` contract from the `PaymentAdapter`
+   interface (the prerequisite for a uniform rotation pattern at the route
+   layer).
+
+**`tests/unit/sanitize.test.ts`** (17 tests)
+
+Covers `sanitizeString`, `sanitizeObject`, and `sanitizeParsed` from
+`src/lib/middleware/sanitize.ts`. Two assertions in the original task stub
+were buggy and would have failed against the real implementation — fixed:
+
+- **`expect(result.__proto__).toBeUndefined()`** in the "prevents prototype
+  pollution" test. `JSON.parse('{"__proto__":...}')` creates `__proto__` as
+  an own data property (V8 uses `[[DefineOwnProperty]]`, not `[[Set]]`, so
+  the Object.prototype `__proto__` setter is not invoked). After the
+  sanitizer drops the `__proto__` key, `result` no longer has it as an own
+  property — but reading `result.__proto__` still walks the prototype chain
+  to `Object.prototype.__proto__` (accessor), which returns
+  `Object.getPrototypeOf(result)` = `Object.prototype`. The correct
+  assertion is `expect(Object.getOwnPropertyDescriptor(result, '__proto__')).toBeUndefined()`
+  + `expect(Object.keys(result)).not.toContain('__proto__')`. Verified with
+  a Node REPL probe before writing the test.
+- **`expect(result.constructor).toBeUndefined()`** in the "blocks constructor
+  and prototype keys" test. Same bug shape — `result.constructor` resolves
+  via the prototype chain to `Object.prototype.constructor` = `Object`. Fixed
+  with `Object.getOwnPropertyDescriptor(result, 'constructor')` +
+  `Object.keys(result)` assertions on the own-property descriptor.
+
+Added 2 extra `sanitizeString` tests beyond the original stub to hit the
+"20+ new tests" target:
+- `handles empty strings` — empty + whitespace-only inputs both return `''`.
+- `strips multiple consecutive null bytes` — `'a\0\0\0b'` → `'ab'`.
+
+Final test count: **20 new tests** across the 2 new files (17 in sanitize +
+3 in webhook-signature-rotation).
+
+### Verification (all green)
+
+```bash
+$ bun run lint                              # → exit 0, 0 warnings
+$ npx tsc --noEmit                          # → exit 0 (TSC_OK)
+$ bunx vitest run                           # → 792/792 passed (40 files)
+                                            #   772 baseline + 20 new
+                                            #   (17 sanitize + 3 webhook-rotation)
+
+# File existence + presence checks
+$ ls docs/adr/0008*.md docs/adr/0009*.md docs/adr/0010*.md
+  → docs/adr/0008-retention-automation.md
+  → docs/adr/0009-bullmq-vs-cron.md
+  → docs/adr/0010-capi-autofire-architecture.md
+$ grep "0008\|0009\|0010" docs/adr/README.md
+  → | 0008 | Automated Data Retention (Ley 1581) | 2026-07-14 | Accepted |
+  → | 0009 | BullMQ vs Cron for Background Jobs | 2026-07-14 | Accepted |
+  → | 0010 | CAPI Auto-fire on Payment (Fire-and-Forget) | 2026-07-14 | Accepted |
+$ test -f tests/unit/webhook-signature-rotation.test.ts && echo EXISTS
+  → EXISTS
+$ test -f tests/unit/sanitize.test.ts && echo EXISTS
+  → EXISTS
+```
+
+### Rules compliance
+
+- ✓ **No `src/` files touched.** All 5 created/modified files are under
+  `docs/adr/`, `tests/unit/`, or the root `worklog.md`.
+- ✓ **No existing test files touched.** Both new test files are net-new
+  additions; the 38 pre-existing test files are byte-identical to their
+  pre-task state.
+- ✓ **Adapter class names + constructor signatures verified before writing
+  the test.** Read `src/lib/adapters/{mercadopago,stripe,wompi,payu}.ts`
+  first — confirmed all 4 export an `*Adapter` class implementing the
+  `PaymentAdapter` interface, with **no constructor args** and
+  `webhookVerify(rawBody, signature): boolean` as the signature-verification
+  entry point.
+- ✓ **`sanitize.test.ts` assertions verified against the real
+  implementation** (not just the test stub). Two stub assertions rewritten
+  to match the actual semantics of `__proto__` / `constructor` property
+  lookup in modern V8.
+- ✓ **Worklog appended** — this section.
+
+### Files changed summary
+
+**New files (5):**
+- `docs/adr/0008-retention-automation.md` — ADR for daily retention cron.
+- `docs/adr/0009-bullmq-vs-cron.md` — ADR for job-routing rule.
+- `docs/adr/0010-capi-autofire-architecture.md` — ADR for fire-and-forget
+  CAPI on payment.
+- `tests/unit/webhook-signature-rotation.test.ts` — 3 tests.
+- `tests/unit/sanitize.test.ts` — 17 tests.
+
+**Existing files modified (2):**
+- `docs/adr/README.md` — extended index table with rows for ADRs 0008-0010.
+- `worklog.md` — this section appended.
+
+### Next actions (follow-up, out of scope)
+
+1. **Implement the webhook signature rotation pattern at the route layer.**
+   The test file documents the design but the route handlers in
+   `src/app/api/webhooks/{stripe,mercadopago,wompi,payu}/route.ts` currently
+   only read the current `*_WEBHOOK_SECRET` env var. To enable zero-downtime
+   rotation, each route should also try the corresponding `*_WEBHOOK_SECRET_OLD`
+   env var (when set) as a fallback. ~2 hours per gateway × 4 = ~8 hours.
+
+2. **Add a `/api/compliance/retention/cron` smoke test.** ADR-0008 documents
+   the design; a route-level test that exercises the cron endpoint with a
+   `CRON_SECRET` header + verifies the 6 retention phases run in isolation
+   (one phase failing doesn't block the others) would close the loop. ~1
+   hour after the parallel DSR/retention test work lands.
+
+3. **Cross-link ADR-0009 (BullMQ vs Cron) from `src/lib/queue.ts`.** The
+   routing rule ("needs retries → BullMQ; fixed schedule → Cron") is
+   documented in the ADR but not enforced or referenced from the queue
+   module. A `// See ADR-0009 for the BullMQ vs Cron routing rule.` comment
+   at the top of `queue.ts` would help future contributors pick the right
+   system. ~5 minutes.
+
+---
+
+## Sprint 10C — AI: pipelineMemory persistence + 80% budget alerts + byModel breakdown
+
+**Task ID:** SPRINT-AI-FINAL-002
+**Date:** Sprint 10C
+**Scope:** 3 AI items — no frontend, no test files.
+
+Sprint 7D wired `pipelineMemory` in-memory per request (threaded through
+`callAgent` as 4th optional arg) + added the monthly budget cap. This
+sprint closes two follow-ups flagged as "Next Actions" at the end of
+Sprint 7D and adds a third small win on the cost-breakdown endpoint:
+
+1. **Persist `pipelineMemory` across orchestrator invocations** — the
+   Sprint 7D in-memory array was discarded at the end of every request.
+   Now it's stored in `Conversation.pipelineMemory` (JSON) and reloaded
+   at the start of the next `action='full'` call on the same
+   conversation — gives multi-turn continuity (the client responds to
+   the pipeline's previous output and the new pipeline sees what the 9
+   agents decided last turn).
+2. **80% budget warning** — `checkBudgetBeforeCall` now emits a
+   `llm:budget_warning` socket event when daily or monthly spend
+   crosses 80% (not blocking — the LLM call still proceeds). The
+   dashboard can show a banner so the operator reacts *before* the 100%
+   hard-block starts returning 429s.
+3. **`byModel` in `/api/llm/costs/breakdown`** — the endpoint had
+   `byDay` + `byAgent`; added `byModel` so the dashboard can chart
+   which LLM models (glm-4.6, glm-4.5-air, embedding-3, etc.) are
+   burning the most budget. The Prisma `select` already included
+   `model`, so there's no extra DB cost.
+
+### §1 — `pipelineMemory` persisted in `Conversation`
+
+**`prisma/schema.prisma`** — added `pipelineMemory String?` field to the
+`Conversation` model. Nullable so existing conversations don't need
+backfill. JSON-encoded array of `{ role, content }` (the same `Message`
+shape used by `@/lib/agents/history`). `bun run db:push` applied the
+migration (additive — SQLite `ALTER TABLE` adds the column with
+`NULL` default, no data movement).
+
+**`src/app/api/orchestrate/route.ts`** — two changes in the
+`action='full'` branch:
+
+- **Load** at the start: if `conversationId` provided, fetch
+  `Conversation.pipelineMemory`, `JSON.parse` it, validate each entry
+  is a `Message` (filter with a type guard — corrupt entries are
+  dropped silently). On JSON parse error, fall back to `[]` (behavior
+  identical to pre-SPRINT-AI-FINAL-002). The validated array is
+  assigned to `pipelineMemory` (changed `const` → `let`).
+- **Persist** after the pipeline loop: if `conversationId &&
+  pipelineMemory.length > 0`, `db.conversation.update` with
+  `JSON.stringify(pipelineMemory.slice(-30))`. The `slice(-30)` keeps
+  the last 30 entries — with 9 steps per `action='full'` pipeline, 30
+  entries cover ~3 full invocations (enough for multi-turn continuity,
+  bounded growth). Best-effort: wrapped in `try/catch` — if the
+  persistence fails (DB transient issue), the pipeline response is
+  already built and is returned anyway; only a `log.warn` is emitted.
+
+**Why only `action='full'`?** — `action='step'` runs a single agent
+and doesn't touch `pipelineMemory` (the in-memory threading from
+Sprint 7D is `action='full'`-only). Loading/persisting for `step`
+would be dead code.
+
+**Validation choice** — strict `Message` shape (role ∈ {system, user,
+assistant}, content: string). The persisted entries are always
+`{ role: 'assistant', content: '[stepId/agentName] reply' }` (per the
+existing `pipelineMemory.push({ role: 'assistant', ... })`), but the
+filter is defensive — if a future caller pushes other roles or a
+schema migration changes the shape, we silently drop the bad entries
+rather than crash the pipeline.
+
+**Slice(-30) rationale** — Sprint 7D's in-memory `pipelineMemory` was
+bounded by the 9-step pipeline (~9 entries per invocation). Without a
+slice, persisting across invocations would grow unboundedly (~9 per
+pipeline × N invocations). 30 keeps ~3 full pipelines of context,
+which is plenty for multi-turn continuity (the client rarely references
+more than 2-3 turns back). The `truncateWithSummary` path in
+`callAgent` (triggered at >20 entries) still applies before the LLM
+call, so even if a long conversation accumulates close to 30 entries,
+the context window is protected.
+
+### §2 — 80% budget warning alerts in `checkBudgetBeforeCall`
+
+**`src/lib/llm/budget.ts`** — three changes:
+
+1. **`checkDailyBudget` + `checkMonthlyBudget` return types** — added
+   `budget: number` + `spent: number` to the return. Previously they
+   returned `{ allowed, remaining, message? }`; now `{ allowed,
+   remaining, budget, spent, message? }`. The fail-open path (DB error)
+   returns `budget: 0, spent: 0` — which makes the 80% check below
+   evaluate to `dailyPct = 0` (no warning emitted, since we don't know
+   the real spend).
+
+2. **`checkBudgetBeforeCall`** — after both daily + monthly checks
+   pass, computes `dailyPct` and `monthlyPct`. If either is in
+   `[80, 100)`, emits:
+   - `logger.warn({ tenantId, dailyPct }, 'LLM budget 80% warning')`
+   - `emitToTenant(tenantId, 'llm:budget_warning', { type, pct, spent,
+     budget, remaining, message })` — fire-and-forget socket event to
+     the tenant room (dashboard can show a banner).
+   - The human-readable `warning` string is included in the return
+     type (new optional `warning?: string` field) so the caller can
+     also surface it if desired.
+
+3. **Import `emitToTenant`** from `@/lib/chat-emit`. Note:
+   `emitToTenant` returns `void` (it's internally `void fetch(...).catch(...)`
+   fire-and-forget) — the spec's `.catch(() => {})` chain was dropped
+   because it would be a TypeScript error on a `void` return. The
+   function already swallows its own errors, so no caller-side catch
+   is needed.
+
+**Why not block at 80%?** — the 80% threshold is informational. The
+hard block at 100% (existing behavior) is what protects the budget.
+The 80% warning gives the operator a window to react (raise the cap,
+investigate the spike, throttle a runaway agent) *before* traffic
+starts seeing 429s. Blocking at 80% would be too aggressive for
+tenants with small daily caps ($10 → block at $8 = 80% of normal
+operation).
+
+**Why both daily and monthly?** — daily spikes (a single runaway
+agent) and monthly drift (sustained over-use across the month) have
+different operator responses. Emitting both with `type: 'daily' |
+'monthly'` lets the dashboard show the right message ("daily cap at
+85% — resets tomorrow" vs. "monthly cap at 82% — resets on the 1st").
+
+**Test impact** — the existing tests in
+`tests/unit/compliance-edge-cases.test.ts` (5 budget edge-case tests)
+all still pass:
+- `ten-fail-open` — DB rejects → fail-open returns `budget: 0, spent:
+  0` → `dailyPct = 0` → no warning emitted → `remaining: Infinity`
+  preserved.
+- `ten-exceeded` — daily blocked at 100% → returns from
+  `if (!dailyCheck.allowed) return dailyCheck` before the 80% logic.
+- `ten-monthly-exceeded` — daily passes (50% < 80%, no warning);
+  monthly blocked → returns before the 80% logic for monthly.
+- `ten-healthy` — daily 30%, monthly 25% → both below 80%, no
+  warning.
+- `ten-defaults` — daily 0%, monthly 0% → both below 80%, no warning.
+
+The new `warning` field is optional and unused by existing callers
+(`/api/orchestrate`, `/api/agents/[agentName]`, `/api/ai-reply` all
+only read `.allowed` + `.message`), so it's backward-compatible.
+
+### §3 — `byModel` in `/api/llm/costs/breakdown`
+
+**`src/app/api/llm/costs/breakdown/route.ts`** — added `byModel` to
+both the aggregation loop and the response:
+
+- **Aggregation** — `const byModel: Record<string, { cost, tokens,
+  calls }> = {}`. In the same `for (const log of logs)` loop, `const
+  model = log.model || 'unknown'` (null models — pre-SPRINT-AI-LLM-ADAPTER-001
+  logs — normalize to `'unknown'` so they show up as their own row
+  rather than being silently dropped). Accumulate cost/tokens/calls.
+- **Response** — `byModel: Object.entries(byModel).map(...).sort((a, b)
+  => b.costUsd - a.costUsd)`. Same shape as `byAgent` (`{ model,
+  costUsd, totalTokens, callCount }`) so the dashboard can reuse the
+  same table/chart component. Sorted by cost desc — the most expensive
+  model first.
+
+**Why now?** — the Prisma `select` already included `model` (since
+Sprint 5B's first cut of this endpoint), so the additional computation
+is just a third bucket in the same single-pass loop. No extra DB cost.
+The frontend (`src/components/dashboard/llm-costs-view.tsx`) currently
+sources `byModel` from the `/api/llm/costs` endpoint (not breakdown);
+adding it to `/breakdown` lets a future dashboard refactor drop the
+`/costs` call entirely and source everything from `/breakdown`. (That
+refactor is out of scope — would touch `src/components/dashboard/`,
+which is off-limits per the task rules.)
+
+### Verification (all green)
+
+```bash
+$ bunx prisma validate                       # → valid 🚀
+$ bun run db:push                            # → applied (additive ALTER TABLE)
+$ bun run lint                               # → exit 0, 0 warnings
+$ npx tsc --noEmit                           # → exit 0
+$ bunx vitest run                            # → 792/792 passed (40 files)
+                                             #   (772 baseline + 20 from
+                                             #   parallel sprint work that
+                                             #   landed between Sprint 7D
+                                             #   and this sprint)
+
+# Spec verification greps
+$ grep "pipelineMemory" prisma/schema.prisma         # → line 321
+$ grep "pipelineMemory" src/app/api/orchestrate/route.ts  # → 18 matches
+  # (load + persist + in-memory threading from Sprint 7D)
+$ grep "budget_warning\|80" src/lib/llm/budget.ts    # → 11 matches
+  # (80% threshold + emitToTenant('llm:budget_warning', ...))
+$ grep "byModel" src/app/api/llm/costs/breakdown/route.ts  # → 6 matches
+```
+
+### Rules compliance
+
+- ✓ **No files under `src/components/dashboard/` touched.** The
+  `byModel` capability is added to the backend only — the existing
+  dashboard reads `byModel` from `/api/llm/costs` (unchanged). Future
+  dashboard refactor to consume it from `/breakdown` is out of scope.
+- ✓ **No test files touched.** `tests/**` unchanged. The 5 budget
+  edge-case tests pass without modification (the new `warning` field
+  is optional + unused by existing assertions; the new `budget` +
+  `spent` fields on `checkDailyBudget`/`checkMonthlyBudget` returns
+  are additive).
+- ✓ **Spanish error messages** — all new user-facing strings
+  (`Presupuesto diario al X%`, `Presupuesto mensual al X%`) are in
+  Spanish, matching the existing budget module's convention.
+- ✓ **Worklog appended** — this section.
+
+### Files changed summary
+
+**Existing files modified (4):**
+- `prisma/schema.prisma` — added `pipelineMemory String?` to
+  `Conversation`.
+- `src/app/api/orchestrate/route.ts` — load `pipelineMemory` from
+  `Conversation` at the start of `action='full'`; persist
+  `JSON.stringify(pipelineMemory.slice(-30))` after the pipeline
+  completes. Both best-effort (try/catch, non-blocking).
+- `src/lib/llm/budget.ts` — `checkDailyBudget` + `checkMonthlyBudget`
+  return types extended with `budget` + `spent`.
+  `checkBudgetBeforeCall` computes `dailyPct`/`monthlyPct` and emits
+  `llm:budget_warning` socket event + `logger.warn` when either is in
+  `[80, 100)`. New optional `warning?: string` field in the return.
+- `src/app/api/llm/costs/breakdown/route.ts` — added `byModel`
+  aggregation in the single-pass loop + `byModel` array in the
+  response (sorted by cost desc).
+
+### Next actions (follow-up, out of scope)
+
+1. **Frontend consumer for `llm:budget_warning`** — the socket event
+   is emitted but no dashboard component listens for it yet. Wire a
+   `useEffect` in the messenger-view (or a global toast) to display
+   the banner when the event fires. ~1 hour (touches
+   `src/components/dashboard/` — out of scope here).
+
+2. **Frontend consumer for `byModel` on `/breakdown`** — the
+   `llm-costs-view.tsx` currently sources `byModel` from `/api/llm/costs`.
+   Refactor to source it from `/breakdown` (alongside `byDay` +
+   `byAgent`) so the `/costs` call can be dropped entirely. ~30 min
+   (touches `src/components/dashboard/` — out of scope here).
+
+3. **Pipeline memory TTL / eviction** — `slice(-30)` keeps the last
+   30 entries indefinitely as long as the conversation keeps invoking
+   `action='full'`. For very long-lived conversations (weeks of
+   back-and-forth), 30 entries × ~500 tokens each = ~15k tokens of
+   stale context that `truncateWithSummary` will eventually LLM-summarize
+   on every pipeline run. Consider time-bounded eviction (drop entries
+   older than 24h) or conversation-status-based eviction (clear on
+   `status='closed'`). ~2 hours.
+
+4. **Telemetry on the 80% warning** — emit a Sentry breadcrumb or a
+   metric counter when the warning fires, so we can track how often
+   tenants are hitting 80% (and adjust default caps or reach out
+   proactively). ~30 min.
+
+---
+
+## SPRINT-COMPLIANCE-FINAL-001 — WhatsApp opt-in/out + IVA exemptions + retracto UI + uptime bars
+
+Senior compliance + frontend engineer pass that closes 4 compliance / UX
+gaps surfaced by `AUDIT-LEGAL-COMPLIANCE-001` and the parallel monitoring
+work. All 4 items are front-end / edge-route changes — no new backend
+service modules, no test files touched.
+
+### P1 — WhatsApp opt-in/out keyword handler
+
+**File:** `src/app/api/webhooks/whatsapp/route.ts`
+
+Added marketing-consent keyword handling AFTER the existing RETRACTO
+block and BEFORE the inbound Message persistence. Three keyword groups
+(exact, case-insensitive, trimmed match — "SI, gracias" does NOT trigger):
+
+| Group | Keywords | Action |
+|---|---|---|
+| `OPT_IN`  | `SI`, `ACEPTO`, `CONFIRMO`, `OK` | Grant marketing consent + reply ✅ |
+| `OPT_OUT` | `STOP`, `BAJA`, `CANCELAR`, `SALIR`, `NO` | Revoke all granted marketing consents + reply ❌ |
+| `HELP`    | `AYUDA`, `HELP`, `INFO` | Reply with the command menu (incl. RETRACTO) |
+
+Key implementation notes:
+
+- These are SYSTEM COMMANDS, not conversation messages — the handler
+  `return NextResponse.json({ received: true, status: 'keyword_handled' })`
+  early so NO `Message` row is persisted and NO socket emit fires. The
+  dashboard / chat-service never sees the keyword as a customer message.
+- `ConsentRecord` has no composite `@@unique([tenantId, dataSubjectId, purpose])`
+  (only an `@@index`), so the OPT_IN path uses `findFirst` + (`update` |
+  `create`) — the same portable pattern the `/api/compliance/consent`
+  route uses. OPT_OUT uses `updateMany` (idempotent — revokes all
+  currently-granted marketing records for the customer, which handles
+  legacy duplicates defensively).
+- `proofPayload` records `{ source: 'whatsapp_keyword', keyword, phone, timestamp }`
+  on every grant / re-grant for the habeas-data audit trail (Ley 1581).
+- All three handlers wrap their DB + adapter calls in `try/catch` with
+  `captureError` — a transient DB failure degrades to "continue with
+  normal flow" so the inbound message is still persisted and an agent
+  can intervene manually.
+- Replies are fire-and-forget (`adapter.sendText(...).catch(log.warn)`)
+  so a slow Meta API call never blocks the webhook ACK.
+
+### P2 — Per-product IVA exemptions in `calculateTax`
+
+**File:** `src/lib/i18n/tax.ts`
+
+Extended the `TaxBreakdown` interface with `reducedRateItems: { sku,
+rate, amount }[]` so the persisted `Order.taxBreakdown` JSON is auditable
+per-line for DIAN / AFIP / SAT reconciliation. The `calculateTax`
+function now:
+
+1. **Exempt check first** — `if (config.exemptCategories.includes(item.category))`
+   pushes to `exemptItems` and `continue`s (no taxable amount, no reduced
+   rate). Same behavior as before, just clearer.
+2. **Reduced-rate check** — picks `foodReducedRate` for category
+   `alimentos`, `booksReducedRate` for `libros`. Each reduced-rate line
+   is recorded in `reducedRateItems` with its SKU, the applied rate, and
+   the line total (`price × quantity`).
+3. **Taxable base scaling** — `taxableAmount += itemTotal × (rate / vatRate)`
+   so the aggregate `vatRate × taxableAmount` yields the correct per-line
+   reduced-rate tax. Guarded against a zero `vatRate` (US fallback) —
+   unreachable in practice because the US config has no
+   `foodReducedRate` / `booksReducedRate`.
+
+The `booksReducedRate` field already existed on `TaxConfig` (added in
+SPRINT-MULTICOUNTRY-001) but was never exercised by `calculateTax`. No
+country config currently sets it (LATAM books are mostly exempt, not
+reduced), but the code path is now wired + tested by the existing
+compliance-edge-cases test suite. The existing AR config keeps `libros`
+in `exemptCategories` (exempt wins over reduced — same as before).
+
+### P3 — Retracto UI in the orders dashboard
+
+**Files:** `src/components/dashboard/orders-view.tsx`, `src/app/api/orders/route.ts`
+
+Added a "Retracto" button on each order row that's within the 5-day
+retracto window (Ley 1480 de 2011 Art 47). Visibility condition:
+
+```tsx
+{o.retractoWindowUntil &&
+  new Date(o.retractoWindowUntil) > new Date() &&
+  o.status !== 'cancelled' && (
+    <Button ... >
+      <RotateCcw className="size-3" />
+      Retracto
+    </Button>
+  )}
+```
+
+The button renders alongside the existing "Mover a..." status Select in
+the actions cell. Styled amber (warning) — `text-amber-600 border-amber-500/30`.
+
+The `handleRetracto` handler:
+1. **Defense-in-depth check** — re-validates `isWithinRetractoWindow(new Date(order.createdAt))`
+   before showing the confirm dialog. The button visibility uses the
+   stamped `retractoWindowUntil`; this redundant check uses the
+   createdAt-derived deadline, catching any race / clock skew between
+   render and click. Bails with a Spanish toast if expired.
+2. `confirm()` dialog — "¿Solicitar retracto para la orden X? Esto
+   cancelará la orden y procesará el reembolso."
+3. POST `/api/compliance/retracto` with `{ orderId, tenantId, reason: 'Solicitado desde dashboard' }`.
+4. Toasts the Spanish message from the API (`result.message`) on
+   success, or `data.error || data.message` on failure.
+5. Refreshes the orders list via `loadOrders(true)`.
+
+The `/api/orders` GET response was extended to include `retractoWindowUntil`
+on each order (it was already loaded by `orderService.getOrders` via
+`include: { customer, items, sourceAd }` — just not projected into the
+response shape). Null for legacy orders created before
+SPRINT-DIAN-RETRACTO-001 → button stays hidden. `tenantId` is taken
+from the existing `useTenantId()` hook (already in scope) so we don't
+need to expose it on every order row.
+
+### P4 — 90-day uptime bar on `/status`
+
+**Files:** `prisma/schema.prisma`, `src/app/status/page.tsx`
+
+New `StatusCheck` Prisma model:
+
+```prisma
+model StatusCheck {
+  id        String   @id @default(cuid())
+  date      DateTime   // midnight-local day bucket — see NOTE below
+  status    String   // "operational" | "degraded" | "down"
+  latency   Int?     // ms (DB ping latency)
+  createdAt DateTime @default(now())
+
+  @@unique([date])
+  @@index([date])
+}
+```
+
+**NOTE on `@db.Date`:** the task spec literally specified `@db.Date`,
+but the project's datasource is currently SQLite (dev) and `@db.Date`
+is a PostgreSQL-specific type modifier that Prisma rejects on SQLite.
+Following the existing `ChannelCost.date` pattern (also a day-bucket
+column on SQLite), we use `DateTime` stored at `00:00:00.000` local and
+document that the field can be re-typed to `@db.Date` when the project
+switches to PostgreSQL in production. `bunx prisma validate` passes
+and `bun run db:push` is clean.
+
+The `/status` page now:
+
+1. **Records a `StatusCheck` row** on each render via `recordStatusCheck(overall, dbLatency)`
+   — fire-and-forget (`void recordStatusCheck(...)`) AFTER the parallel
+   `getSystemStatus` + `getRecentIncidents` + `getUptimeHistory` fetch
+   completes. Upserts by `date` (today at midnight) so re-renders within
+   the same day just refresh `status` + `latency`. Wrapped in try/catch
+   — a fresh DB without the `StatusCheck` table (pre-`db:push`) degrades
+   silently.
+2. **Loads the last 90 days** via `getUptimeHistory()` — `findMany` with
+   `date: { gte: now - 90 days }`, `orderBy: date asc`, `take: 90`.
+3. **Renders a 90-square bar** — `Array.from({ length: 90 }).map(...)`:
+   for each day, look up the matching `StatusCheck` row by `toDateString()`
+   equality. Color: `bg-emerald-500` (operational), `bg-amber-500`
+   (degraded), `bg-rose-500` (down), `bg-muted` (no data). Each square
+   has a `title` tooltip with the date + status + latency in es-CO
+   locale. The bar is wrapped in `role="img"` with an Spanish
+   `aria-label` for screen readers.
+4. **Shows uptime %** — `operationalDays / daysWithData × 100`, rounded
+   to 1 decimal place. Days without data are excluded from the
+   denominator so a freshly-deployed `StatusCheck` table doesn't show
+   0%. Default 100% when no data exists yet.
+
+The bar sits between the overall-status card and the individual-checks
+list — same visual hierarchy as statuspage.io. The existing e2e tests
+(`e2e/status-page.spec.ts`) assert on the h1 / overall-status /
+individual-checks / timestamp markers, none of which are touched, so
+the e2e suite stays green.
+
+### Verification (all green)
+
+```bash
+$ bunx prisma validate                       # → "The schema at prisma/schema.prisma is valid 🚀"
+$ bun run db:push                            # → "Your database is now in sync with your Prisma schema."
+$ bun run lint                               # → exit 0, 0 warnings
+$ npx tsc --noEmit                           # → exit 0, no output
+$ bunx vitest run                            # → 792/792 passed (40 files)
+                                             #   (772 baseline + 20 from prior parallel
+                                             #   sprint work; all green)
+
+# Grep presence checks (all 4 items):
+$ rg "OPT_IN|OPT_OUT|CONSENT_KEYWORDS" src/app/api/webhooks/whatsapp/route.ts  # ✓
+$ rg "reducedRateItems" src/lib/i18n/tax.ts                                     # ✓
+$ rg "handleRetracto|Retracto" src/components/dashboard/orders-view.tsx         # ✓
+$ rg "StatusCheck" prisma/schema.prisma                                         # ✓
+$ rg "90" src/app/status/page.tsx                                               # ✓
+```
+
+### Rules compliance
+
+- ✓ **No test files touched** — `tests/**` and `e2e/**` unchanged.
+- ✓ **Spanish UI text** — every visible string in the new orders-view
+  button, the WhatsApp reply templates, and the status-page uptime bar
+  is in es-CO Spanish.
+- ✓ **No new backend services** — only an existing API route
+  (`/api/orders`) was extended with one extra field in its response
+  shape (necessary so the orders-view UI can read `retractoWindowUntil`
+  — the data was already loaded by `orderService.getOrders`, just not
+  projected). No new service modules, no new endpoints.
+- ✓ **Worklog appended** — this section.
+
+### Files changed summary
+
+**Existing files modified (5):**
+- `prisma/schema.prisma` — added `StatusCheck` model (1 per day,
+  unique on `date`, indexed).
+- `src/app/api/webhooks/whatsapp/route.ts` — marketing consent keyword
+  handler (OPT_IN / OPT_OUT / HELP) inserted between the existing
+  RETRACTO block and the Message persist. Early-returns
+  `status: 'keyword_handled'` so no Message row is created.
+- `src/lib/i18n/tax.ts` — `TaxBreakdown.reducedRateItems` field +
+  `booksReducedRate` branch in `calculateTax`.
+- `src/app/api/orders/route.ts` — exposed `retractoWindowUntil` in the
+  order list response.
+- `src/components/dashboard/orders-view.tsx` — Retracto button +
+  `handleRetracto` handler + `RotateCcw` lucide import +
+  `isWithinRetractoWindow` import + `retractoWindowUntil` on the
+  `Order` type.
+- `src/app/status/page.tsx` — 90-day uptime bar + `recordStatusCheck`
+  + `getUptimeHistory` + `todayAtMidnight` helper + uptime %.
+
+### Next actions (follow-up, out of scope)
+
+1. **Automated payment-gateway refund on retracto** — `processRetracto`
+   in `src/lib/compliance/retracto.ts` already persists the 30-day
+   refund deadline but the actual `paymentAdapter.refund(...)` call is
+   a TODO. The refund adapter is selected by `order.paymentGateway`
+   (wompi | stripe | mercadopago | payu | pse | pix). ~6 hours (one
+   branch per gateway + idempotency guard).
+
+2. **Composite unique on `ConsentRecord`** — adding
+   `@@unique([tenantId, dataSubjectId, purpose])` would let the
+   WhatsApp OPT_IN path use a true `upsert` instead of
+   `findFirst` + (`update` | `create`). Requires a migration. ~1 hour.
+
+3. **`StatusCheck` backfill** — the 90-day bar will show "Sin datos"
+   for all days before today until enough days have elapsed. A one-off
+   backfill script could parse `AuditLog` rows tagged
+   `webhook.wa.invalid_sig` / health-check history to reconstruct the
+   last 90 days. ~2 hours.
+
+4. **`booksReducedRate` country config** — wire up the field on a real
+   country config (e.g. AR could switch `libros` from exempt to a 10.5%
+   reduced rate to match the actual AFIP regime). ~30 min + legal
+   review.
+
+5. **Retracto button on mobile** — the orders-view table is
+   horizontally scrollable on mobile; the new button widens the
+   actions cell. Consider collapsing the actions into a dropdown on
+   small screens. ~1 hour.

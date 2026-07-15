@@ -311,6 +311,14 @@ model Conversation {
   clickId          String?
   customerPhone    String?
   firstReplyAt     DateTime?
+  // SPRINT-AI-FINAL-002 §1 — pipeline memory del orchestrator persistida
+  // entre invocaciones. JSON array de { role, content } con los outputs de
+  // los 9 agentes del pipeline (etiquetados `[stepId/agentName]`). Se
+  // persiste al final de `action='full'` en `/api/orchestrate` (últimas 30
+  // entradas) y se carga al inicio del handler para dar continuidad entre
+  // turnos de conversaciones multi-turno (el cliente responde al resultado
+  // del pipeline y se corre un sub-pipeline con contexto del anterior).
+  pipelineMemory   String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -1757,4 +1765,29 @@ model StatusIncident {
 
   @@index([startTime, status])
   @@index([severity, status])
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// SPRINT-COMPLIANCE-FINAL-001 · P4 — daily status check (90-day uptime bar).
+// ───────────────────────────────────────────────────────────────────────────
+// One row per day, upserted by the /status page on each render (if today's
+// row doesn't yet exist). The 90-day uptime bar on the status page reads
+// the last 90 rows to render the statuspage.io-style colored squares.
+//
+// NOTE: SQLite has no native DATE type, so we use `DateTime` (stored at
+// 00:00:00.000 local) — same pattern as the `ChannelCost.date` field above.
+// On PostgreSQL the `date` field could be re-typed to `@db.Date` later.
+model StatusCheck {
+  id        String   @id @default(cuid())
+  // Day bucket — stored at 00:00:00.000 local time. The `@@unique([date])`
+  // constraint means at most one row per calendar day (the status page
+  // upserts by this key so re-renders within the same day just refresh
+  // `status` + `latency`).
+  date      DateTime
+  status    String   // "operational" | "degraded" | "down"
+  latency   Int?     // ms (DB ping latency, optional — null if check timed out)
+  createdAt DateTime @default(now())
+
+  @@unique([date])
+  @@index([date])
 }

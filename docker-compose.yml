@@ -26,6 +26,8 @@ volumes:
   # Sprint 7A — monitoring stack volumes
   prometheus_data:
   grafana_data:
+  # SPRINT-MONITORING-FIX-001 · #3 — Loki chunk + index storage.
+  loki_data:
 
 services:
   # ── 1. PostgreSQL (prod database) ────────────────────────────────────────
@@ -259,6 +261,13 @@ services:
   # ── 13. Alertmanager (alert routing → PagerDuty / Slack / email) ──────────
   # Sprint 7A — receives alerts from Prometheus and routes them to the
   # correct receiver based on the severity / team labels set in alerts.yml.
+  #
+  # SPRINT-MONITORING-FIX-001 · #2 — added `--config.expand-env` (Alertmanager
+  # ≥ 0.22) so `${SMTP_PASSWORD}` / `${PAGERDUTY_ROUTING_KEY}` / Slack
+  # webhooks in alertmanager.yml are expanded from the container's env vars
+  # (passed through from the host .env via the `environment:` block below).
+  # Without the flag, Alertmanager loads the literal `${SMTP_PASSWORD}` string
+  # and every email/pagerduty/slack notification silently fails.
   alertmanager:
     image: prom/alertmanager:latest
     restart: unless-stopped
@@ -269,17 +278,28 @@ services:
       - ./monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
     command:
       - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--config.expand-env'
+    environment:
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - PAGERDUTY_ROUTING_KEY=${PAGERDUTY_ROUTING_KEY:-}
+      - SLACK_FINANCE_WEBHOOK=${SLACK_FINANCE_WEBHOOK:-}
+      - SLACK_SUPPORT_WEBHOOK=${SLACK_SUPPORT_WEBHOOK:-}
+      - SLACK_BUSINESS_WEBHOOK=${SLACK_BUSINESS_WEBHOOK:-}
+      - ALERTMANAGER_WEBHOOK_SECRET=${ALERTMANAGER_WEBHOOK_SECRET:-}
 
   # ── 14. Grafana (dashboards) ──────────────────────────────────────────────
   # Sprint 7A — auto-provisioned datasources (Prometheus + Loki) and the
   # ZIAY overview dashboard from monitoring/grafana-dashboard.json. Admin
   # password is configurable via $GRAFANA_ADMIN_PASSWORD (default: admin).
+  #
+  # SPRINT-MONITORING-FIX-001 · #5 — host port changed 3001 → 3002 to
+  # avoid a conflict with uptime-kuma, which already binds 3001:3001.
   grafana:
     image: grafana/grafana:latest
     restart: unless-stopped
     networks: [commerceflow]
     ports:
-      - "3001:3000"
+      - "3002:3000"  # Changed from 3001 to avoid conflict with uptime-kuma
     volumes:
       - ./monitoring/grafana-datasource.yml:/etc/grafana/provisioning/datasources/datasource.yml:ro
       - ./monitoring/grafana-dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml:ro
@@ -290,3 +310,38 @@ services:
       - GF_USERS_ALLOW_SIGN_UP=false
     depends_on:
       - prometheus
+      - loki
+
+  # ── 15. Loki (log aggregation) ────────────────────────────────────────────
+  # SPRINT-MONITORING-FIX-001 · #3 — receives structured log streams pushed
+  # by Promtail (job #16 below) and exposes them to Grafana via the
+  # `loki` datasource (already provisioned in grafana-datasource.yml).
+  # Default `local-config.yaml` keeps retention modest; for prod swap in
+  # a boltdb-shipper config with S3 chunks backend.
+  loki:
+    image: grafana/loki:latest
+    restart: unless-stopped
+    networks: [commerceflow]
+    ports:
+      - "3100:3100"
+    volumes:
+      - loki-data:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+
+  # ── 16. Promtail (log shipper → Loki) ─────────────────────────────────────
+  # SPRINT-MONITORING-FIX-001 · #3 — discovers containers via the Docker
+  # socket, extracts the `level` JSON field as a Loki label (so dashboards
+  # can filter error vs. info logs), and tags every stream with the source
+  # container name. Config lives in monitoring/promtail.yml.
+  promtail:
+    image: grafana/promtail:latest
+    restart: unless-stopped
+    networks: [commerceflow]
+    volumes:
+      - /var/log:/var/log
+      - ./monitoring/promtail.yml:/etc/promtail/config.yml:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    command: -config.file=/etc/promtail/config.yml
+    depends_on:
+      - loki

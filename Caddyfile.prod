@@ -1,0 +1,52 @@
+# CommerceFlow OS — Caddyfile for production
+# Routes: / → app (3000), /?XTransformPort=3003 → chat-service (3003)
+# n8n on /n8n/, NocoDB on /nocodb/, MinIO console on /minio/
+
+{
+    email admin@{$DOMAIN}
+}
+
+# Main domain — CommerceFlow app + chat-service gateway
+{$DOMAIN} {
+    # n8n orchestrator
+    handle_path /n8n/* {
+        reverse_proxy n8n:5678 {
+            header_up Host {host}
+            header_up X-Forwarded-For {remote_host}
+        }
+    }
+
+    # NocoDB operational Kanban
+    handle_path /nocodb/* {
+        reverse_proxy nocodb:8080 {
+            header_up Host {host}
+        }
+    }
+
+    # MinIO console
+    handle_path /minio/* {
+        reverse_proxy minio:9001
+    }
+
+    # Chat-service (Socket.io) — routed via XTransformPort query
+    @transform_port_query {
+        query XTransformPort=*
+    }
+    handle @transform_port_query {
+        reverse_proxy localhost:{query.XTransformPort} {
+            header_up Host {host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
+    # Default — CommerceFlow Next.js app
+    handle {
+        reverse_proxy app:3000 {
+            header_up Host {host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+            header_up X-Real-IP {remote_host}
+        }
+    }
+}

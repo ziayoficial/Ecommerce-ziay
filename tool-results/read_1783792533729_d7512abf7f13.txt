@@ -1,0 +1,803 @@
+     1→     1→import { Metadata } from 'next'
+     2→     2→import Link from 'next/link'
+     3→     3→import { db } from '@/lib/db'
+     4→     4→import {
+     5→     5→  MessageSquare,
+     6→     6→  TrendingUp,
+     7→     7→  DollarSign,
+     8→     8→  Target,
+     9→     9→  ShoppingBag,
+    10→    10→  Phone,
+    11→    11→  Wallet,
+    12→    12→  ArrowRight,
+    13→    13→  CircleUser,
+    14→    14→  Sparkles,
+    15→    15→  Clock,
+    16→    16→  CheckCircle2,
+    17→    17→  AlertCircle,
+    18→    18→} from 'lucide-react'
+    19→    19→import {
+    20→    20→  Card,
+    21→    21→  CardContent,
+    22→    22→  CardDescription,
+    23→    23→  CardHeader,
+    24→    24→  CardTitle,
+    25→    25→} from '@/components/ui/card'
+    26→    26→import { Badge } from '@/components/ui/badge'
+    27→    27→import { Button } from '@/components/ui/button'
+    28→    28→import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+    29→    29→import { Separator } from '@/components/ui/separator'
+    30→    30→import {
+    31→    31→  Table,
+    32→    32→  TableBody,
+    33→    33→  TableCell,
+    34→    34→  TableHead,
+    35→    35→  TableHeader,
+    36→    36→  TableRow,
+    37→    37→} from '@/components/ui/table'
+    38→    38→import { PerformanceChart, PerformancePoint } from '@/components/vendedor/performance-chart'
+    39→    39→
+    40→    40→export const dynamic = 'force-dynamic'
+    41→    41→
+    42→    42→// ── SSR: dynamic metadata for SEO ──────────────────────────────────
+    43→    43→export async function generateMetadata({
+    44→    44→  searchParams,
+    45→    45→}: {
+    46→    46→  searchParams: Promise<{ sellerId?: string }>
+    47→    47→}): Promise<Metadata> {
+    48→    48→  const { sellerId } = await searchParams
+    49→    49→  const seller = await resolveSeller(sellerId)
+    50→    50→  if (!seller) {
+    51→    51→    return {
+    52→    52→      title: 'Página del Vendedor · CommerceFlow OS',
+    53→    53→      description: 'Panel personal del asesor de ventas: KPIs, conversaciones asignadas, ventas y comisiones.',
+    54→    54→    }
+    55→    55→  }
+    56→    56→  const tenantName = seller.tenant?.marca ?? seller.tenant?.nombreNegocio ?? 'CommerceFlow'
+    57→    57→  const title = `${seller.name} · ${tenantName} · Vendedor`
+    58→    58→  const description = `Panel del vendedor ${seller.name} en ${tenantName}. Conversaciones asignadas, ventas cerradas hoy/semana/mes, conversión, AOV y comisiones.`
+    59→    59→  return {
+    60→    60→    title,
+    61→    61→    description,
+    62→    62→    keywords: [
+    63→    63→      'vendedor',
+    64→    64→      'asesor de ventas',
+    65→    65→      seller.name,
+    66→    66→      tenantName,
+    67→    67→      'comisiones',
+    68→    68→      'KPIs',
+    69→    69→      'WhatsApp',
+    70→    70→      'CommerceFlow',
+    71→    71→    ],
+    72→    72→    alternates: { canonical: '/vendedor' },
+    73→    73→    openGraph: {
+    74→    74→      title,
+    75→    75→      description,
+    76→    76→      type: 'profile',
+    77→    77→      locale: 'es_CO',
+    78→    78→      siteName: 'CommerceFlow OS',
+    79→    79→      url: '/vendedor',
+    80→    80→    },
+    81→    81→    twitter: { card: 'summary_large_image', title, description },
+    82→    82→    robots: { index: true, follow: true },
+    83→    83→  }
+    84→    84→}
+    85→    85→
+    86→    86→// ── Helpers ────────────────────────────────────────────────────────
+    87→    87→async function resolveSeller(sellerId?: string) {
+    88→    88→  if (sellerId) {
+    89→    89→    const u = await db.user.findUnique({
+    90→    90→      where: { id: sellerId },
+    91→    91→      include: { tenant: true },
+    92→    92→    })
+    93→    93→    if (u) return u
+    94→    94→  }
+    95→    95→  // Default to first agent-style user (admin or agent role)
+    96→    96→  const first = await db.user.findFirst({
+    97→    97→    where: { role: { in: ['admin', 'agent'] } },
+    98→    98→    orderBy: { createdAt: 'asc' },
+    99→    99→    include: { tenant: true },
+   100→   100→  })
+   101→   101→  return first
+   102→   102→}
+   103→   103→
+   104→   104→const fmtCOP = (n: number) => `$${Math.round(n).toLocaleString('es-CO')}`
+   105→   105→const fmtCompact = (n: number) => {
+   106→   106→  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`
+   107→   107→  if (n >= 1_000) return `$${(n / 1_000).toFixed(0)}k`
+   108→   108→  return `$${Math.round(n)}`
+   109→   109→}
+   110→   110→
+   111→   111→function startOfDay(d: Date) {
+   112→   112→  const x = new Date(d); x.setHours(0, 0, 0, 0); return x
+   113→   113→}
+   114→   114→function daysAgoDate(n: number) {
+   115→   115→  const d = startOfDay(new Date())
+   116→   116→  d.setDate(d.getDate() - n)
+   117→   117→  return d
+   118→   118→}
+   119→   119→
+   120→   120→const STATUS_LABEL: Record<string, string> = {
+   121→   121→  pending_confirmation: 'Por confirmar',
+   122→   122→  intent_cancelacion: 'Intento cancel.',
+   123→   123→  datos_completados: 'Datos completos',
+   124→   124→  oficina: 'En oficina',
+   125→   125→  despachado: 'Despachado',
+   126→   126→  delivered: 'Entregado',
+   127→   127→  new: 'Nuevo',
+   128→   128→  paid: 'Pagado',
+   129→   129→  preparing: 'Preparando',
+   130→   130→  shipped: 'Enviado',
+   131→   131→  returned: 'Devuelto',
+   132→   132→  cancelled: 'Cancelado',
+   133→   133→}
+   134→   134→
+   135→   135→const STATUS_TONE: Record<string, string> = {
+   136→   136→  pending_confirmation: 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30',
+   137→   137→  intent_cancelacion: 'bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30',
+   138→   138→  datos_completados: 'bg-sky-500/15 text-sky-700 dark:text-sky-300 border-sky-500/30',
+   139→   139→  oficina: 'bg-violet-500/15 text-violet-700 dark:text-violet-300 border-violet-500/30',
+   140→   140→  despachado: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30',
+   141→   141→  delivered: 'bg-emerald-600/15 text-emerald-800 dark:text-emerald-200 border-emerald-600/30',
+   142→   142→  new: 'bg-muted text-muted-foreground border-border',
+   143→   143→  paid: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30',
+   144→   144→  preparing: 'bg-sky-500/15 text-sky-700 dark:text-sky-300 border-sky-500/30',
+   145→   145→  shipped: 'bg-violet-500/15 text-violet-700 dark:text-violet-300 border-violet-500/30',
+   146→   146→  returned: 'bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30',
+   147→   147→  cancelled: 'bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30',
+   148→   148→}
+   149→   149→
+   150→   150→const CONV_STATUS_TONE: Record<string, string> = {
+   151→   151→  open: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30',
+   152→   152→  pending: 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30',
+   153→   153→  resolved: 'bg-sky-500/15 text-sky-700 dark:text-sky-300 border-sky-500/30',
+   154→   154→  closed: 'bg-muted text-muted-foreground border-border',
+   155→   155→}
+   156→   156→
+   157→   157→const PRIORITY_TONE: Record<string, string> = {
+   158→   158→  urgent: 'bg-rose-500/15 text-rose-700 dark:text-rose-300',
+   159→   159→  high: 'bg-orange-500/15 text-orange-700 dark:text-orange-300',
+   160→   160→  normal: 'bg-muted text-muted-foreground',
+   161→   161→  low: 'bg-muted/60 text-muted-foreground',
+   162→   162→}
+   163→   163→
+   164→   164→// ── Page ───────────────────────────────────────────────────────────
+   165→   165→export default async function VendedorPage({
+   166→   166→  searchParams,
+   167→   167→}: {
+   168→   168→  searchParams: Promise<{ sellerId?: string }>
+   169→   169→}) {
+   170→   170→  const { sellerId } = await searchParams
+   171→   171→  const seller = await resolveSeller(sellerId)
+   172→   172→  if (!seller) {
+   173→   173→    return (
+   174→   174→      <div className="min-h-screen flex items-center justify-center bg-background p-6">
+   175→   175→        <Card className="max-w-md w-full">
+   176→   176→          <CardHeader>
+   177→   177→            <CardTitle>Sin vendedores</CardTitle>
+   178→   178→            <CardDescription>
+   179→   179→              No hay usuarios en la base de datos para mostrar la página del vendedor.
+   180→   180→            </CardDescription>
+   181→   181→          </CardHeader>
+   182→   182→        </Card>
+   183→   183→      </div>
+   184→   184→    )
+   185→   185→  }
+   186→   186→
+   187→   187→  const tenant = seller.tenant
+   188→   188→  const isTrafficker = seller.role === 'trafficker'
+   189→   189→
+   190→   190→  // ── Conversations assigned to this seller ──
+   191→   191→  const assignedConvs = await db.conversation.findMany({
+   192→   192→    where: { assigneeId: seller.id },
+   193→   193→    include: {
+   194→   194→      customer: true,
+   195→   195→      channel: true,
+   196→   196→      messages: { orderBy: { createdAt: 'desc' }, take: 1 },
+   197→   197→    },
+   198→   198→    orderBy: { lastMessageAt: 'desc' },
+   199→   199→  })
+   200→   200→
+   201→   201→  const convIds = assignedConvs.map((c) => c.id)
+   202→   202→
+   203→   203→  // ── Orders closed by this seller (orders linked to assigned conversations) ──
+   204→   204→  const sellerOrders = convIds.length
+   205→   205→    ? await db.order.findMany({
+   206→   206→        where: { conversationId: { in: convIds } },
+   207→   207→        include: { customer: true, items: true },
+   208→   208→        orderBy: { createdAt: 'desc' },
+   209→   209→      })
+   210→   210→    : []
+   211→   211→
+   212→   212→  // ── KPI windows ──
+   213→   213→  const now = new Date()
+   214→   214→  const todayStart = startOfDay(now)
+   215→   215→  const weekStart = daysAgoDate(7)
+   216→   216→  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+   217→   217→
+   218→   218→  const salesToday = sellerOrders.filter((o) => o.createdAt >= todayStart)
+   219→   219→  const salesWeek = sellerOrders.filter((o) => o.createdAt >= weekStart)
+   220→   220→  const salesMonth = sellerOrders.filter((o) => o.createdAt >= monthStart)
+   221→   221→
+   222→   222→  const gmvMonth = salesMonth.reduce((s, o) => s + o.total, 0)
+   223→   223→  const gmvToday = salesToday.reduce((s, o) => s + o.total, 0)
+   224→   224→  const aov = salesMonth.length ? gmvMonth / salesMonth.length : 0
+   225→   225→  const convRate = assignedConvs.length
+   226→   226→    ? Math.min(100, (sellerOrders.length / assignedConvs.length) * 100)
+   227→   227→    : 0
+   228→   228→
+   229→   229→  // ── Active conversations (open or pending) ──
+   230→   230→  const activeConvs = assignedConvs
+   231→   231→    .filter((c) => c.status === 'open' || c.status === 'pending')
+   232→   232→    .slice(0, 8)
+   233→   233→
+   234→   234→  // ── Recent sales (last 10) ──
+   235→   235→  const recentSales = sellerOrders.slice(0, 10)
+   236→   236→
+   237→   237→  // ── Performance chart: last 14 days ──
+   238→   238→  const days: PerformancePoint[] = []
+   239→   239→  const weekdayLabels = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
+   240→   240→  for (let i = 13; i >= 0; i--) {
+   241→   241→    const dayStart = daysAgoDate(i)
+   242→   242→    const dayEnd = new Date(dayStart)
+   243→   243→    dayEnd.setDate(dayEnd.getDate() + 1)
+   244→   244→    const dayOrders = sellerOrders.filter(
+   245→   245→      (o) => o.createdAt >= dayStart && o.createdAt < dayEnd,
+   246→   246→    )
+   247→   247→    const gmv = dayOrders.reduce((s, o) => s + o.total, 0)
+   248→   248→    days.push({
+   249→   249→      date: dayStart.toISOString(),
+   250→   250→      label: `${weekdayLabels[dayStart.getDay()]} ${dayStart.getDate()}`,
+   251→   251→      ventas: dayOrders.length,
+   252→   252→      gmv,
+   253→   253→    })
+   254→   254→  }
+   255→   255→
+   256→   256→  // ── Commissions (trafficker) ──
+   257→   257→  let monthCommission = 0
+   258→   258→  let pendingCommission = 0
+   259→   259→  let walletBalance = 0
+   260→   260→  if (isTrafficker) {
+   261→   261→    const trafficker = await db.trafficker.findUnique({
+   262→   262→      where: { email: seller.email },
+   263→   263→    })
+   264→   264→    if (trafficker) {
+   265→   265→      walletBalance = trafficker.walletBalance
+   266→   266→      pendingCommission = trafficker.walletPending
+   267→   267→      const tx = await db.traffickerTransaction.findMany({
+   268→   268→        where: {
+   269→   269→          traffickerId: trafficker.id,
+   270→   270→          type: 'commission',
+   271→   271→          createdAt: { gte: monthStart },
+   272→   272→        },
+   273→   273→      })
+   274→   274→      monthCommission = tx.reduce((s, t) => s + t.amount, 0)
+   275→   275→    }
+   276→   276→  } else {
+   277→   277→    // For agent/admin: derive a notional commission from sales confirmed this month
+   278→   278→    // at the tenant commission rate. Purely demo number.
+   279→   279→    const confirmedSales = salesMonth.filter(
+   280→   280→      (o) => !['cancelled', 'returned', 'intent_cancelacion'].includes(o.status),
+   281→   281→    )
+   282→   282→    const tenantRate = (tenant?.comisionPctInicial ?? 4.5) / 100
+   283→   283→    // Sellers earn 30% of the platform commission as personal incentive (demo number)
+   284→   284→    monthCommission = confirmedSales.reduce((s, o) => s + o.total, 0) * tenantRate * 0.3
+   285→   285→  }
+   286→   286→
+   287→   287→  // ── Active since ──
+   288→   288→  const activeSince = seller.createdAt
+   289→   289→
+   290→   290→  // ── JSON-LD Person schema ──
+   291→   291→  const personSchema = {
+   292→   292→    '@context': 'https://schema.org',
+   293→   293→    '@type': 'Person',
+   294→   294→    name: seller.name,
+   295→   295→    email: seller.email,
+   296→   296→    jobTitle:
+   297→   297→      seller.role === 'admin'
+   298→   298→        ? 'Administrador'
+   299→   299→        : seller.role === 'agent'
+   300→   300→          ? 'Asesor de ventas'
+   301→   301→          : seller.role === 'trafficker'
+   302→   302→            ? 'Trafficker / Media buyer'
+   303→   303→            : 'Finance',
+   304→   304→    worksFor: {
+   305→   305→      '@type': 'Organization',
+   306→   306→      name: tenant?.marca ?? 'CommerceFlow OS',
+   307→   307→    },
+   308→   308→  }
+   309→   309→
+   310→   310→  const initials = seller.name
+   311→   311→    .split(' ')
+   312→   312→    .map((s) => s[0])
+   313→   313→    .slice(0, 2)
+   314→   314→    .join('')
+   315→   315→    .toUpperCase()
+   316→   316→
+   317→   317→  return (
+   318→   318→    <div className="min-h-screen flex flex-col bg-background">
+   319→   319→      <script
+   320→   320→        type="application/ld+json"
+   321→   321→        dangerouslySetInnerHTML={{ __html: JSON.stringify(personSchema) }}
+   322→   322→      />
+   323→   323→
+   324→   324→      {/* Header */}
+   325→   325→      <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-10">
+   326→   326→        <div className="max-w-7xl mx-auto px-4 md:px-6 py-3 flex items-center justify-between gap-4">
+   327→   327→          <div className="flex items-center gap-2 text-sm">
+   328→   328→            <Link href="/" className="font-bold text-base hover:underline">
+   329→   329→              CommerceFlow
+   330→   330→            </Link>
+   331→   331→            <span className="text-muted-foreground">/</span>
+   332→   332→            <span className="text-muted-foreground">Vendedor</span>
+   333→   333→          </div>
+   334→   334→          <div className="flex items-center gap-2">
+   335→   335→            {tenant && (
+   336→   336→              <Link
+   337→   337→                href={`/t/${tenant.slug}`}
+   338→   338→                className="text-xs px-3 py-1.5 rounded-md bg-muted hover:bg-muted/80 transition-colors"
+   339→   339→              >
+   340→   340→                {tenant.marca}
+   341→   341→              </Link>
+   342→   342→            )}
+   343→   343→            <a
+   344→   344→              href={`/?view=messenger`}
+   345→   345→              className="text-xs px-3 py-1.5 rounded-md bg-emerald-500 text-white hover:bg-emerald-600 transition-colors inline-flex items-center gap-1.5"
+   346→   346→            >
+   347→   347→              <MessageSquare className="size-3.5" />
+   348→   348→              Dashboard
+   349→   349→            </a>
+   350→   350→          </div>
+   351→   351→        </div>
+   352→   352→      </header>
+   353→   353→
+   354→   354→      <main className="flex-1 w-full max-w-7xl mx-auto px-4 md:px-6 py-6 space-y-6">
+   355→   355→        {/* Seller profile */}
+   356→   356→        <Card>
+   357→   357→          <CardContent className="p-4 md:p-6">
+   358→   358→            <div className="flex flex-col md:flex-row md:items-center gap-4 md:gap-6">
+   359→   359→              <Avatar className="size-16 md:size-20 ring-2 ring-primary/20">
+   360→   360→                {seller.avatarUrl ? <AvatarImage src={seller.avatarUrl} alt={seller.name} /> : null}
+   361→   361→                <AvatarFallback className="bg-primary/10 text-primary text-xl font-bold">
+   362→   362→                  {initials}
+   363→   363→                </AvatarFallback>
+   364→   364→              </Avatar>
+   365→   365→              <div className="flex-1 min-w-0">
+   366→   366→                <div className="flex items-center gap-2 flex-wrap">
+   367→   367→                  <h1 className="text-xl md:text-2xl font-bold leading-tight">{seller.name}</h1>
+   368→   368→                  <Badge variant="outline" className="capitalize">
+   369→   369→                    {seller.role === 'admin'
+   370→   370→                      ? 'Administrador'
+   371→   371→                      : seller.role === 'agent'
+   372→   372→                        ? 'Asesor'
+   373→   373→                        : seller.role === 'trafficker'
+   374→   374→                          ? 'Trafficker'
+   375→   375→                          : 'Finance'}
+   376→   376→                  </Badge>
+   377→   377→                </div>
+   378→   378→                <p className="text-sm text-muted-foreground mt-1 truncate">{seller.email}</p>
+   379→   379→                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-xs text-muted-foreground">
+   380→   380→                  {tenant && (
+   381→   381→                    <span className="inline-flex items-center gap-1">
+   382→   382→                      <Sparkles className="size-3" />
+   383→   383→                      {tenant.nombreNegocio}
+   384→   384→                    </span>
+   385→   385→                  )}
+   386→   386→                  <span className="inline-flex items-center gap-1">
+   387→   387→                    <CircleUser className="size-3" />
+   388→   388→                    Activo desde {activeSince.toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' })}
+   389→   389→                  </span>
+   390→   390→                </div>
+   391→   391→              </div>
+   392→   392→              <div className="flex flex-wrap gap-2">
+   393→   393→                <Button asChild size="sm" className="bg-emerald-500 hover:bg-emerald-600 text-white">
+   394→   394→                  <Link href={`/?view=messenger`}>
+   395→   395→                    <MessageSquare className="size-4" />
+   396→   396→                    Abrir mensajería
+   397→   397→                  </Link>
+   398→   398→                </Button>
+   399→   399→                {tenant && (
+   400→   400→                  <Button asChild size="sm" variant="outline">
+   401→   401→                    <Link href={`/t/${tenant.slug}`}>
+   402→   402→                      <ShoppingBag className="size-4" />
+   403→   403→                      Ver catálogo
+   404→   404→                    </Link>
+   405→   405→                  </Button>
+   406→   406→                )}
+   407→   407→                <Button asChild size="sm" variant="outline">
+   408→   408→                  <Link href={`/?view=wallet`}>
+   409→   409→                    <Wallet className="size-4" />
+   410→   410→                    Solicitar retiro
+   411→   411→                  </Link>
+   412→   412→                </Button>
+   413→   413→              </div>
+   414→   414→            </div>
+   415→   415→          </CardContent>
+   416→   416→        </Card>
+   417→   417→
+   418→   418→        {/* KPI grid */}
+   419→   419→        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+   420→   420→          <KpiCard
+   421→   421→            icon={<MessageSquare className="size-4" />}
+   422→   422→            label="Convers. asignadas"
+   423→   423→            value={assignedConvs.length.toString()}
+   424→   424→            sub={`${activeConvs.length} activas`}
+   425→   425→          />
+   426→   426→          <KpiCard
+   427→   427→            icon={<TrendingUp className="size-4" />}
+   428→   428→            label="Ventas hoy"
+   429→   429→            value={salesToday.length.toString()}
+   430→   430→            sub={fmtCompact(gmvToday)}
+   431→   431→          />
+   432→   432→          <KpiCard
+   433→   433→            icon={<ShoppingBag className="size-4" />}
+   434→   434→            label="Ventas semana"
+   435→   435→            value={salesWeek.length.toString()}
+   436→   436→            sub={`${fmtCompact(salesWeek.reduce((s, o) => s + o.total, 0))}`}
+   437→   437→          />
+   438→   438→          <KpiCard
+   439→   439→            icon={<DollarSign className="size-4" />}
+   440→   440→            label="GMV mes"
+   441→   441→            value={fmtCompact(gmvMonth)}
+   442→   442→            sub={`${salesMonth.length} ventas`}
+   443→   443→          />
+   444→   444→          <KpiCard
+   445→   445→            icon={<Target className="size-4" />}
+   446→   446→            label="Conversión"
+   447→   447→            value={`${convRate.toFixed(1)}%`}
+   448→   448→            sub="conv / conv-asign"
+   449→   449→          />
+   450→   450→          <KpiCard
+   451→   451→            icon={<DollarSign className="size-4" />}
+   452→   452→            label="AOV"
+   453→   453→            value={fmtCompact(aov)}
+   454→   454→            sub="ticket promedio"
+   455→   455→          />
+   456→   456→        </div>
+   457→   457→
+   458→   458→        {/* Performance chart */}
+   459→   459→        <Card>
+   460→   460→          <CardHeader className="pb-2">
+   461→   461→            <div className="flex items-center justify-between gap-2">
+   462→   462→              <div>
+   463→   463→                <CardTitle className="text-base">Rendimiento · últimos 14 días</CardTitle>
+   464→   464→                <CardDescription className="text-xs">
+   465→   465→                  GMV generado por día desde conversaciones asignadas a {seller.name.split(' ')[0]}.
+   466→   466→                </CardDescription>
+   467→   467→              </div>
+   468→   468→              <Badge variant="secondary" className="font-mono">
+   469→   469→                Total: {fmtCOP(days.reduce((s, d) => s + d.gmv, 0))}
+   470→   470→              </Badge>
+   471→   471→            </div>
+   472→   472→          </CardHeader>
+   473→   473→          <CardContent>
+   474→   474→            <PerformanceChart data={days} currency="COP" />
+   475→   475→          </CardContent>
+   476→   476→        </Card>
+   477→   477→
+   478→   478→        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+   479→   479→          {/* Active conversations */}
+   480→   480→          <Card className="lg:col-span-2">
+   481→   481→            <CardHeader className="pb-2">
+   482→   482→              <div className="flex items-center justify-between">
+   483→   483→                <div>
+   484→   484→                  <CardTitle className="text-base">Conversaciones activas</CardTitle>
+   485→   485→                  <CardDescription className="text-xs">
+   486→   486→                    Asignadas a ti y esperando respuesta
+   487→   487→                  </CardDescription>
+   488→   488→                </div>
+   489→   489→                <Button asChild variant="ghost" size="sm" className="text-xs">
+   490→   490→                  <Link href={`/?view=messenger`}>
+   491→   491→                    Ver todas
+   492→   492→                    <ArrowRight className="size-3.5 ml-1" />
+   493→   493→                  </Link>
+   494→   494→                </Button>
+   495→   495→              </div>
+   496→   496→            </CardHeader>
+   497→   497→            <CardContent className="p-0">
+   498→   498→              <div className="max-h-[420px] overflow-y-auto scroll-thin divide-y">
+   499→   499→                {activeConvs.length === 0 ? (
+   500→   500→                  <div className="p-8 text-center text-sm text-muted-foreground">
+   501→   501→                    No tienes conversaciones activas en este momento.
+   502→   502→                  </div>
+   503→   503→                ) : (
+   504→   504→                  activeConvs.map((c) => (
+   505→   505→                    <Link
+   506→   506→                      key={c.id}
+   507→   507→                      href={`/?view=messenger&conv=${c.id}`}
+   508→   508→                      className="flex items-start gap-3 px-4 py-3 hover:bg-muted/40 transition-colors"
+   509→   509→                    >
+   510→   510→                      <div className="size-9 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
+   511→   511→                        {c.customer.name
+   512→   512→                          .split(' ')
+   513→   513→                          .map((s) => s[0])
+   514→   514→                          .slice(0, 2)
+   515→   515→                          .join('')
+   516→   516→                          .toUpperCase()}
+   517→   517→                      </div>
+   518→   518→                      <div className="flex-1 min-w-0">
+   519→   519→                        <div className="flex items-center justify-between gap-2">
+   520→   520→                          <p className="font-medium text-sm truncate">{c.customer.name}</p>
+   521→   521→                          <span className="text-[10px] text-muted-foreground shrink-0">
+   522→   522→                            {timeAgo(c.lastMessageAt)}
+   523→   523→                          </span>
+   524→   524→                        </div>
+   525→   525→                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+   526→   526→                          <span className="truncate">
+   527→   527→                            {c.messages[0]?.body ?? 'Sin mensajes'}
+   528→   528→                          </span>
+   529→   529→                        </div>
+   530→   530→                        <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+   531→   531→                          <span
+   532→   532→                            className={`text-[10px] px-1.5 py-0.5 rounded-full border ${CONV_STATUS_TONE[c.status] ?? CONV_STATUS_TONE.closed}`}
+   533→   533→                          >
+   534→   534→                            {c.status}
+   535→   535→                          </span>
+   536→   536→                          {c.priority !== 'normal' && (
+   537→   537→                            <span
+   538→   538→                              className={`text-[10px] px-1.5 py-0.5 rounded-full ${PRIORITY_TONE[c.priority] ?? PRIORITY_TONE.normal}`}
+   539→   539→                            >
+   540→   540→                              {c.priority}
+   541→   541→                            </span>
+   542→   542→                          )}
+   543→   543→                          {c.perfilConversacion && (
+   544→   544→                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">
+   545→   545→                              {c.perfilConversacion}
+   546→   546→                            </span>
+   547→   547→                          )}
+   548→   548→                          {c.unreadCount > 0 && (
+   549→   549→                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary text-primary-foreground font-bold">
+   550→   550→                              {c.unreadCount} nuevo
+   551→   551→                            </span>
+   552→   552→                          )}
+   553→   553→                        </div>
+   554→   554→                      </div>
+   555→   555→                    </Link>
+   556→   556→                  ))
+   557→   557→                )}
+   558→   558→              </div>
+   559→   559→            </CardContent>
+   560→   560→          </Card>
+   561→   561→
+   562→   562→          {/* Commissions */}
+   563→   563→          <Card>
+   564→   564→            <CardHeader className="pb-2">
+   565→   565→              <CardTitle className="text-base">
+   566→   566→                {isTrafficker ? 'Comisiones de trafficker' : 'Incentivo del mes'}
+   567→   567→              </CardTitle>
+   568→   568→              <CardDescription className="text-xs">
+   569→   569→                {isTrafficker
+   570→   570→                  ? 'Comisiones ganadas por ventas confirmadas'
+   571→   571→                  : 'Estimado basado en comisión de plataforma'}
+   572→   572→              </CardDescription>
+   573→   573→            </CardHeader>
+   574→   574→            <CardContent className="space-y-4">
+   575→   575→              <div>
+   576→   576→                <p className="text-xs text-muted-foreground">Este mes</p>
+   577→   577→                <p className="text-2xl font-bold tabular-nums">{fmtCOP(monthCommission)}</p>
+   578→   578→              </div>
+   579→   579→              <Separator />
+   580→   580→              {isTrafficker ? (
+   581→   581→                <div className="space-y-2">
+   582→   582→                  <div className="flex items-center justify-between text-sm">
+   583→   583→                    <span className="text-muted-foreground inline-flex items-center gap-1.5">
+   584→   584→                      <Wallet className="size-3.5" /> Saldo disponible
+   585→   585→                    </span>
+   586→   586→                    <span className="font-medium tabular-nums">{fmtCOP(walletBalance)}</span>
+   587→   587→                  </div>
+   588→   588→                  <div className="flex items-center justify-between text-sm">
+   589→   589→                    <span className="text-muted-foreground inline-flex items-center gap-1.5">
+   590→   590→                      <Clock className="size-3.5" /> Pendiente
+   591→   591→                    </span>
+   592→   592→                    <span className="font-medium tabular-nums">{fmtCOP(pendingCommission)}</span>
+   593→   593→                  </div>
+   594→   594→                </div>
+   595→   595→              ) : (
+   596→   596→                <div className="space-y-2">
+   597→   597→                  <div className="flex items-center justify-between text-sm">
+   598→   598→                    <span className="text-muted-foreground">Ventas confirmadas</span>
+   599→   599→                    <span className="font-medium">
+   600→   600→                      {salesMonth.filter((o) => !['cancelled', 'returned', 'intent_cancelacion'].includes(o.status)).length}
+   601→   601→                    </span>
+   602→   602→                  </div>
+   603→   603→                  <div className="flex items-center justify-between text-sm">
+   604→   604→                    <span className="text-muted-foreground">GMV confirmado</span>
+   605→   605→                    <span className="font-medium tabular-nums">
+   606→   606→                      {fmtCOP(
+   607→   607→                        salesMonth
+   608→   608→                          .filter((o) => !['cancelled', 'returned', 'intent_cancelacion'].includes(o.status))
+   609→   609→                          .reduce((s, o) => s + o.total, 0),
+   610→   610→                      )}
+   611→   611→                    </span>
+   612→   612→                  </div>
+   613→   613→                  <div className="flex items-center justify-between text-sm">
+   614→   614→                    <span className="text-muted-foreground">Tasa incentivo</span>
+   615→   615→                    <span className="font-medium">30% de comisión plataforma</span>
+   616→   616→                  </div>
+   617→   617→                </div>
+   618→   618→              )}
+   619→   619→              <Button asChild className="w-full" size="sm" variant="outline">
+   620→   620→                <Link href={`/?view=wallet`}>
+   621→   621→                  <Wallet className="size-4" />
+   622→   622→                  Solicitar retiro
+   623→   623→                </Link>
+   624→   624→              </Button>
+   625→   625→            </CardContent>
+   626→   626→          </Card>
+   627→   627→        </div>
+   628→   628→
+   629→   629→        {/* Recent sales table */}
+   630→   630→        <Card>
+   631→   631→          <CardHeader className="pb-2">
+   632→   632→            <div className="flex items-center justify-between">
+   633→   633→              <div>
+   634→   634→                <CardTitle className="text-base">Ventas recientes</CardTitle>
+   635→   635→                <CardDescription className="text-xs">
+   636→   636→                  Tus últimas 10 ventas cerradas
+   637→   637→                </CardDescription>
+   638→   638→              </div>
+   639→   639→              <Button asChild variant="ghost" size="sm" className="text-xs">
+   640→   640→                <Link href={`/?view=orders`}>
+   641→   641→                  Ver todas
+   642→   642→                  <ArrowRight className="size-3.5 ml-1" />
+   643→   643→                </Link>
+   644→   644→              </Button>
+   645→   645→            </div>
+   646→   646→          </CardHeader>
+   647→   647→          <CardContent className="p-0">
+   648→   648→            <div className="overflow-x-auto">
+   649→   649→              <Table>
+   650→   650→                <TableHeader>
+   651→   651→                  <TableRow>
+   652→   652→                    <TableHead className="pl-4">Pedido</TableHead>
+   653→   653→                    <TableHead>Cliente</TableHead>
+   654→   654→                    <TableHead>Ciudad</TableHead>
+   655→   655→                    <TableHead>Items</TableHead>
+   656→   656→                    <TableHead className="text-right">Total</TableHead>
+   657→   657→                    <TableHead>Pago</TableHead>
+   658→   658→                    <TableHead className="pr-4">Estado</TableHead>
+   659→   659→                  </TableRow>
+   660→   660→                </TableHeader>
+   661→   661→                <TableBody>
+   662→   662→                  {recentSales.length === 0 ? (
+   663→   663→                    <TableRow>
+   664→   664→                      <TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-8">
+   665→   665→                        Aún no tienes ventas cerradas.
+   666→   666→                      </TableCell>
+   667→   667→                    </TableRow>
+   668→   668→                  ) : (
+   669→   669→                    recentSales.map((o) => (
+   670→   670→                      <TableRow key={o.id}>
+   671→   671→                        <TableCell className="pl-4 font-mono text-xs">{o.number}</TableCell>
+   672→   672→                        <TableCell className="text-sm">
+   673→   673→                          <div className="flex flex-col">
+   674→   674→                            <span className="font-medium truncate max-w-[160px]">{o.customer.name}</span>
+   675→   675→                            <span className="text-[10px] text-muted-foreground">{o.customer.phone}</span>
+   676→   676→                          </div>
+   677→   677→                        </TableCell>
+   678→   678→                        <TableCell className="text-xs text-muted-foreground">{o.city ?? '—'}</TableCell>
+   679→   679→                        <TableCell className="text-xs">
+   680→   680→                          {o.items.length} {o.items.length === 1 ? 'línea' : 'líneas'}
+   681→   681→                          <span className="text-muted-foreground">
+   682→   682→                            {' '}
+   683→   683→                            ({o.items.reduce((s, i) => s + i.quantity, 0)} und)
+   684→   684→                          </span>
+   685→   685→                        </TableCell>
+   686→   686→                        <TableCell className="text-right font-mono text-sm tabular-nums">
+   687→   687→                          {fmtCOP(o.total)}
+   688→   688→                        </TableCell>
+   689→   689→                        <TableCell>
+   690→   690→                          <Badge variant="outline" className="text-[10px]">
+   691→   691→                            {o.paymentMode === 'cod' ? 'COD' : o.paymentMode === 'advance' ? 'Anticipado' : 'Híbrido'}
+   692→   692→                          </Badge>
+   693→   693→                        </TableCell>
+   694→   694→                        <TableCell className="pr-4">
+   695→   695→                          <span
+   696→   696→                            className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full border ${STATUS_TONE[o.status] ?? STATUS_TONE.new}`}
+   697→   697→                          >
+   698→   698→                            {o.status === 'despachado' || o.status === 'delivered' || o.status === 'paid' ? (
+   699→   699→                              <CheckCircle2 className="size-3" />
+   700→   700→                            ) : o.status === 'intent_cancelacion' || o.status === 'returned' || o.status === 'cancelled' ? (
+   701→   701→                              <AlertCircle className="size-3" />
+   702→   702→                            ) : (
+   703→   703→                              <Clock className="size-3" />
+   704→   704→                            )}
+   705→   705→                            {STATUS_LABEL[o.status] ?? o.status}
+   706→   706→                          </span>
+   707→   707→                        </TableCell>
+   708→   708→                      </TableRow>
+   709→   709→                    ))
+   710→   710→                  )}
+   711→   711→                </TableBody>
+   712→   712→              </Table>
+   713→   713→            </div>
+   714→   714→          </CardContent>
+   715→   715→        </Card>
+   716→   716→
+   717→   717→        {/* Seller switcher (demo) */}
+   718→   718→        <Card>
+   719→   719→          <CardContent className="p-4 text-xs text-muted-foreground">
+   720→   720→            <p className="mb-2 inline-flex items-center gap-1.5">
+   721→   721→              <Phone className="size-3.5" />
+   722→   722→              <strong>Modo demo:</strong> Usa el parámetro <code className="px-1 py-0.5 rounded bg-muted">?sellerId=</code> en la URL para ver el panel de otro vendedor.
+   723→   723→            </p>
+   724→   724→            <SellerSwitcher currentId={seller.id} />
+   725→   725→          </CardContent>
+   726→   726→        </Card>
+   727→   727→      </main>
+   728→   728→
+   729→   729→      <footer className="mt-auto border-t bg-background">
+   730→   730→        <div className="max-w-7xl mx-auto px-4 md:px-6 py-4 text-xs text-muted-foreground flex flex-col sm:flex-row items-center justify-between gap-2">
+   731→   731→          <p>© 2026 CommerceFlow OS · Página del Vendedor</p>
+   732→   732→          <p>{tenant?.marca ?? 'CommerceFlow'} · {seller.role}</p>
+   733→   733→        </div>
+   734→   734→      </footer>
+   735→   735→    </div>
+   736→   736→  )
+   737→   737→}
+   738→   738→
+   739→   739→// ── Small presentational helpers ───────────────────────────────────
+   740→   740→function KpiCard({
+   741→   741→  icon,
+   742→   742→  label,
+   743→   743→  value,
+   744→   744→  sub,
+   745→   745→}: {
+   746→   746→  icon: React.ReactNode
+   747→   747→  label: string
+   748→   748→  value: string
+   749→   749→  sub?: string
+   750→   750→}) {
+   751→   751→  return (
+   752→   752→    <Card>
+   753→   753→      <CardContent className="p-4">
+   754→   754→        <div className="flex items-center gap-2 text-muted-foreground text-xs">
+   755→   755→          <span className="size-6 rounded-md bg-primary/10 text-primary flex items-center justify-center">
+   756→   756→            {icon}
+   757→   757→          </span>
+   758→   758→          {label}
+   759→   759→        </div>
+   760→   760→        <p className="text-xl md:text-2xl font-bold tabular-nums mt-2">{value}</p>
+   761→   761→        {sub && <p className="text-[11px] text-muted-foreground mt-0.5">{sub}</p>}
+   762→   762→      </CardContent>
+   763→   763→    </Card>
+   764→   764→  )
+   765→   765→}
+   766→   766→
+   767→   767→function timeAgo(date: Date) {
+   768→   768→  const diff = Date.now() - date.getTime()
+   769→   769→  const min = Math.floor(diff / 60000)
+   770→   770→  if (min < 1) return 'ahora'
+   771→   771→  if (min < 60) return `${min}m`
+   772→   772→  const h = Math.floor(min / 60)
+   773→   773→  if (h < 24) return `${h}h`
+   774→   774→  const d = Math.floor(h / 24)
+   775→   775→  return `${d}d`
+   776→   776→}
+   777→   777→
+   778→   778→// ── Seller switcher (server-side rendered list of links) ──────────
+   779→   779→async function SellerSwitcher({ currentId }: { currentId: string }) {
+   780→   780→  const users = await db.user.findMany({
+   781→   781→    orderBy: { createdAt: 'asc' },
+   782→   782→    take: 12,
+   783→   783→    select: { id: true, name: true, role: true, email: true },
+   784→   784→  })
+   785→   785→  return (
+   786→   786→    <div className="flex flex-wrap gap-1.5">
+   787→   787→      {users.map((u) => (
+   788→   788→        <Link
+   789→   789→          key={u.id}
+   790→   790→          href={`/vendedor?sellerId=${u.id}`}
+   791→   791→          className={`px-2 py-1 rounded-md text-[11px] border transition-colors ${
+   792→   792→            u.id === currentId
+   793→   793→              ? 'bg-primary text-primary-foreground border-primary'
+   794→   794→              : 'bg-background hover:bg-muted border-border'
+   795→   795→          }`}
+   796→   796→        >
+   797→   797→          {u.name.split(' ')[0]} · {u.role}
+   798→   798→        </Link>
+   799→   799→      ))}
+   800→   800→    </div>
+   801→   801→  )
+   802→   802→}
+   803→   803→

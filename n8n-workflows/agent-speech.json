@@ -1,0 +1,123 @@
+{
+  "name": "CommerceFlow — Agente 6.2 Discurso de ventas por perfil",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "agent-speech",
+        "responseMode": "responseNode"
+      },
+      "id": "webhook-speech",
+      "name": "Webhook Entrada",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://app:3000/api/agents/speech",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "tenantId",
+              "value": "={{ $json.body.tenantId }}"
+            },
+            {
+              "name": "conversationId",
+              "value": "={{ $json.body.conversationId }}"
+            },
+            {
+              "name": "customerId",
+              "value": "={{ $json.body.customerId }}"
+            },
+            {
+              "name": "perfil",
+              "value": "={{ $json.body.perfil }}"
+            },
+            {
+              "name": "items",
+              "value": "={{ $json.body.items }}"
+            },
+            {
+              "name": "query",
+              "value": "={{ $json.body.query }}"
+            },
+            {
+              "name": "message",
+              "value": "={{ $json.body.message }}"
+            },
+            {
+              "name": "partialAddress",
+              "value": "={{ $json.body.partialAddress }}"
+            },
+            {
+              "name": "imageUrl",
+              "value": "={{ $json.body.imageUrl }}"
+            }
+          ]
+        }
+      },
+      "id": "call-agent-speech",
+      "name": "Llamar Agente speech",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      },
+      "id": "respond-speech",
+      "name": "Responder",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        440,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook Entrada": {
+      "main": [
+        [
+          {
+            "node": "Llamar Agente speech",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Llamar Agente speech": {
+      "main": [
+        [
+          {
+            "node": "Responder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "_notes": [
+    "Agente 6.2 Discurso de ventas por perfil — Apertura + prueba social por perfil",
+    "Endpoint: POST http://app:3000/api/agents/speech",
+    "Importar: n8n → Workflows → Import from File → seleccionar este JSON",
+    "Activar workflow después de importar."
+  ]
+}

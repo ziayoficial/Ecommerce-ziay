@@ -1,0 +1,135 @@
+// CommerceFlow OS — Prisma schema for PostgreSQL + pgvector (production)
+// Saramantha §16.2, §3 — RLS + pgvector for semantic memory.
+//
+// To use this in production:
+// 1. Copy this file to prisma/schema.prisma (replacing the SQLite version)
+// 2. Set DATABASE_URL=postgresql://commerceflow:password@localhost:5432/commerceflow
+// 3. Run: bun run db:migrate --name init_postgres
+// 4. Run: psql -f prisma/sql/rls-policies.sql
+// 5. Run: psql -c "CREATE EXTENSION IF NOT EXISTS vector;"
+// 6. Run: bun run scripts/migrate-postgres/vectorize-embeddings.ts
+
+generator client {
+  provider = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [vector, pgcrypto]
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// 0. TENANT
+// ───────────────────────────────────────────────────────────────────────────
+model Tenant {
+  id                    String   @id @default(cuid())
+  slug                  String   @unique
+  nombreNegocio         String
+  marca                 String
+  plataformaCatalogo    String   @default("whatsapp_catalog")
+  bdCatalogo            String?  @default("supabase_nuestro")
+  credencialesCatalogoRef String?
+  proveedorIa           String   @default("zai")
+  credencialesIaRef     String?
+  proveedorLogistico    String   @default("dropi")
+  credencialesLogisticaRef String?
+  wabaId                String?
+  wabaTokenRef          String?
+  tonoMarca             String?
+  nombreAsesora         String?
+  politicaPago          String?
+  preguntaPerfil        String?
+  planMonetizacion      String   @default("conecta")
+  feeBaseMensual        Float    @default(0)
+  comisionPctInicial    Float    @default(4.5)
+  activo                Boolean  @default(true)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  users                 User[]
+  channels              Channel[]
+  customers             Customer[]
+  conversations         Conversation[]
+  products              Product[]
+  orders                Order[]
+  campaigns             Campaign[]
+  carriers              Carrier[]
+  salesSpeeches         SalesSpeech[]
+  objections            Objection[]
+  themes                ThemeDesign[]
+  categoryCombos        CategoryCombo[]
+  volumePrices          VolumePrice[]
+  deliveryHistories     DeliveryHistory[]
+  shipments             Shipment[]
+  commissionEntries     CommissionEntry[]
+  invoices              Invoice[]
+  auditLogs             AuditLog[]
+}
+
+// [All other models identical to schema.prisma but with native pgvector types]
+
+model Message {
+  id             String   @id @default(cuid())
+  tenantId       String
+  conversationId String
+  direction      String
+  body           String
+  type           String   @default("text")
+  mediaUrl       String?
+  status         String   @default("sent")
+  aiSuggested    Boolean  @default(false)
+  aiConfidence   Float?
+  // pgvector — 1024-dimensional embedding for semantic memory (§3)
+  // Use Unsupported("vector(1024)") so Prisma doesn't try to manage it directly;
+  // we use raw SQL for insert/query with <=> cosine distance operator.
+  embedding      Unsupported("vector(1024)")?
+  createdAt      DateTime @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, conversationId])
+  @@index([tenantId, createdAt])
+}
+
+model Product {
+  id          String   @id @default(cuid())
+  tenantId    String
+  sku         String
+  name        String
+  description String?
+  price       Float
+  cost        Float    @default(0)
+  imageUrl    String?
+  stock       Int      @default(0)
+  active      Boolean  @default(true)
+  diseno      String?
+  categoria   String?
+  imagenMetadataVisible Boolean @default(true)
+  fuenteSincronizacion  String?
+  // pgvector — text embedding for semantic product search
+  embeddingTexto Unsupported("vector(768)")?
+  // pgvector — visual embedding for CLIP image similarity (§4)
+  embeddingVisual Unsupported("vector(512)")?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant      Tenant     @relation(fields: [tenantId], references: [id])
+  orderItems  OrderItem[]
+  volumePrices VolumePrice[]
+
+  @@unique([tenantId, sku])
+  @@index([tenantId, active])
+}
+
+// All other models are IDENTICAL to prisma/schema.prisma (SQLite version).
+// The only differences are: provider=postgresql, extensions=[vector,pgcrypto],
+// and the embedding fields use Unsupported("vector(N)") instead of Bytes?.
+// When migrating, copy the rest from schema.prisma unchanged.
+
+// [... User, Channel, Customer, Conversation, Order, OrderItem, OrderEvent,
+//      VolumePrice, SalesSpeech, Objection, ThemeDesign, CategoryCombo,
+//      DeliveryHistory, ImageIdentification, AdPlatform, Campaign, Ad, AdSpend,
+//      Attribution, Carrier, Shipment, CommissionEntry, Invoice,
+//      AutomationRule, Setting, AuditLog — same as schema.prisma ...]

@@ -1,0 +1,107 @@
+{
+  "name": "CommerceFlow — Master Orchestrator (§12 — 4 escenarios)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "orchestrate",
+        "responseMode": "responseNode"
+      },
+      "id": "webhook-orch",
+      "name": "Webhook Orquestador",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://app:3000/api/orchestrate",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "action",
+              "value": "full"
+            },
+            {
+              "name": "tenantId",
+              "value": "={{ $json.body.tenantId }}"
+            },
+            {
+              "name": "scenario",
+              "value": "={{ $json.body.scenario || \"indisutex_wa_catalog\" }}"
+            },
+            {
+              "name": "customerId",
+              "value": "={{ $json.body.customerId }}"
+            },
+            {
+              "name": "conversationId",
+              "value": "={{ $json.body.conversationId }}"
+            }
+          ]
+        }
+      },
+      "id": "call-orchestrate",
+      "name": "Ejecutar Escenario Completo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      },
+      "id": "respond-orch",
+      "name": "Responder",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        440,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook Orquestador": {
+      "main": [
+        [
+          {
+            "node": "Ejecutar Escenario Completo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ejecutar Escenario Completo": {
+      "main": [
+        [
+          {
+            "node": "Responder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "_notes": [
+    "Master Orchestrator — ejecuta los 10 agentes en secuencia (§12.1 narrative).",
+    "Endpoint: POST http://app:3000/api/orchestrate con action=full",
+    "4 escenarios: indisutex_wa_catalog | client_woocommerce | client_shopify | client_supabase_nuestro",
+    "Importar: n8n → Workflows → Import from File → seleccionar este JSON"
+  ]
+}

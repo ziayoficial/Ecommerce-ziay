@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ZIAY logo blanco — para fondos emerald/oscuros (footer, login gradient) -->
+<svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 40">
+<defs>
+  <style type="text/css">
+    .ziay-text-w { fill: #FFFFFF; font-family: 'Geist', 'Inter', system-ui, sans-serif; font-weight: 800; font-size: 20px; letter-spacing: 2px; }
+    .ziay-tagline-w { fill: #FFFFFF; font-family: 'Geist', 'Inter', system-ui, sans-serif; font-weight: 400; font-size: 7px; letter-spacing: 1.5px; opacity: 0.7; }
+  </style>
+</defs>
+<!-- Mark con borde blanco translúcido -->
+<rect x="2" y="2" width="36" height="36" rx="9" ry="9" fill="none" stroke="#FFFFFF" stroke-width="1.5" opacity="0.3" />
+<path fill="#FFFFFF" d="M28,11H12v3.8l10.5,11.4H12V30h16v-3.8L17.5,14.8H28V11z" />
+<circle cx="32" cy="32" r="2.5" fill="#FFFFFF" opacity="0.9" />
+<text x="48" y="22" class="ziay-text-w">ZIAY</text>
+<text x="48" y="32" class="ziay-tagline-w">COMERCIO CONVERSACIONAL</text>
+</svg>

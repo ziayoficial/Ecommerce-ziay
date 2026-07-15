@@ -1,0 +1,123 @@
+{
+  "name": "CommerceFlow — Agente 6.1 Perfilamiento de leads",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "agent-profile",
+        "responseMode": "responseNode"
+      },
+      "id": "webhook-profile",
+      "name": "Webhook Entrada",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://app:3000/api/agents/profile",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "tenantId",
+              "value": "={{ $json.body.tenantId }}"
+            },
+            {
+              "name": "conversationId",
+              "value": "={{ $json.body.conversationId }}"
+            },
+            {
+              "name": "customerId",
+              "value": "={{ $json.body.customerId }}"
+            },
+            {
+              "name": "perfil",
+              "value": "={{ $json.body.perfil }}"
+            },
+            {
+              "name": "items",
+              "value": "={{ $json.body.items }}"
+            },
+            {
+              "name": "query",
+              "value": "={{ $json.body.query }}"
+            },
+            {
+              "name": "message",
+              "value": "={{ $json.body.message }}"
+            },
+            {
+              "name": "partialAddress",
+              "value": "={{ $json.body.partialAddress }}"
+            },
+            {
+              "name": "imageUrl",
+              "value": "={{ $json.body.imageUrl }}"
+            }
+          ]
+        }
+      },
+      "id": "call-agent-profile",
+      "name": "Llamar Agente profile",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      },
+      "id": "respond-profile",
+      "name": "Responder",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        440,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook Entrada": {
+      "main": [
+        [
+          {
+            "node": "Llamar Agente profile",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Llamar Agente profile": {
+      "main": [
+        [
+          {
+            "node": "Responder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "_notes": [
+    "Agente 6.1 Perfilamiento de leads — Clasifica mayorista/emprendedor/detal/regalo",
+    "Endpoint: POST http://app:3000/api/agents/profile",
+    "Importar: n8n → Workflows → Import from File → seleccionar este JSON",
+    "Activar workflow después de importar."
+  ]
+}

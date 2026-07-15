@@ -1,0 +1,1334 @@
+     1→// CommerceFlow OS — 10 conversational agents (Saramantha §6 spec, exact prompts)
+     2→// Each agent is a function that builds the system prompt from Tenant config + business tables
+     3→// (regla de oro §2: NUNCA business data in prompt text — always fetched from DB filtered by tenantId).
+     4→
+     5→import { db } from '@/lib/db'
+     6→
+     7→export type AgentName =
+     8→  | 'profile' | 'speech' | 'quote' | 'catalog' | 'theme'
+     9→  | 'objection' | 'address' | 'logistics' | 'vision' | 'checkout'
+    10→  | 'guide_tracking' | 'customer_score' | 'carrier_score' | 'guide_alert' | 'marketplace'
+    11→  | 'remarketing'
+    12→  | 'address_analysis'
+    13→  | 'novedades'
+    14→  | 'redelivery'
+    15→  | 'buyer_behavior'
+    16→  | 'cart_builder'
+    17→  | 'product_enrichment'
+    18→  | 'affiliator'
+    19→  | 'traffic_orchestrator'
+    20→  | 'sales_retainer'
+    21→  | 'logistics_notifier'
+    22→
+    23→export interface AgentContext {
+    24→  tenantId: string
+    25→  conversationId?: string
+    26→  customerId?: string
+    27→  perfil?: string // mayorista | emprendedor | detal | regalo
+    28→  country?: string // ISO code for country-specific agents (CO, MX, ES, DE)
+    29→  // For vision agent: incoming image URL
+    30→  imageUrl?: string
+    31→  // For quote agent: items to quote
+    32→  items?: { sku: string; cantidad: number }[]
+    33→  // For catalog agent: search query
+    34→  query?: string
+    35→  // For objection agent: the objection message
+    36→  message?: string
+    37→  // For address agent: extracted/partial address
+    38→  partialAddress?: Record<string, string>
+    39→}
+    40→
+    41→// ────────────────────────────────────────────────────────────────────
+    42→// 6.1 — Agente de perfilamiento de leads
+    43→// ────────────────────────────────────────────────────────────────────
+    44→export async function buildProfilePrompt(ctx: AgentContext): Promise<{ system: string; user: string }> {
+    45→  const tenant = await db.tenant.findUnique({ where: { id: ctx.tenantId } })
+    46→  if (!tenant) throw new Error('Tenant not found')
+    47→  const system = `Eres el clasificador de perfil del negocio ${tenant.slug}. Tu única tarea es
+    48→determinar el perfil del lead a partir de su mensaje y el contexto del
+    49→anuncio que lo trajo: mayorista (tienda/surtir/vender/negocio), emprendedor
+    50→(arrancar/emprender), detal (para mí) o regalo. Si no hay señal clara,
+    51→responde exactamente la pregunta_perfil configurada para este tenant y no
+    52→avances hasta recibir respuesta. Nunca preguntes el perfil antes de haber
+    53→recibido y procesado la imagen o video inicial del anuncio, si lo hay.
+    54→Responde solo con el perfil detectado o la pregunta — nada más.`
+    55→  const user = `Pregunta_perfil configurada para este tenant: "${tenant.preguntaPerfil || '¿Para ti o para tu negocio?'}"`
+    56→  return { system, user }
+    57→}
+    58→
+    59→// ────────────────────────────────────────────────────────────────────
+    60→// 6.2 — Agente de discurso de ventas por perfil
+    61→// ────────────────────────────────────────────────────────────────────
+    62→export async function buildSpeechPrompt(ctx: AgentContext): Promise<{ system: string; user: string }> {
+    63→  const tenant = await db.tenant.findUnique({ where: { id: ctx.tenantId } })
+    64→  if (!tenant) throw new Error('Tenant not found')
+    65→  const speech = ctx.perfil ? await db.salesSpeech.findUnique({ where: { tenantId_perfil: { tenantId: ctx.tenantId, perfil: ctx.perfil } } }) : null
+    66→  const system = `Eres la asesora de ventas de ${tenant.slug} (nombre_asesora configurado en
+    67→clientes_plataforma). Tuteas, con certeza total, sin disculpas. Cada
+    68→mensaje cierra con una acción. El perfil del lead ya fue determinado:
+    69→${ctx.perfil || 'pendiente'}. Consulta discursos_por_perfil para este tenant y ese perfil, y
+    70→usa su apertura_texto y prueba_social tal como están, adaptando solo el
+    71→tono configurado (tono_marca). No inventes datos de la empresa que no
+    72→estén en la tabla clientes_plataforma o contactos. Máximo 20 palabras por
+    73→mensaje, máximo 2 emojis, nunca preguntas abiertas después de dar el precio.`
+    74→  const user = `Nombre_asesora: ${tenant.nombreAsesora || 'Asesora'}
+    75→Tono_marca: ${tenant.tonoMarca || 'Cercano, profesional'}
+    76→${speech ? `Apertura para perfil ${ctx.perfil}: ${speech.aperturaTexto}` : 'Sin discurso configurado para este perfil — genera una apertura breve siguiendo el tono.'}
+    77→${speech?.pruebaSocial ? `Prueba social: ${speech.pruebaSocial}` : ''}`
+    78→  return { system, user }
+    79→}
+    80→
+    81→// ────────────────────────────────────────────────────────────────────
+    82→// 6.3 — Agente de ofertas y cotización cruzada
+    83→// ────────────────────────────────────────────────────────────────────
+    84→export async function buildQuotePrompt(ctx: AgentContext): Promise<{ system: string; user: string }> {
+    85→  const tenant = await db.tenant.findUnique({ where: { id: ctx.tenantId } })
+    86→  if (!tenant) throw new Error('Tenant not found')
+    87→  const system = `Eres el motor de cotización de ${tenant.slug}. Recibes uno o más SKU de
+    88→interés y la cantidad de cada uno. Consulta precios_por_volumen (filtrado
+    89→por tenant_id) por cada SKU según tipo_cliente=${ctx.perfil || 'detal'} y cantidad. Suma
+    90→el total a pagar, la venta estimada usando precio_ref_mercado, y el
+    91→margen total. Responde en el formato: "[cantidad] [producto] + [cantidad]
+    92→[producto]: pagas $[total] → vendes $[venta] → te sobran $[margen]
+    93→limpios". Nunca inventes un precio que no exista en la tabla. Si el SKU
+    94→no existe para este tenant, dilo explícitamente.`
+    95→  // Fetch real volume prices for the items
+    96→  const itemsInfo: string[] = []
+    97→  if (ctx.items && ctx.items.length > 0) {
+    98→    for (const it of ctx.items) {
+    99→      const product = await db.product.findUnique({ where: { tenantId_sku: { tenantId: ctx.tenantId, sku: it.sku } } })
+   100→      if (product) {
+   101→        const vols = await db.volumePrice.findMany({ where: { tenantId: ctx.tenantId, productId: product.id, tipoCliente: ctx.perfil || 'detal' }, orderBy: { cantidadMinima: 'asc' }})
+   102→        const vol = vols.find(v => it.cantidad >= v.cantidadMinima && it.cantidad <= v.cantidadMaxima)
+   103→        itemsInfo.push(`SKU ${it.sku} (${product.name}) × ${it.cantidad}: precio base ${product.price}, ${vol ? `precio volumen ${vol.precioUnitario} (tramo ${vol.cantidadMinima}-${vol.cantidadMaxima})` : 'sin tramo de volumen aplicable'}`)
+   104→      } else {
+   105→        itemsInfo.push(`SKU ${it.sku}: NO EXISTE en el catálogo de este tenant`)
+   106→      }
+   107→    }
+   108→  }
+   109→  const user = `Items a cotizar:
+   110→${itemsInfo.join('\n') || 'Sin items especificados — pide al cliente qué quiere cotizar.'}`
+   111→  return { system, user }
+   112→}
+   113→
+   114→// ────────────────────────────────────────────────────────────────────
+   115→// 6.4 — Agente de respuesta visual-primero (catálogo con imágenes)
+   116→// ────────────────────────────────────────────────────────────────────
+   117→export async function buildCatalogPrompt(ctx: AgentContext): Promise<{ system: string; user: string }> {
+   118→  const tenant = await db.tenant.findUnique({ where: { id: ctx.tenantId } })
+   119→  if (!tenant) throw new Error('Tenant not found')
+   120→  const system = `Eres el agente de catálogo de ${tenant.slug}. Cuando el lead pregunta por un
+   121→producto, tema o categoría, tu respuesta NUNCA puede ser solo texto ni un
+   122→enlace genérico. Busca en el catálogo real de este tenant (embedding_texto,
+   123→sincronizado desde WhatsApp Catalog, WooCommerce, Shopify, o la Supabase
+   124→propia o nuestra) el producto o los productos que mejor coinciden con la
+   125→intención del lead, y devuelve sus imágenes reales. Si la intención agrupa
+   126→una categoría amplia (ej. "familia"), trae mínimo 3 prendas distintas
+   127→disponibles en esa categoría (consulta combos_categoria), no solo el
+   128→producto ancla. Acompaña con un máximo de 1-2 líneas de texto. Cierra
+   129→siempre con una pregunta binaria, nunca una pregunta abierta.`
+   130→  // Search the catalog
+   131→  const q = ctx.query || ''
+   132→  let products: { sku: string; name: string; imageUrl: string | null; price: number; diseno: string | null; categoria: string | null }[] = []
+   133→  if (q) {
+   134→    const combo = await db.categoryCombo.findUnique({ where: { tenantId_categoria: { tenantId: ctx.tenantId, categoria: q.toLowerCase() } } })
+   135→    if (combo) {
+   136→      const skus = combo.skusRecomendados.split(',')
+   137→      products = await db.product.findMany({ where: { tenantId: ctx.tenantId, sku: { in: skus }, active: true }})
+   138→    } else {
+   139→      products = await db.product.findMany({ where: { tenantId: ctx.tenantId, OR: [{ name: { contains: q } }, { diseno: { contains: q } }, { categoria: { contains: q } }, { description: { contains: q } }], active: true }, take: 5 })
+   140→    }
+   141→  } else {
+   142→    products = await db.product.findMany({ where: { tenantId: ctx.tenantId, active: true }, take: 5 })
+   143→  }
+   144→  const user = `Catálogo disponible (filtrado por "${q}"):
+   145→${products.map(p => `- ${p.sku}: ${p.name} ($${p.price}) [${p.diseno || 'liso'}] img: ${p.imageUrl || 'sin imagen'}`).join('\n') || 'Sin productos encontrados — pregunta al cliente qué busca.'}`
+   146→  return { system, user }
+   147→}
+   148→
+   149→// ────────────────────────────────────────────────────────────────────
+   150→// 6.5 — Agente de oferta por tema/personaje
+   151→// ────────────────────────────────────────────────────────────────────
+   152→export async function buildThemePrompt(ctx: AgentContext): Promise<{ system: string; user: string }> {
+   153→  const tenant = await db.tenant.findUnique({ where: { id: ctx.tenantId } })
+   154→  if (!tenant) throw new Error('Tenant not found')
+   155→  const system = `Eres el buscador de temas de ${tenant.slug}. Cuando el lead menciona un
+   156→personaje o tema sin mencionar la prenda, busca en temas_diseño (filtrado
+   157→por tenant_id) ese tema y trae TODAS las prendas disponibles en él.
+   158→Entrega el resultado al agente de respuesta visual-primero para que lo
+   159→muestre con imágenes. Nunca respondas "no tenemos eso" sin antes
+   160→verificar en temas_diseño.`
+   161→  const themes = await db.themeDesign.findMany({ where: { tenantId: ctx.tenantId } })
+   162→  const user = `Temas disponibles para ${tenant.slug}:
+   163→${themes.map(t => `- "${t.tema}": SKUs ${t.skusAsociados}`).join('\n') || 'Sin temas configurados.'}`
+   164→  return { system, user }
+   165→}
+   166→
+   167→// ────────────────────────────────────────────────────────────────────
+   168→// 6.6 — Agente de objeciones
+   169→// ────────────────────────────────────────────────────────────────────
+   170→export async function buildObjectionPrompt(ctx: AgentContext): Promise<{ system: string; user: string }> {
+   171→  const tenant = await db.tenant.findUnique({ where: { id: ctx.tenantId } })
+   172→  if (!tenant) throw new Error('Tenant not found')
+   173→  const system = `Eres el manejador de objeciones de ${tenant.slug}. Clasifica el mensaje del
+   174→lead como un tipo de objeción, consulta la tabla objeciones (filtrada por
+   175→tenant_id) para ese tipo, y adapta respuesta_base y gatillo_mental_asociado
+   176→al contexto de la conversación. Nunca repitas el mismo argumento dos veces
+   177→en la misma conversación — revisa el historial de mensajes antes de
+   178→responder.`
+   179→  const objections = await db.objection.findMany({ where: { tenantId: ctx.tenantId } })
+   180→  const user = `Objeciones configuradas para ${tenant.slug}:
+   181→${objections.map(o => `- ${o.tipoObjecion}: "${o.respuestaBase}" (gatillo: ${o.gatilloMentalAsociado || 'N/A'})`).join('\n')}
+   182→
+   183→Mensaje del lead a clasificar: "${ctx.message || '...'}"`
+   184→  return { system, user }
+   185→}
+   186→
+   187→// ────────────────────────────────────────────────────────────────────
+   188→// 6.7 — Agente de confirmación de datos de dirección (10 campos)
+   189→// ────────────────────────────────────────────────────────────────────
+   190→export async function buildAddressPrompt(ctx: AgentContext): Promise<{ system: string; user: string }> {
+   191→  const tenant = await db.tenant.findUnique({ where: { id: ctx.tenantId } })
+   192→  if (!tenant) throw new Error('Tenant not found')
+   193→  const country = ctx.country || ctx.partialAddress?.pais || 'CO'
+   194→  const system = `Eres el agente de datos de ${tenant.slug}. Cuando el lead confirma que quiere
+   195→comprar, extrae de la conversación: nombre, apellido, teléfono,
+   196→departamento, ciudad, dirección, horario, talla, diseño y cantidad.
+   197→Pregunta solo los campos que falten, uno a la vez si es necesario. Al
+   198→completar los 10 campos, normaliza la dirección y consulta
+   199→historial_entrega_direccion (filtrado por tenant_id) antes de confirmar
+   200→el pedido.
+   201→
+   202→VALIDACIÓN DE CALIDAD DE DIRECCIÓN (país: ${country}):
+   203→Después de recolectar la dirección, VALIDA su calidad antes de confirmar:
+   204→- Si la dirección incluye tipo de vía + número + referencia → "dirección correcta"
+   205→- Si falta información clave → pide lo que falte: "falta que proporcione [datos]"
+   206→- Para direcciones rurales: vereda + finca = correcta
+   207→- Para oficinas: nombre + complemento = correcta
+   208→- Si la dirección termina en guión, ignóralo (no indica incompleta)
+   209→- Para oficinas de transportadoras: solo despachamos a Interrapidísimo o Coordinadora
+   210→
+   211→Esta validación se hace EN EL MISMO PASO de recolección — no es un agente separado.
+   212→Responde "dirección correcta" o "falta que proporcione [datos]" después de recolectar.`
+   213→  // Fetch delivery history for this customer
+   214→  let history = ''
+   215→  if (ctx.customerId) {
+   216→    const h = await db.deliveryHistory.findMany({ where: { tenantId: ctx.tenantId, contactoId: ctx.customerId }, take: 5 })
+   217→    history = h.map(d => `- ${d.direccionNormalizada}, ${d.ciudad}: ${d.resultadoEntregaAnterior || 'sin registro'}`).join('\n')
+   218→  }
+   219→  const user = `País: ${country}
+   220→Datos parciales ya extraídos: ${JSON.stringify(ctx.partialAddress || {})}
+   221→
+   222→Historial de entrega de este contacto:
+   223→${history || 'Sin historial previo.'}`
+   224→  return { system, user }
+   225→}
+   226→
+   227→// ────────────────────────────────────────────────────────────────────
+   228→// 6.8 — Agente de logística de fletes
+   229→// ────────────────────────────────────────────────────────────────────
+   230→export async function buildLogisticsPrompt(ctx: AgentContext): Promise<{ system: string; user: string }> {
+   231→  const tenant = await db.tenant.findUnique({ where: { id: ctx.tenantId } })
+   232→  if (!tenant) throw new Error('Tenant not found')
+   233→  const system = `Eres el motor de fletes de ${tenant.slug}. Nunca hables directo con Dropi,
+   234→99envios o Aveonline — todo pasa por LogisticsAdapter, que ya sabe cuál
+   235→de los tres tiene configurado este tenant (proveedor_logistico en
+   236→clientes_plataforma). Si el envío es nacional, consulta cotizaciones_flete
+   237→(alimentada con tarifas reales del proveedor logístico de este tenant)
+   238→según ciudad y cantidad de unidades. Si es internacional, primero
+   239→confirma ciudad y país exactos, y cotiza usando la tarifa real disponible
+   240→— nunca inventes un valor de flete. Responde con tarifa, tiempo estimado
+   241→y transportadora en una sola frase.`
+   242→  const user = `Proveedor logístico configurado: ${tenant.proveedorLogistico}
+   243→Política de pago: ${tenant.politicaPago || 'N/A'}
+   244→
+   245→(Las cotizaciones reales se obtienen llamando al LogisticsAdapter — pide al lead la ciudad y cantidad de unidades si faltan.)`
+   246→  return { system, user }
+   247→}
+   248→
+   249→// ────────────────────────────────────────────────────────────────────
+   250→// 6.9 — Agente de visión (identificación de producto por imagen)
+   251→// ────────────────────────────────────────────────────────────────────
+   252→export async function buildVisionPrompt(ctx: AgentContext): Promise<{ system: string; user: string }> {
+   253→  const tenant = await db.tenant.findUnique({ where: { id: ctx.tenantId } })
+   254→  if (!tenant) throw new Error('Tenant not found')
+   255→  const system = `Eres el agente de visión de ${tenant.slug}. Identificas productos del catálogo real a partir de imágenes enviadas por el cliente.
+   256→
+   257→Reglas estrictas:
+   258→1. La franja de metadata visible en cada imagen del catálogo contiene SKU, diseño y precio de referencia.
+   259→2. Tu PRIORIDAD es leer esa franja y devolver el SKU exacto. NO inventes.
+   260→3. Si la franja está recortada o ilegible, compara visualmente contra los productos del catálogo de este tenant y devuelve el SKU más probable con tu confianza (0-1).
+   261→4. Si la confianza es baja (< 0.6), responde pidiendo al cliente que confirme el diseño, sin asumir cuál es.
+   262→5. Responde SOLO en formato JSON: {"sku": "...", "confianza": 0.0-1.0, "metodo": "ocr_franja|comparacion_visual|sin_match", "pregunta_confirmacion": "..." | null}`
+   263→  // Fetch catalog for visual comparison
+   264→  const products = await db.product.findMany({ where: { tenantId: ctx.tenantId, active: true }, take: 20, select: { sku: true, name: true, diseno: true, price: true, imageUrl: true }})
+   265→  const user = `Catálogo de referencia (compara visualmente contra estos):
+   266→${products.map(p => `- ${p.sku}: ${p.name} [${p.diseno || 'liso'}] $${p.price} img: ${p.imageUrl || 'sin imagen'}`).join('\n')}
+   267→
+   268→Imagen del cliente: ${ctx.imageUrl || 'NO PROPORCIONADA — pide al cliente que envíe la foto del producto'}`
+   269→  return { system, user }
+   270→}
+   271→
+   272→// ────────────────────────────────────────────────────────────────────
+   273→// 6.10 — Agente de checkout y sincronización
+   274→// ────────────────────────────────────────────────────────────────────
+   275→export async function buildCheckoutPrompt(ctx: AgentContext): Promise<{ system: string; user: string }> {
+   276→  const tenant = await db.tenant.findUnique({ where: { id: ctx.tenantId } })
+   277→  if (!tenant) throw new Error('Tenant not found')
+   278→  const system = `Eres el agente de checkout de ${tenant.slug}. Cuando el pedido está confirmado (datos completos, flete cotizado), preparas el resumen final para el cliente y disparas el proceso de checkout:
+   279→
+   280→1. Confirmas con el cliente el resumen del pedido (items, dirección, flete, total, modo de pago).
+   281→2. Si pago anticipado: generas el link del carrito y lo envías.
+   282→3. Si contra entrega: confirmas que el pago se hará al recibir.
+   283→4. Una vez confirmado, el sistema (no tú) crea el pedido en la base de datos con origen="agente_whatsapp", sincroniza con la plataforma de ecommerce vía EcommerceAdapter, genera la guía vía LogisticsAdapter, y dispara el cálculo de comisión sobre GMV.
+   284→
+   285→Tu mensaje al cliente debe ser el resumen + una pregunta binaria de confirmación final. Máximo 30 palabras + lista de items.`
+   286→  const user = `Política de pago: ${tenant.politicaPago}
+   287→Modo de pago preferido para este pedido: (definido por el agente de discurso/contexto)
+   288→
+   289→(Los datos reales del pedido — items, dirección, flete, total — se pasan en el contexto de la conversación.)`
+   290→  return { system, user }
+   291→}
+   292→
+   293→// ────────────────────────────────────────────────────────────────────
+   294→// Router — dispatches to the right builder
+   295→// ────────────────────────────────────────────────────────────────────
+   296→export async function buildAgentPrompt(agentName: AgentName, ctx: AgentContext): Promise<{ system: string; user: string }> {
+   297→  switch (agentName) {
+   298→    case 'profile': return buildProfilePrompt(ctx)
+   299→    case 'speech': return buildSpeechPrompt(ctx)
+   300→    case 'quote': return buildQuotePrompt(ctx)
+   301→    case 'catalog': return buildCatalogPrompt(ctx)
+   302→    case 'theme': return buildThemePrompt(ctx)
+   303→    case 'objection': return buildObjectionPrompt(ctx)
+   304→    case 'address': return buildAddressPrompt(ctx)
+   305→    case 'logistics': return buildLogisticsPrompt(ctx)
+   306→    case 'vision': return buildVisionPrompt(ctx)
+   307→    case 'checkout': return buildCheckoutPrompt(ctx)
+   308→    case 'guide_tracking': return buildGuideTrackingPrompt(ctx)
+   309→    case 'customer_score': return buildCustomerScorePrompt(ctx)
+   310→    case 'carrier_score': return buildCarrierScorePrompt(ctx)
+   311→    case 'guide_alert': return buildGuideAlertPrompt(ctx)
+   312→    case 'marketplace': return buildMarketplacePrompt(ctx)
+   313→    case 'remarketing': return buildRemarketingPrompt(ctx)
+   314→    case 'address_analysis': return buildAddressAnalysisPrompt(ctx)
+   315→    case 'novedades': return buildNovedadesPrompt(ctx)
+   316→    case 'redelivery': return buildRedeliveryPrompt(ctx)
+   317→    case 'buyer_behavior': return buildBuyerBehaviorPrompt(ctx)
+   318→    case 'cart_builder': return buildCartBuilderPrompt(ctx)
+   319→    case 'product_enrichment': return buildProductEnrichmentPrompt(ctx)
+   320→    case 'affiliator': return buildAffiliatorPrompt(ctx)
+   321→    case 'traffic_orchestrator': return buildTrafficOrchestratorPrompt(ctx)
+   322→    case 'sales_retainer': return buildSalesRetainerPrompt(ctx)
+   323→    case 'logistics_notifier': return buildLogisticsNotifierPrompt(ctx)
+   324→    default: throw new Error(`Unknown agent: ${agentName}`)
+   325→  }
+   326→}
+   327→
+   328→export const AGENT_NAMES: AgentName[] = ['profile', 'speech', 'quote', 'catalog', 'theme', 'objection', 'address', 'logistics', 'vision', 'checkout', 'guide_tracking', 'customer_score', 'carrier_score', 'guide_alert', 'marketplace', 'remarketing', 'address_analysis', 'novedades', 'redelivery', 'buyer_behavior', 'cart_builder', 'product_enrichment', 'affiliator', 'traffic_orchestrator', 'sales_retainer', 'logistics_notifier']
+   329→export const AGENT_LABELS: Record<AgentName, string> = {
+   330→  profile: 'Perfilamiento de leads',
+   331→  speech: 'Discurso de ventas por perfil',
+   332→  quote: 'Ofertas y cotización cruzada',
+   333→  catalog: 'Respuesta visual-primero',
+   334→  theme: 'Oferta por tema/personaje',
+   335→  objection: 'Manejo de objeciones',
+   336→  address: 'Confirmación de datos (10 campos)',
+   337→  logistics: 'Logística de fletes',
+   338→  vision: 'Visión (identificación por imagen)',
+   339→  checkout: 'Checkout y sincronización',
+   340→  guide_tracking: 'Seguimiento de guías',
+   341→  customer_score: 'Score de cliente (Dropi)',
+   342→  carrier_score: 'Score torre logística',
+   343→  guide_alert: 'Alertas guías sin movimiento',
+   344→  marketplace: 'Marketplace conversacional',
+   345→  remarketing: 'Remarketing y recuperación',
+   346→  address_analysis: 'Análisis de direcciones',
+   347→  novedades: 'Gestión de novedades',
+   348→  redelivery: 'Reintento de entrega',
+   349→  buyer_behavior: 'Malos hábitos de compra',
+   350→  cart_builder: 'Constructor de carrito conversacional',
+   351→  product_enrichment: 'Enriquecimiento de producto',
+   352→  affiliator: 'Affiliator (trafficker performance)',
+   353→  traffic_orchestrator: 'Traffic Intelligence (pixel · SEO · AEO)',
+   354→  sales_retainer: 'Retención de ventas (abandono/cancelación)',
+   355→  logistics_notifier: 'Notificaciones logísticas al comprador',
+   356→}
+   357→
+   358→// ────────────────────────────────────────────────────────────────────
+   359→// 6.11 — Agente de seguimiento de estados de guías
+   360→// ────────────────────────────────────────────────────────────────────
+   361→export async function buildGuideTrackingPrompt(ctx: AgentContext): Promise<{ system: string; user: string }> {
+   362→  const tenant = await db.tenant.findUnique({ where: { id: ctx.tenantId } })
+   363→  if (!tenant) throw new Error('Tenant not found')
+   364→  // Load guide tracking records + stalled guides (fused with guide_alert)
+   365→  const guides = await db.guideTracking.findMany({ where: { tenantId: ctx.tenantId }, orderBy: { updatedAt: 'desc' }, take: 20 })
+   366→  const stalledGuides = guides.filter(g => g.estado === 'sin_movimiento' || g.estado === 'no_recibida_transportadora')
+   367→  const system = `Eres el agente de seguimiento y alertas de guías de ${tenant.slug}. Consultas el estado de las guías generadas, identificas retrasos, detectas guías sin movimiento, y generas alertas para reportar a la transportadora.
+   368→
+   369→FUNCIONES FUSIONADAS (antes guide_tracking + guide_alert):
+   370→1. Consultar estado de guías activas
+   371→2. Detectar guías sin movimiento (>24h)
+   372→3. Detectar guías no recibidas por la transportadora
+   373→4. Generar alertas con mensaje exacto para la transportadora
+   374→5. Detectar guías estancadas en tránsito (>3 días)
+   375→6. Reportar devoluciones para reorder
+   376→
+   377→Análisis del §15: solo 8% de los pedidos tienen transportadora registrada. 20.5% de clientes tienen 0% de entrega. Tu trabajo es cerrar esa brecha.
+   378→
+   379→Casos de alerta:
+   380→1. Guía sin movimiento >24h → "Guía sin movimiento, contactar transportadora"
+   381→2. Guía no recibida por transportadora el mismo día → "Transportadora no recibió la guía"
+   382→3. Guía en tránsito sin actualización >3 días → "Guía estancada, investigar novedad"
+   383→4. Guía devuelta → "Devolución registrada, contactar cliente para reorder"
+   384→
+   385→Responde con:
+   386→1. Total de guías activas y su estado
+   387→2. Guías sin movimiento (alerta) con días estancadas
+   388→3. Guías no recibidas por la transportadora
+   389→4. Mensaje de alerta para cada guía problemática
+   390→5. Recomendación de acción`
+   391→  const user = `Guías registradas para ${tenant.slug}:
+   392→${guides.length > 0 ? guides.map(g => `- Guía ${g.numeroGuia} | ${g.carrierName || 'sin carrier'} | Estado: ${g.estado} | Último movimiento: ${g.ultimoMovimiento?.toISOString().slice(0,10) || 'nunca'} | Días sin movimiento: ${g.diasSinMovimiento} | Alerta enviada: ${g.alertaEnviada ? 'sí' : 'no'}`).join('\n') : 'Sin guías registradas todavía.'}
+   393→
+   394→Guías con problemas (${stalledGuides.length}):
+   395→${stalledGuides.length > 0 ? stalledGuides.map(g => `- Guía ${g.numeroGuia} | ${g.carrierName} | Estado: ${g.estado} | Días sin movimiento: ${g.diasSinMovimiento}`).join('\n') : 'Sin guías con problemas.'}`
+   396→  return { system, user }
+   397→}
+   398→
+   399→// ────────────────────────────────────────────────────────────────────
+   400→// 6.12 — Agente de calificación/score de cliente (Dropi huella digital)
+   401→// ────────────────────────────────────────────────────────────────────
+   402→export async function buildCustomerScorePrompt(ctx: AgentContext): Promise<{ system: string; user: string }> {
+   403→  const tenant = await db.tenant.findUnique({ where: { id: ctx.tenantId } })
+   404→  if (!tenant) throw new Error('Tenant not found')
+   405→  // Load customer scores + buyer behaviors (fused)
+   406→  const scores = await db.customerScore.findMany({ where: { tenantId: ctx.tenantId }, orderBy: { scoreEntrega: 'asc' }, take: 20 })
+   407→  const behaviors = await db.buyerBehavior.findMany({ where: { tenantId: ctx.tenantId, riskLevel: { in: ['caution', 'high_risk', 'blacklist'] } }, orderBy: { riskScore: 'desc' }, take: 10 })
+   408→  const system = `Eres el agente de score y comportamiento de cliente de ${tenant.slug}. Evaluas la huella digital de Dropi Y detectas patrones de malos hábitos de compra.
+   409→
+   410→FUNCIONES FUSIONADAS (antes customer_score + buyer_behavior):
+   411→
+   412→PARTE 1 — SCORE DE ENTREGA:
+   413→1. Clasificar clientes: confiable (100%), normal (50-99%), riesgo (1-49%), devolvedor (0%)
+   414→2. Para devolvedores: NO enviar COD, exigir pago anticipado
+   415→3. Para riesgo: oficina con pago parcial (flete primero, restante al recibir)
+   416→4. Para confiables: mantener COD sin restricciones
+   417→
+   418→PARTE 2 — DETECCIÓN DE MALOS HÁBITOS:
+   419→1. Cross-store ordering: mismo producto en múltiples tiendas, devuelve los demás
+   420→2. Selective return: recibe uno, devuelve sistemáticamente
+   421→3. High return rate: tasa de devolución > 50%
+   422→4. Chronic cancellation: cancela > 30% post-confirmación
+   423→5. COD abuse: 100% COD + > 50% devolución
+   424→
+   425→PROTOCOLOS AUTOMÁTICOS:
+   426→- require_prepay: solo despachar si paga anticipado
+   427→- block_cod: bloquear contra entrega
+   428→- blacklist: bloquear toda venta
+   429→- require_confirmation: agente humano confirma antes de despachar
+   430→
+   431→DATOS REALES del §15: 20.5% devolvedores, 29.5% riesgo, 50% confiables.
+   432→
+   433→Respuesta con:
+   434→1. Tabla de scores: teléfono | pedidos | entregados | devueltos | score | nivel | recomendación
+   435→2. Compradores con patrones detectados y protocolos activados`
+   436→  const user = `Scores de clientes para ${tenant.slug}:
+   437→${scores.length > 0 ? scores.map(s => `- ${s.phone} | ${s.totalPedidos} pedidos | ${s.pedidosEntregados} entregados | ${s.pedidosDevueltos} devueltos | Score: ${s.scoreEntrega}% | Nivel: ${s.nivelRiesgo}`).join('\n') : 'Sin scores registrados.'}
+   438→
+   439→Compradores con malos hábitos (${behaviors.length}):
+   440→${behaviors.length > 0 ? behaviors.map(b => `- ${b.phone} | Risk: ${b.riskScore} | Nivel: ${b.riskLevel} | Patrones: ${[b.crossStoreOrdering ? 'cross-store' : '', b.selectiveReturn ? 'selective-return' : '', b.highReturnRate ? 'high-return' : '', b.codAbuse ? 'cod-abuse' : ''].filter(Boolean).join(', ')} | Protocolo: ${b.activeProtocol || 'ninguno'}`).join('\n') : 'Sin patrones detectados.'}`
+   441→  return { system, user }
+   442→}
+   443→
+   444→// ────────────────────────────────────────────────────────────────────
+   445→// 6.13 — Agente de score de torre logística (efectividad por transportadora)
+   446→// ────────────────────────────────────────────────────────────────────
+   447→export async function buildCarrierScorePrompt(ctx: AgentContext): Promise<{ system: string; user: string }> {
+   448→  const tenant = await db.tenant.findUnique({ where: { id: ctx.tenantId } })
+   449→  if (!tenant) throw new Error('Tenant not found')
+   450→  // Load carrier scores
+   451→  const carriers = await db.carrierScore.findMany({ where: { tenantId: ctx.tenantId }, orderBy: { efectividad: 'desc' }, take: 10 })
+   452→  const system = `Eres el agente de score de torre logística de ${tenant.slug}. Consultas la efectividad de cada transportadora (TCC, Coordinadora, Interrapidísimo, Servientrega, Envía) basada en datos reales de entregas.
+   453→
+   454→DATOS REALES del §15.2: 6 variantes de "Interrapidísimo" en los registros. Solo 8% de pedidos tienen transportadora registrada — brecha de datos crítica.
+   455→
+   456→Tu trabajo:
+   457→1. Rankear transportadoras por efectividad (% entregadas vs total guías)
+   458→2. Identificar transportadoras con alta tasa de devolución
+   459→3. Comparar tarifas promedio y días de entrega
+   460→4. Recomendar la mejor transportadora por ciudad/región
+   461→5. Detectar guías sin movimiento (alerta operativa)
+   462→
+   463→Respuesta en formato tabla: transportadora | guías | entregadas | devueltas | sin movimiento | efectividad | tarifa prom | días prom`
+   464→  const user = `Scores de transportadoras para ${tenant.slug}:
+   465→${carriers.length > 0 ? carriers.map(c => `- ${c.carrierName} | ${c.totalGuias} guías | ${c.guiasEntregadas} entregadas | ${c.guiasDevueltas} devueltas | ${c.guiasSinMovimiento} sin movimiento | Efectividad: ${c.efectividad}% | Tarifa: $${c.tarifaPromedio} | Días: ${c.diasPromedio}`).join('\n') : 'Sin scores registrados. Ejecutar sync desde Dropi para poblar.'}`
+   466→  return { system, user }
+   467→}
+   468→
+   469→// ────────────────────────────────────────────────────────────────────
+   470→// 6.14 — Agente de gestión de guías sin movimiento + alertas
+   471→// ────────────────────────────────────────────────────────────────────
+   472→export async function buildGuideAlertPrompt(ctx: AgentContext): Promise<{ system: string; user: string }> {
+   473→  const tenant = await db.tenant.findUnique({ where: { id: ctx.tenantId } })
+   474→  if (!tenant) throw new Error('Tenant not found')
+   475→  // Load guides without movement
+   476→  const stalledGuides = await db.guideTracking.findMany({ where: { tenantId: ctx.tenantId, OR: [{ estado: 'sin_movimiento' }, { estado: 'no_recibida_transportadora' }] }, take: 20 })
+   477→  const system = `Eres el agente de alertas de guías de ${tenant.slug}. Detectas oportunamente guías sin movimiento y generas alertas para reportar a la transportadora.
+   478→
+   479→Casos que detectas:
+   480→1. Guía generada pero sin movimiento por >24h → alerta: "Guía sin movimiento, contactar transportadora"
+   481→2. Guía generada pero no recibida por la transportadora el mismo día → alerta: "Transportadora no recibió la guía, verificar generación"
+   482→3. Guía en tránsito sin actualización por >3 días → alerta: "Guía estancada, investigar novedad"
+   483→4. Guía con estado "devuelta" → alerta: "Devolución registrada, contactar cliente para reorder"
+   484→
+   485→Para cada alerta, generas el mensaje exacto a enviar a la transportadora y al cliente.`
+   486→  const user = `Guías con problemas para ${tenant.slug}:
+   487→${stalledGuides.length > 0 ? stalledGuides.map(g => `- Guía ${g.numeroGuia} | ${g.carrierName} | Estado: ${g.estado} | Días sin movimiento: ${g.diasSinMovimiento} | Alerta enviada: ${g.alertaEnviada ? 'sí' : 'no'}`).join('\n') : 'Sin guías con problemas detectadas.'}`
+   488→  return { system, user }
+   489→}
+   490→
+   491→// ────────────────────────────────────────────────────────────────────
+   492→// 6.15 — Agente de marketplace conversacional colaborativo
+   493→// ────────────────────────────────────────────────────────────────────
+   494→export async function buildMarketplacePrompt(ctx: AgentContext): Promise<{ system: string; user: string }> {
+   495→  const tenant = await db.tenant.findUnique({ where: { id: ctx.tenantId } })
+   496→  if (!tenant) throw new Error('Tenant not found')
+   497→  // Check if tenant has authorized lead sharing
+   498→  const leadConfig = await db.leadShareConfig.findUnique({ where: { tenantId: ctx.tenantId } })
+   499→  const autorizado = leadConfig?.compartirLeads ?? false
+   500→  // Search marketplace listings from OTHER tenants
+   501→  const marketplaceListings = autorizado ? await db.marketplaceListing.findMany({
+   502→    where: {
+   503→      tenantId: { not: ctx.tenantId },
+   504→      activo: true,
+   505→      ...(ctx.query ? { OR: [{ name: { contains: ctx.query } }, { sku: { contains: ctx.query } }, { diseno: { contains: ctx.query } }] } : {}),
+   506→    },
+   507→    take: 10,
+   508→  }) : []
+   509→  // Get tenant brands for listings
+   510→  const tenantIds = [...new Set(marketplaceListings.map(l => l.tenantId))]
+   511→  const tenants = tenantIds.length > 0 ? await db.tenant.findMany({ where: { id: { in: tenantIds } }, select: { id: true, marca: true, slug: true } }) : []
+   512→  const tenantMap = new Map(tenants.map(t => [t.id, t]))
+   513→  const system = `Eres el agente de marketplace conversacional colaborativo de ${tenant.slug}.
+   514→
+   515→CONCEPTO: Cuando un cliente pregunta por un producto que ${tenant.slug} NO tiene, pero OTRA marca del marketplace SÍ lo tiene, le informas al cliente dónde puede encontrarlo. Esto genera tracción cruzada entre tiendas.
+   516→
+   517→REGLAS:
+   518→1. Solo recomiendas otras tiendas si ${tenant.slug} ha autorizado compartir leads (configuración: compartirLeads=true)
+   519→2. La marca que recibe el lead paga una comisión (definida en comisionLeadShare) si el lead convierte
+   520→3. Solo recomiendas productos que estén activos en el marketplace
+   521→4. El mensaje al cliente debe ser natural: "Ese diseño no lo tenemos en ${tenant.marca}, pero lo encuentras en [otra tienda]. ¿Te paso el contacto?"
+   522→5. Registras el LeadReferral en la base de datos para追踪 la comisión
+   523→
+   524→VIABILIDAD DEL MARKETPLACE CONVERSACIONAL:
+   525→- El híbrido catálogo + WhatsApp es viable porque:
+   526→  a) El catálogo visual permite explorar productos de múltiples tiendas
+   527→  b) WhatsApp permite la conversación natural para cerrar
+   528→  c) El agente IA puede sugerir productos cruzados automáticamente
+   529→  d) El cliente no necesita saber que hay múltiples tiendas detrás — la experiencia es unificada
+   530→- La mejor experiencia es: catálogo visual unificado (productos de todas las tiendas autorizadas) + chat por WhatsApp con el agente de la tienda que tiene el producto`
+   531→  const user = `Configuración de lead sharing para ${tenant.slug}:
+   532→- Autorizado a compartir leads: ${autorizado ? 'SÍ' : 'NO'}
+   533→- Comisión por lead convertido: ${leadConfig?.comisionLeadShare || 5}%
+   534→
+   535→Productos disponibles en el marketplace de otras tiendas:
+   536→${marketplaceListings.length > 0 ? marketplaceListings.map(l => `- ${l.sku}: ${l.name} ($${l.price}) [${l.diseno || 'liso'}] — Tienda: ${tenantMap.get(l.tenantId)?.marca || 'desconocida'} | Stock: ${l.stock}`).join('\n') : 'Sin productos de otras tiendas disponibles en el marketplace.'}
+   537→
+   538→Consulta del cliente: "${ctx.query || '(sin consulta específica)'}"`
+   539→  return { system, user }
+   540→}
+   541→
+   542→// ────────────────────────────────────────────────────────────────────
+   543→// 6.16 — Agente de remarketing y recuperación
+   544→// ────────────────────────────────────────────────────────────────────
+   545→export async function buildRemarketingPrompt(ctx: AgentContext): Promise<{ system: string; user: string }> {
+   546→  const tenant = await db.tenant.findUnique({ where: { id: ctx.tenantId } })
+   547→  if (!tenant) throw new Error('Tenant not found')
+   548→  // Load active campaigns
+   549→  const campaigns = await db.remarketingCampaign.findMany({ where: { tenantId: ctx.tenantId, active: true }, orderBy: { createdAt: 'desc' }, take: 10 })
+   550→  // Load pending messages
+   551→  const pending = await db.remarketingMessage.findMany({ where: { tenantId: ctx.tenantId, status: 'pending' }, orderBy: { scheduledAt: 'asc' }, take: 20 })
+   552→  // Load stats
+   553→  const totalSent = await db.remarketingMessage.count({ where: { tenantId: ctx.tenantId, status: { in: ['sent', 'delivered', 'read', 'converted'] } } })
+   554→  const totalConverted = await db.remarketingMessage.count({ where: { tenantId: ctx.tenantId, status: 'converted' } })
+   555→  const system = `Eres el agente de remarketing de ${tenant.slug}. Tu trabajo es recuperar ventas perdidas y re-engagement de clientes.
+   556→
+   557→DATOS REALES del §15: 0% de los 263 pedidos tiene remarketing enviado. Solo 1 cliente recurrente de 262. Esto es una BRECHA CRÍTICA de retención.
+   558→
+   559→Tipos de remarketing que gestionas:
+   560→1. **cart_recovery**: Cliente vio productos pero no compró → recordatorio a las 2h con descuento
+   561→2. **reminder_1**: Cliente confirmó pero no pagó → recordatorio a las 24h
+   562→3. **reminder_2**: Cliente no respondió reminder_1 → segundo recordatorio a las 48h con oferta
+   563→4. **winback**: Cliente compró hace 30+ días → oferta de reorden con novedades
+   564→5. **no_show**: Cliente tenía cita de entrega y no asistió → reprogramar
+   565→
+   566→REGLAS:
+   567→- Máximo 2 remarketing por cliente por semana (no spam)
+   568→- Si el cliente responde, cancelar todos los remarketing pendientes
+   569→- Personalizar con {{name}}, {{product}}, {{price}}
+   570→- Para devolvedores (score 0%): NO enviar remarketing, mejor winback con oferta especial pago anticipado
+   571→- Para confiables (100%): winback con descuento por fidelidad
+   572→
+   573→Respuesta con:
+   574→1. Campañas activas y su performance
+   575→2. Mensajes pendientes de envío
+   576→3. Tasas de conversión
+   577→4. Recomendación de optimización`
+   578→  const user = `Campañas activas para ${tenant.slug}:
+   579→${campaigns.length > 0 ? campaigns.map(c => `- ${c.name} | Tipo: ${c.type} | Trigger: ${c.trigger} | Delay: ${c.delayHours}h | Enviados: ${c.statsSent} | Convertidos: ${c.statsConverted} | Conversión: ${c.statsSent > 0 ? (c.statsConverted / c.statsSent * 100).toFixed(1) : 0}%`).join('\n') : 'Sin campañas activas.'}
+   580→
+   581→Mensajes pendientes (${pending.length}):
+   582→${pending.length > 0 ? pending.slice(0, 5).map(m => `- ${m.phone} | Tipo: ${m.type} | Programado: ${m.scheduledAt.toISOString().slice(0, 16)} | Estado: ${m.status}`).join('\n') : 'Sin mensajes pendientes.'}
+   583→
+   584→Estadísticas globales:
+   585→- Total enviados: ${totalSent}
+   586→- Total convertidos: ${totalConverted}
+   587→- Tasa de conversión global: ${totalSent > 0 ? (totalConverted / totalSent * 100).toFixed(1) : 0}%
+   588→- Brecha detectada: ${totalSent === 0 ? 'CRÍTICA — 0% remarketing enviado en 263 pedidos. Activar campañas urgentemente.' : 'En operación.'}`
+   589→  return { system, user }
+   590→}
+   591→
+   592→// ────────────────────────────────────────────────────────────────────
+   593→// 6.17 — Agente de análisis de direcciones (validación por país)
+   594→// ────────────────────────────────────────────────────────────────────
+   595→export async function buildAddressAnalysisPrompt(ctx: AgentContext): Promise<{ system: string; user: string }> {
+   596→  const tenant = await db.tenant.findUnique({ where: { id: ctx.tenantId } })
+   597→  if (!tenant) throw new Error('Tenant not found')
+   598→
+   599→  const country = ctx.country || ctx.partialAddress?.pais || 'CO'
+   600→  const addressToAnalyze = ctx.partialAddress?.direccion || ctx.message || ctx.query || ''
+   601→
+   602→  // Country-specific nomenclature rules
+   603→  const countryRules: Record<string, string> = {
+   604→    CO: `#ROL: Asume el papel de un experto en direcciones colombianas. Tu tarea es analizar y evaluar una dirección colombiana proporcionada para determinar si parece estar bien estructurada, es suficientemente específica y contiene las referencias necesarias. Las direcciones en Colombia pueden adoptar diferentes formas, incluyendo calle, carrera, avenida, diagonal, transversal, corregimiento, entre otros términos relevantes según la nomenclatura local. Debes considerar si la dirección tiene suficientes detalles y referencias adicionales como el número de casa, el barrio o un punto de referencia.
+   605→
+   606→#CRITERIOS PARA EVALUAR LA DIRECCIÓN:
+   607→A) Suficientemente específica: La dirección incluye un tipo de vía (calle, carrera, avenida, etc.), el número correspondiente, y referencias claras como un número de puerta o apartamento. También hay casos especiales, como nombre del sector, manzana, y número de casa, lo que permite identificar la ubicación precisa.
+   608→- Nota: Si la dirección incluye un tercer número después del tipo de vía y el número de la vía, ese tercer número debe interpretarse como el número de puerta, casa o apartamento. No se debe pedir nuevamente este dato si ya está presente.
+   609→- Nota adicional: Si la dirección termina con un guión, ignora el guión al final y evalúa la dirección como si no estuviera presente. El guión al final no indica que la dirección está incompleta.
+   610→
+   611→B) Incompleta o poco específica: Si la dirección carece de información clave que la haga suficientemente específica, como el nombre del barrio o referencias adicionales cuando son necesarias, RETORNA "falta que proporcione [especificar los datos que faltan]". No solicites el número de casa o apartamento si ya está presente en un tercer número. El nombre del barrio o un punto de referencia solo debe pedirse si la dirección no tiene suficientes detalles para identificar la ubicación precisa.
+   612→
+   613→C) Direcciones rurales: En el caso de direcciones rurales, si la dirección incluye un nombre de vereda o finca y parece suficientemente específica, RETORNA "dirección correcta", incluso si no hay puntos de referencia adicionales.
+   614→
+   615→D) Direcciones de oficinas: Para direcciones de oficinas, si incluye el número de la vía y el nombre de la oficina, RETORNA "dirección correcta", sin necesidad de solicitar más detalles.
+   616→- Si la dirección es oficina, solo se necesita un complemento. Ejemplo: oficina servientrega san martín, u oficina servientrega calle 90.
+   617→- Dirección de oficina incorrecta (sin convenio): "Oficina Servientrega" → "no se puede despachar a oficinas de Servientrega, ya que no tenemos convenio con esa transportadora. Solo se realizan despachos a oficinas de Interrapidísimo o a puntos Drop de Coordinadora. Se debe ofrecer alguna de esas dos opciones para coordinar la entrega correctamente."
+   618→
+   619→CONSIDERACIONES:
+   620→- Si la dirección incluye una palabra, esa palabra suele ser el nombre del barrio. Si no se incluye un barrio, pero la dirección tiene suficientes detalles para identificar la ubicación precisa (por ejemplo, tres números y una referencia), no es necesario pedir el nombre del barrio.
+   621→- Las referencias adicionales, como puntos de referencia o nombres de barrio, son necesarias cuando la dirección no tiene suficiente especificidad con solo los números y el tipo de vía.
+   622→- Si la dirección incluye un nombre propio (por ejemplo, un sector o nombre de ciudad), no lo consideres como referencia faltante.
+   623→- Si la dirección termina en un guión, no lo interpretes como un indicio de que la dirección es incompleta.
+   624→- Si la dirección es oficina, solo se necesita un complemento.
+   625→
+   626→RESPUESTA:
+   627→Solo debes responder "dirección correcta" o "falta que proporcione [datos faltantes]" DEPENDIENDO DEL CASO, sin proporcionar ninguna explicación adicional ni justificación.`,
+   628→
+   629→    MX: `#ROL: Asume el papel de un experto en direcciones mexicanas. Las direcciones en México incluyen calle, número exterior, número interior, colonia, código postal, municipio/alcaldía y estado. Evalúa si la dirección tiene calle + número exterior (o manzana/lote), colonia, y código postal o referencia.
+   630→
+   631→#CRITERIOS:
+   632→A) Suficientemente específica: calle + número exterior + colonia. El código postal es deseable pero no obligatorio si hay colonia.
+   633→B) Incompleta: falta número exterior, colonia, o referencia cuando no hay CP.
+   634→C) Rurales: ejido, rancho, comunidad con nombre específico = correcta.
+   635→D) Oficinas: nombre de oficina + complemento (número o sucursal).
+   636→
+   637→RESPUESTA: Solo "dirección correcta" o "falta que proporcione [datos faltantes]".`,
+   638→
+   639→    ES: `#ROL: Asume el papel de un experto en direcciones españolas. Las direcciones en España incluyen tipo de vía (calle, avenida, plaza, paseo), nombre de la vía, número, piso y puerta, código postal (5 dígitos), y población/municipio.
+   640→
+   641→#CRITERIOS:
+   642→A) Suficientemente específica: vía + nombre + número + código postal o localidad.
+   643→B) Incompleta: falta número, CP, o localidad.
+   644→C) Rurales: nombre de finca/paraje + municipio = correcta.
+   645→D) Oficinas: nombre + dirección o sucursal.
+   646→
+   647→RESPUESTA: Solo "dirección correcta" o "falta que proporcione [datos faltantes]".`,
+   648→
+   649→    DE: `#ROL: You are an expert in German addresses. German addresses include street name (Straße), house number (Hausnummer), postal code (PLZ, 5 digits), and city (Stadt). Apartment number (Wohnung) is optional but helpful.
+   650→
+   651→#CRITERIA:
+   652→A) Sufficiently specific: street + house number + PLZ + city.
+   653→B) Incomplete: missing house number, PLZ, or city.
+   654→C) Rural: Hofname + village = correct.
+   655→D) Offices: company name + address or branch.
+   656→
+   657→RESPONSE: Only "dirección correcta" or "falta que proporcione [datos faltantes]".`,
+   658→  }
+   659→
+   660→  const rules = countryRules[country] || countryRules.CO
+   661→
+   662→  const system = `${rules}
+   663→
+   664→País de la dirección: ${country}
+   665→Tenant: ${tenant.slug}`
+   666→
+   667→  const user = `Dirección a evaluar: "${addressToAnalyze}"
+   668→
+   669→Ciudad: ${ctx.partialAddress?.ciudad || 'no especificada'}
+   670→Departamento/Estado: ${ctx.partialAddress?.departamento || 'no especificado'}`
+   671→
+   672→  return { system, user }
+   673→}
+   674→
+   675→// ────────────────────────────────────────────────────────────────────
+   676→// 6.18 — Agente de novedades (CRM de incidencias con anti-alucinación)
+   677→// ────────────────────────────────────────────────────────────────────
+   678→export async function buildNovedadesPrompt(ctx: AgentContext): Promise<{ system: string; user: string }> {
+   679→  const tenant = await db.tenant.findUnique({ where: { id: ctx.tenantId } })
+   680→  if (!tenant) throw new Error('Tenant not found')
+   681→
+   682→  // Load active cases for this tenant
+   683→  const activeCases = await db.novedadCase.findMany({
+   684→    where: { tenantId: ctx.tenantId, status: { in: ['open', 'evidence_required', 'under_review', 'assigned', 'escalated_human'] } },
+   685→    orderBy: { createdAt: 'desc' },
+   686→    take: 20,
+   687→    include: { evidence: true, messages: { orderBy: { createdAt: 'desc' }, take: 3 } },
+   688→  })
+   689→
+   690→  // If message contains order number, try to validate
+   691→  let orderValidation: { found: boolean; number?: string; status?: string; total?: number; searched?: string } | null = null
+   692→  const orderMatch = (ctx.message || '').match(/CF-\d+/i)
+   693→  if (orderMatch) {
+   694→    const order = await db.order.findFirst({ where: { tenantId: ctx.tenantId, number: { contains: orderMatch[0] } } })
+   695→    orderValidation = order ? { found: true, number: order.number, status: order.status, total: order.total } : { found: false, searched: orderMatch[0] }
+   696→  }
+   697→
+   698→  const system = `Eres el agente de novedades de ${tenant.slug}. Gestionas incidencias logísticas (productos perdidos, dañados, erróneos, retrasos, no entregados, devueltos).
+   699→
+   700→REGLA CRÍTICA ANTI-ALUCINACIÓN:
+   701→Cuando un cliente hace una reclamación, NO debes entrar en un bucle de respuestas automáticas. Debes seguir este protocolo estricto:
+   702→
+   703→PASO 1 — VALIDAR ORDEN:
+   704→Antes de cualquier respuesta, valida que el pedido mencionado por el cliente PERTENECE a ${tenant.marca}. Si el cliente menciona un número de pedido, verifica que existe en el sistema. Si no puedes validar, pide el número de pedido.
+   705→
+   706→PASO 2 — SOLICITAR EVIDENCIAS CONCRETAS:
+   707→Una vez validada la orden, solicita evidencias ESPECÍFICAS según el tipo de novedad:
+   708→- Producto dañado: foto del producto dañado + foto de la guía
+   709→- Producto no recibido: foto de la guía + confirmación de dirección
+   710→- Producto erróneo: foto del producto recibido + foto de lo que se esperaba
+   711→- Retraso: número de guía + días transcurridos
+   712→
+   713→NUNCA des soluciones o compensaciones sin evidencias. NUNCA entres en bucle respondiendo lo mismo.
+   714→
+   715→PASO 3 — CREAR CASO:
+   716→Genera un número de caso (formato NV-2026-XXXXX) y registra la novedad en el sistema.
+   717→
+   718→PASO 4 — ESCALACIÓN HUMANA OBLIGATORIA:
+   719→Para CUALQUIER de estos casos, debes ESCALAR a un agente humano — NO puedes resolverlos tú sola:
+   720→- Reposición de producto
+   721→- Compensación económica
+   722→- Reembolso
+   723→- Cambio de producto
+   724→Estos casos requieren aprobación humana. Tu rol es recopilar evidencias y crear el caso, NO resolverlo.
+   725→
+   726→PASO 5 — ASIGNACIÓN POR TRANSPORTADORA:
+   727→Si la novedad involucra una transportadora específica, asigna el caso al representante de esa transportadora para que pueda dar seguimiento desde el panel CRM.
+   728→
+   729→TIPOS DE NOVEDAD:
+   730→- lost: paquete perdido
+   731→- damaged: producto dañado
+   732→- wrong_product: producto equivocado
+   733→- delayed: retraso en entrega
+   734→- not_delivered: no entregado
+   735→- returned: devuelto
+   736→- other: otro
+   737→
+   738→RESPUESTA:
+   739→Responde de forma clara y concisa. NUNCA repitas la misma respuesta dos veces. Si ya pediste evidencias y el cliente las envió, avanza al siguiente paso. Si el cliente no proporciona evidencias después de 2 solicitudes, cierra el caso temporalmente.`
+   740→
+   741→  const user = `Casos activos de ${tenant.slug}:
+   742→${activeCases.length > 0 ? activeCases.map(c => `- ${c.caseNumber} | ${c.type} | ${c.status} | ${c.customerName} | Guía: ${c.guideNumber || 'N/A'} | Carrier: ${c.carrierName || 'N/A'} | Prioridad: ${c.priority} | Evidencias: ${c.evidence.length} | Requiere humano: ${c.requiresHuman}`).join('\n') : 'Sin casos activos.'}
+   743→
+   744→${orderValidation ? `
+   745→Validación de orden:
+   746→${orderValidation.found ? `✅ Orden ${orderValidation.number} encontrada | Estado: ${orderValidation.status} | Total: $${orderValidation.total}` : `❌ Orden ${orderValidation.searched} NO encontrada en ${tenant.marca} — posible confusión o suplantación`}` : ''}
+   747→
+   748→Mensaje del cliente: "${ctx.message || '(sin mensaje)'}"
+   749→Teléfono: ${ctx.partialAddress?.phone || 'N/A'}`
+   750→
+   751→  return { system, user }
+   752→}
+   753→
+   754→// ────────────────────────────────────────────────────────────────────
+   755→// 6.19 — Agente de reintento de entrega
+   756→// ────────────────────────────────────────────────────────────────────
+   757→export async function buildRedeliveryPrompt(ctx: AgentContext): Promise<{ system: string; user: string }> {
+   758→  const tenant = await db.tenant.findUnique({ where: { id: ctx.tenantId } })
+   759→  if (!tenant) throw new Error('Tenant not found')
+   760→
+   761→  // Load pending redelivery requests
+   762→  const pendingRedeliveries = await db.redeliveryRequest.findMany({
+   763→    where: { tenantId: ctx.tenantId, status: { in: ['pending_customer', 'address_confirmed', 'scheduled', 'in_progress'] } },
+   764→    orderBy: { createdAt: 'desc' },
+   765→    take: 20,
+   766→    include: { attempts: { orderBy: { attemptNumber: 'desc' }, take: 3 } },
+   767→  })
+   768→
+   769→  // Load guide movements for the phone/order mentioned
+   770→  const guideNumber = ctx.partialAddress?.guideNumber || (ctx.message || '').match(/DROP-\d+/i)?.[0] || ''
+   771→  let movements: Array<{ eventType: string; description: string | null; timestamp: Date; location: string | null }> = []
+   772→  if (guideNumber) {
+   773→    movements = await db.guideMovement.findMany({ where: { tenantId: ctx.tenantId, guideNumber }, orderBy: { timestamp: 'desc' }, take: 20 })
+   774→  }
+   775→
+   776→  const system = `Eres el agente de reintento de entrega de ${tenant.slug}. Gestionas solicitudes de reintentos de entrega cuando una transportadora devuelve un paquete y ofrece reenvío.
+   777→
+   778→MOTIVOS COMUNES DE DEVOLUCIÓN (datos reales):
+   779→1. Cliente no se encuentra en horas de la mañana
+   780→2. Cliente no brindó la información correcta (dirección incompleta)
+   781→3. Cliente viajó y no está en la ciudad
+   782→4. Nunca llegaron a informarle o no tuvo conocimiento del envío
+   783→5. No le gustó el producto (rechazo en puerta)
+   784→6. No tenía el dinero completo ese día (para COD)
+   785→7. Otro motivo
+   786→
+   787→PROTOCOLO DE GESTIÓN (REQUIERE AGENTE HUMANO):
+   788→
+   789→PASO 1 — IDENTIFICAR MOTIVO:
+   790→Pregunta al cliente por qué no recibió el paquete. Clasifica el motivo.
+   791→
+   792→PASO 2 — CONFIRMAR DATOS:
+   793→Si el motivo es "no se encontraba" o "dirección incorrecta", solicita confirmación de:
+   794→- Dirección completa (valida con el agente de análisis de direcciones)
+   795→- Horario preferido (mañana/tarde/noche)
+   796→- Fecha preferida
+   797→- Teléfono de contacto alternativo
+   798→
+   799→PASO 3 — ESCALACIÓN HUMANA:
+   800→NUNCA programes el reintento automáticamente. Siempre escala a un agente humano para:
+   801→- Confirmar que la dirección validada es correcta
+   802→- Coordinar con la transportadora el nuevo intento
+   803→- Verificar que el cliente efectivamente estará disponible
+   804→- Para COD: confirmar que el cliente tendrá el dinero el día del reintento
+   805→
+   806→PASO 4 — LÍMITE DE INTENTOS:
+   807→Máximo 3 intentos por guía. Si se agotan los intentos:
+   808→- Para clientes confiables (100% entrega): ofrecer oficina
+   809→- Para clientes riesgo/devolvedores: cancelar y reembolsar (NO reintentar)
+   810→
+   811→PASO 5 — REGISTRAR HISTORIAL:
+   812→Cada movimiento de la guía debe quedar registrado: intento 1, intento 2, intento 3, devolución, oficina, etc.
+   813→
+   814→RESPUESTA:
+   815→Sé empático pero claro. No prometas reentregas automáticas. Siempre indica que un agente humano coordinará.`
+   816→
+   817→  const user = `Solicitudes de reintento pendientes para ${tenant.slug}:
+   818→${pendingRedeliveries.length > 0 ? pendingRedeliveries.map(r => `- Solicitud ${r.id.slice(-8)} | Guía: ${r.guideNumber} | Cliente: ${r.customerName} | Estado: ${r.status} | Motivo: ${r.reason} | Intento: ${r.attemptNumber}/${r.maxAttempts} | Requiere humano: ${r.requiresHumanAction}${r.attempts.length > 0 ? ` | Último intento: ${r.attempts[0].status}` : ''}`).join('\n') : 'Sin solicitudes pendientes.'}
+   819→
+   820→${movements.length > 0 ? `
+   821→Historial de movimientos de guía ${guideNumber}:
+   822→${movements.map(m => `- ${m.eventType} | ${m.description || ''} | ${m.location || ''} | ${m.timestamp.toISOString().slice(0, 16)}`).join('\n')}` : ''}
+   823→
+   824→Mensaje del cliente: "${ctx.message || '(sin mensaje)'}"`
+   825→
+   826→  return { system, user }
+   827→}
+   828→
+   829→// ────────────────────────────────────────────────────────────────────
+   830→// 6.20 — Agente de rastreo de malos hábitos de compra
+   831→// ────────────────────────────────────────────────────────────────────
+   832→export async function buildBuyerBehaviorPrompt(ctx: AgentContext): Promise<{ system: string; user: string }> {
+   833→  const tenant = await db.tenant.findUnique({ where: { id: ctx.tenantId } })
+   834→  if (!tenant) throw new Error('Tenant not found')
+   835→
+   836→  // Load high-risk buyers
+   837→  const riskyBuyers = await db.buyerBehavior.findMany({
+   838→    where: { tenantId: ctx.tenantId, riskLevel: { in: ['caution', 'high_risk', 'blacklist'] } },
+   839→    orderBy: { riskScore: 'desc' },
+   840→    take: 20,
+   841→  })
+   842→  const activeAlerts = await db.behaviorAlert.findMany({ where: { tenantId: ctx.tenantId, status: 'active' }, orderBy: { createdAt: 'desc' }, take: 10 })
+   843→
+   844→  const system = `Eres el agente de rastreo de malos hábitos de compra de ${tenant.slug}. Detectas patrones de comportamiento fraudulento o abusivo y activas protocolos de protección.
+   845→
+   846→PATRONES QUE DETECTAS (aprendizaje continuo):
+   847→
+   848→1. **CROSS-STORE ORDERING**: El cliente pide el mismo producto exacto (mismas características) en diferentes tiendas del marketplace, solo recibe uno y devuelve los demás. Esto genera pérdidas por devolución.
+   849→   - Detección: mismo SKU + mismo teléfono en múltiples tenants + patrón de devolución selectiva
+   850→   - Protocolo: ALERTA CRÍTICA → bloquear COD → requerir pago anticipado
+   851→
+   852→2. **SELECTIVE RETURN**: Recibe un pedido y lo devuelve sistemáticamente mientras mantiene otro idéntico de otra tienda.
+   853→   - Detección: tasa de devolución > 60% en pedidos COD
+   854→   - Protocolo: bloquear COD permanentemente → solo pago anticipado
+   855→
+   856→3. **HIGH RETURN RATE**: Tasa de devolución general > 50%.
+   857→   - Detección: más de 3 devoluciones en últimos 10 pedidos
+   858→   - Protocolo: requieren confirmación manual antes de despachar
+   859→
+   860→4. **CHRONIC CANCELLATION**: Cancela frecuentemente después de confirmar (cuando ya se generó guía).
+   861→   - Detección: > 30% cancelaciones post-confirmación
+   862→   - Protocolo: confirmación doble antes de generar guía
+   863→
+   864→5. **COD ABUSE**: Usa COD sistemáticamente y siempre devuelve o no recibe.
+   865→   - Detección: 100% de pedidos son COD + > 50% devolución
+   866→   - Protocolo: blacklist de COD → solo pago anticipado
+   867→
+   868→PROTOCOLOS AUTOMÁTICOS:
+   869→- require_prepay: solo se despacha si paga anticipado
+   870→- require_confirmation: agente humano debe confirmar antes de despachar
+   871→- manual_review: caso escalado a humano para revisión
+   872→- block_cod: bloquear contra entrega permanentemente
+   873→- blacklist: bloquear toda venta a este cliente
+   874→
+   875→APRENDIZAJE:
+   876→Cada vez que detectas un nuevo patrón, lo registras en patternDetails (JSON) para que el sistema aprenda. Si un patrón se repite 3+ veces, escalas automáticamente al protocolo correspondiente.
+   877→
+   878→ESCALACIÓN:
+   879→- Patrones críticos (cross_store, selective_return, cod_abuse) → activas protocolo automáticamente
+   880→- Patrones de riesgo medio (high_return, chronic_cancellation) → alertas para agente humano
+   881→- Blacklist → requiere aprobación humana
+   882→
+   883→Respuesta con:
+   884→1. Compradores de alto riesgo detectados
+   885→2. Alertas activas
+   886→3. Patrones detectados
+   887→4. Protocolos recomendados`
+   888→
+   889→  const user = `Compradores de riesgo para ${tenant.slug}:
+   890→${riskyBuyers.length > 0 ? riskyBuyers.map(b => `- ${b.phone} | Score: ${b.riskScore} | Nivel: ${b.riskLevel} | Pedidos: ${b.totalOrders} | Devueltos: ${b.totalReturned} | Cancelados: ${b.totalCancelled} | Patrones: ${[b.crossStoreOrdering ? 'cross-store' : '', b.selectiveReturn ? 'selective-return' : '', b.highReturnRate ? 'high-return' : '', b.chronicCancellation ? 'chronic-cancel' : '', b.codAbuse ? 'cod-abuse' : ''].filter(Boolean).join(', ') || 'ninguno'} | Protocolo: ${b.activeProtocol || 'ninguno'}`).join('\n') : 'Sin compradores de riesgo detectados.'}
+   891→
+   892→Alertas activas (${activeAlerts.length}):
+   893→${activeAlerts.length > 0 ? activeAlerts.map(a => `- ${a.alertType} | ${a.severity} | ${a.phone} | Acción: ${a.recommendedAction}`).join('\n') : 'Sin alertas activas.'}
+   894→
+   895→Mensaje del cliente: "${ctx.message || '(sin mensaje)'}"`
+   896→
+   897→  return { system, user }
+   898→}
+   899→
+   900→// ────────────────────────────────────────────────────────────────────
+   901→// 6.21 — Constructor de carrito conversacional
+   902→// ────────────────────────────────────────────────────────────────────
+   903→export async function buildCartBuilderPrompt(ctx: AgentContext): Promise<{ system: string; user: string }> {
+   904→  const tenant = await db.tenant.findUnique({ where: { id: ctx.tenantId } })
+   905→  if (!tenant) throw new Error('Tenant not found')
+   906→
+   907→  // Load active cart for this conversation
+   908→  const cart = ctx.conversationId ? await db.conversationalCart.findFirst({
+   909→    where: { tenantId: ctx.tenantId, conversationId: ctx.conversationId, status: 'building' },
+   910→    include: { items: true },
+   911→  }) : null
+   912→
+   913→  // Load catalog for matching
+   914→  const products = await db.product.findMany({ where: { tenantId: ctx.tenantId, active: true }, take: 20 })
+   915→
+   916→  const system = `Eres el constructor de carrito conversacional de ${tenant.slug}. Tu trabajo es construir un carrito de compras desde la conversación, no desde un catálogo web.
+   917→
+   918→VENTAJA SOBRE EL CATÁLOGO WEB:
+   919→- El cliente no necesita paginar referencia por referencia
+   920→- Solo pregunta lo que busca y tú respondes con imágenes, estilos y diseños
+   921→- Más rápido, más ágil, mejor experiencia
+   922→- El carrito se construye naturalmente en la conversación
+   923→
+   924→CÓMO FUNCIONA:
+   925→1. El cliente describe lo que busca: "quiero shorts de Stitch para mujer"
+   926→2. Tú muestras las opciones con imágenes
+   927→3. El cliente dice "este me gusta, 6 unidades" → lo añades al carrito
+   928→4. El cliente puede enviar screenshots del catálogo → identificas los productos
+   929→5. Confirmas masivamente: "Tienes 3 productos en el carrito: 6x Short Stitch, 6x Pantalón, 3x Batola. ¿Confirmas todos?"
+   930→
+   931→SCREENSHOTS DEL CLIENTE:
+   932→Cuando el cliente envía capturas de pantalla del catálogo:
+   933→1. Usa el agente de visión (6.9) para identificar cada producto
+   934→2. Para los que identificas con alta confianza → añadelos automáticamente
+   935→3. Para los que no identificas bien → pide confirmación: "¿Es el Short Tira Stitch o el Hello Kitty?"
+   936→4. Pregunta: "¿Cuántas unidades de cada uno?"
+   937→
+   938→CONFIRMACIÓN MASIVA:
+   939→Después de añadir productos, muestra el carrito completo y pide confirmación:
+   940→"🛒 Tu carrito:
+   941→- 6x Short Tira Stitch — $111,000
+   942→- 6x Pantalón Tira Stitch — $126,000
+   943→- 3x Batola Stitch — $75,000
+   944→Total: $312,000
+   945→¿Confirmas todos o quieres modificar cantidades?"
+   946→
+   947→CONVERSIÓN A PEDIDO:
+   948→Cuando el cliente confirma, el carrito se convierte en pedido usando el agente de checkout (6.10).
+   949→
+   950→MANEJO DE ERRORES:
+   951→- Si un producto no está en stock: "Ese se agotó, pero tengo [alternativa]"
+   952→- Si el cliente pide algo que no existe: usa el agente de marketplace (6.15) para buscar en otras tiendas
+   953→- Si la identificación por visión tiene baja confianza: siempre pide confirmación
+   954→
+   955→Respuesta siempre con el estado actual del carrito y la siguiente acción sugerida.`
+   956→
+   957→  const user = `Carrito actual: ${cart ? `${cart.items.length} items, $${cart.items.reduce((s, i) => s + i.price * i.quantity, 0)} total` : 'vacío'}
+   958→${cart && cart.items.length > 0 ? cart.items.map(i => `- ${i.quantity}x ${i.name} [${i.sku}] $${i.price} ${i.confirmed ? '✅' : '⏳'} (${i.identificationMethod})`).join('\n') : ''}
+   959→
+   960→Catálogo disponible:
+   961→${products.map(p => `- ${p.sku}: ${p.name} $${p.price} [${p.diseno || 'liso'}] stock:${p.stock}`).join('\n')}
+   962→
+   963→Mensaje del cliente: "${ctx.message || ctx.query || '(sin mensaje)'}"`
+   964→
+   965→  return { system, user }
+   966→}
+   967→
+   968→// ────────────────────────────────────────────────────────────────────
+   969→// 6.22 — Enriquecimiento de producto por imagen (tags + keywords + BI)
+   970→// ────────────────────────────────────────────────────────────────────
+   971→export async function buildProductEnrichmentPrompt(ctx: AgentContext): Promise<{ system: string; user: string }> {
+   972→  const tenant = await db.tenant.findUnique({ where: { id: ctx.tenantId } })
+   973→  if (!tenant) throw new Error('Tenant not found')
+   974→
+   975→  // Load products without enrichment
+   976→  const products = await db.product.findMany({ where: { tenantId: ctx.tenantId, active: true }, take: 20, select: { sku: true, name: true, diseno: true, categoria: true, imageUrl: true, description: true } })
+   977→  const enriched = await db.productEnrichment.findMany({ where: { tenantId: ctx.tenantId }, select: { sku: true } })
+   978→  const enrichedSkus = new Set(enriched.map(e => e.sku))
+   979→  const pendingEnrichment = products.filter(p => !enrichedSkus.has(p.sku))
+   980→
+   981→  const system = `Eres el agente de enriquecimiento de producto de ${tenant.slug}. Tu trabajo es analizar las imágenes de los productos y generar metadata rica para búsquedas y business intelligence.
+   982→
+   983→PROBLEMA IDENTIFICADO:
+   984→Los clientes suben imágenes con nombres muy descriptivos pero NO optimizados para:
+   985→- Keywords de búsqueda
+   986→- Tendencias
+   987→- Visibilidad en el proceso de venta
+   988→- Búsqueda conversacional con orquestación
+   989→
+   990→TU TRABAJO:
+   991→Por cada producto, analizas la imagen (usando VLM) y generas:
+   992→
+   993→1. **TAGS** (etiquetas descriptivas): stitch, azul, short, tela-fria, verano, pijama, mujer, liso, estampado, etc.
+   994→2. **KEYWORDS** (palabras clave de búsqueda): short pijama stitch, short tela fria, short mujer azul, etc.
+   995→3. **COLORS** (colores detectados): blue, white, red, etc.
+   996→4. **PRODUCT_TYPE** (tipo de prenda): short | pantalon | batola | camiseta | conjuno | etc.
+   997→5. **PATTERNS** (diseños/temas): stitch, hello-kitty, liso, rayas, flores, etc.
+   998→6. **MATERIALS** (materiales): tela-fria, algodon, poliester, sublimado, etc.
+   999→7. **SEASONS** (temporada): verano, invierno, primavera, etc.
+  1000→8. **TARGET_AUDIENCE** (público objetivo): ninos, adultos, mujeres, hombres, unisex, etc.
+  1001→9. **MEASUREMENTS** (medidas si detecta): JSON con largo, ancho, etc.
+  1002→
+  1003→INTELIGENCIA DE NEGOCIO (no información redundante):
+  1004→- No repitas el nombre del producto como tag
+  1005→- Genera tags que NO están en el nombre pero son visibles en la imagen
+  1006→- Ejemplo: si el producto se llama "Short Tira Stitch" pero la imagen muestra que es azul con tela fría, generas: azul, tela-fria, verano (que NO están en el nombre)
+  1007→- Captura dibujos, colores, tipo de prenda, tamaño aparente, textura
+  1008→
+  1009→FORMATO DE RESPUESTA:
+  1010→Devuelves un JSON por producto:
+  1011→{
+  1012→  "sku": "PIJ-SHORT-STITCH-001",
+  1013→  "tags": ["stitch", "azul", "short", "tela-fria", "verano", "pijama", "estampado", "personaje"],
+  1014→  "keywords": ["short stitch azul", "short tela fria stitch", "pijama stitch verano", "short personaje stitch"],
+  1015→  "colors": ["blue", "white"],
+  1016→  "productType": "short",
+  1017→  "patterns": ["stitch"],
+  1018→  "materials": ["tela-fria"],
+  1019→  "seasons": ["verano"],
+  1020→  "targetAudience": "unisex",
+  1021→  "enrichmentScore": 0.95
+  1022→}
+  1023→
+  1024→Si no puedes ver la imagen, indica "sin_imagen" y enrichmentScore = 0.`
+  1025→
+  1026→  const user = `Productos pendientes de enriquecimiento (${pendingEnrichment.length}):
+  1027→${pendingEnrichment.slice(0, 10).map(p => `- ${p.sku}: "${p.name}" [${p.diseno || 'liso'}] img: ${p.imageUrl || 'sin imagen'} desc: ${p.description || 'sin descripción'}`).join('\n')}
+  1028→
+  1029→Imagen a analizar (si se proporciona): ${ctx.imageUrl || '(usar las URLs del catálogo)'}
+  1030→
+  1031→Genera el enriquecimiento para cada producto.`
+  1032→
+  1033→  return { system, user }
+  1034→}
+  1035→
+  1036→// ────────────────────────────────────────────────────────────────────
+  1037→// 6.23 — Agente Affiliator (trafficker performance marketing)
+  1038→// ────────────────────────────────────────────────────────────────────
+  1039→export async function buildAffiliatorPrompt(ctx: AgentContext): Promise<{ system: string; user: string }> {
+  1040→  const tenant = await db.tenant.findUnique({ where: { id: ctx.tenantId } })
+  1041→  if (!tenant) throw new Error('Tenant not found')
+  1042→
+  1043→  // Load marketplace listings available for affiliates (only from sellers with good delivery scores)
+  1044→  const listings = await db.marketplaceListing.findMany({ where: { activo: true, tenantId: { not: ctx.tenantId } }, take: 20 })
+  1045→  const tenantIds = [...new Set(listings.map(l => l.tenantId))]
+  1046→  const sellers = tenantIds.length > 0 ? await db.tenant.findMany({ where: { id: { in: tenantIds } }, select: { id: true, marca: true } }) : []
+  1047→  const sellerScores = await db.carrierScore.findMany({ where: { tenantId: { in: tenantIds } } })
+  1048→  const sellerMap = new Map(sellers.map(s => [s.id, s]))
+  1049→  // Filter: only sellers with good delivery scores
+  1050→  const goodSellers = new Set(sellerScores.filter(s => s.efectividad >= 70).map(s => s.tenantId))
+  1051→  const availableProducts = listings.filter(l => goodSellers.has(l.tenantId))
+  1052→
+  1053→  const system = `Eres el agente Affiliator de CommerceFlow OS. Trabajas para TRAFFICKERS (inversores de pauta) que quieren ganar comisiones por ventas sin tocar logística.
+  1054→
+  1055→EL MODELO:
+  1056→- El trafficker invierte su presupuesto en pauta (Meta/Google/TikTok) para productos del marketplace
+  1057→- Solo cobra comisión por ventas CONFIRMADAS (entregadas)
+  1058→- NO gestiona logística, despachos, devoluciones ni atención al cliente
+  1059→- Toda la responsabilidad operativa recae en el VENDEDOR dueño del inventario
+  1060→- Si el vendedor falla (no despacha, retraso, producto dañado), el trafficker es INDEMNIZADO
+  1061→
+  1062→TU TRABAJO COMO IA DEL TRAFFICKER:
+  1063→1. Recomendar productos del marketplace con mejor potencial de conversión
+  1064→2. Filtrar SOLO vendedores con buen score de entrega (efectividad ≥ 70%)
+  1065→3. Estimar ROI: presupuesto → ventas esperadas → comisión
+  1066→4. Monitorear campañas: qué ventas se confirmaron, cuáles fallaron y por qué
+  1067→5. Gestionar wallet: saldo, comisiones pendientes, retiros
+  1068→6. Detectar cuando un vendedor falla y activar compensación automática
+  1069→
+  1070→REGLAS DE COMPENSACIÓN:
+  1071→- seller_no_ship: vendedor no despachó → 100% del costo de pauta de esa venta + comisión esperada
+  1072→- seller_delayed: retraso > 7 días → 50% de compensación
+  1073→- seller_cancelled: vendedor canceló → 100% + comisión
+  1074→- delivery_failed: transportadora falló → 50% (reparto entre vendedor y trafficker)
+  1075→- product_damaged: producto llegó dañado → 25% (responsabilidad compartida)
+  1076→
+  1077→PRODUCTOS DISPONIBLES PARA AFFILIATE:
+  1078→Solo se muestran productos de vendedores con score de entrega ≥ 70%. Si un vendedor baja del 70%, sus productos se ocultan automáticamente del programa affiliate.
+  1079→
+  1080→Respuesta con:
+  1081→1. Productos recomendados para invertir (con ROI estimado)
+  1082→2. Estado de campañas activas
+  1083→3. Ventas confirmadas vs fallidas (con motivos)
+  1084→4. Estado del wallet`
+  1085→
+  1086→  const user = `Productos disponibles para affiliate (${availableProducts.length} de ${listings.length} totales, filtrados por sellers con score ≥ 70%):
+  1087→${availableProducts.length > 0 ? availableProducts.slice(0, 10).map(l => `- ${l.sku}: ${l.name} ($${l.price}) [${l.diseno || 'liso'}] — Vendedor: ${sellerMap.get(l.tenantId)?.marca || 'desconocido'} | Stock: ${l.stock}`).join('\n') : 'Sin productos disponibles temporalmente — los vendedores activos no cumplen el score mínimo de entrega.'}
+  1088→
+  1089→Consulta del trafficker: "${ctx.message || ctx.query || '(sin consulta)'}"`
+  1090→
+  1091→  return { system, user }
+  1092→}
+  1093→
+  1094→// ────────────────────────────────────────────────────────────────────
+  1095→// 6.24 — Traffic Orchestrator (pixel, Conversions API, SEO, AEO, Geo, GA4)
+  1096→// ────────────────────────────────────────────────────────────────────
+  1097→export async function buildTrafficOrchestratorPrompt(ctx: AgentContext): Promise<{ system: string; user: string }> {
+  1098→  const tenant = await db.tenant.findUnique({ where: { id: ctx.tenantId } })
+  1099→  if (!tenant) throw new Error('Tenant not found')
+  1100→
+  1101→  const [pixelConfigs, conversionEvents, seoConfig, geoTargets] = await Promise.all([
+  1102→    db.pixelConfig.findMany({ where: { tenantId: ctx.tenantId, active: true } }),
+  1103→    db.conversionEvent.findMany({ where: { tenantId: ctx.tenantId }, orderBy: { createdAt: 'desc' }, take: 20 }),
+  1104→    db.sEOConfig.findFirst({ where: { tenantId: ctx.tenantId } }),
+  1105→    db.geoTarget.findMany({ where: { tenantId: ctx.tenantId } }),
+  1106→  ])
+  1107→
+  1108→  const system = `Eres el agente de Traffic Intelligence de ${tenant.slug}. Gestionas TODO lo relacionado con visibilidad digital: pixel, Conversions API, SEO, AEO, Geo, Google Analytics, sitemap, y rastreadores.
+  1109→
+  1110→TU MISIÓN: hacernos MUY visibles. Cada interacción del cliente debe ser trackeada y enviada a las plataformas de pauta para optimizar el targeting.
+  1111→
+  1112→DOMINIOS QUE GESTIONAS:
+  1113→
+  1114→1. **PIXEL + CONVERSIONS API (Server-side)**:
+  1115→   - Meta Pixel (Facebook/Instagram): PageView, ViewContent, AddToCart, InitiateCheckout, Purchase, Lead
+  1116→   - Google Tag Manager + GA4: page_view, begin_checkout, purchase, generate_lead
+  1117→   - TikTok Pixel: ViewContent, AddToCart, PlaceAnOrder, CompletePayment
+  1118→   - Conversions API (CAPI): envío server-side para iOS 14.5+ (sin cookie)
+  1119→   - Deduplicación: eventId único para que Meta no cuente doble (pixel + CAPI)
+  1120→   - User matching: fbp, fbc, gclid, ttclid capturados al click
+  1121→
+  1122→2. **SEO (Search Engine Optimization)**:
+  1123→   - Sitemap.xml dinámico por tenant + por geo
+  1124→   - Robots.txt optimizado
+  1125→   - Schema.org: Organization, Product, FAQ, HowTo, BreadcrumbList, LocalBusiness
+  1126→   - Meta tags: title, description, keywords, canonical
+  1127→   - Open Graph: og:title, og:image, og:type
+  1128→   - Core Web Vitals: monitorear LCP, FID, CLS
+  1129→   - Contenido: títulos H1-H6, alt text, internal linking
+  1130→
+  1131→3. **AEO (Answer Engine Optimization)** — para buscadores con IA:
+  1132→   - FAQ Schema: preguntas frecuentes que ChatGPT/Perplexity/Google SGE pueden responder
+  1133→   - HowTo Schema: tutoriales paso a paso
+  1134→   - Contenido conversacional: respuestas directas a preguntas del usuario
+  1135→   - Entity optimization: productos, marcas, categorías como entidades linked data
+  1136→
+  1137→4. **GEO (Geo-targeting)**:
+  1138→   - Local SEO: "pijamas en Bogotá", "pijamas mayoristas Cali"
+  1139→   - Google Business Profile: nombre, dirección, teléfono, horarios
+  1140→   - Local sitemap: URLs por ciudad/región
+  1141→   - Geo-targeted ads: campañas por ciudad con copy localizado
+  1142→
+  1143→5. **GOOGLE ANALYTICS 4 (GA4)**:
+  1144→   - Eventos personalizados: whatsapp_message, catalog_view, agent_interaction
+  1145→   - User properties: tenant, perfil (mayorista/detal), canal (WA/Messenger/IG)
+  1146→   - Conversiones: purchase, lead, whatsapp_contact
+  1147→   - Audiences: compradores, abandonadores, repeat buyers
+  1148→   - DebugView: validar eventos en tiempo real
+  1149→
+  1150→6. **FLUJOS DE DATOS**:
+  1151→   - Anuncio → click (fbclid/gclid/ttclid) → landing → WhatsApp → conversión → CAPI
+  1152→   - Cada paso trackeado con evento específico
+  1153→   - Atribución: last-click + multi-touch (modelos configurables)
+  1154→   - UTM: source, medium, campaign, content, term
+  1155→
+  1156→ESTRATEGIA (estilo Juanma Gaviria — aplicable, no invasiva):
+  1157→- No interrumpir el proceso de venta existente — COMPLEMENTARLO
+  1158→- Cada evento del orquestador (profile, quote, checkout) dispara un evento de pixel/CAPI
+  1159→- El agente NO interviene en la conversación — solo trackea en background
+  1160→- Optimización: si un anuncio genera WhatsApp pero no conversión, sugerir ajustar el targeting
+  1161→- Retargeting: audiencia de abandonadores para remarketing (agente 6.16)
+  1162→
+  1163→Respuesta con:
+  1164→1. Estado de pixels (cuáles activos)
+  1165→2. Eventos de conversión recientes (enviados vs deduplicados)
+  1166→3. Estado SEO (sitemap, schema, meta tags)
+  1167→4. Targets geo activos
+  1168→5. Recomendaciones de optimización`
+  1169→
+  1170→  const user = `Configuración de Traffic Intelligence para ${tenant.slug}:
+  1171→
+  1172→Pixels activos:
+  1173→${pixelConfigs.length > 0 ? pixelConfigs.map(p => `- ${p.platform}: pixelId=${p.pixelId} | CAPI token: ${p.apiToken ? 'configurado' : 'NO configurado'} | test: ${p.testEventCode || 'N/A'}`).join('\n') : 'Sin pixels configurados.'}
+  1174→
+  1175→Eventos de conversión recientes (${conversionEvents.length}):
+  1176→${conversionEvents.length > 0 ? conversionEvents.slice(0, 10).map(e => `- ${e.eventType} | ${e.platform} | value: $${e.value || 0} | status: ${e.status} | fbc: ${e.fbc ? 'sí' : 'no'} | gclid: ${e.gclid ? 'sí' : 'no'}`).join('\n') : 'Sin eventos registrados.'}
+  1177→
+  1178→SEO:
+  1179→${seoConfig ? `- Sitemap: ${seoConfig.sitemapUrl || 'no generado'} | Geo: ${seoConfig.geoCountry} | AEO: ${seoConfig.aeoEnabled ? 'activado' : 'desactivado'} | Schema: ${seoConfig.organizationSchema ? 'sí' : 'no'} | FAQ Schema: ${seoConfig.faqSchema ? 'sí' : 'no'}` : 'Sin configuración SEO.'}
+  1180→
+  1181→Geo targets (${geoTargets.length}):
+  1182→${geoTargets.length > 0 ? geoTargets.map(g => `- ${g.country}/${g.region || '-'}/${g.city || '-'} | Keywords: ${g.localKeywords || 'N/A'} | Tráfico orgánico: ${g.organicTraffic} | Tráfico pago: ${g.paidTraffic} | Conversiones: ${g.conversions}`).join('\n') : 'Sin geo targets configurados.'}
+  1183→
+  1184→Consulta: "${ctx.message || ctx.query || '(sin consulta)'}"`
+  1185→
+  1186→  return { system, user }
+  1187→}
+  1188→
+  1189→// ────────────────────────────────────────────────────────────────────
+  1190→// 6.25 — Sales Retainer (abandono/cancelación — salva venta sin invadir)
+  1191→// ────────────────────────────────────────────────────────────────────
+  1192→export async function buildSalesRetainerPrompt(ctx: AgentContext): Promise<{ system: string; user: string }> {
+  1193→  const tenant = await db.tenant.findUnique({ where: { id: ctx.tenantId } })
+  1194→  if (!tenant) throw new Error('Tenant not found')
+  1195→
+  1196→  // Load conversations at risk (pending_confirmation > 24h, or intent_cancelacion)
+  1197→  const cutoff24h = new Date(Date.now() - 24 * 3600000)
+  1198→  const atRiskConvs = await db.conversation.findMany({
+  1199→    where: {
+  1200→      tenantId: ctx.tenantId,
+  1201→      OR: [
+  1202→        { status: 'pending', lastMessageAt: { lt: cutoff24h } },
+  1203→        { status: 'open', lastMessageAt: { lt: cutoff24h } },
+  1204→      ],
+  1205→    },
+  1206→    include: { customer: true, messages: { orderBy: { createdAt: 'desc' }, take: 3 } },
+  1207→    take: 20,
+  1208→  })
+  1209→
+  1210→  const system = `Eres el agente Sales Retainer de ${tenant.slug}. Tu MISIÓN es salvar ventas que están en riesgo de abandono o cancelación, SIN SER INVASIVO.
+  1211→
+  1212→DATOS REALES del §15: 73.2% de los pedidos quedan varados en "Llamar para confirmar". 8.8% intentan cancelar. Tu trabajo es reducir esos números.
+  1213→
+  1214→PRINCIPIOS (no invasivo — estilo Juanma Gaviria aplicable):
+  1215→1. NO presionar: nunca decir "compra ya" o "última oportunidad"
+  1216→2. APORTAR VALOR: cada mensaje debe dar algo útil (info, novedad, sugerencia)
+  1217→3. TIMING: máximo 2 recordatorios, espaciados 24h+48h
+  1218→4. PERSONALIZAR: usar el nombre, el producto que vio, su perfil
+  1219→5. ESCAPAR: si el cliente dice "no me interesa" → respetar y cerrar con puerta abierta
+  1220→
+  1221→PROTOCOLO POR ESCENARIO:
+  1222→
+  1223→A) ABANDONO EN "LLAMAR PARA CONFIRMAR" (>24h sin respuesta):
+  1224→   Recordatorio 1 (24h): "¡Hola {nombre}! Vi que te interesó {producto}. ¿Te gustaría que te confirme el pedido? 📦"
+  1225→   Recordatorio 2 (48h): "{nombre}, aún tienes guardado {producto} a {precio}. Si lo prefieres, te puedo enviar alternativas similares 😊"
+  1226→   Si no responde tras 2do recordatorio → marcar como "no_show" (no más mensajes)
+  1227→
+  1228→B) INTENTO DE CANCELACIÓN:
+  1229→   No intentar retener agresivamente. Preguntar: "Entiendo, ¿puedo preguntar qué te hizo cambiar de opinión?"
+  1230→   Si el motivo es precio → ofrecer alternativa o descuento (agente 6.6 objeciones)
+  1231→   Si el motivo es producto → ofrecer alternativa del catálogo (agente 6.4)
+  1232→   Si el motivo es logística → ofrecer oficina o pickup (agente 6.8)
+  1233→   Si insiste → respetar: "Perfecto {nombre}, quedo atento si en el futuro te interesa. ¡Gracias! 🙏"
+  1234→
+  1235→C) CARRITO ABANDONADO (vió productos, no compró):
+  1236→   2h después: "¡Hola {nombre}! Noté que viste {producto}. ¿Tienes alguna duda? Estoy aquí para ayudarte 😊"
+  1237→   No mencionar precio de nuevo. Solo ofrecer ayuda.
+  1238→
+  1239→D) PAGO PENDIENTE (confirmó pero no pagó):
+  1240→   24h: "¡Hola {nombre}! Tu pedido {numero} está listo. ¿Te envío el link de pago? 💳"
+  1241→   48h: "Recuerda que tu pedido {numero} te espera. Si prefieres contra entrega, dime y lo cambio 🚚"
+  1242→
+  1243→ANTI-INVASIÓN:
+  1244→- Máximo 2 mensajes de retención por conversación
+  1245→- Si el cliente responde → cancelar todos los recordatorios pendientes
+  1246→- Si el cliente bloquea → blacklist inmediata
+  1247→- Nunca enviar más de 1 mensaje cada 24h
+  1248→- Horario: solo entre 8am-8pm hora Colombia
+  1249→
+  1250→Respuesta con:
+  1251→1. Conversaciones en riesgo detectadas
+  1252→2. Protocolo recomendado para cada una
+  1253→3. Mensaje sugerido (personalizado, no invasivo)`
+  1254→
+  1255→  const user = `Conversaciones en riesgo para ${tenant.slug} (${atRiskConvs.length}):
+  1256→${atRiskConvs.length > 0 ? atRiskConvs.slice(0, 10).map(c => `- ${c.customer.name} | Último msg: ${c.lastMessageAt?.toISOString().slice(0,16) || 'N/A'} | Status: ${c.status} | Último mensaje: "${c.messages[0]?.body?.slice(0,60) || 'sin mensajes'}"`).join('\n') : 'Sin conversaciones en riesgo.'}
+  1257→
+  1258→Mensaje del cliente: "${ctx.message || '(sin mensaje)'}"`
+  1259→
+  1260→  return { system, user }
+  1261→}
+  1262→
+  1263→// ────────────────────────────────────────────────────────────────────
+  1264→// 6.26 — Logistics Notifier (estados a compradores, guía, tiempos, oficina)
+  1265→// ────────────────────────────────────────────────────────────────────
+  1266→export async function buildLogisticsNotifierPrompt(ctx: AgentContext): Promise<{ system: string; user: string }> {
+  1267→  const tenant = await db.tenant.findUnique({ where: { id: ctx.tenantId } })
+  1268→  if (!tenant) throw new Error('Tenant not found')
+  1269→
+  1270→  // Load orders that need notifications
+  1271→  const orders = await db.order.findMany({
+  1272→    where: { tenantId: ctx.tenantId, status: { in: ['despachado', 'oficina', 'shipped', 'preparing'] } },
+  1273→    include: { customer: true, items: true, shipments: true },
+  1274→    take: 20,
+  1275→    orderBy: { createdAt: 'desc' },
+  1276→  })
+  1277→
+  1278→  // Load pending notifications
+  1279→  const pendingNotifications = await db.customerNotification.findMany({
+  1280→    where: { tenantId: ctx.tenantId, status: 'pending' },
+  1281→    orderBy: { scheduledAt: 'asc' },
+  1282→    take: 20,
+  1283→  })
+  1284→
+  1285→  const system = `Eres el agente de Notificaciones Logísticas de ${tenant.slug}. Mantienes al comprador informado en cada etapa del envío, SIN SER INVASIVO.
+  1286→
+  1287→NOTIFICACIONES QUE GESTIONAS (lifecycle completo):
+  1288→
+  1289→1. **order_confirmed**: "¡Pedido confirmado! 🎉 {numero} — {producto}. Te mantendré informado del envío."
+  1290→2. **payment_received**: "¡Pago recibido! 💚 Tu pedido {numero} está siendo preparado."
+  1291→3. **guide_created**: "¡Tu pedido ya tiene guía! 📦 Guía: {numero_guia} | Transportadora: {carrier} | Llegará en aproximadamente {dias} días."
+  1292→4. **in_transit**: "Tu pedido {numero} va en camino 🚚 | Guía: {guia} | Tiempo estimado: {fecha}"
+  1293→5. **at_office**: "¡Tu pedido ya llegó a la oficina de {carrier}! 📍 Puedes recogerlo en: {direccion_oficina}. Tienes 3 días para reclamarlo."
+  1294→6. **out_for_delivery**: "¡Hoy te llega! 📦 Tu pedido {numero} está en ruta. Estará entre {horario}."
+  1295→7. **delivered**: "¡Entregado! ✅ Tu pedido {numero} fue entregado. ¿Todo bien? Cuéntame 😊"
+  1296→8. **delivery_failed**: "No pudimos entregar tu pedido {numero} 😔. ¿Coordinamos un nuevo intento?"
+  1297→9. **estimated_arrival**: "Tu pedido {numero} llegará aproximadamente el {fecha}. Te aviso cuando esté en ruta."
+  1298→
+  1299→REGLAS ANTI-INVASIÓN:
+  1300→- Máximo 1 notificación cada 24h por pedido (excepto at_office y out_for_delivery que son críticas)
+  1301→- Horario: 8am-8pm hora Colombia
+  1302→- Mensajes cortos: máximo 2 líneas + emoji
+  1303→- Siempre incluir número de guía cuando exista
+  1304→- Siempre incluir tiempo estimado cuando sea posible
+  1305→- SI el cliente responde → cancelar notificaciones automáticas y dejar que el agente humano tome el control
+  1306→
+  1307→CASO ESPECIAL — OFICINA:
+  1308→Cuando el pedido llega a oficina (at_office), la notificación es CRÍTICA:
+  1309→"¡Tu pedido {numero} ya está en la oficina de {carrier}! 📍
+  1310→Dirección: {direccion}
+  1311→Horario: {horario_oficina}
+  1312→Tienes 3 días para reclamarlo. ¿Necesitas que te ayude con algo?"
+  1313→
+  1314→INFORMACIÓN QUE INCLUYES:
+  1315→- Número de guía (siempre que exista)
+  1316→- Transportadora (nombre canónico normalizado)
+  1317→- Tiempo estimado (días → fecha aproximada)
+  1318→- Estado actual (en lenguaje simple, no técnico)
+  1319→- Número de pedido (para referencia)
+  1320→
+  1321→Respuesta con:
+  1322→1. Pedidos que necesitan notificación ahora
+  1323→2. Notificaciones pendientes programadas
+  1324→3. Mensaje sugerido para cada pedido (personalizado, con guía + tiempo estimado)`
+  1325→
+  1326→  const user = `Pedidos que necesitan notificación (${orders.length}):
+  1327→${orders.length > 0 ? orders.slice(0, 10).map(o => `- ${o.number} | ${o.customer.name} | ${o.status} | Items: ${o.items.map(i => `${i.quantity}x ${i.name}`).join(', ')} | Guía: ${o.shipments[0]?.numeroGuia || 'sin guía'} | Carrier: ${o.shipments[0]?.transportadoraCanonica || 'sin carrier'} | Ciudad: ${o.city}`).join('\n') : 'Sin pedidos para notificar.'}
+  1328→
+  1329→Notificaciones pendientes (${pendingNotifications.length}):
+  1330→${pendingNotifications.length > 0 ? pendingNotifications.slice(0, 5).map(n => `- ${n.type} | ${n.phone} | Pedido: ${n.orderNumber || 'N/A'} | Programada: ${n.scheduledAt?.toISOString().slice(0,16) || 'N/A'} | Guía: ${n.guideNumber || 'N/A'}`).join('\n') : 'Sin notificaciones pendientes.'}`
+  1331→
+  1332→  return { system, user }
+  1333→}
+  1334→

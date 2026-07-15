@@ -1,0 +1,123 @@
+{
+  "name": "CommerceFlow — Agente 6.5 Búsqueda por tema/personaje",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "agent-theme",
+        "responseMode": "responseNode"
+      },
+      "id": "webhook-theme",
+      "name": "Webhook Entrada",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://app:3000/api/agents/theme",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "tenantId",
+              "value": "={{ $json.body.tenantId }}"
+            },
+            {
+              "name": "conversationId",
+              "value": "={{ $json.body.conversationId }}"
+            },
+            {
+              "name": "customerId",
+              "value": "={{ $json.body.customerId }}"
+            },
+            {
+              "name": "perfil",
+              "value": "={{ $json.body.perfil }}"
+            },
+            {
+              "name": "items",
+              "value": "={{ $json.body.items }}"
+            },
+            {
+              "name": "query",
+              "value": "={{ $json.body.query }}"
+            },
+            {
+              "name": "message",
+              "value": "={{ $json.body.message }}"
+            },
+            {
+              "name": "partialAddress",
+              "value": "={{ $json.body.partialAddress }}"
+            },
+            {
+              "name": "imageUrl",
+              "value": "={{ $json.body.imageUrl }}"
+            }
+          ]
+        }
+      },
+      "id": "call-agent-theme",
+      "name": "Llamar Agente theme",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      },
+      "id": "respond-theme",
+      "name": "Responder",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        440,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook Entrada": {
+      "main": [
+        [
+          {
+            "node": "Llamar Agente theme",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Llamar Agente theme": {
+      "main": [
+        [
+          {
+            "node": "Responder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "_notes": [
+    "Agente 6.5 Búsqueda por tema/personaje — Stitch, Hello Kitty, etc.",
+    "Endpoint: POST http://app:3000/api/agents/theme",
+    "Importar: n8n → Workflows → Import from File → seleccionar este JSON",
+    "Activar workflow después de importar."
+  ]
+}

@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CommerceFlow OS · Guía Maestra de Onboarding para Clientes</title>
+<style>
+:root{--bg:#0a0f0d;--surface:#111815;--surface2:#1a2420;--border:#2a3a34;--text:#e8f0ec;--text2:#9ab0a8;--primary:#10b981;--primary2:#34d399;--accent:#f59e0b;--danger:#ef4444;--radius:12px}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;background:var(--bg);color:var(--text);line-height:1.7}
+.container{max-width:900px;margin:0 auto;padding:40px 24px 80px}
+h1{font-size:2.2em;font-weight:800;color:var(--primary2);margin:30px 0 15px;line-height:1.2}
+h2{font-size:1.6em;font-weight:700;color:var(--primary2);margin:35px 0 15px;border-bottom:2px solid var(--border);padding-bottom:8px}
+h3{font-size:1.2em;font-weight:600;color:var(--text);margin:22px 0 10px}
+p{font-size:1.05em;margin-bottom:12px;color:var(--text)}
+ul,ol{margin:10px 0 16px 28px}
+li{font-size:1em;line-height:1.8;margin-bottom:4px}
+strong{color:var(--primary2)}
+em{color:var(--accent);font-style:italic}
+code{background:var(--surface2);padding:2px 8px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:.85em;color:var(--accent)}
+pre{background:var(--surface2);padding:16px;border-radius:8px;overflow-x:auto;font-family:'JetBrains Mono',monospace;font-size:.85em;color:var(--text);border:1px solid var(--border);margin:14px 0}
+blockquote{border-left:4px solid var(--primary);padding:16px 20px;margin:16px 0;background:rgba(16,185,129,.05);border-radius:0 8px 8px 0}
+blockquote p{margin:0}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:.92em}
+th{background:var(--surface2);padding:10px 12px;text-align:left;font-weight:600;border-bottom:2px solid var(--border);color:var(--primary2)}
+td{padding:8px 12px;border-bottom:1px solid var(--border);color:var(--text)}
+tr:hover td{background:rgba(16,185,129,.05)}
+hr{border:none;border-top:1px solid var(--border);margin:30px 0}
+.toc{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;margin:20px 0}
+.toc h3{color:var(--primary2);margin-top:0}
+.toc ol{margin-left:24px}
+.toc a{color:var(--text);text-decoration:none}
+.toc a:hover{color:var(--primary2);text-decoration:underline}
+.callout{background:linear-gradient(135deg,rgba(16,185,129,.08),rgba(16,185,129,.02));border:1px solid var(--primary);border-radius:10px;padding:18px;margin:16px 0}
+.callout-title{font-weight:700;color:var(--primary2);margin-bottom:8px}
+.warning{background:rgba(245,158,11,.08);border:1px solid var(--accent);border-radius:10px;padding:18px;margin:16px 0}
+.warning-title{font-weight:700;color:var(--accent);margin-bottom:8px}
+.badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:.78em;font-weight:600;margin:2px}
+.badge-primary{background:rgba(16,185,129,.15);color:var(--primary2);border:1px solid rgba(16,185,129,.3)}
+.badge-accent{background:rgba(245,158,11,.15);color:var(--accent);border:1px solid rgba(245,158,11,.3)}
+.back-to-top{position:fixed;bottom:20px;right:20px;background:var(--primary);color:var(--bg);padding:12px 20px;border-radius:30px;text-decoration:none;font-weight:600;box-shadow:0 4px 12px rgba(16,185,129,.4);z-index:100}
+.back-to-top:hover{background:var(--primary2)}
+@media(max-width:768px){.container{padding:20px 16px 60px}h1{font-size:1.6em}h2{font-size:1.3em}p{font-size:.98em}}
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>📘 Guía Maestra de Onboarding para Clientes</h1>
+<p><strong>CommerceFlow OS — Tu nuevo asistente de ventas</strong></p>
+
+<blockquote>
+<p><strong>Bienvenida a tu nueva forma de vender.</strong> Esta guía te explica, en palabras simples y sin tecnicismos, cómo usar CommerceFlow OS para vender más, gastar menos en publicidad, y no perder dinero con clientes problemáticos.</p>
+<p><strong>No necesitas saber de tecnología.</strong> Solo necesitas saber vender por WhatsApp.</p>
+<p><strong>Tiempo de lectura:</strong> 30 minutos · <strong>Tiempo para dominarlo:</strong> 1 día de práctica</p>
+</blockquote>
+
+<div class="toc">
+<h3>📋 Índice</h3>
+<ol>
+<li><a href="#bienvenida">Bienvenida: Tu nuevo asistente que nunca duerme</a></li>
+<li><a href="#que-es">¿Qué es CommerceFlow OS? (en palabras simples)</a></li>
+<li><a href="#primer-dia">Tu primer día: Tour por el panel</a></li>
+<li><a href="#diferenciadores">Por qué CommerceFlow es único — 10 diferenciadores</a></li>
+<li><a href="#modulos">Los 14 módulos explicados como si fueran habitaciones</a></li>
+<li><a href="#asistentes">Tus 26 asistentes virtuales</a></li>
+<li><a href="#venta">Cómo funciona una venta de principio a fin</a></li>
+<li><a href="#embudo">El embudo: por qué solo 1 de cada 100 pedidos llega a entregado</a></li>
+<li><a href="#problematicos">Cómo no perder dinero con clientes problemáticos</a></li>
+<li><a href="#publicidad">Cómo saber si tu publicidad está funcionando</a></li>
+<li><a href="#dinero">Tu dinero: Wallet, comisiones y retiros</a></li>
+<li><a href="#problemas">Cuando las cosas salen mal: Novedades y reintentos</a></li>
+<li><a href="#google">Tu tienda en Google gratis (SEO)</a></li>
+<li><a href="#roles">Onboarding por rol (qué te toca a ti)</a></li>
+<li><a href="#dia">Un día normal usando CommerceFlow</a></li>
+<li><a href="#faq">Preguntas frecuentes (sin tecnicismos)</a></li>
+<li><a href="#glosario">Glosario: Palabras que vas a escuchar</a></li>
+<li><a href="#empezar">Cómo empezar HOY</a></li>
+</ol>
+</div>
+
+<hr>
+
+<h2 id="bienvenida">1. Bienvenida</h2>
+
+<h3>Tu nuevo asistente que nunca duerme</h3>
+<p>Imagínate que contrataste a la mejor asesora de ventas del mundo. Una que:</p>
+<ul>
+<li>✅ <strong>Responde en 3 segundos</strong>, a cualquier hora del día o de la noche</li>
+<li>✅ <strong>Nunca se enferma</strong>, nunca toma vacaciones, nunca se cansa</li>
+<li>✅ <strong>Habla 3 idiomas</strong> (WhatsApp, Messenger, Instagram) a la vez</li>
+<li>✅ <strong>Recuerda a cada cliente</strong> y sabe quién es confiable y quién devuelve</li>
+<li>✅ <strong>Calcula fletes</strong> al instante, sin equivocarse</li>
+<li>✅ <strong>Arma el carrito</strong> y manda link de pago automáticamente</li>
+<li>✅ <strong>Te avisa</strong> cuando un paquete se pierde o un cliente no responde</li>
+<li>✅ <strong>Te dice qué anuncios funcionan</strong> y cuáles tiran tu plata al basurero</li>
+</ul>
+<p>Esa asesora se llama <strong>CommerceFlow OS</strong>. No es humana, es un sistema inteligente. Pero trabaja como la mejor asesora que podrías contratar — y cuesta una fracción de lo que costaría un empleado.</p>
+
+<h3>¿Por qué lo necesitas?</h3>
+<p>Si vendes por WhatsApp en LATAM, ya sabes el problema:</p>
+<ul>
+<li>😰 Tienes <strong>200+ chats sin responder</strong> y no sabes cuáles son urgentes</li>
+<li>😰 <strong>Copias y pegas</strong> direcciones, calculas fletes a mano, cotizas uno por uno</li>
+<li>😰 <strong>No sabes qué anuncio te trajo cada venta</strong> — gastas en publicidad a ciegas</li>
+<li>😰 Un cliente <strong>devuelve 5 veces</strong> y sigues aceptándole pedidos</li>
+<li>😰 Las transportadoras <strong>pierden paquetes</strong> y no tienes dónde gestionarlo</li>
+</ul>
+<p>CommerceFlow resuelve todo eso. Y en esta guía te explicamos cómo, paso a paso, sin palabras raras.</p>
+
+<hr>
+
+<h2 id="que-es">2. ¿Qué es CommerceFlow OS?</h2>
+
+<h3>En una frase</h3>
+<p>Es un <strong>panel de control</strong> donde gestionas todas tus ventas por WhatsApp, Messenger e Instagram, con un asistente inteligente que te ayuda a vender más y perder menos dinero.</p>
+
+<h3>En tres frases</h3>
+<ol>
+<li><strong>Unifica tus chats</strong> de WhatsApp, Messenger e Instagram en un solo lugar</li>
+<li><strong>Un asistente inteligente</strong> responde por ti, cotiza, y filtra clientes malos</li>
+<li><strong>Te dice qué publicidad funciona</strong> y cuál no, para que no gastes a ciegas</li>
+</ol>
+
+<h3>¿Qué NO es?</h3>
+<ul>
+<li>❌ No es un bot de WhatsApp que responde "Gracias por escribir, te responderemos pronto"</li>
+<li>❌ No es un CRM aburrido donde tienes que llenar campos manualmente</li>
+<li>❌ No es una tienda online como Shopify (aunque se conecta con Shopify)</li>
+<li>❌ No reemplaza al humano en casos edge — la IA hace el 95% automáticamente, el humano solo supervisa</li>
+</ul>
+
+<h3>¿Para quién es?</h3>
+<table>
+<tr><th>Si eres...</th><th>CommerceFlow te ayuda a...</th></tr>
+<tr><td>👑 Dueño de marca</td><td>Ver toda tu operación en un solo panel</td></tr>
+<tr><td>💬 Asesor de ventas</td><td>La IA responde, muestra productos y cierra ventas automáticamente</td></tr>
+<tr><td>📦 Operador logístico</td><td>Seguir paquetes y gestionar devoluciones</td></tr>
+<tr><td>📢 Persona de marketing</td><td>Saber qué anuncios funcionan de verdad</td></tr>
+<tr><td>🎯 Trafficker (affiliate)</td><td>Invertir en pauta y cobrar comisiones</td></tr>
+<tr><td>🛒 Comprador final</td><td>Recibir respuestas en 3 segundos, no 3 horas</td></tr>
+</table>
+
+<hr>
+
+<h2 id="diferenciadores">2.5. Por qué CommerceFlow es único — 10 diferenciadores que NINGÚN competidor tiene</h2>
+
+<p>Existen muchas herramientas de WhatsApp, CRMs, y plataformas de pauta. Pero <strong>ninguna hace lo que CommerceFlow hace</strong>. Estos son nuestros 10 diferenciadores únicos:</p>
+
+<div class="callout">
+<div class="callout-title">🏆 1. Detección automática de devolvedores (antes de vender)</div>
+<p><strong>El problema:</strong> En LATAM, 20.5% de los clientes son "devolvedores" — piden, reciben, y devuelven. Cada devolución cuesta flete + empaque + tiempo.</p>
+<p><strong>Lo que hacen otros:</strong> Ningún CRM detecta devolvedores. Sigues vendiendo a clientes problemáticos y perdiendo dinero.</p>
+<p><strong>Lo que hacemos nosotros:</strong> Antes de vender, el <strong>Guardia</strong> (agente #1) revisa el historial. Si es devolvedor, activa "pago anticipado obligatorio" automáticamente.</p>
+<p><strong>Tu ahorro:</strong> $600K COP/mes si vendes $10M (20% devoluciones eliminadas).</p>
+</div>
+
+<div class="callout">
+<div class="callout-title">🏆 2. 26 agentes IA especializados trabajando en equipo</div>
+<p><strong>El problema:</strong> Los bots de WhatsApp normales responden "Gracias por escribir". No venden, no cotizan, no cierran.</p>
+<p><strong>Lo que hacen otros:</strong> Chatbots simples con respuestas pre-programadas. No entienden contexto, no perfilan, no recomiendan productos.</p>
+<p><strong>Lo que hacemos nosotros:</strong> 26 agentes IA especializados, cada uno experto en una tarea. Trabajan en secuencia automáticamente — del "Hola" al "Pedido entregado" sin intervención humana.</p>
+<p><strong>Tu beneficio:</strong> 95% del trabajo automatizado. Tu equipo solo supervisa.</p>
+</div>
+
+<div class="callout">
+<div class="callout-title">🏆 3. Atribución real de pauta (conecta venta con anuncio)</div>
+<p><strong>El problema:</strong> Gastas $3M/mes en Meta Ads y no sabes qué anuncio generó cada venta.</p>
+<p><strong>Lo que hacen otros:</strong> Herramientas que muestran clics e impresiones, pero no conectan con ventas reales por WhatsApp.</p>
+<p><strong>Lo que hacemos nosotros:</strong> Cada venta se conecta automáticamente con el anuncio que la generó. Sabes exactamente qué ROAS tiene cada ad.</p>
+<p><strong>Tu ahorro:</strong> $900K/mes en pauta mal gastada (30% de tu budget típico).</p>
+</div>
+
+<div class="callout">
+<div class="callout-title">🏆 4. Verdict engine automático (mata/escala ads sin humano)</div>
+<p><strong>El problema:</strong> Revisar 50 anuncios manualmente cada semana toma horas.</p>
+<p><strong>Lo que hacen otros:</strong> Te muestran ROAS pero tú decides qué hacer. Manual, lento.</p>
+<p><strong>Lo que hacemos nosotros:</strong> El verdict engine pausa automáticamente anuncios con ROAS < 0.8 y escala los > 3.0. Sin que tú toques nada.</p>
+<p><strong>Tu beneficio:</strong> Optimización de pauta 24/7 sin intervención humana.</p>
+</div>
+
+<div class="callout">
+<div class="callout-title">🏆 5. CAPI server-side (recupera 30% de tracking perdido)</div>
+<p><strong>El problema:</strong> Con iOS 14.5+ y bloqueo de cookies, el pixel pierde ~30% de conversiones.</p>
+<p><strong>Lo que hacen otros:</strong> Solo usan pixel del navegador. Pierden 30% del tracking.</p>
+<p><strong>Lo que hacemos nosotros:</strong> CAPI envía conversiones directamente desde nuestro servidor a Meta, Google y TikTok. Recuperamos ese 30% perdido.</p>
+<p><strong>Tu beneficio:</strong> Mejor data = mejor optimización = más ventas por menos dinero.</p>
+</div>
+
+<div class="callout">
+<div class="callout-title">🏆 6. CRM de novedades logísticas integrado</div>
+<p><strong>El problema:</strong> Cuando una transportadora pierde un paquete, gestiones el problema por WhatsApp, correo, Excel. Todo disperso.</p>
+<p><strong>Lo que hacen otros:</strong> Nada. Las novedades se gestionan manualmente fuera del sistema.</p>
+<p><strong>Lo que hacemos nosotros:</strong> CRM de novedades completo con 3 tabs (Casos, Reintentos, Historial). Reintentos de entrega automáticos cuando un paquete se devuelve.</p>
+<p><strong>Tu beneficio:</strong> 70% menos tiempo gestionando problemas logísticos.</p>
+</div>
+
+<div class="callout">
+<div class="callout-title">🏆 7. Wallet con 2FA para traffickers (fintech integrado)</div>
+<p><strong>El problema:</strong> Si quieres que affiliates inviertan en tu pauta, necesitan confianza.</p>
+<p><strong>Lo que hacen otros:</strong> No tienen wallet. Los traffickers cobran por fuera, sin tracking, sin seguridad.</p>
+<p><strong>Lo que hacemos nosotros:</strong> Wallet integrada con 2FA (Google Authenticator). Compensación automática si el vendedor falla.</p>
+<p><strong>Tu beneficio:</strong> Atraes affiliates de calidad porque confían en el sistema.</p>
+</div>
+
+<div class="callout">
+<div class="callout-title">🏆 8. Páginas SEO públicas gratis (cada marca = URL indexable)</div>
+<p><strong>El problema:</strong> Vender por WhatsApp no te da presencia en Google.</p>
+<p><strong>Lo que hacen otros:</strong> Nada. Solo WhatsApp, no web.</p>
+<p><strong>Lo que hacemos nosotros:</strong> Cada marca tiene su página web gratis (<code>/t/tumarca</code>) con Schema.org. Cada producto tiene su URL. Google indexa todo.</p>
+<p><strong>Tu beneficio:</strong> Tráfico orgánico gratis para siempre.</p>
+</div>
+
+<div class="callout">
+<div class="callout-title">🏆 9. Multi-tenant real (varias marcas en un panel, aisladas)</div>
+<p><strong>El problema:</strong> Si tienes 4 marcas, saltas entre 4 WhatsApps, 4 Excel, 4 sistemas.</p>
+<p><strong>Lo que hacen otros:</strong> Te venden 4 licencias separadas. O un sistema compartido sin aislamiento.</p>
+<p><strong>Lo que hacemos nosotros:</strong> Multi-tenant real. Las 4 marcas en un solo panel, pero aisladas. Aislamiento a 3 niveles: app, ORM, base de datos.</p>
+<p><strong>Tu beneficio:</strong> Operas múltiples marcas eficientemente sin riesgos de seguridad.</p>
+</div>
+
+<div class="callout">
+<div class="callout-title">🏆 10. Marketplace cross-brand automático</div>
+<p><strong>El problema:</strong> Un cliente busca algo que no tienes. Pierdes la venta.</p>
+<p><strong>Lo que hacen otros:</strong> Nada. El cliente se va a otra parte.</p>
+<p><strong>Lo que hacemos nosotros:</strong> Si no tienes un producto, la IA automáticamente recomienda el de otra marca. Si compra, tú ganas comisión de referral.</p>
+<p><strong>Tu beneficio:</strong> Ingresos por productos que ni siquiera tienes en inventario.</p>
+</div>
+
+<h3>Resumen de diferenciadores</h3>
+<table>
+<tr><th>#</th><th>Diferenciador</th><th>Quién más lo hace</th><th>Tu beneficio</th></tr>
+<tr><td>1</td><td>Detección de devolvedores</td><td>Nadie</td><td>$600K/mes ahorrado</td></tr>
+<tr><td>2</td><td>26 agentes IA en equipo</td><td>Chatbots simples</td><td>95% automatizado</td></tr>
+<tr><td>3</td><td>Atribución real de pauta</td><td>Solo pixel</td><td>$900K/mes ahorrado</td></tr>
+<tr><td>4</td><td>Verdict engine automático</td><td>Manual</td><td>24/7 optimización</td></tr>
+<tr><td>5</td><td>CAPI server-side</td><td>Solo pixel</td><td>+30% tracking</td></tr>
+<tr><td>6</td><td>CRM de novedades</td><td>Excel disperso</td><td>70% menos tiempo</td></tr>
+<tr><td>7</td><td>Wallet 2FA traffickers</td><td>Por fuera</td><td>Atrae affiliates</td></tr>
+<tr><td>8</td><td>SEO público gratis</td><td>Solo WhatsApp</td><td>Tráfico orgánico</td></tr>
+<tr><td>9</td><td>Multi-tenant real</td><td>4 licencias</td><td>Eficiencia multi-marca</td></tr>
+<tr><td>10</td><td>Marketplace cross-brand</td><td>Nada</td><td>Ingresos extra</td></tr>
+</table>
+
+<div class="warning">
+<div class="warning-title">→ Ningún competidor combina estos 10 diferenciadores</div>
+<p>CommerceFlow es único en LATAM.</p>
+</div>
+
+<hr>
+
+<h2 id="modulos">4. Los 14 módulos explicados como habitaciones de tu casa</h2>
+
+<p>Imagina que CommerceFlow es una casa con 14 habitaciones. Cada habitación sirve para algo diferente:</p>
+
+<h3>📊 1. Resumen — El vestíbulo</h3>
+<p>Es lo primero que ves al entrar. Como el vestíbulo de tu casa, te da la bienvenida y te muestra lo importante de un vistazo: cuánto vendiste, cuánto gastaste en pauta, cuántos pedidos tienes.</p>
+<p><strong>¿Cuándo entras?</strong> Cada mañana para ver cómo van las cosas.</p>
+
+<h3>💬 2. Mensajería — La sala de estar</h3>
+<p>Aquí es donde pasas la mayor parte del tiempo. Es como tu sala de estar donde recibes a las visitas. Todos tus chats de WhatsApp, Messenger e Instagram aparecen aquí, en un solo lugar.</p>
+<p><strong>¿Qué puedes hacer?</strong></p>
+<ul>
+<li>Ver todos tus chats en una lista</li>
+<li>Responder con la IA actuando por defecto (los agentes responden, muestran productos y cierran ventas solos)</li>
+<li>Ver la información del cliente (nombre, teléfono, dirección, historial)</li>
+<li>Cambiar el estado del chat (abierto, pendiente, cerrado)</li>
+<li>Ver mensajes en tiempo real (aparecen solos, sin refrescar)</li>
+</ul>
+
+<h3>🖼️ 3. Catálogo Visual — El showroom</h3>
+<p>Imagina un showroom donde tienes todos tus productos con fotos. Cuando un cliente pregunta por algo, vas al showroom, tocas el producto, y se lo mandas al chat. Así de fácil.</p>
+
+<h3>📦 4. Pedidos & Pagos — La bodega</h3>
+<p>Aquí están todos tus pedidos, como en una bodega donde cada pedido tiene su casillero. Sabes cuál está pagado, cuál pendiente, cuál despachado.</p>
+
+<h3>📋 5. Kanban operativo — El tablero de Trello</h3>
+<p>Imagina un tablero de Trello con columnas. Cada pedido es una tarjeta que vas arrastrando de una columna a otra según su estado.</p>
+
+<div class="callout">
+<div class="callout-title">Las 8 columnas (con datos reales de Saramantha)</div>
+<table>
+<tr><th>Columna</th><th>% de pedidos</th><th>Qué significa</th></tr>
+<tr><td>1. Pendiente confirmar</td><td>73%</td><td>Acaban de pedir, hay que llamar</td></tr>
+<tr><td>2. Datos completados</td><td>8.9%</td><td>Ya confirmamos datos, listo para despachar</td></tr>
+<tr><td>3. Intenta cancelar</td><td>6.3%</td><td>El cliente se arrepintió</td></tr>
+<tr><td>4. Oficina</td><td>8.9%</td><td>En la oficina procesando</td></tr>
+<tr><td>5. Despachado</td><td>1.1%</td><td>Entregado a la transportadora</td></tr>
+<tr><td>6. En tránsito</td><td>1.7%</td><td>En camino</td></tr>
+<tr><td>7. Entregado</td><td>—</td><td>Llegó al cliente</td></tr>
+<tr><td>8. Devuelto</td><td>—</td><td>Volvió a la oficina</td></tr>
+</table>
+</div>
+
+<h3>🎭 6. Orquestador — El director de orquesta</h3>
+<p>Imagina que tienes 10 empleados virtuales. El orquestador es el director que los hace trabajar en equipo, uno detrás del otro, para atender a un cliente de principio a fin.</p>
+
+<h3>🎯 7. Atribución de Pauta — El contador</h3>
+<p>Este es el módulo que <strong>más dinero te ahorra</strong>. Imagina que tienes un contador que te dice: "El anuncio de Stitch gastó $100K y trajo $320K en ventas → sigue invirtiendo. El anuncio de Pijama Cowboy gastó $80K y trajo $40K → mátalo ya".</p>
+
+<div class="callout">
+<div class="callout-title">Los 4 veredictos automáticos</div>
+<table>
+<tr><th>ROAS</th><th>Veredicto</th><th>Qué significa</th></tr>
+<tr><td>Menos de 0.8</td><td>🔴 MATAR</td><td>Pausar ya, está perdiendo plata</td></tr>
+<tr><td>0.8 - 1.5</td><td>🟡 PAUSAR</td><td>Revisar la creatividad</td></tr>
+<tr><td>1.5 - 3.0</td><td>🔵 VIGILAR</td><td>Monitorear</td></tr>
+<tr><td>Más de 3.0</td><td>🟢 ESCALAR</td><td>Aumentar presupuesto</td></tr>
+</table>
+</div>
+
+<h3>💵 8. Monetización — La contabilidad</h3>
+<p>Si eres plataforma (como Indisutex con 4 marcas), aquí ves cuánta comisión cobras a cada marca este mes.</p>
+
+<div class="callout">
+<div class="callout-title">Los 3 tramos de comisión</div>
+<table>
+<tr><th>GMV mensual</th><th>Comisión</th><th>Ejemplo</th></tr>
+<tr><td>Menos de $10M COP</td><td>4.5%</td><td>$450K sobre $10M</td></tr>
+<tr><td>$10M - $40M COP</td><td>3.0%</td><td>$900K sobre $30M</td></tr>
+<tr><td>Más de $40M COP</td><td>1.75%</td><td>$700K sobre $40M</td></tr>
+</table>
+</div>
+
+<h3>👛 9. Wallet — Tu billetera</h3>
+<p>Si eres trafficker (affiliate), aquí ves tu dinero. Es como tu cuenta de banco dentro de CommerceFlow.</p>
+
+<h3>🚚 10. Inteligencia Logística — El radar</h3>
+<p>Imagina un radar que te muestra qué paquetes están stuck, qué transportadoras sirven, y qué clientes son problemáticos.</p>
+
+<div class="warning">
+<div class="warning-title">Datos reales de Saramantha</div>
+<ul>
+<li>50% de clientes son confiables (100% entrega)</li>
+<li>29.5% son de riesgo (1-49% entrega)</li>
+<li>20.5% son devolvedores (0% entrega) ← ¡estos te pierden dinero!</li>
+</ul>
+</div>
+
+<h3>🏪 11. Marketplace — El centro comercial</h3>
+<p>Imagina un centro comercial donde varias marcas conviven. Si un cliente busca algo que tú no tienes, pero otra marca sí, el sistema se lo recomienda. Y si compra, tú ganas una comisión por la referencia.</p>
+
+<h3>⚠️ 12. Novedades — El buzón de problemas</h3>
+<p>Aquí gestionas todo lo que sale mal: paquetes perdidos, devoluciones, daños, retrasos.</p>
+
+<h3>🔌 13. Integraciones — El tablero de conexiones</h3>
+<p>Aquí ves todas las conexiones que tiene CommerceFlow con otros sistemas. Es como un tablero de luces: verde = conectado, rojo = no conectado.</p>
+
+<h3>⚙️ 14. Configuración — El control remoto</h3>
+<p>Aquí ajustas cómo funciona CommerceFlow para ti. Es como el control remoto de tu TV: configuras una vez y luego no tocas mucho.</p>
+
+<hr>
+
+<h2 id="asistentes">5. Tus 26 asistentes virtuales</h2>
+
+<h3>🛒 Equipo A: Antes de vender (10 asistentes)</h3>
+<table>
+<tr><th>#</th><th>Nombre</th><th>Qué hace (en palabras simples)</th></tr>
+<tr><td>1</td><td><strong>El Guardia</strong> (buyer_behavior)</td><td>Revisa si el cliente es de los que siempre devuelven. Si es así, avisa para pedir pago anticipado.</td></tr>
+<tr><td>2</td><td><strong>El Psicólogo</strong> (profile)</td><td>Adivina qué tipo de comprador es: ¿mayorista, detal, o regalo?</td></tr>
+<tr><td>3</td><td><strong>El Vendedor</strong> (speech)</td><td>Genera el discurso de ventas perfecto para ese tipo de cliente.</td></tr>
+<tr><td>4</td><td><strong>El Mostrador</strong> (catalog)</td><td>Muestra productos con fotos, precios, descripciones.</td></tr>
+<tr><td>5</td><td><strong>El Empacador</strong> (cart_builder)</td><td>Arma el carrito: añade items, calcula totales, descuentos.</td></tr>
+<tr><td>6</td><td><strong>El Cotizador</strong> (quote)</td><td>Cotiza con cross-sell. Aplica precios por volumen.</td></tr>
+<tr><td>7</td><td><strong>El Negociador</strong> (objection)</td><td>Maneja objeciones: "muy caro", "no tengo la talla".</td></tr>
+<tr><td>8</td><td><strong>El Cartero</strong> (address)</td><td>Confirma los 10 campos de la dirección.</td></tr>
+<tr><td>9</td><td><strong>El Despachador</strong> (logistics)</td><td>Cotiza el flete y elige la mejor transportadora.</td></tr>
+<tr><td>10</td><td><strong>El Cajero</strong> (checkout)</td><td>Genera el link de pago o confirma contra entrega.</td></tr>
+</table>
+
+<h3>📦 Equipo B: Después de vender (4 asistentes)</h3>
+<table>
+<tr><th>#</th><th>Nombre</th><th>Qué hace</th></tr>
+<tr><td>11</td><td><strong>El Rastreador</strong> (guide_tracking)</td><td>Sigue cada paquete. Si lleva 3 días sin moverse, avisa.</td></tr>
+<tr><td>12</td><td><strong>El Gestor de Problemas</strong> (novedades)</td><td>Si hay devolución, abre un caso y lo sigue hasta resolverse.</td></tr>
+<tr><td>13</td><td><strong>El Reintentador</strong> (redelivery)</td><td>Si el paquete vuelve, agenda un nuevo intento.</td></tr>
+<tr><td>14</td><td><strong>El Recuperador</strong> (remarketing)</td><td>Si el cliente dejó de responder, le manda un mensaje.</td></tr>
+</table>
+
+<h3>🧠 Equipo C: Inteligencia (5 asistentes)</h3>
+<table>
+<tr><th>#</th><th>Nombre</th><th>Qué hace</th></tr>
+<tr><td>15</td><td><strong>El Analista de Clientes</strong></td><td>Puntúa a tus clientes: confiables, riesgosos, devolvedores.</td></tr>
+<tr><td>16</td><td><strong>El Analista de Transportadoras</strong></td><td>Puntúa a las transportadoras: cuál entrega mejor.</td></tr>
+<tr><td>17</td><td><strong>El Decorador</strong></td><td>Analiza tus fotos y genera tags SEO, materiales, colores.</td></tr>
+<tr><td>18</td><td><strong>El Conector</strong></td><td>Conecta marcas entre sí (marketplace).</td></tr>
+<tr><td>19</td><td><strong>El Contable</strong></td><td>Mide qué affiliates generan más ventas.</td></tr>
+</table>
+
+<hr>
+
+<h2 id="venta">6. Cómo funciona una venta de principio a fin</h2>
+
+<p>Imagina que eres Valentina, asesora de Saramantha. Un cliente nuevo escribe por WhatsApp a las 9pm:</p>
+<blockquote><p><strong>Cliente:</strong> "Hola, vi un pijama de Stitch en su Instagram, ¿cuánto cuesta?"</p></blockquote>
+
+<h3>😱 Sin CommerceFlow (hoy)</h3>
+<ol>
+<li>Ves el mensaje 2 horas después (estabas cenando)</li>
+<li>Buscas el producto en tu catálogo (5 min)</li>
+<li>Le mandas foto + precio</li>
+<li>Él pregunta por tallas → buscas otra vez</li>
+<li>Pregunta por envío a Pasto → calculas a mano</li>
+<li>Te pide descuento → negocias 10 min</li>
+<li>Te da la dirección → la copias en otro lado</li>
+<li>Le confirmas para mañana llamarlo</li>
+<li><strong>Total: 40 min de tu tiempo + él esperó 2h</strong></li>
+<li>Posibilidad de que abandone: <strong>60%</strong></li>
+</ol>
+
+<h3>✨ Con CommerceFlow</h3>
+<ol>
+<li>El asistente responde en <strong>3 segundos</strong></li>
+<li>Muestra foto + precio + tallas automáticamente</li>
+<li>Cotiza envío a Pasto en tiempo real ($14K con Dropi)</li>
+<li>Detecta que es cliente nuevo (no devolvedor) → ok</li>
+<li>Lo perfila: "detal" → muestra precio sin descuento mayorista</li>
+<li>Pide confirmar dirección → él la escribe → se valida</li>
+<li>Genera link de pago (Wompi) → él paga ahí mismo</li>
+<li>Pedido pasa a "confirmado" automáticamente</li>
+<li><strong>Total: 0 min de tu tiempo + él compró en 5 min</strong></li>
+<li>Posibilidad de que abandone: <strong>15%</strong></li>
+</ol>
+
+<div class="callout">
+<div class="callout-title">💰 La diferencia = más dinero</div>
+<p>Si recibes 50 mensajes al día y cada venta vale $50K COP:</p>
+<table>
+<tr><th></th><th>Sin CommerceFlow</th><th>Con CommerceFlow</th></tr>
+<tr><td>Mensajes/día</td><td>50</td><td>50</td></tr>
+<tr><td>Atiendes</td><td>10 (manual)</td><td>50 (IA + tú)</td></tr>
+<tr><td>Vendes</td><td>$500K/día</td><td>$1M/día</td></tr>
+<tr><td>Tu tiempo</td><td>10h/día</td><td>4h/día</td></tr>
+</table>
+<p><strong>→ Duplicaste tus ventas sin contratar nadie.</strong></p>
+</div>
+
+<hr>
+
+<h2 id="embudo">7. El embudo: por qué solo 1 de cada 100 pedidos llega a entregado</h2>
+
+<p>Esto es lo que pasa en la vida real (datos de Saramantha, 238 pedidos):</p>
+
+<pre>
+100 mensajes llegan
+    ↓
+73 necesitan llamada de confirmación  (73%)
+    ↓
+21 completan datos  (8.9% del total)
+    ↓
+15 intentan cancelar  (6.3% del total)
+    ↓
+3 llegan a despachado  (1.1% del total)
+    ↓
+...y solo algunos llegan a entregado
+</pre>
+
+<div class="callout">
+<div class="callout-title">¿Cómo lo resuelve CommerceFlow?</div>
+<ul>
+<li>El asistente responde rápido → menos abandono por espera</li>
+<li>El Cartero valida la dirección → menos devoluciones</li>
+<li>El Rastreador sigue el paquete → menos pérdidas</li>
+<li>El Reintentador recupera devoluciones → más segundas oportunidades</li>
+<li>El Recuperador recupera clientes que dejaron de responder</li>
+</ul>
+<p><strong>Con CommerceFlow, pasamos del 1% al 15% de pedidos entregados.</strong> Eso es 15x más ventas.</p>
+</div>
+
+<hr>
+
+<h2 id="problematicos">8. Cómo no perder dinero con clientes problemáticos</h2>
+
+<h3>El problema #1 en LATAM: los devolvedores</h3>
+<p><strong>¿Qué es un devolvedor?</strong> Es un cliente que pide, recibe, y devuelve. Una y otra vez. Su tasa de entrega es 0%.</p>
+
+<div class="warning">
+<div class="warning-title">Datos reales de Saramantha</div>
+<ul>
+<li>20.5% de los clientes son devolvedores</li>
+<li>Eso significa que <strong>1 de cada 5 pedidos se devuelve</strong></li>
+<li>Cada devolución cuesta: flete de ida + flete de vuelta + empaque + tiempo</li>
+</ul>
+</div>
+
+<h3>¿Cuánto dinero pierdes?</h3>
+<p>Si vendes $10M/mes y 20% se devuelve:</p>
+<ul>
+<li>$2M en pedidos devueltos</li>
+<li>$400K en fletes perdidos (ida + vuelta)</li>
+<li>$200K en empaque y manejo</li>
+<li><strong>Total: $600K/mes perdido por devolvedores</strong></li>
+</ul>
+
+<h3>Cómo te protege CommerceFlow</h3>
+<p>El <strong>Guardia</strong> (asistente #1) revisa cada cliente nuevo:</p>
+<ol>
+<li>Cliente escribe por primera vez</li>
+<li>El Guardia busca en el historial: ¿este teléfono ha devuelto antes?</li>
+<li>Si es devolvedor → activa protocolo <strong>"pago anticipado obligatorio"</strong></li>
+<li>Si es cliente nuevo → sigue normal</li>
+<li>Si es confiable → puede pagar contra entrega</li>
+</ol>
+
+<div class="callout">
+<div class="callout-title">Las 3 categorías de clientes</div>
+<table>
+<tr><th>Categoría</th><th>Tasa de entrega</th><th>% de clientes</th><th>Acción</th></tr>
+<tr><td>🟢 Confiables</td><td>100%</td><td>50%</td><td>Contra entrega OK</td></tr>
+<tr><td>🟡 Riesgo</td><td>1-49%</td><td>29.5%</td><td>Pago anticipado recomendado</td></tr>
+<tr><td>🔴 Devolvedores</td><td>0%</td><td>20.5%</td><td>Pago anticipado obligatorio</td></tr>
+</table>
+</div>
+
+<hr>
+
+<h2 id="publicidad">9. Cómo saber si tu publicidad está funcionando</h2>
+
+<h3>¿Sabes si tus anuncios funcionan?</h3>
+<p>Si gastas $500K COP/mes en Meta Ads, ¿sabes cuántas ventas te trajo cada anuncio?</p>
+<ul>
+<li><strong>Sin CommerceFlow:</strong> No lo sabes. Meta te dice "tu anuncio tuvo 100 clics y 20 conversiones" pero esas conversiones son personas que llenaron un formulario, no personas que compraron.</li>
+<li><strong>Con CommerceFlow:</strong> Lo sabes exactamente. Cada venta se conecta con el anuncio que la generó.</li>
+</ul>
+
+<h3>Los 3 números que te importan</h3>
+<table>
+<tr><th>Número</th><th>Qué es</th><th>Ejemplo</th></tr>
+<tr><td><strong>ROAS</strong></td><td>Por cada $1 que gastaste, cuánto recuperaste</td><td>2.5x = por cada $1, recuperaste $2.50</td></tr>
+<tr><td><strong>CPA</strong></td><td>Cuánto te costó cada venta</td><td>$15K = cada venta te costó $15K en pauta</td></tr>
+<tr><td><strong>ROI</strong></td><td>Retorno sobre inversión</td><td>150% = ganaste 1.5x lo que invertiste</td></tr>
+</table>
+
+<div class="callout">
+<div class="callout-title">¿Cuánto dinero te ahorra esto?</div>
+<p>Si gastas $3M/mes en pauta y el 30% está en anuncios con ROAS < 0.8:</p>
+<ul>
+<li>$900K/mes en pauta mal gastada</li>
+<li>CommerceFlow lo detecta y pausa</li>
+<li><strong>Ahorro: $900K/mes = $10.8M/año</strong></li>
+</ul>
+</div>
+
+<hr>
+
+<h2 id="dinero">10. Tu dinero: Wallet, comisiones y retiros</h2>
+
+<h3>Wallet: tu billetera dentro de CommerceFlow</h3>
+<p>Si eres <strong>trafficker</strong> (alguien que invierte en pauta para ganar comisiones), tienes una wallet dentro de CommerceFlow.</p>
+
+<h3>¿Cómo funciona?</h3>
+<ol>
+<li><strong>Inviertes</strong> en una campaña de pauta (ej: $200K en ads de Stitch)</li>
+<li>La pauta genera <strong>ventas</strong> (ej: 8 ventas de $50K = $400K)</li>
+<li>Tú cobras una <strong>comisión</strong> (ej: 10% = $40K)</li>
+<li>La comisión se <strong>acumula</strong> en tu wallet</li>
+<li>Cuando quieras, <strong>retiras</strong> a tu cuenta de banco</li>
+</ol>
+
+<div class="callout">
+<div class="callout-title">¿Es seguro?</div>
+<p><strong>Sí, muy seguro.</strong> Para retirar dinero necesitas:</p>
+<ol>
+<li><strong>Tu contraseña</strong> de CommerceFlow</li>
+<li><strong>Tu teléfono</strong> con Google Authenticator (un código que cambia cada 30 segundos)</li>
+</ol>
+<p>Esto se llama <strong>"doble factor de seguridad" (2FA)</strong> y es lo mismo que usan los bancos.</p>
+</div>
+
+<h3>¿Qué pasa si el vendedor falla?</h3>
+<p>Si tú invertiste en pauta, generaste una venta, pero el vendedor no despacha, <strong>recibes compensación automáticamente</strong>:</p>
+<table>
+<tr><th>Causa de falla</th><th>Compensación</th></tr>
+<tr><td>Vendedor no despacha</td><td>100% de tu comisión</td></tr>
+<tr><td>Vendedor demora</td><td>50% de tu comisión</td></tr>
+<tr><td>Vendedor cancela</td><td>100% de tu comisión</td></tr>
+<tr><td>Entrega fallida</td><td>50% de tu comisión</td></tr>
+<tr><td>Producto dañado</td><td>25% de tu comisión</td></tr>
+</table>
+<p><strong>Tú no pierdes si el vendedor falla.</strong></p>
+
+<hr>
+
+<h2 id="problemas">11. Cuando las cosas salen mal: Novedades y reintentos</h2>
+
+<h3>Novedades: el buzón de problemas</h3>
+<p>En el mundo real, las cosas salen mal:</p>
+<ul>
+<li>📦 La transportadora pierde el paquete</li>
+<li>💔 El cliente dice que el producto llegó dañado</li>
+<li>🚫 La dirección no existe</li>
+<li>⏰ El paquete lleva 5 días sin moverse</li>
+<li>↩️ El cliente no estaba y devolvieron el paquete</li>
+</ul>
+
+<h3>¿Cómo gestionas un problema?</h3>
+<p><strong>Paso 1: Crear el caso</strong> — tipo de problema, cliente, pedido, guía, descripción.</p>
+<p><strong>Paso 2: Investigar</strong> — subir evidencia (fotos), agregar mensajes, todo en un solo lugar.</p>
+<p><strong>Paso 3: Resolver</strong> — redelivery, reembolso, reclamar a transportadora, remarketing.</p>
+<p><strong>Paso 4: Cerrar</strong> — marcar como resuelto, queda en historial.</p>
+
+<h3>Reintentos de entrega</h3>
+<p>Si un paquete se devuelve, CommerceFlow agenda automáticamente un reintento:</p>
+<ol>
+<li>El sistema detecta la devolución</li>
+<li>Crea un "redelivery request"</li>
+<li>Programa el primer intento para el día siguiente en la mañana</li>
+<li>Si falla de nuevo, agenda otro intento (hasta un máximo configurable)</li>
+<li>Si todos fallan, te avisa para decidir qué hacer</li>
+</ol>
+
+<hr>
+
+<h2 id="google">12. Tu tienda en Google gratis (SEO)</h2>
+
+<h3>SEO: tráfico gratis para siempre</h3>
+<p>CommerceFlow te da algo que ninguna otra plataforma de WhatsApp te da: <strong>una página web gratis que aparece en Google</strong>.</p>
+
+<h3>¿Cómo funciona?</h3>
+<p>Cada marca tiene su propia página web:</p>
+<ul>
+<li><code>commerceflow.app/t/saramantha</code> → página de Saramantha</li>
+<li><code>commerceflow.app/t/majestic</code> → página de Sublimados Majestic</li>
+<li><code>commerceflow.app/t/lovely</code> → página de Lovely Pijamas</li>
+<li><code>commerceflow.app/t/reina</code> → página de Sueño de Reina</li>
+</ul>
+
+<div class="callout">
+<div class="callout-title">¿Qué tienes que hacer tú?</div>
+<p><strong>Nada.</strong> El sistema hace todo automáticamente:</p>
+<ul>
+<li>Cuando agregas un producto → se crea su página web</li>
+<li>Cuando agregas una marca → se crea su página web</li>
+<li>El sitemap se actualiza solo</li>
+<li>Google indexa las páginas solo</li>
+</ul>
+<p><strong>Cuanto más vendes, más aparece en Google. Cuanto más aparece, más vendes.</strong> Es un círculo virtuoso.</p>
+</div>
+
+<hr>
+
+<h2 id="roles">13. Onboarding por rol (qué te toca a ti)</h2>
+
+<h3>👑 Si eres Dueño de marca (Admin)</h3>
+<p><strong>Tu trabajo:</strong> Ver que todo funcione y tome buenas decisiones.</p>
+<p><strong>Módulos que más usas:</strong> Resumen, Atribución de Pauta, Monetización, Configuración.</p>
+
+<h3>💬 Si eres Asesor de ventas</h3>
+<p><strong>Tu trabajo:</strong> Atender clientes y cerrar ventas.</p>
+<p><strong>Módulos que más usas:</strong> Mensajería, Catálogo Visual, Pedidos & Pagos, Kanban.</p>
+
+<h3>📦 Si eres Operador logístico</h3>
+<p><strong>Tu trabajo:</strong> Que los paquetes lleguen a los clientes.</p>
+<p><strong>Módulos que más usas:</strong> Kanban, Inteligencia Logística, Novedades, Pedidos & Pagos.</p>
+
+<h3>📢 Si eres de Marketing</h3>
+<p><strong>Tu trabajo:</strong> Que la publicidad funcione.</p>
+<p><strong>Módulos que más usas:</strong> Atribución de Pauta, Resumen, Integraciones, Configuración.</p>
+
+<h3>🎯 Si eres Trafficker (affiliate)</h3>
+<p><strong>Tu trabajo:</strong> Invertir en pauta y ganar comisiones.</p>
+<p><strong>Módulos que más usas:</strong> Wallet, Atribución de Pauta, Monetización.</p>
+
+<hr>
+
+<h2 id="dia">14. Un día normal usando CommerceFlow</h2>
+
+<h3>🌅 7:00 AM — Llegas al trabajo</h3>
+<p>Abres el panel. Ves que durante la noche, la IA atendió 12 conversaciones:</p>
+<ul>
+<li>3 ya son <strong>ventas confirmadas</strong> (pagaron por Wompi)</li>
+<li>4 están <strong>esperando tu llamada</strong></li>
+<li>5 son <strong>clientes problemáticos</strong> ya identificados</li>
+</ul>
+<p><strong>→ Ya tienes $150K COP vendidos antes de tomar café.</strong></p>
+
+<h3>🕙 10:00 AM — Revisas pauta</h3>
+<p>El ad de "Batola Stitch" tiene ROAS 3.2 → el sistema ya lo <strong>escaló</strong>. El ad de "Pijama Cowboy" tiene ROAS 0.6 → el sistema ya lo <strong>pausó</strong>. No tuviste que hacer nada.</p>
+<p><strong>→ Ahorraste $200K COP en pauta mal gastada, automáticamente.</strong></p>
+
+<h3>🕐 1:00 PM — Almuerzo tranquilo</h3>
+<p>La IA sigue atendiendo. Mientras almuerzas, se generaron 2 ventas más.</p>
+
+<h3>🕓 4:00 PM — Gestionas novedades</h3>
+<p>1 caso: un paquete de Interrapidísimo lleva 4 días parado. Le das click, ves el historial, llamas, resuelves en 15 min.</p>
+
+<h3>🌙 6:00 PM — Te vas a casa</h3>
+<p>Cerraste 8 ventas hoy ($400K COP). La IA atenderá esta noche.</p>
+<p><strong>→ Total del día: $550K COP en ventas, 4h de trabajo real, 0 estrés.</strong></p>
+
+<hr>
+
+<h2 id="faq">15. Preguntas frecuentes (sin tecnicismos)</h2>
+
+<h3>¿Tengo que saber de tecnología para usarlo?</h3>
+<p>No. Si sabes usar WhatsApp, sabes usar CommerceFlow. Todo es visual e intuitivo.</p>
+
+<h3>¿La IA reemplaza a mi equipo de ventas?</h3>
+<p>Sí, en el 95% de los casos. La IA responde, muestra productos, cotiza, cierra ventas y sigue envíos automáticamente. El humano solo interviene en casos edge (quejas complejas, negociaciones especiales). Por defecto, la IA hace todo.</p>
+
+<h3>¿Qué pasa si la IA se equivoca?</h3>
+<p>La IA aprende y mejora continuamente. Si comete un error, puedes corregirlo y el sistema lo registra. Por defecto la IA actúa sola, pero siempre puedes intervenir, pausar la IA para un cliente específico, o configurar revisión humana para ciertos tipos de mensajes.</p>
+
+<h3>¿Cuánto cuesta?</h3>
+<p>Cobramos comisión sobre tus ventas: 4.5% si vendes menos de $10M/mes, 3% si vendes $10-40M, 1.75% si vendes más de $40M. Sin costos fijos.</p>
+
+<h3>¿Hay que instalar algo?</h3>
+<p>No. CommerceFlow funciona en el navegador. Entras a tu URL y listo.</p>
+
+<h3>¿Funciona en celular?</h3>
+<p>Sí. El panel es responsive. Puedes usarlo en celular, tablet, o computador.</p>
+
+<h3>¿Mis datos están seguros?</h3>
+<p>Sí. Cada marca ve solo lo suyo. Nadie puede ver tus datos sin permiso. Todo está encriptado.</p>
+
+<h3>¿Puedo cancelar cuando quiera?</h3>
+<p>Sí. No hay contratos largos. Cancelas cuando quieras.</p>
+
+<h3>¿Qué pasa si ya uso Shopify/WooCommerce?</h3>
+<p>Perfecto. CommerceFlow se conecta con Shopify y WooCommerce. Tu catálogo se sincroniza automáticamente.</p>
+
+<h3>¿La IA está disponible 24/7?</h3>
+<p>Sí. La IA no duerme. Atiende a las 3am igual que a las 3pm.</p>
+
+<h3>¿Puedo tener varias marcas?</h3>
+<p>Sí. CommerceFlow es multi-tenant. Puedes tener varias marcas en un solo panel, pero separadas.</p>
+
+<h3>¿Cómo empiezo?</h3>
+<ol>
+<li>Agenda una demo (30 min)</li>
+<li>Activa tu marca (2h)</li>
+<li>Empieza a vender (24h después)</li>
+</ol>
+
+<hr>
+
+<h2 id="empezar">17. Cómo empezar HOY</h2>
+
+<h3>3 pasos, 24 horas</h3>
+
+<h3>Paso 1: Agenda una demo (30 minutos)</h3>
+<p>Te mostramos el panel con datos reales de tu industria. Vemos juntos cómo se aplicaría a tu marca. <strong>Sin compromiso.</strong></p>
+
+<h3>Paso 2: Activa tu marca (2 horas)</h3>
+<ul>
+<li>✅ Importamos tu catálogo (CSV o desde Shopify/WooCommerce)</li>
+<li>✅ Conectamos tu WhatsApp Business + Messenger + Instagram</li>
+<li>✅ Configuramos tu estrategia de pago (anticipado/COD/híbrido)</li>
+<li>✅ Creamos tu página web SEO (<code>/t/tumarca</code>)</li>
+<li>✅ Configuramos los 26 agentes con tu tono de voz</li>
+<li>✅ Conectamos tu pauta de Meta/Google/TikTok</li>
+<li>✅ Te damos acceso al panel</li>
+</ul>
+
+<h3>Paso 3: Vende (24 horas después)</h3>
+<table>
+<tr><th>Cuándo</th><th>Qué vas a ver</th></tr>
+<tr><td>Semana 1</td><td>+30% conversaciones atendidas</td></tr>
+<tr><td>Semana 2</td><td>+15% ventas</td></tr>
+<tr><td>Semana 4</td><td>ROAS mejorado 2x</td></tr>
+</table>
+
+<div class="callout">
+<div class="callout-title">¿Listo para empezar?</div>
+<p><strong>Tu competencia ya está respondiendo en 3 segundos. ¿Qué esperas?</strong></p>
+<table>
+<tr><td>📧</td><td>ventas@commerceflow.app</td></tr>
+<tr><td>📍</td><td>Bogotá, Colombia · LATAM</td></tr>
+<tr><td>⏱️</td><td>30 min para la demo</td></tr>
+<tr><td>🚀</td><td>2h para activar</td></tr>
+<tr><td>📈</td><td>24h para vender más</td></tr>
+</table>
+</div>
+
+<hr>
+
+<blockquote>
+<p><strong>CommerceFlow OS</strong> · Comercio Conversacional + Atribución de Pauta</p>
+<p><em>No es magia. Es tecnología que trabaja para ti.</em></p>
+</blockquote>
+
+</div>
+<a href="#" class="back-to-top">↑ Arriba</a>
+</body>
+</html>

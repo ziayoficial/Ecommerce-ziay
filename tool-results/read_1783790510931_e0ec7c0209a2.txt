@@ -1,0 +1,560 @@
+     1→'use client'
+     2→import { useEffect, useState } from 'react'
+     3→import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+     4→import { Badge } from '@/components/ui/badge'
+     5→import { Button } from '@/components/ui/button'
+     6→import { Input } from '@/components/ui/input'
+     7→import { Label } from '@/components/ui/label'
+     8→import { Skeleton } from '@/components/ui/skeleton'
+     9→import { Separator } from '@/components/ui/separator'
+    10→import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
+    11→import {
+    12→  Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
+    13→} from '@/components/ui/tooltip'
+    14→import { cn } from '@/lib/utils'
+    15→import { useTenantId } from '@/hooks/use-tenant'
+    16→import { toast } from 'sonner'
+    17→import { formatCurrency } from '@/lib/format'
+    18→import {
+    19→  ShoppingBag, Truck, Plug, Package, Calculator, Eye, Sparkles, CheckCircle2,
+    20→  XCircle, AlertTriangle, Loader2, Zap, Database, Send, RefreshCw,
+    21→} from 'lucide-react'
+    22→
+    23→// ───────────────────────────────────────────────────────────────────────────
+    24→// Types
+    25→// ───────────────────────────────────────────────────────────────────────────
+    26→type HealthCheck = { name: string; status: 'ok' | 'warning' | 'error' | 'not_configured'; detail: string }
+    27→
+    28→type Product = {
+    29→  id: string; sku: string; name: string; description: string | null
+    30→  price: number; imageUrl: string | null; stock: number
+    31→  diseno: string | null; categoria: string | null
+    32→  fuenteSincronizacion: string | null
+    33→}
+    34→
+    35→type FreightQuoteResult = {
+    36→  ok: boolean
+    37→  ciudad: string
+    38→  pais: string
+    39→  cantidad_unidades: number
+    40→  quote: { tarifa: number; tiempo_estimado_dias: number; transportadora: string }
+    41→} | { error: string }
+    42→
+    43→type VisionResult = {
+    44→  reply: string
+    45→  agent: string
+    46→  confidence: number
+    47→  error?: string
+    48→}
+    49→
+    50→// ───────────────────────────────────────────────────────────────────────────
+    51→// Static registry metadata — mirrors src/lib/adapters/registry.ts so the UI
+    52→// shows all 4 ecommerce routes + 3 logistics providers even before health data
+    53→// loads. The "active" badge comes from the per-tenant config (tenant.
+    54→// plataformaCatalogo / tenant.proveedorLogistico) which the /api/health endpoint
+    55→// already exposes via `tenant_catalog_adapter` / `tenant_logistics_adapter`.
+    56→// ───────────────────────────────────────────────────────────────────────────
+    57→const ECOM_ROUTES = [
+    58→  { id: 'whatsapp_catalog',  label: 'WhatsApp Catalog',   emoji: '💬', spec: '§8.2 — catálogo gestionado por Meta Commerce' },
+    59→  { id: 'woocommerce',       label: 'WooCommerce',        emoji: '🛒', spec: '§8.3 — REST consumer_key/secret del cliente' },
+    60→  { id: 'shopify',           label: 'Shopify',            emoji: '🅢', spec: '§8.3 — Admin GraphQL + OAuth access token' },
+    61→  { id: 'catalogo_propio_cliente', label: 'Supabase (cliente)', emoji: '🔌', spec: '§8.4 — read-only, sin escritura de inventario' },
+    62→  { id: 'catalogo_nuestro',  label: 'Supabase (nuestra)', emoji: '🗄️', spec: '§8.4 — read-write, multi-tenant' },
+    63→] as const
+    64→
+    65→const LOGISTICS_ROUTES = [
+    66→  { id: 'dropi',     label: 'Dropi',       emoji: '📦', spec: '§9.6 — multitransportadora CO' },
+    67→  { id: '99envios',  label: '99envios',    emoji: '🚚', spec: '§9.6 — multitransportadora CO' },
+    68→  { id: 'aveonline', label: 'Aveonline',   emoji: '✈️', spec: '§9.6 — multitransportadora CO' },
+    69→] as const
+    70→
+    71→// ───────────────────────────────────────────────────────────────────────────
+    72→// Helpers
+    73→// ───────────────────────────────────────────────────────────────────────────
+    74→function statusMeta(s: HealthCheck['status']) {
+    75→  switch (s) {
+    76→    case 'ok': return { label: 'Configurado',   dot: 'bg-emerald-500', badge: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300', icon: CheckCircle2, iconCls: 'text-emerald-600' }
+    77→    case 'warning': return { label: 'Parcial',   dot: 'bg-amber-500',   badge: 'bg-amber-500/10 text-amber-700 dark:text-amber-300',     icon: AlertTriangle, iconCls: 'text-amber-600' }
+    78→    case 'error': return { label: 'Error',       dot: 'bg-rose-500',    badge: 'bg-rose-500/10 text-rose-700 dark:text-rose-300',        icon: XCircle, iconCls: 'text-rose-600' }
+    79→    default: return { label: 'No configurado',   dot: 'bg-slate-400',   badge: 'bg-slate-500/10 text-slate-700 dark:text-slate-300',     icon: XCircle, iconCls: 'text-slate-500 dark:text-slate-400' }
+    80→  }
+    81→}
+    82→
+    83→export function IntegrationsView() {
+    84→  const tenantId = useTenantId()
+    85→  const [checks, setChecks] = useState<HealthCheck[]>([])
+    86→  const [activeCatalog, setActiveCatalog] = useState<string>('')
+    87→  const [activeLogistics, setActiveLogistics] = useState<string>('')
+    88→  const [checksLoading, setChecksLoading] = useState(true)
+    89→  const [checksError, setChecksError] = useState<string | null>(null)
+    90→  const [checksRetryKey, setChecksRetryKey] = useState(0)
+    91→
+    92→  const [products, setProducts] = useState<Product[]>([])
+    93→  const [prodLoading, setProdLoading] = useState(true)
+    94→  const [prodError, setProdError] = useState<string | null>(null)
+    95→  const [prodRetryKey, setProdRetryKey] = useState(0)
+    96→  const [prodQ, setProdQ] = useState('')
+    97→
+    98→  // Freight quote tester
+    99→  const [fqCity, setFqCity] = useState('Bogotá')
+   100→  const [fqCountry, setFqCountry] = useState('CO')
+   101→  const [fqUnits, setFqUnits] = useState('6')
+   102→  const [fqLoading, setFqLoading] = useState(false)
+   103→  const [fqResult, setFqResult] = useState<FreightQuoteResult | null>(null)
+   104→
+   105→  // Vision identifier
+   106→  const [viUrl, setViUrl] = useState('')
+   107→  const [viLoading, setViLoading] = useState(false)
+   108→  const [viResult, setViResult] = useState<VisionResult | null>(null)
+   109→
+   110→  // Load health + products
+   111→  useEffect(() => {
+   112→    if (!tenantId) return
+   113→    let cancelled = false
+   114→    setChecksLoading(true)
+   115→    setChecksError(null)
+   116→    fetch(`/api/health?tenantId=${tenantId}`).then(r => r.json()).then(d => {
+   117→      if (cancelled) return
+   118→      const all = (d.checks || []) as HealthCheck[]
+   119→      setChecks(all)
+   120→      // Resolve the active catalog / logistics adapter from the tenant-specific health rows
+   121→      const cat = all.find(c => c.name === 'tenant_catalog_adapter')
+   122→      const log = all.find(c => c.name === 'tenant_logistics_adapter')
+   123→      if (cat) setActiveCatalog((cat.detail.match(/'([^']+)'/)?.[1] || '').trim())
+   124→      if (log) setActiveLogistics((log.detail.match(/'([^']+)'/)?.[1] || '').trim())
+   125→      setChecksLoading(false)
+   126→    }).catch((err: Error) => { if (!cancelled) { setChecksError(err.message || 'Error al cargar'); setChecksLoading(false) } })
+   127→
+   128→    return () => { cancelled = true }
+   129→  }, [tenantId, checksRetryKey])
+   130→
+   131→  // Load catalog
+   132→  useEffect(() => {
+   133→    if (!tenantId) return
+   134→    let cancelled = false
+   135→    setProdLoading(true)
+   136→    setProdError(null)
+   137→    fetch(`/api/catalog/products?tenantId=${tenantId}&q=${encodeURIComponent(prodQ)}`).then(r => r.json()).then(d => {
+   138→      if (cancelled) return
+   139→      setProducts(d.products || [])
+   140→      setProdLoading(false)
+   141→    }).catch((err: Error) => { if (!cancelled) { setProdError(err.message || 'Error al cargar'); setProdLoading(false) } })
+   142→    return () => { cancelled = true }
+   143→  }, [tenantId, prodQ, prodRetryKey])
+   144→
+   145→  const adapterStatus = (id: string): HealthCheck['status'] => {
+   146→    const c = checks.find(c => c.name === `adapter_${id}` || c.name === `logistics_${id}`)
+   147→    return c?.status || 'not_configured'
+   148→  }
+   149→
+   150→  const runFreightQuote = async () => {
+   151→    if (!tenantId || !fqCity.trim()) return
+   152→    setFqLoading(true)
+   153→    setFqResult(null)
+   154→    try {
+   155→      const res = await fetch('/api/shipping/quote', {
+   156→        method: 'POST',
+   157→        headers: { 'Content-Type': 'application/json' },
+   158→        body: JSON.stringify({
+   159→          tenantId, ciudad: fqCity.trim(),
+   160→          pais: fqCountry, cantidad_unidades: Number(fqUnits) || 1,
+   161→        }),
+   162→      })
+   163→      const data = await res.json()
+   164→      if (!res.ok) throw new Error(data.error || 'Error en la cotización')
+   165→      setFqResult(data)
+   166→      toast.success(`Cotización: ${formatCurrency(data.quote.tarifa, 'COP')} · ${data.quote.transportadora}`)
+   167→    } catch (e) {
+   168→      const msg = e instanceof Error ? e.message : 'Error desconocido'
+   169→      setFqResult({ error: msg })
+   170→      toast.error('No se pudo cotizar el flete', { description: msg })
+   171→    } finally {
+   172→      setFqLoading(false)
+   173→    }
+   174→  }
+   175→
+   176→  const runVision = async () => {
+   177→    if (!tenantId || !viUrl.trim()) return
+   178→    setViLoading(true)
+   179→    setViResult(null)
+   180→    try {
+   181→      const res = await fetch('/api/agents/vision', {
+   182→        method: 'POST',
+   183→        headers: { 'Content-Type': 'application/json' },
+   184→        body: JSON.stringify({ tenantId, imageUrl: viUrl.trim() }),
+   185→      })
+   186→      const data = await res.json()
+   187→      setViResult({
+   188→        reply: data.reply || '',
+   189→        agent: data.agent || 'vision',
+   190→        confidence: data.confidence || 0,
+   191→        error: data.error,
+   192→      })
+   193→      if (data.error) toast.info('IA no disponible — fallback usado')
+   194→      else toast.success(`SKU detectado · confianza ${(data.confidence * 100).toFixed(0)}%`)
+   195→    } catch (e) {
+   196→      const msg = e instanceof Error ? e.message : 'Error desconocido'
+   197→      setViResult({ reply: '', agent: 'vision', confidence: 0, error: msg })
+   198→      toast.error('No se pudo identificar la imagen')
+   199→    } finally {
+   200→      setViLoading(false)
+   201→    }
+   202→  }
+   203→
+   204→  return (
+   205→    <div className="space-y-6 animate-fade-in-up">
+   206→      {checksError && (
+   207→        <Alert variant="destructive" role="alert">
+   208→          <AlertTriangle className="size-4" />
+   209→          <AlertTitle>Error al cargar el estado de integraciones</AlertTitle>
+   210→          <AlertDescription className="flex items-center justify-between gap-4 flex-wrap">
+   211→            <span>{checksError}</span>
+   212→            <Button
+   213→              size="sm"
+   214→              variant="outline"
+   215→              onClick={() => setChecksRetryKey(k => k + 1)}
+   216→            >
+   217→              <RefreshCw className="size-3.5" /> Reintentar
+   218→            </Button>
+   219→          </AlertDescription>
+   220→        </Alert>
+   221→      )}
+   222→      {prodError && (
+   223→        <Alert variant="destructive" role="alert">
+   224→          <AlertTriangle className="size-4" />
+   225→          <AlertTitle>Error al cargar el catálogo</AlertTitle>
+   226→          <AlertDescription className="flex items-center justify-between gap-4 flex-wrap">
+   227→            <span>{prodError}</span>
+   228→            <Button
+   229→              size="sm"
+   230→              variant="outline"
+   231→              onClick={() => setProdRetryKey(k => k + 1)}
+   232→            >
+   233→              <RefreshCw className="size-3.5" /> Reintentar
+   234→            </Button>
+   235→          </AlertDescription>
+   236→        </Alert>
+   237→      )}
+   238→      {/* Header — summary */}
+   239→      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+   240→        <Card>
+   241→          <CardContent className="p-4 flex items-center gap-3">
+   242→            <div className="size-10 rounded-xl bg-primary/10 text-primary ring-1 ring-primary/20 flex items-center justify-center"><Plug className="size-5" /></div>
+   243→            <div className="min-w-0">
+   244→              <div className="text-sm font-semibold">EcommerceAdapter</div>
+   245→              <div className="text-xs text-muted-foreground">5 rutas · 1 activa por tenant</div>
+   246→            </div>
+   247→            <Badge variant="outline" className="ml-auto text-[10px]">{activeCatalog || '—'}</Badge>
+   248→          </CardContent>
+   249→        </Card>
+   250→        <Card>
+   251→          <CardContent className="p-4 flex items-center gap-3">
+   252→            <div className="size-10 rounded-xl bg-emerald-500/10 text-emerald-600 ring-1 ring-emerald-500/20 flex items-center justify-center"><Truck className="size-5" /></div>
+   253→            <div className="min-w-0">
+   254→              <div className="text-sm font-semibold">LogisticsAdapter</div>
+   255→              <div className="text-xs text-muted-foreground">3 proveedores · 1 activo por tenant</div>
+   256→            </div>
+   257→            <Badge variant="outline" className="ml-auto text-[10px]">{activeLogistics || '—'}</Badge>
+   258→          </CardContent>
+   259→        </Card>
+   260→        <Card>
+   261→          <CardContent className="p-4 flex items-center gap-3">
+   262→            <div className="size-10 rounded-xl bg-violet-500/10 text-violet-600 ring-1 ring-violet-500/20 flex items-center justify-center"><Database className="size-5" /></div>
+   263→            <div className="min-w-0">
+   264→              <div className="text-sm font-semibold">Estado de integraciones</div>
+   265→              <div className="text-xs text-muted-foreground">{checks.filter(c => c.status === 'ok').length} OK · {checks.filter(c => c.status === 'warning').length} parciales · {checks.filter(c => c.status === 'not_configured').length} sin configurar</div>
+   266→            </div>
+   267→          </CardContent>
+   268→        </Card>
+   269→      </div>
+   270→
+   271→      {/* EcommerceAdapter routes */}
+   272→      <Card>
+   273→        <CardHeader>
+   274→          <CardTitle className="text-base flex items-center gap-2">
+   275→            <ShoppingBag className="size-4 text-primary" /> EcommerceAdapter — 5 rutas de catálogo
+   276→          </CardTitle>
+   277→          <CardDescription>Saramantha §8.1–§8.5 · el adaptador concreto se resuelve en runtime desde <code className="text-[11px]">tenant.plataformaCatalogo</code></CardDescription>
+   278→        </CardHeader>
+   279→        <CardContent>
+   280→          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+   281→            {ECOM_ROUTES.map(route => {
+   282→              const status = adapterStatus(route.id === 'whatsapp_catalog' ? 'whatsapp' : route.id === 'catalogo_propio_cliente' || route.id === 'catalogo_nuestro' ? 'supabase' : route.id)
+   283→              const meta = statusMeta(status)
+   284→              const Icon = meta.icon
+   285→              const isActive = activeCatalog === route.id
+   286→              return (
+   287→                <div
+   288→                  key={route.id}
+   289→                  className={cn(
+   290→                    'rounded-xl border p-3 space-y-2 transition-all',
+   291→                    isActive ? 'border-primary bg-primary/5 ring-1 ring-primary/20' : 'border-border'
+   292→                  )}
+   293→                >
+   294→                  <div className="flex items-start gap-2">
+   295→                    <span className="text-xl leading-none">{route.emoji}</span>
+   296→                    <div className="flex-1 min-w-0">
+   297→                      <div className="flex items-center gap-2">
+   298→                        <span className="font-medium text-sm">{route.label}</span>
+   299→                        {isActive && <Badge variant="default" className="text-[9px] h-4 px-1 gap-0.5"><Zap className="size-2.5" /> activo</Badge>}
+   300→                      </div>
+   301→                      <div className="text-[10px] text-muted-foreground mt-0.5">{route.spec}</div>
+   302→                    </div>
+   303→                    <Icon className={cn('size-4 shrink-0', meta.iconCls)} />
+   304→                  </div>
+   305→                  <div className="flex items-center gap-1.5 text-[10px]">
+   306→                    <span className={cn('size-1.5 rounded-full', meta.dot)} />
+   307→                    <span className="text-muted-foreground">{meta.label}</span>
+   308→                  </div>
+   309→                </div>
+   310→              )
+   311→            })}
+   312→          </div>
+   313→        </CardContent>
+   314→      </Card>
+   315→
+   316→      {/* LogisticsAdapter routes */}
+   317→      <Card>
+   318→        <CardHeader>
+   319→          <CardTitle className="text-base flex items-center gap-2">
+   320→            <Truck className="size-4 text-emerald-600" /> LogisticsAdapter — 3 proveedores multitransportadora
+   321→          </CardTitle>
+   322→          <CardDescription>Saramantha §9.6, §8.6 · el adaptador concreto se resuelve desde <code className="text-[11px]">tenant.proveedorLogistico</code></CardDescription>
+   323→        </CardHeader>
+   324→        <CardContent>
+   325→          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+   326→            {LOGISTICS_ROUTES.map(route => {
+   327→              const status = adapterStatus(route.id)
+   328→              const meta = statusMeta(status)
+   329→              const Icon = meta.icon
+   330→              const isActive = activeLogistics === route.id
+   331→              return (
+   332→                <div
+   333→                  key={route.id}
+   334→                  className={cn(
+   335→                    'rounded-xl border p-3 space-y-2 transition-all',
+   336→                    isActive ? 'border-emerald-500/50 bg-emerald-500/5 ring-1 ring-emerald-500/20' : 'border-border'
+   337→                  )}
+   338→                >
+   339→                  <div className="flex items-start gap-2">
+   340→                    <span className="text-xl leading-none">{route.emoji}</span>
+   341→                    <div className="flex-1 min-w-0">
+   342→                      <div className="flex items-center gap-2">
+   343→                        <span className="font-medium text-sm">{route.label}</span>
+   344→                        {isActive && <Badge variant="default" className="text-[9px] h-4 px-1 gap-0.5 bg-emerald-600 text-white"><Zap className="size-2.5" /> activo</Badge>}
+   345→                      </div>
+   346→                      <div className="text-[10px] text-muted-foreground mt-0.5">{route.spec}</div>
+   347→                    </div>
+   348→                    <Icon className={cn('size-4 shrink-0', meta.iconCls)} />
+   349→                  </div>
+   350→                  <div className="flex items-center gap-1.5 text-[10px]">
+   351→                    <span className={cn('size-1.5 rounded-full', meta.dot)} />
+   352→                    <span className="text-muted-foreground">{meta.label}</span>
+   353→                  </div>
+   354→                </div>
+   355→              )
+   356→            })}
+   357→          </div>
+   358→        </CardContent>
+   359→      </Card>
+   360→
+   361→      {/* Two-column: freight tester + vision identifier */}
+   362→      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+   363→        {/* Freight quote tester */}
+   364→        <Card>
+   365→          <CardHeader>
+   366→            <CardTitle className="text-base flex items-center gap-2">
+   367→              <Calculator className="size-4 text-amber-600" /> Cotizador de flete
+   368→            </CardTitle>
+   369→            <CardDescription>Saramantha §6.8, §8.6 · usa el LogisticsAdapter activo del tenant</CardDescription>
+   370→          </CardHeader>
+   371→          <CardContent className="space-y-3">
+   372→            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+   373→              <div className="space-y-1">
+   374→                <Label htmlFor="fq-city" className="text-xs text-muted-foreground">Ciudad destino</Label>
+   375→                <Input id="fq-city" value={fqCity} onChange={(e) => setFqCity(e.target.value)} placeholder="Bogotá" />
+   376→              </div>
+   377→              <div className="space-y-1">
+   378→                <Label htmlFor="fq-country" className="text-xs text-muted-foreground">País</Label>
+   379→                <Input id="fq-country" value={fqCountry} onChange={(e) => setFqCountry(e.target.value.toUpperCase())} placeholder="CO" maxLength={3} />
+   380→              </div>
+   381→              <div className="space-y-1">
+   382→                <Label htmlFor="fq-units" className="text-xs text-muted-foreground">Unidades</Label>
+   383→                <Input id="fq-units" type="number" min={1} value={fqUnits} onChange={(e) => setFqUnits(e.target.value)} />
+   384→              </div>
+   385→            </div>
+   386→            <Button onClick={runFreightQuote} disabled={fqLoading || !tenantId} className="w-full gap-1.5">
+   387→              {fqLoading ? <Loader2 className="size-3.5 animate-spin" /> : <Send className="size-3.5" />}
+   388→              Cotizar flete
+   389→            </Button>
+   390→            {fqResult && (
+   391→              <div className="rounded-lg border p-3 bg-muted/30 text-sm">
+   392→                {'error' in fqResult ? (
+   393→                  <div className="flex items-center gap-2 text-rose-600">
+   394→                    <XCircle className="size-4 shrink-0" />
+   395→                    <span className="text-xs">{fqResult.error}</span>
+   396→                  </div>
+   397→                ) : (
+   398→                  <div className="space-y-1.5">
+   399→                    <div className="flex items-center justify-between">
+   400→                      <span className="text-muted-foreground text-xs">Tarifa</span>
+   401→                      <span className="font-semibold tabular-nums">{formatCurrency(fqResult.quote.tarifa, fqResult.pais === 'CO' ? 'COP' : 'USD')}</span>
+   402→                    </div>
+   403→                    <div className="flex items-center justify-between">
+   404→                      <span className="text-muted-foreground text-xs">Tiempo estimado</span>
+   405→                      <span className="font-medium tabular-nums">{fqResult.quote.tiempo_estimado_dias} días</span>
+   406→                    </div>
+   407→                    <div className="flex items-center justify-between">
+   408→                      <span className="text-muted-foreground text-xs">Transportadora</span>
+   409→                      <Badge variant="outline" className="text-[10px]">{fqResult.quote.transportadora}</Badge>
+   410→                    </div>
+   411→                    <Separator />
+   412→                    <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+   413→                      <span>{fqResult.ciudad}, {fqResult.pais}</span>
+   414→                      <span>{fqResult.cantidad_unidades} und</span>
+   415→                    </div>
+   416→                  </div>
+   417→                )}
+   418→              </div>
+   419→            )}
+   420→          </CardContent>
+   421→        </Card>
+   422→
+   423→        {/* Vision identifier */}
+   424→        <Card>
+   425→          <CardHeader>
+   426→            <CardTitle className="text-base flex items-center gap-2">
+   427→              <Eye className="size-4 text-violet-600" /> Identificador visual (VLM)
+   428→            </CardTitle>
+   429→            <CardDescription>Saramantha §6.9 · agent "vision" · lee la franja de metadata de la imagen y devuelve el SKU</CardDescription>
+   430→          </CardHeader>
+   431→          <CardContent className="space-y-3">
+   432→            <div className="space-y-1">
+   433→              <Label htmlFor="vi-url" className="text-xs text-muted-foreground">URL de la imagen del cliente</Label>
+   434→              <Input id="vi-url" value={viUrl} onChange={(e) => setViUrl(e.target.value)} placeholder="https://.../producto.jpg" />
+   435→              <p className="text-[10px] text-muted-foreground mt-1">El agente prioriza la franja de metadata (OCR). Si está recortada, compara visualmente contra el catálogo.</p>
+   436→            </div>
+   437→            <Button onClick={runVision} disabled={viLoading || !tenantId || !viUrl.trim()} variant="outline" className="w-full gap-1.5">
+   438→              {viLoading ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}
+   439→              Identificar producto
+   440→            </Button>
+   441→            {viResult && (
+   442→              <div className="rounded-lg border p-3 bg-muted/30 text-sm space-y-2">
+   443→                <div className="flex items-center gap-2">
+   444→                  <Badge variant="outline" className="text-[10px] bg-violet-500/10 text-violet-700 dark:text-violet-300">agente {viResult.agent}</Badge>
+   445→                  {viResult.error
+   446→                    ? <Badge variant="outline" className="text-[10px] bg-amber-500/10 text-amber-700 dark:text-amber-300">fallback</Badge>
+   447→                    : <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">confianza {(viResult.confidence * 100).toFixed(0)}%</Badge>}
+   448→                </div>
+   449→                <pre className="text-[11px] whitespace-pre-wrap break-words text-foreground/90 font-mono bg-background p-2 rounded border">{viResult.reply || '—'}</pre>
+   450→                {viResult.error && <p className="text-[10px] text-amber-600">IA no disponible — fallback determinístico.</p>}
+   451→              </div>
+   452→            )}
+   453→          </CardContent>
+   454→        </Card>
+   455→      </div>
+   456→
+   457→      {/* Catalog grid */}
+   458→      <Card>
+   459→        <CardHeader className="pb-3">
+   460→          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+   461→            <div>
+   462→              <CardTitle className="text-base flex items-center gap-2">
+   463→                <Package className="size-4 text-primary" /> Catálogo sincronizado
+   464→              </CardTitle>
+   465→              <CardDescription>Productos leídos vía EcommerceAdapter activo · {products.length} items</CardDescription>
+   466→            </div>
+   467→            <div className="relative">
+   468→              <Input value={prodQ} onChange={(e) => setProdQ(e.target.value)} placeholder="Buscar SKU, nombre, diseño..." className="pl-3 h-9 w-full md:w-64" />
+   469→            </div>
+   470→          </div>
+   471→        </CardHeader>
+   472→        <CardContent>
+   473→          {prodLoading ? (
+   474→            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+   475→              {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="aspect-square rounded-lg" />)}
+   476→            </div>
+   477→          ) : products.length === 0 ? (
+   478→            <div className="text-center py-12 text-sm text-muted-foreground">Sin productos en el catálogo de este tenant</div>
+   479→          ) : (
+   480→            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+   481→              {products.map(p => (
+   482→                <TooltipProvider key={p.id}>
+   483→                  <Tooltip>
+   484→                    <TooltipTrigger asChild>
+   485→                      <div className="rounded-lg border overflow-hidden hover:shadow-md hover:border-primary/30 transition-all cursor-default bg-card">
+   486→                        <div className="aspect-square bg-muted relative overflow-hidden">
+   487→                          {p.imageUrl ? (
+   488→                            <img src={p.imageUrl} alt={p.name} className="size-full object-cover" loading="lazy" />
+   489→                          ) : (
+   490→                            <div className="size-full flex items-center justify-center text-muted-foreground/60">
+   491→                              <Package className="size-8" />
+   492→                            </div>
+   493→                          )}
+   494→                          {p.fuenteSincronizacion && (
+   495→                            <Badge variant="outline" className="absolute top-1 left-1 text-[9px] h-4 px-1 bg-background/80 backdrop-blur">
+   496→                              {p.fuenteSincronizacion}
+   497→                            </Badge>
+   498→                          )}
+   499→                        </div>
+   500→                        <div className="p-2 space-y-0.5">
+   501→                          <div className="font-mono text-[10px] text-muted-foreground truncate">{p.sku}</div>
+   502→                          <div className="text-xs font-medium truncate" title={p.name}>{p.name}</div>
+   503→                          <div className="flex items-center justify-between">
+   504→                            <span className="text-xs font-semibold tabular-nums">{formatCurrency(p.price)}</span>
+   505→                            <span className="text-[10px] text-muted-foreground tabular-nums">{p.stock}und</span>
+   506→                          </div>
+   507→                          {p.diseno && <div className="text-[9px] text-violet-600 truncate">🎨 {p.diseno}</div>}
+   508→                        </div>
+   509→                      </div>
+   510→                    </TooltipTrigger>
+   511→                    <TooltipContent>
+   512→                      <div className="text-xs max-w-48">
+   513→                        <div className="font-medium">{p.name}</div>
+   514→                        <div className="text-muted-foreground">{p.sku} · {p.categoria || '—'}</div>
+   515→                        {p.description && <div className="mt-1 text-[10px]">{p.description}</div>}
+   516→                      </div>
+   517→                    </TooltipContent>
+   518→                  </Tooltip>
+   519→                </TooltipProvider>
+   520→              ))}
+   521→            </div>
+   522→          )}
+   523→        </CardContent>
+   524→      </Card>
+   525→
+   526→      {/* Full health table */}
+   527→      <Card>
+   528→        <CardHeader>
+   529→          <CardTitle className="text-base flex items-center gap-2">
+   530→            <Database className="size-4 text-muted-foreground" /> Estado completo del endpoint /api/health
+   531→          </CardTitle>
+   532→          <CardDescription>Lecturas reales por integración · refresh para revalidar</CardDescription>
+   533→        </CardHeader>
+   534→        <CardContent>
+   535→          {checksLoading ? (
+   536→            <div className="space-y-1.5">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-9" />)}</div>
+   537→          ) : (
+   538→            <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
+   539→              {checks.map(c => {
+   540→                const meta = statusMeta(c.status)
+   541→                const Icon = meta.icon
+   542→                return (
+   543→                  <div key={c.name} className="flex items-center gap-2 p-2 rounded-lg border bg-card hover:bg-muted/30 transition-colors">
+   544→                    <Icon className={cn('size-3.5 shrink-0', meta.iconCls)} />
+   545→                    <div className="flex-1 min-w-0">
+   546→                      <div className="text-xs font-medium font-mono truncate">{c.name}</div>
+   547→                      <div className="text-[10px] text-muted-foreground truncate">{c.detail}</div>
+   548→                    </div>
+   549→                    <Badge variant="outline" className={cn('text-[9px] h-4 px-1 shrink-0', meta.badge)}>{meta.label}</Badge>
+   550→                  </div>
+   551→                )
+   552→              })}
+   553→            </div>
+   554→          )}
+   555→        </CardContent>
+   556→      </Card>
+   557→    </div>
+   558→  )
+   559→}
+   560→

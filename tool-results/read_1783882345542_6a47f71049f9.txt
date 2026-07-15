@@ -1,0 +1,252 @@
+     1→/home/z/my-project/sentry.client.config.ts:1:// CommerceFlow OS — Sentry client config (browser-side).
+     2→/home/z/my-project/scripts/backup.sh:2:# CommerceFlow OS — Database backup script.
+     3→/home/z/my-project/scripts/backup.sh:23:BACKUP_FILE="$BACKUP_DIR/commerceflow_$TIMESTAMP.db"
+     4→/home/z/my-project/scripts/backup.sh:53:find "$BACKUP_DIR" -name "commerceflow_*.db.gz" -mtime +30 -delete 2>/dev/null || true
+     5→/home/z/my-project/scripts/restore.sh:2:# CommerceFlow OS — Database restore script.
+     6→/home/z/my-project/tool-results/read_1783868842608_b5e550d92368.txt:1:     1→// CommerceFlow OS — Seed v2 (multi-tenant + Saramantha real data)
+     7→/home/z/my-project/tool-results/read_1783868842608_b5e550d92368.txt:16:    16→  console.log('🌱 Seeding CommerceFlow OS v2 (multi-tenant + Saramantha real data)...')
+     8→/home/z/my-project/tool-results/read_1783868842608_b5e550d92368.txt:71:    71→      nombreNegocio: 'CommerceFlow Demo INTL', marca: 'Demo',
+     9→/home/z/my-project/tool-results/read_1783868842608_b5e550d92368.txt:81:    81→  await db.user.upsert({ where: { email: 'valentina@commerceflow.co' }, update: {},
+    10→/home/z/my-project/tool-results/read_1783868842608_b5e550d92368.txt:82:    82→    create: { id: 'user-valentina', tenantId: saramantha.id, email: 'valentina@commerceflow.co', name: 'Valentina Restrepo', role: 'admin' }})
+    11→/home/z/my-project/tool-results/read_1783868842608_b5e550d92368.txt:83:    83→  await db.user.upsert({ where: { email: 'camila@commerceflow.co' }, update: {},
+    12→/home/z/my-project/tool-results/read_1783868842608_b5e550d92368.txt:84:    84→    create: { id: 'user-camila', tenantId: saramantha.id, email: 'camila@commerceflow.co', name: 'Camila Torres', role: 'agent' }})
+    13→/home/z/my-project/tool-results/read_1783868842608_b5e550d92368.txt:85:    85→  await db.user.upsert({ where: { email: 'sebastian@commerceflow.co' }, update: {},
+    14→/home/z/my-project/tool-results/read_1783868842608_b5e550d92368.txt:86:    86→    create: { id: 'user-sebastian', tenantId: saramantha.id, email: 'sebastian@commerceflow.co', name: 'Sebastián Marín', role: 'trafficker' }})
+    15→/home/z/my-project/tool-results/read_1783871453807_da2b4d9cd07e.txt:1:     1→// CommerceFlow OS — Prisma Schema (v2 · multi-tenant + Saramantha agents layer)
+    16→/home/z/my-project/tool-results/read_1783868820235_3439dcfea825.txt:1:     1→// CommerceFlow OS — Prisma Schema (v2 · multi-tenant + Saramantha agents layer)
+    17→/home/z/my-project/e2e/api.spec.ts:115:    // When WA_VERIFY_TOKEN is unset, the route uses 'commerceflow_verify' as the default.
+    18→/home/z/my-project/e2e/api.spec.ts:119:      '/api/webhooks/whatsapp?hub.mode=subscribe&hub.verify_token=commerceflow_verify&hub.challenge=test-challenge',
+    19→/home/z/my-project/docker-compose.yml:2:# CommerceFlow OS — docker-compose.yml
+    20→/home/z/my-project/docker-compose.yml:11:  commerceflow:
+    21→/home/z/my-project/docker-compose.yml:32:    networks: [commerceflow]
+    22→/home/z/my-project/docker-compose.yml:34:      POSTGRES_USER: ${POSTGRES_USER:-commerceflow}
+    23→/home/z/my-project/docker-compose.yml:36:      POSTGRES_DB: ${POSTGRES_DB:-commerceflow}
+    24→/home/z/my-project/docker-compose.yml:42:      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-commerceflow} -d ${POSTGRES_DB:-commerceflow}"]
+    25→/home/z/my-project/docker-compose.yml:52:    networks: [commerceflow]
+    26→/home/z/my-project/docker-compose.yml:68:    networks: [commerceflow]
+    27→/home/z/my-project/docker-compose.yml:88:    networks: [commerceflow]
+    28→/home/z/my-project/docker-compose.yml:93:      NC_DB: "pg://postgres?u=${POSTGRES_USER:-commerceflow}&p=${POSTGRES_PASSWORD:-changeme}&d=nocodb"
+    29→/home/z/my-project/docker-compose.yml:104:    networks: [commerceflow]
+    30→/home/z/my-project/docker-compose.yml:112:      DB_POSTGRESDB_DATABASE: ${POSTGRES_DB:-commerceflow}
+    31→/home/z/my-project/docker-compose.yml:113:      DB_POSTGRESDB_USER: ${POSTGRES_USER:-commerceflow}
+    32→/home/z/my-project/docker-compose.yml:129:    networks: [commerceflow]
+    33→/home/z/my-project/docker-compose.yml:139:    networks: [commerceflow]
+    34→/home/z/my-project/docker-compose.yml:145:  # ── 8. App (Next.js — CommerceFlow OS) ───────────────────────────────────
+    35→/home/z/my-project/docker-compose.yml:151:    networks: [commerceflow]
+    36→/home/z/my-project/docker-compose.yml:154:      DATABASE_URL: "postgresql://${POSTGRES_USER:-commerceflow}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-commerceflow}?schema=public"
+    37→/home/z/my-project/docker-compose.yml:179:    networks: [commerceflow]
+    38→/home/z/my-project/docker-compose.yml:206:    networks: [commerceflow]
+    39→/home/z/my-project/docker-compose.yml:224:    networks: [commerceflow]
+    40→/home/z/my-project/README.md:1:# 🚀 CommerceFlow OS
+    41→/home/z/my-project/e2e/auth.spec.ts:35:    await expect(page).toHaveTitle(/CommerceFlow|Saramantha|login|Acceso|sesi/i)
+    42→/home/z/my-project/sentry.server.config.ts:1:// CommerceFlow OS — Sentry server config (Node.js runtime).
+    43→/home/z/my-project/sentry.edge.config.ts:1:// CommerceFlow OS — Sentry edge config (Edge Runtime / middleware).
+    44→/home/z/my-project/agent-ctx/HARDENING-001-senior-devops-security-engineer.md:9:CommerceFlow OS went from ~85% to ~95% production-ready. All 7 hardening
+    45→/home/z/my-project/agent-ctx/HARDENING-001-senior-devops-security-engineer.md:129:  `bun run db:restore backups/commerceflow_YYYYMMDD_HHMMSS.db.gz` restores
+    46→/home/z/my-project/agent-ctx/BUILD-AGENTS-LIB-001-senior-fullstack-developer.md:12:Extended the CommerceFlow OS agent layer from 10 → 26 conversational agents and created 9 production-grade lib modules for HMAC verification, rate limiting, TOTP 2FA, multi-tenant RLS, LLM provider abstraction, vision pipeline, and embeddings. Zero TypeScript errors in owned files. Zero ESLint errors.
+    47→/home/z/my-project/agent-ctx/BUILD-AGENTS-LIB-001-senior-fullstack-developer.md:54:   - References Saramantha / Indisutex / CommerceFlow OS context where relevant.
+    48→/home/z/my-project/agent-ctx/BUILD-AGENTS-LIB-001-senior-fullstack-developer.md:85:- Issuer: `CommerceFlow OS`. Algorithm: SHA1 (widest authenticator compatibility). Digits: 6. Period: 30s.
+    49→/home/z/my-project/agent-ctx/AUTH-001-senior-security-engineer.md:6:- Scope: Implement complete authentication + RBAC for CommerceFlow OS
+    50→/home/z/my-project/agent-ctx/AUTH-001-senior-security-engineer.md:128:- Existing 3 users (valentina/camila/sebastian @commerceflow.co) — `update`
+    51→/home/z/my-project/agent-ctx/TESTS-CICD-001-senior-qa-devops-engineer.md:5:to CommerceFlow OS (previously 0 tests / 0 CI).
+    52→/home/z/my-project/instrumentation.ts:1:// CommerceFlow OS — Next.js 16 instrumentation hook.
+    53→/home/z/my-project/mini-services/chat-service/index.ts:1:// CommerceFlow OS — Live messenger socket.io service
+    54→/home/z/my-project/mini-services/chat-service/index.ts:37:  socket.emit('hello', { service: 'commerceflow-chat', ts: Date.now() })
+    55→/home/z/my-project/mini-services/chat-service/index.ts:84:  console.log(`✅ CommerceFlow chat-service running on port ${PORT}`)
+    56→/home/z/my-project/mini-services/chat-service/bun.lock:6:      "name": "commerceflow-chat-service",
+    57→/home/z/my-project/mini-services/chat-service/package.json:2:  "name": "commerceflow-chat-service",
+    58→/home/z/my-project/Dockerfile:2:# CommerceFlow OS — Dockerfile
+    59→/home/z/my-project/worklog.md:1:# CommerceFlow OS — Worklog
+    60→/home/z/my-project/worklog.md:4:CommerceFlow OS is a Conversational Commerce + Ad Attribution Command Center.
+    61→/home/z/my-project/worklog.md:73:Task: Build CommerceFlow OS dashboard (messenger + payments + ad attribution) + docs.
+    62→/home/z/my-project/worklog.md:90:Task: Developer-facing technical presentation (standalone HTML, Spanish, 16:9) for CommerceFlow OS — Architecture & Engineering Brief.
+    63→/home/z/my-project/worklog.md:107:Task: Build client-facing HTML presentation for CommerceFlow OS (Spanish, LATAM neutral, business audience).
+    64→/home/z/my-project/worklog.md:117:  CommerceFlow OS → Resultados + overview.png preview); (5) Mensajería with
+    65→/home/z/my-project/worklog.md:145:Task: Create comprehensive ONBOARDING + END-TO-END guide (Markdown, Spanish LATAM) for CommerceFlow OS.
+    66→/home/z/my-project/worklog.md:213:- CommerceFlow OS is production-ready (dev-verified). Deliverables in /home/z/my-project/upload/.
+    67→/home/z/my-project/worklog.md:280:Task: Ejecutar el plan de 5 fases para evolucionar CommerceFlow OS hacia el documento Saramantha (multi-tenant + 10 agentes + adaptadores + monetización + UI).
+    68→/home/z/my-project/worklog.md:992:  users (commerceflow.co domain); added 3 new canonical demo users
+    69→/home/z/my-project/worklog.md:1040:3. **Demo users added (not replaced)** — kept the original 3 `@commerceflow.co` users
+    70→/home/z/my-project/worklog.md:1388:CommerceFlow OS had **0 tests and 0 CI/CD**. This stage adds Vitest unit tests,
+    71→/home/z/my-project/worklog.md:1481:CommerceFlow OS went from **0 tests / 0 CI** to:
+    72→/home/z/my-project/worklog.md:1568:- ISO timestamps, `service: commerceflow-os` base field.
+    73→/home/z/my-project/prisma/schema.prisma:1:// CommerceFlow OS — Prisma Schema (v2 · multi-tenant + Saramantha agents layer)
+    74→/home/z/my-project/prisma/seed.ts:1:// CommerceFlow OS — Seed v2 (multi-tenant + Saramantha real data)
+    75→/home/z/my-project/prisma/seed.ts:17:  console.log('🌱 Seeding CommerceFlow OS v2 (multi-tenant + Saramantha real data)...')
+    76→/home/z/my-project/prisma/seed.ts:72:      nombreNegocio: 'CommerceFlow Demo INTL', marca: 'Demo',
+    77→/home/z/my-project/prisma/seed.ts:82:  // Existing demo users (commerceflow.co domain) — preserve IDs, add auth.
+    78→/home/z/my-project/prisma/seed.ts:84:  await db.user.upsert({ where: { email: 'valentina@commerceflow.co' },
+    79→/home/z/my-project/prisma/seed.ts:86:    create: { id: 'user-valentina', tenantId: saramantha.id, email: 'valentina@commerceflow.co', name: 'Valentina Restrepo', role: 'admin', passwordHash: demoPasswordHash, status: 'active' }})
+    80→/home/z/my-project/prisma/seed.ts:87:  await db.user.upsert({ where: { email: 'camila@commerceflow.co' },
+    81→/home/z/my-project/prisma/seed.ts:89:    create: { id: 'user-camila', tenantId: saramantha.id, email: 'camila@commerceflow.co', name: 'Camila Torres', role: 'agent', passwordHash: demoPasswordHash, status: 'active' }})
+    82→/home/z/my-project/prisma/seed.ts:90:  await db.user.upsert({ where: { email: 'sebastian@commerceflow.co' },
+    83→/home/z/my-project/prisma/seed.ts:92:    create: { id: 'user-sebastian', tenantId: saramantha.id, email: 'sebastian@commerceflow.co', name: 'Sebastián Marín', role: 'trafficker', passwordHash: demoPasswordHash, status: 'active' }})
+    84→/home/z/my-project/playwright.config.ts:4: * CommerceFlow OS — Playwright E2E test config.
+    85→/home/z/my-project/src/app/page.tsx:64:              <span className="font-medium text-foreground">CommerceFlow OS</span>
+    86→/home/z/my-project/src/app/vendedor/page.tsx:17:  title: 'Panel del Vendedor · CommerceFlow OS',
+    87→/home/z/my-project/src/app/vendedor/page.tsx:350:          Panel del vendedor · CommerceFlow OS
+    88→/home/z/my-project/src/app/layout.tsx:20:  title: "CommerceFlow OS · Conversational Commerce + Ad Attribution",
+    89→/home/z/my-project/src/app/layout.tsx:23:  authors: [{ name: "CommerceFlow OS" }],
+    90→/home/z/my-project/src/app/t/[slug]/page.tsx:62:    return { title: 'Tienda no encontrada · CommerceFlow OS' }
+    91→/home/z/my-project/src/app/t/[slug]/page.tsx:336:              CommerceFlow OS
+    92→/home/z/my-project/src/app/t/[slug]/p/[sku]/page.tsx:321:              CommerceFlow OS
+    93→/home/z/my-project/src/app/api/webhooks/mercadopago/route.ts:1:// CommerceFlow OS — MercadoPago webhook
+    94→/home/z/my-project/src/app/api/webhooks/whatsapp/route.ts:12:  const expected = process.env.WA_VERIFY_TOKEN || 'commerceflow_verify'
+    95→/home/z/my-project/src/app/api/webhooks/meta/route.ts:11:  const expected = process.env.META_VERIFY_TOKEN || 'commerceflow_verify'
+    96→/home/z/my-project/src/app/api/webhooks/payu/route.ts:1:// CommerceFlow OS — PayU webhook
+    97→/home/z/my-project/src/app/api/webhooks/wompi/route.ts:1:// CommerceFlow OS — Wompi webhook
+    98→/home/z/my-project/src/app/api/webhooks/stripe/route.ts:1:// CommerceFlow OS — Stripe webhook
+    99→/home/z/my-project/src/app/api/conversions/route.ts:205:    client_id: 'commerceflow_os',
+   100→/home/z/my-project/src/app/api/catalog/sync/route.ts:1:// CommerceFlow OS — API /api/catalog/sync
+   101→/home/z/my-project/src/app/api/orchestrate/route.ts:1:// CommerceFlow OS — API /api/orchestrate
+   102→/home/z/my-project/src/app/api/shipping/quote/route.ts:1:// CommerceFlow OS — API /api/shipping/quote
+   103→/home/z/my-project/src/app/api/shipping/guide/route.ts:1:// CommerceFlow OS — API /api/shipping/guide
+   104→/home/z/my-project/src/app/login/page.tsx:127:          <span className="font-semibold text-lg tracking-tight">CommerceFlow OS</span>
+   105→/home/z/my-project/src/app/login/page.tsx:157:          © {new Date().getFullYear()} CommerceFlow OS · Indisutex SAS
+   106→/home/z/my-project/src/app/login/page.tsx:169:            <span className="font-semibold text-lg tracking-tight">CommerceFlow OS</span>
+   107→/home/z/my-project/src/components/dashboard/settings-view.tsx:280:            { label: 'Verify token', url: 'commerceflow_verify (configurable en .env)' },
+   108→/home/z/my-project/src/components/dashboard/sidebar.tsx:39:          <div className="font-semibold text-sm truncate">CommerceFlow OS</div>
+   109→/home/z/my-project/src/components/dashboard/channels-manager.tsx:400:                <Input value={accountId} onChange={(e) => setAccountId(e.target.value)} placeholder="@commerceflow" className="h-9" />
+   110→/home/z/my-project/src/components/dashboard/channels-manager.tsx:414:              <Input value={verifyToken} onChange={(e) => setVerifyToken(e.target.value)} placeholder="commerceflow_verify" className="h-9 font-mono text-xs" />
+   111→/home/z/my-project/src/lib/logger.ts:1:// CommerceFlow OS — Structured logging (pino).
+   112→/home/z/my-project/src/lib/logger.ts:26:  base: { service: 'commerceflow-os', env: process.env.NODE_ENV || 'development' },
+   113→/home/z/my-project/src/lib/totp.test.ts:23:    expect(uri.toLowerCase()).toContain('commerceflow')
+   114→/home/z/my-project/src/lib/totp.test.ts:44:      issuer: 'CommerceFlow OS',
+   115→/home/z/my-project/src/lib/totp.test.ts:80:      issuer: 'CommerceFlow OS',
+   116→/home/z/my-project/src/lib/embeddings/service.ts:1:// CommerceFlow OS — Embedding service
+   117→/home/z/my-project/src/lib/agents/prompts.ts:1:// CommerceFlow OS — 10 conversational agents (Saramantha §6 spec, exact prompts)
+   118→/home/z/my-project/src/lib/agents/prompts.ts:298:  const system = `Eres el analista de comportamiento de compra de ${tenant.slug} (plataforma CommerceFlow OS,
+   119→/home/z/my-project/src/lib/carriers.ts:1:// CommerceFlow OS — Carrier name normalization
+   120→/home/z/my-project/src/lib/rls.ts:1:// CommerceFlow OS — Row-Level Security (RLS) helpers
+   121→/home/z/my-project/src/lib/rls.ts:152:-- CommerceFlow OS — Row-Level Security policies (PostgreSQL prod)
+   122→/home/z/my-project/src/lib/vision/pipeline.ts:1:// CommerceFlow OS — Vision Pipeline
+   123→/home/z/my-project/src/lib/vision/pipeline.ts:88:  const systemPrompt = `Eres el agente de visión de CommerceFlow OS (tenant ${tenantId ?? 'desconocido'}, contexto Saramantha / Indisutex). Identificas productos del catálogo real a partir de imágenes enviadas por el cliente.
+   124→/home/z/my-project/src/lib/vision/pipeline.ts:175:  const systemPrompt = `Eres el enriquecedor de catálogo de CommerceFlow OS (tenant ${tenantId ?? 'desconocido'}). Para la imagen del producto provista, generas:
+   125→/home/z/my-project/src/lib/llm/adapter.ts:1:// CommerceFlow OS — LLM Provider Adapter
+   126→/home/z/my-project/src/lib/llm/index.ts:1:// CommerceFlow OS — LLM Provider public API
+   127→/home/z/my-project/src/lib/middleware/security-headers.ts:1:// CommerceFlow OS — Security headers helper.
+   128→/home/z/my-project/src/lib/middleware/rate-limit.ts:1:// CommerceFlow OS — In-memory rate limiter middleware
+   129→/home/z/my-project/src/lib/middleware/hmac.ts:1:// CommerceFlow OS — HMAC signature verification middleware
+   130→/home/z/my-project/src/lib/adapters/stripe.ts:1:// CommerceFlow OS — StripeAdapter
+   131→/home/z/my-project/src/lib/adapters/payment-adapter.ts:1:// CommerceFlow OS — PaymentAdapter interface
+   132→/home/z/my-project/src/lib/adapters/ecommerce-adapter.ts:1:// CommerceFlow OS — EcommerceAdapter interface
+   133→/home/z/my-project/src/lib/adapters/registry.ts:1:// CommerceFlow OS — Adapter registry
+   134→/home/z/my-project/src/lib/adapters/wompi.ts:1:// CommerceFlow OS — WompiAdapter
+   135→/home/z/my-project/src/lib/adapters/payu.ts:1:// CommerceFlow OS — PayUAdapter
+   136→/home/z/my-project/src/lib/adapters/payu.ts:104:            fullName: 'CommerceFlow Customer',
+   137→/home/z/my-project/src/lib/adapters/payu.ts:106:              process.env.PAYU_PAYER_EMAIL ?? 'noreply@commerceflow.app',
+   138→/home/z/my-project/src/lib/adapters/payu.ts:114:          userAgent: 'CommerceFlow/1.0',
+   139→/home/z/my-project/src/lib/adapters/payment-webhook-utils.ts:1:// CommerceFlow OS — Payment webhook shared helpers
+   140→/home/z/my-project/src/lib/adapters/logistics-adapter.ts:1:// CommerceFlow OS — LogisticsAdapter interface
+   141→/home/z/my-project/src/lib/adapters/payment-registry.ts:1:// CommerceFlow OS — Payment Adapter Registry
+   142→/home/z/my-project/src/lib/adapters/mercadopago.ts:1:// CommerceFlow OS — MercadoPagoAdapter
+   143→/home/z/my-project/src/lib/adapters/mercadopago.ts:89:          statement_descriptor: 'COMMERCEFLOW',
+   144→/home/z/my-project/src/lib/totp.ts:1:// CommerceFlow OS — TOTP (Time-based One-Time Password) utilities
+   145→/home/z/my-project/src/lib/totp.ts:6:// Issuer: "CommerceFlow OS"
+   146→/home/z/my-project/src/lib/totp.ts:15:const ISSUER = 'CommerceFlow OS'
+   147→/home/z/my-project/src/lib/orchestrator/constants.ts:1:// CommerceFlow OS — Orchestrator constants
+   148→/home/z/my-project/upload/REVISION-saramantha-vs-commerceflow.md:1:# Revisión cruzada: Documento Saramantha vs CommerceFlow OS (lo construido)
+   149→/home/z/my-project/upload/REVISION-saramantha-vs-commerceflow.md:4:> **Propósito:** revisar al 100% el documento `PROYECTO_saramantha_agentes_whatsapp.md` (Indisutex SAS — Saramantha · Sublimados Majestic · Lovely Pijamas · Sueño de Reina), compararlo contra lo que ya construimos (CommerceFlow OS), identificar brechas críticas, conflictos y complementariedades, y proponer un plan concreto de evolución.
+   150→/home/z/my-project/upload/REVISION-saramantha-vs-commerceflow.md:12:**Lo que yo construí** (CommerceFlow OS) es la **capa de operación + dashboard + atribución**: Next.js 16 + Prisma + Socket.io + LLM de smart reply + motor CPA/ROAS/ROI + mensajería omnicanal (WhatsApp + Messenger + IG) + estrategia de pago configurable.
+   151→/home/z/my-project/upload/REVISION-saramantha-vs-commerceflow.md:26:| Tema | Documento Saramantha | CommerceFlow OS (construido) | Estado |
+   152→/home/z/my-project/upload/REVISION-saramantha-vs-commerceflow.md:45:- **CommerceFlow OS:** WhatsApp (CO primario + MX), Messenger (internacional), Instagram DM. Bandeja unificada con badges por canal.
+   153→/home/z/my-project/upload/REVISION-saramantha-vs-commerceflow.md:51:- **CommerceFlow OS:** tabla `Ad`, `AdSpend` (diario), `Attribution` (multi-touch ready), motor `/api/ads` que calcula CPA, ROAS, ROI, CPL, CVR, AOV por anuncio, y emite veredictos: **escalar / optimizar / vigilar / pausar / apagar / canibaliza**. Kill-switch con audit log.
+   154→/home/z/my-project/upload/REVISION-saramantha-vs-commerceflow.md:53:- **Veredicto:** ✅ Quedarse. **Es la pieza más diferenciadora del proyecto**. El documento Saramantha trata la atribución como un dato; CommerceFlow OS la trata como un motor accionable.
+   155→/home/z/my-project/upload/REVISION-saramantha-vs-commerceflow.md:57:- **CommerceFlow OS:** `Channel.paymentStrategy ∈ {advance, cod, hybrid}` + `requirePrepayMin` + `prepayDiscountPct` + `codFee`. UI de configuración por canal y país. Recomendaciones contextuales al agente en el panel del cliente.
+   156→/home/z/my-project/upload/REVISION-saramantha-vs-commerceflow.md:69:- **CommerceFlow OS:** single-tenant. No hay `tenant_id` en ningún modelo.
+   157→/home/z/my-project/upload/REVISION-saramantha-vs-commerceflow.md:85:- **CommerceFlow OS:** 1 solo endpoint `/api/ai-reply` con un system prompt genérico.
+   158→/home/z/my-project/upload/REVISION-saramantha-vs-commerceflow.md:91:- **CommerceFlow OS:** solo `Product` interno, sin adaptadores.
+   159→/home/z/my-project/upload/REVISION-saramantha-vs-commerceflow.md:97:- **CommerceFlow OS:** nada de logística.
+   160→/home/z/my-project/upload/REVISION-saramantha-vs-commerceflow.md:103:- **CommerceFlow OS:** tengo VLM disponible pero no implementé este flujo.
+   161→/home/z/my-project/upload/REVISION-saramantha-vs-commerceflow.md:109:- **CommerceFlow OS:** vista de tabla interna en `/orders`. No es Kanban.
+   162→/home/z/my-project/upload/REVISION-saramantha-vs-commerceflow.md:115:- **CommerceFlow OS:** nada de monetización.
+   163→/home/z/my-project/upload/REVISION-saramantha-vs-commerceflow.md:121:- **CommerceFlow OS:** `Setting` key-value genérico + `Channel` con estrategia de pago. No hay "tono de marca" ni "nombre de asesora" ni "pregunta de perfil".
+   164→/home/z/my-project/upload/REVISION-saramantha-vs-commerceflow.md:131:| Hallazgo (de 239 pedidos reales) | Implicación para CommerceFlow OS |
+   165→/home/z/my-project/upload/REVISION-saramantha-vs-commerceflow.md:148:- **CommerceFlow OS:** Next.js API Routes + LLM SDK directo.
+   166→/home/z/my-project/upload/REVISION-saramantha-vs-commerceflow.md:153:- **CommerceFlow OS:** SQLite + Prisma (portable a Postgres).
+   167→/home/z/my-project/upload/REVISION-saramantha-vs-commerceflow.md:158:- **CommerceFlow OS:** solo z-ai-web-dev-sdk.
+   168→/home/z/my-project/upload/REVISION-saramantha-vs-commerceflow.md:163:- **CommerceFlow OS:** dashboard interno.
+   169→/home/z/my-project/upload/REVISION-saramantha-vs-commerceflow.md:208:**No tires nada de lo construido.** CommerceFlow OS te da tres cosas que tu documento Saramantha no tenía (multi-canal, motor de atribución, estrategia de pago configurable) y que vos me pediste explícitamente. Lo que hay que hacer es **evolucionar el núcleo** para incorporar las 8 brechas críticas del documento Saramantha, en el orden del plan de Sprint 1-5.
+   170→/home/z/my-project/upload/REVISION-saramantha-vs-commerceflow.md:212:- **Capa de operación (CommerceFlow OS)** — dashboard omnicanal, motor de atribución, estrategia de pago, kill-switch de pauta.
+   171→/home/z/my-project/upload/REVISION-saramantha-vs-commerceflow.md:223:│  COMMERCEFLOW OS (construido) — CAPA DE OPERACIÓN              │
+   172→/home/z/my-project/upload/REVISION-saramantha-vs-commerceflow.md:255:*Documento de revisión generado tras lectura al 100% de `PROYECTO_saramantha_agentes_whatsapp.md` (922 líneas) y comparación contra el estado actual de CommerceFlow OS.*
+   173→/home/z/my-project/upload/PRESENTACION-STACK-COMPLETO.html:6:<title>CommerceFlow OS · Stack Tecnológico</title>
+   174→/home/z/my-project/upload/PRESENTACION-STACK-COMPLETO.html:51:<h1>CommerceFlow OS</h1>
+   175→/home/z/my-project/upload/PRESENTACION-STACK-COMPLETO.html:852:<pre>commerceflow.app {
+   176→/home/z/my-project/upload/PRESENTACION-STACK-COMPLETO.html:1037:<p class="big text-primary" style="font-weight:600">CommerceFlow OS</p>
+   177→/home/z/my-project/upload/PRESENTACION-NO-TECNICOS.html:6:<title>CommerceFlow OS · Guía para Emprendedores</title>
+   178→/home/z/my-project/upload/PRESENTACION-NO-TECNICOS.html:72:<h1>CommerceFlow OS</h1>
+   179→/home/z/my-project/upload/PRESENTACION-NO-TECNICOS.html:119:<h1>CommerceFlow OS lo resuelve</h1>
+   180→/home/z/my-project/upload/PRESENTACION-NO-TECNICOS.html:166:<h3>😱 Sin CommerceFlow (hoy)</h3>
+   181→/home/z/my-project/upload/PRESENTACION-NO-TECNICOS.html:181:<h3>✨ Con CommerceFlow</h3>
+   182→/home/z/my-project/upload/PRESENTACION-NO-TECNICOS.html:200:<li><strong>Sin CommerceFlow:</strong> 40 min × 50 = 33h/día (imposible) → atiendes 10 → vendes $500K/día</li>
+   183→/home/z/my-project/upload/PRESENTACION-NO-TECNICOS.html:201:<li><strong>Con CommerceFlow:</strong> IA atiende 50 conversaciones y cierra 35 sola → vendes $1.75M/día (tú solo supervisas)</li>
+   184→/home/z/my-project/upload/PRESENTACION-NO-TECNICOS.html:284:<h3>✨ Con CommerceFlow: pasamos del 1% al 15%</h3>
+   185→/home/z/my-project/upload/PRESENTACION-NO-TECNICOS.html:361:<p>Cada marca tiene su página web gratis en CommerceFlow. Cuando alguien busca en Google "pijamas en Colombia", aparece tu tienda. <strong>Tráfico gratis para siempre.</strong></p>
+   186→/home/z/my-project/upload/PRESENTACION-NO-TECNICOS.html:383:<tr><th>Concepto</th><th>Hoy (sin sistema)</th><th>Con CommerceFlow</th><th>Diferencia</th></tr>
+   187→/home/z/my-project/upload/PRESENTACION-NO-TECNICOS.html:393:<p>Si CommerceFlow cuesta $1.5M COP/mes (comisión 4.5% sobre $10M base), y te genera $17M adicionales:</p>
+   188→/home/z/my-project/upload/PRESENTACION-NO-TECNICOS.html:395:<div class="stat-label">Por cada $1 que inviertes en CommerceFlow, ganas $11</div>
+   189→/home/z/my-project/upload/PRESENTACION-NO-TECNICOS.html:422:<!-- Slide 11: Un día usando CommerceFlow -->
+   190→/home/z/my-project/upload/PRESENTACION-NO-TECNICOS.html:424:<h1>Un día en la vida con CommerceFlow</h1>
+   191→/home/z/my-project/upload/PRESENTACION-NO-TECNICOS.html:456:<h2>CommerceFlow ayuda a todos</h2>
+   192→/home/z/my-project/upload/PRESENTACION-NO-TECNICOS.html:563:<h2>Lo que CommerceFlow NO hace (todavía)</h2>
+   193→/home/z/my-project/upload/PRESENTACION-NO-TECNICOS.html:566:<p>Ningún producto es perfecto. Esto es lo que CommerceFlow NO hace hoy, para que tomes una decisión informada:</p>
+   194→/home/z/my-project/upload/PRESENTACION-NO-TECNICOS.html:610:<h3>😮‍💨 Sin CommerceFlow (en 3 meses)</h3>
+   195→/home/z/my-project/upload/PRESENTACION-NO-TECNICOS.html:621:<h3>🚀 Con CommerceFlow (en 3 meses)</h3>
+   196→/home/z/my-project/upload/PRESENTACION-NO-TECNICOS.html:635:<p>¿Puedes permitirte <strong>NO</strong> tener CommerceFlow mientras tu competencia sí lo tiene?</p>
+   197→/home/z/my-project/upload/PRESENTACION-NO-TECNICOS.html:637:<p class="text-primary" style="font-weight:700;margin-top:14px">No es "¿puedo pagar CommerceFlow?" Es "¿puedo permitirme perder clientes por no tenerlo?"</p>
+   198→/home/z/my-project/upload/PRESENTACION-NO-TECNICOS.html:682:<p style="font-size:1.1em;margin:0">📧 <strong>ventas@commerceflow.app</strong></p>
+   199→/home/z/my-project/upload/PRESENTACION-NO-TECNICOS.html:686:<p class="muted" style="margin-top:30px;font-size:.82em">CommerceFlow OS · Comercio Conversacional + Atribución de Pauta<br>No es magia. Es tecnología que trabaja para ti.</p>
+   200→/home/z/my-project/upload/PRESENTACION-E2E-TESTS.html:6:<title>CommerceFlow OS · E2E Test Report & Regression Plan</title>
+   201→/home/z/my-project/upload/PRESENTACION-E2E-TESTS.html:12:   CommerceFlow OS — E2E Test Report — Slide deck
+   202→/home/z/my-project/upload/PRESENTACION-E2E-TESTS.html:231:      49 verificaciones ejecutadas sobre CommerceFlow OS — 14 vistas de dashboard, 25 rutas API, 4 páginas SSR,
+   203→/home/z/my-project/upload/PRESENTACION-E2E-TESTS.html:243:      <span><b style="color:var(--muted)">Sistema:</b> CommerceFlow OS</span>
+   204→/home/z/my-project/upload/PRESENTACION-E2E-TESTS.html:249:  <div class="foot"><span class="brand"><b>CommerceFlow</b> OS · QA Evidence</span><span>DOCS-003</span><span class="pg">01 / 25</span></div>
+   205→/home/z/my-project/upload/PRESENTACION-E2E-TESTS.html:339:  <div class="foot"><span class="brand"><b>CommerceFlow</b> OS · QA Evidence</span><span>Metodología</span><span class="pg">02 / 25</span></div>
+   206→/home/z/my-project/upload/PRESENTACION-E2E-TESTS.html:397:  <div class="foot"><span class="brand"><b>CommerceFlow</b> OS · QA Evidence</span><span>Resumen</span><span class="pg">03 / 25</span></div>
+   207→/home/z/my-project/upload/PRESENTACION-E2E-TESTS.html:434:  <div class="foot"><span class="brand"><b>CommerceFlow</b> OS · QA Evidence</span><span>Vista 01 — Overview</span><span class="pg">04 / 25</span></div>
+   208→/home/z/my-project/upload/PRESENTACION-E2E-TESTS.html:474:  <div class="foot"><span class="brand"><b>CommerceFlow</b> OS · QA Evidence</span><span>Vista 02 — Messenger</span><span class="pg">05 / 25</span></div>
+   209→/home/z/my-project/upload/PRESENTACION-E2E-TESTS.html:513:  <div class="foot"><span class="brand"><b>CommerceFlow</b> OS · QA Evidence</span><span>Vista 03 — Catálogo</span><span class="pg">06 / 25</span></div>
+   210→/home/z/my-project/upload/PRESENTACION-E2E-TESTS.html:552:  <div class="foot"><span class="brand"><b>CommerceFlow</b> OS · QA Evidence</span><span>Vista 04 — Pedidos</span><span class="pg">07 / 25</span></div>
+   211→/home/z/my-project/upload/PRESENTACION-E2E-TESTS.html:595:  <div class="foot"><span class="brand"><b>CommerceFlow</b> OS · QA Evidence</span><span>Vista 05 — Kanban</span><span class="pg">08 / 25</span></div>
+   212→/home/z/my-project/upload/PRESENTACION-E2E-TESTS.html:639:  <div class="foot"><span class="brand"><b>CommerceFlow</b> OS · QA Evidence</span><span>Vista 06 — Orquestador</span><span class="pg">09 / 25</span></div>
+   213→/home/z/my-project/upload/PRESENTACION-E2E-TESTS.html:679:  <div class="foot"><span class="brand"><b>CommerceFlow</b> OS · QA Evidence</span><span>Vista 07 — Ads</span><span class="pg">10 / 25</span></div>
+   214→/home/z/my-project/upload/PRESENTACION-E2E-TESTS.html:716:  <div class="foot"><span class="brand"><b>CommerceFlow</b> OS · QA Evidence</span><span>Vista 08 — Monetización</span><span class="pg">11 / 25</span></div>
+   215→/home/z/my-project/upload/PRESENTACION-E2E-TESTS.html:756:  <div class="foot"><span class="brand"><b>CommerceFlow</b> OS · QA Evidence</span><span>Vista 09 — Wallet</span><span class="pg">12 / 25</span></div>
+   216→/home/z/my-project/upload/PRESENTACION-E2E-TESTS.html:801:  <div class="foot"><span class="brand"><b>CommerceFlow</b> OS · QA Evidence</span><span>Vista 10 — Logística</span><span class="pg">13 / 25</span></div>
+   217→/home/z/my-project/upload/PRESENTACION-E2E-TESTS.html:845:  <div class="foot"><span class="brand"><b>CommerceFlow</b> OS · QA Evidence</span><span>Vista 11 — Marketplace</span><span class="pg">14 / 25</span></div>
+   218→/home/z/my-project/upload/PRESENTACION-E2E-TESTS.html:885:  <div class="foot"><span class="brand"><b>CommerceFlow</b> OS · QA Evidence</span><span>Vista 12 — Novedades</span><span class="pg">15 / 25</span></div>
+   219→/home/z/my-project/upload/PRESENTACION-E2E-TESTS.html:925:  <div class="foot"><span class="brand"><b>CommerceFlow</b> OS · QA Evidence</span><span>Vista 13 — Integraciones</span><span class="pg">16 / 25</span></div>
+   220→/home/z/my-project/upload/PRESENTACION-E2E-TESTS.html:964:  <div class="foot"><span class="brand"><b>CommerceFlow</b> OS · QA Evidence</span><span>Vista 14 — Settings</span><span class="pg">17 / 25</span></div>
+   221→/home/z/my-project/upload/PRESENTACION-E2E-TESTS.html:1019:  <div class="foot"><span class="brand"><b>CommerceFlow</b> OS · QA Evidence</span><span>API REST</span><span class="pg">18 / 25</span></div>
+   222→/home/z/my-project/upload/PRESENTACION-E2E-TESTS.html:1062:Sitemap: https://commerceflow.dev/sitemap.xml</pre>
+   223→/home/z/my-project/upload/PRESENTACION-E2E-TESTS.html:1078:  <div class="foot"><span class="brand"><b>CommerceFlow</b> OS · QA Evidence</span><span>SSR público</span><span class="pg">19 / 25</span></div>
+   224→/home/z/my-project/upload/PRESENTACION-E2E-TESTS.html:1135:  <div class="foot"><span class="brand"><b>CommerceFlow</b> OS · QA Evidence</span><span>Webhooks</span><span class="pg">20 / 25</span></div>
+   225→/home/z/my-project/upload/PRESENTACION-E2E-TESTS.html:1206:  <div class="foot"><span class="brand"><b>CommerceFlow</b> OS · QA Evidence</span><span>Lint + TSC</span><span class="pg">21 / 25</span></div>
+   226→/home/z/my-project/upload/PRESENTACION-E2E-TESTS.html:1277:  <div class="foot"><span class="brand"><b>CommerceFlow</b> OS · QA Evidence</span><span>Chat-service</span><span class="pg">22 / 25</span></div>
+   227→/home/z/my-project/upload/PRESENTACION-E2E-TESTS.html:1307:    <span class="s">'http://commerceflow.local:3000'</span>,
+   228→/home/z/my-project/upload/PRESENTACION-E2E-TESTS.html:1336:  <div class="foot"><span class="brand"><b>CommerceFlow</b> OS · QA Evidence</span><span>Fixes</span><span class="pg">23 / 25</span></div>
+   229→/home/z/my-project/upload/PRESENTACION-E2E-TESTS.html:1352:git clone commerceflow/os &amp;&amp; cd os
+   230→/home/z/my-project/upload/PRESENTACION-E2E-TESTS.html:1413:  <div class="foot"><span class="brand"><b>CommerceFlow</b> OS · QA Evidence</span><span>Regresión</span><span class="pg">24 / 25</span></div>
+   231→/home/z/my-project/upload/PRESENTACION-E2E-TESTS.html:1424:    <p>CommerceFlow OS pasa las 49 verificaciones E2E — 14 vistas, 25 APIs, 4 SSR, 7 webhooks, lint + tsc + chat-service. Las correcciones en caliente (<span class="mono inline">allowedDevOrigins</span> + wallet auth headers) eliminaron los 2 issues detectados. El sistema está listo para staging inmediato y producción tras las 2 condiciones de cycle-2 (TOTP encryption-at-rest + Postgres RLS).</p>
+   232→/home/z/my-project/upload/PRESENTACION-E2E-TESTS.html:1437:  <div class="foot"><span class="brand"><b>CommerceFlow</b> OS · QA Evidence</span><span>Fin · DOCS-003</span><span class="pg">25 / 25</span></div>
+   233→/home/z/my-project/upload/PRESENTACION-DIFERENCIADORES.html:6:<title>CommerceFlow OS · Por Qué Somos Únicos</title>
+   234→/home/z/my-project/upload/PRESENTACION-DIFERENCIADORES.html:62:<h2>11 cosas que solo CommerceFlow hace (y nadie más)</h2>
+   235→/home/z/my-project/upload/PRESENTACION-DIFERENCIADORES.html:63:<p style="max-width:550px">Imagínate que vas a comprar un carro. Todos tienen ruedas y volante. Pero solo uno tiene frenos automáticos, GPS que evita tráfico, y ahorra gasolina. Eso es CommerceFlow.</p>
+   236→/home/z/my-project/upload/PRESENTACION-DIFERENCIADORES.html:77:<p style="margin-top:16px"><strong>Ésa es la primera cosa que solo CommerceFlow hace.</strong> Y hay 9 más. Vamos a verlas una por una, en palabras simples.</p>
+   237→/home/z/my-project/upload/PRESENTACION-DIFERENCIADORES.html:99:<div class="vs-label">Con CommerceFlow</div>
+   238→/home/z/my-project/upload/PRESENTACION-DIFERENCIADORES.html:147:<div class="vs-label">Con CommerceFlow</div>
+   239→/home/z/my-project/upload/PRESENTACION-DIFERENCIADORES.html:170:<div class="vs-label">Con CommerceFlow</div>
+   240→/home/z/my-project/upload/PRESENTACION-DIFERENCIADORES.html:194:<div class="vs-label">Con CommerceFlow</div>
+   241→/home/z/my-project/upload/PRESENTACION-DIFERENCIADORES.html:218:<div class="vs-label">Con CommerceFlow</div>
+   242→/home/z/my-project/upload/PRESENTACION-DIFERENCIADORES.html:242:<div class="vs-label">Con CommerceFlow</div>
+   243→/home/z/my-project/upload/PRESENTACION-DIFERENCIADORES.html:266:<div class="vs-label">Con CommerceFlow</div>
+   244→/home/z/my-project/upload/PRESENTACION-DIFERENCIADORES.html:289:<div class="vs-label">Con CommerceFlow</div>
+   245→/home/z/my-project/upload/PRESENTACION-DIFERENCIADORES.html:312:<div class="vs-label">Con CommerceFlow</div>
+   246→/home/z/my-project/upload/PRESENTACION-DIFERENCIADORES.html:337:<div class="vs-label">Con CommerceFlow</div>
+   247→/home/z/my-project/upload/PRESENTACION-DIFERENCIADORES.html:375:<p style="text-align:center">CommerceFlow es único en LATAM.</p>
+   248→/home/z/my-project/upload/PRESENTACION-DIFERENCIADORES.html:384:<p>Supongamos que vendes $10 millones al mes. Esto es lo que CommerceFlow te ahorra y te genera:</p>
+   249→/home/z/my-project/upload/PRESENTACION-DIFERENCIADORES.html:405:<p>Si CommerceFlow cuesta $450K/mes (4.5% de $10M), tu retorno es:</p>
+   250→/home/z/my-project/upload/PRESENTACION-DIFERENCIADORES.html:421:<p style="margin-top:30px;font-size:.9em;color:var(--text2)">📧 ventas@commerceflow.app · Bogotá, Colombia · LATAM</p>
+   251→
+   252→[Showing results with pagination = limit: 250]

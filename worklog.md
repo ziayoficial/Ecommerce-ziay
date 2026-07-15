@@ -20653,3 +20653,31 @@ $ grep "sr-only.*Documentación" src/app/docs/page.tsx
 all error states are screen-reader-announced, and the only outstanding
 UI items are minor (focus-visible coverage on more interactive elements,
 10 unused shadcn components for tree-shaking).
+
+---
+
+## SPRINT-MANUAL-USUARIO-001 — Manual Maestro de Usuario
+
+**Goal:** Crear manual maestro de usuario completo para ZIAY v0.3.0.
+
+**Entregable:** `docs/MANUAL-USUARIO.md` — 1,016 líneas, 27 secciones.
+
+### Cobertura del manual
+
+- ✅ 27 secciones cubriendo TODA la plataforma
+- ✅ 16 módulos del dashboard documentados con funciones, estados y troubleshooting
+- ✅ 6 roles con matriz de permisos
+- ✅ 3 cuentas de demo con credenciales
+- ✅ 5 protocolos agénticos (AP2/UCP/ACP/MCP/A2A)
+- ✅ 5 leyes colombianas (Ley 2573/1581/1480/1098 + DIAN)
+- ✅ 11 páginas públicas
+- ✅ Atajos de teclado completos
+- ✅ PWA instalación (Android/iOS/Desktop)
+- ✅ Troubleshooting con 25+ problemas/soluciones
+- ✅ Glosario con 18 términos técnicos
+- ✅ Contactos por equipo
+
+Stage Summary:
+- Manual creado en docs/MANUAL-USUARIO.md (1,016 líneas)
+- Cubre 100% de la plataforma v0.3.0
+- Lint: 0 errores

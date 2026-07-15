@@ -1,0 +1,1246 @@
+     1→'use client'
+     2→import { useEffect, useState, useCallback } from 'react'
+     3→import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+     4→import { Badge } from '@/components/ui/badge'
+     5→import { Button } from '@/components/ui/button'
+     6→import { Input } from '@/components/ui/input'
+     7→import { Label } from '@/components/ui/label'
+     8→import { Skeleton } from '@/components/ui/skeleton'
+     9→import { Separator } from '@/components/ui/separator'
+    10→import { Textarea } from '@/components/ui/textarea'
+    11→import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+    12→import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
+    13→import { ScrollArea } from '@/components/ui/scroll-area'
+    14→import { Switch } from '@/components/ui/switch'
+    15→import { useTenantId } from '@/hooks/use-tenant'
+    16→import { cn } from '@/lib/utils'
+    17→import { toast } from 'sonner'
+    18→import { formatCurrency, timeAgo, shortTime, shortDate } from '@/lib/format'
+    19→import {
+    20→  PackageX, AlertTriangle, RefreshCw, Clock, MapPinOff, Undo2, HelpCircle,
+    21→  Plus, Search, ShieldCheck, ShieldAlert, AlertOctagon, UserCog, Headset,
+    22→  Paperclip, MessageSquare, Send, CheckCircle2, ChevronUp, ChevronDown,
+    23→  Inbox, Image as ImageIcon, FileText, Video, Eye, Filter, Activity,
+    24→  TrendingUp, Truck, X,
+    25→} from 'lucide-react'
+    26→
+    27→// ─── Types ──────────────────────────────────────────────────────────────────
+    28→type CaseType = 'lost' | 'damaged' | 'wrong_product' | 'delayed' | 'not_delivered' | 'returned' | 'other'
+    29→type Priority = 'low' | 'normal' | 'high' | 'urgent'
+    30→type Status = 'open' | 'evidence_required' | 'under_review' | 'assigned' | 'resolved' | 'closed' | 'escalated_human'
+    31→
+    32→type CaseListItem = {
+    33→  id: string; caseNumber: string; tenantId: string; orderId: string | null
+    34→  phone: string; customerName: string; guideNumber: string | null
+    35→  carrierName: string | null; type: CaseType; priority: Priority; status: Status
+    36→  description: string; orderValidated: boolean; orderValidationNote: string | null
+    37→  requiresHuman: boolean; humanAssignedTo: string | null; carrierRepAssignedTo: string | null
+    38→  resolution: string | null; resolutionNote: string | null; compensationAmount: number | null
+    39→  resolvedAt: string | null; closedAt: string | null
+    40→  createdAt: string; updatedAt: string
+    41→  evidenceCount: number; messageCount: number; lastMessagePreview: string | null
+    42→}
+    43→
+    44→type Evidence = {
+    45→  id: string; type: 'photo' | 'video' | 'guide_photo' | 'screenshot' | 'document'
+    46→  url: string; description: string | null; uploadedBy: string; validated: boolean
+    47→  createdAt: string
+    48→}
+    49→
+    50→type Message = {
+    51→  id: string; authorRole: 'customer' | 'agent' | 'carrier_rep' | 'system' | 'ai'
+    52→  authorName: string | null; body: string; internal: boolean; createdAt: string
+    53→}
+    54→
+    55→type CaseDetail = CaseListItem & { customerId: string | null }
+    56→
+    57→type Stats = {
+    58→  total: number; open: number; resolvedToday: number; avgResolutionHours: number
+    59→  byCarrier: Record<string, number>; byType: Record<string, number>
+    60→  byStatus: Record<string, number>
+    61→}
+    62→
+    63→type ListResponse = { cases: CaseListItem[]; stats: Stats; carriers: string[] }
+    64→type DetailResponse = { case: CaseDetail; evidence: Evidence[]; messages: Message[] }
+    65→
+    66→// ─── Static data ────────────────────────────────────────────────────────────
+    67→const TYPE_CONFIG: Record<CaseType, { label: string; icon: typeof PackageX }> = {
+    68→  lost: { label: 'Perdido', icon: PackageX },
+    69→  damaged: { label: 'Dañado', icon: AlertTriangle },
+    70→  wrong_product: { label: 'Producto equivocado', icon: RefreshCw },
+    71→  delayed: { label: 'Retrasado', icon: Clock },
+    72→  not_delivered: { label: 'No entregado', icon: MapPinOff },
+    73→  returned: { label: 'Devuelto', icon: Undo2 },
+    74→  other: { label: 'Otro', icon: HelpCircle },
+    75→}
+    76→
+    77→const PRIORITY_CONFIG: Record<Priority, { label: string; cls: string; dot: string }> = {
+    78→  urgent: { label: 'Urgente', cls: 'bg-rose-500/10 text-rose-600 border-rose-500/20', dot: 'bg-rose-500' },
+    79→  high: { label: 'Alta', cls: 'bg-amber-500/10 text-amber-600 border-amber-500/20', dot: 'bg-amber-500' },
+    80→  normal: { label: 'Normal', cls: 'bg-sky-500/10 text-sky-600 border-sky-500/20', dot: 'bg-sky-500' },
+    81→  low: { label: 'Baja', cls: 'bg-slate-500/10 text-slate-600 border-slate-500/20', dot: 'bg-slate-500' },
+    82→}
+    83→
+    84→const STATUS_CONFIG: Record<Status, { label: string; cls: string }> = {
+    85→  open: { label: 'Abierto', cls: 'bg-sky-500/10 text-sky-600 border-sky-500/20' },
+    86→  evidence_required: { label: 'Evidencia requerida', cls: 'bg-amber-500/10 text-amber-600 border-amber-500/20' },
+    87→  under_review: { label: 'En revisión', cls: 'bg-violet-500/10 text-violet-600 border-violet-500/20' },
+    88→  assigned: { label: 'Asignado', cls: 'bg-sky-500/10 text-sky-600 border-sky-500/20' },
+    89→  resolved: { label: 'Resuelto', cls: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' },
+    90→  closed: { label: 'Cerrado', cls: 'bg-slate-500/10 text-slate-600 border-slate-500/20' },
+    91→  escalated_human: { label: 'Escalado a humano', cls: 'bg-rose-500/10 text-rose-600 border-rose-500/20' },
+    92→}
+    93→
+    94→const STATUS_FILTERS: { id: Status | 'all'; label: string }[] = [
+    95→  { id: 'all', label: 'Todos' },
+    96→  { id: 'open', label: 'Abiertos' },
+    97→  { id: 'evidence_required', label: 'Evidencia req.' },
+    98→  { id: 'under_review', label: 'En revisión' },
+    99→  { id: 'assigned', label: 'Asignados' },
+   100→  { id: 'resolved', label: 'Resueltos' },
+   101→  { id: 'closed', label: 'Cerrados' },
+   102→  { id: 'escalated_human', label: 'Escalados' },
+   103→]
+   104→
+   105→const TYPE_FILTERS: { id: CaseType | 'all'; label: string }[] = [
+   106→  { id: 'all', label: 'Todos los tipos' },
+   107→  { id: 'lost', label: 'Perdido' },
+   108→  { id: 'damaged', label: 'Dañado' },
+   109→  { id: 'wrong_product', label: 'Producto equivocado' },
+   110→  { id: 'delayed', label: 'Retrasado' },
+   111→  { id: 'not_delivered', label: 'No entregado' },
+   112→  { id: 'returned', label: 'Devuelto' },
+   113→  { id: 'other', label: 'Otro' },
+   114→]
+   115→
+   116→const RESOLUTION_OPTIONS = [
+   117→  { value: 'replacement', label: 'Reposición' },
+   118→  { value: 'compensation', label: 'Compensación' },
+   119→  { value: 'refund', label: 'Reembolso' },
+   120→  { value: 'no_action', label: 'Sin acción' },
+   121→  { value: 'other', label: 'Otro' },
+   122→]
+   123→
+   124→const EVIDENCE_TYPE_OPTIONS = [
+   125→  { value: 'photo', label: 'Foto', icon: ImageIcon },
+   126→  { value: 'video', label: 'Video', icon: Video },
+   127→  { value: 'guide_photo', label: 'Foto de guía', icon: FileText },
+   128→  { value: 'screenshot', label: 'Screenshot', icon: Eye },
+   129→  { value: 'document', label: 'Documento', icon: FileText },
+   130→]
+   131→
+   132→const CARRIER_REP_OPTIONS = [
+   133→  { value: '', label: 'Sin asignar' },
+   134→  { value: 'rep-interrapidisimo', label: 'Rep. Interrapidísimo' },
+   135→  { value: 'rep-servientrega', label: 'Rep. Servientrega' },
+   136→  { value: 'rep-coordinadora', label: 'Rep. Coordinadora' },
+   137→  { value: 'rep-envia', label: 'Rep. Envía' },
+   138→  { value: 'rep-tcc', label: 'Rep. TCC' },
+   139→]
+   140→
+   141→const HUMAN_AGENT_OPTIONS = [
+   142→  { value: '', label: 'Sin asignar' },
+   143→  { value: 'agent-1', label: 'Sara M. (líder CS)' },
+   144→  { value: 'agent-2', label: 'Carlos R. (logística)' },
+   145→  { value: 'agent-3', label: 'Laura T. (reclamos)' },
+   146→  { value: 'agent-4', label: 'Diego H. (supervisor)' },
+   147→]
+   148→
+   149→// ─── Helper components ──────────────────────────────────────────────────────
+   150→function PriorityBadge({ priority }: { priority: Priority }) {
+   151→  const cfg = PRIORITY_CONFIG[priority]
+   152→  return (
+   153→    <Badge variant="outline" className={cn('gap-1 text-[10px] px-1.5 py-0', cfg.cls)}>
+   154→      <span className={cn('size-1.5 rounded-full', cfg.dot)} />
+   155→      {cfg.label}
+   156→    </Badge>
+   157→  )
+   158→}
+   159→
+   160→function StatusBadge({ status }: { status: Status }) {
+   161→  const cfg = STATUS_CONFIG[status]
+   162→  return <Badge variant="outline" className={cn('text-[10px] px-1.5 py-0', cfg.cls)}>{cfg.label}</Badge>
+   163→}
+   164→
+   165→function TypeIcon({ type, className }: { type: CaseType; className?: string }) {
+   166→  const Icon = TYPE_CONFIG[type]?.icon || HelpCircle
+   167→  return <Icon className={className} />
+   168→}
+   169→
+   170→function EvidenceIcon({ type, className }: { type: Evidence['type']; className?: string }) {
+   171→  const cfg = EVIDENCE_TYPE_OPTIONS.find(o => o.value === type)
+   172→  const Icon = cfg?.icon || ImageIcon
+   173→  return <Icon className={className} />
+   174→}
+   175→
+   176→// ─── Main component ─────────────────────────────────────────────────────────
+   177→export function NovedadesView() {
+   178→  const tenantId = useTenantId()
+   179→  const [list, setList] = useState<ListResponse | null>(null)
+   180→  const [loading, setLoading] = useState(true)
+   181→  const [statusFilter, setStatusFilter] = useState<Status | 'all'>('all')
+   182→  const [typeFilter, setTypeFilter] = useState<CaseType | 'all'>('all')
+   183→  const [carrierFilter, setCarrierFilter] = useState<string>('all')
+   184→  const [q, setQ] = useState('')
+   185→  const [selectedId, setSelectedId] = useState<string | null>(null)
+   186→  const [detail, setDetail] = useState<DetailResponse | null>(null)
+   187→  const [detailLoading, setDetailLoading] = useState(false)
+   188→  const [createOpen, setCreateOpen] = useState(false)
+   189→  const [resolveOpen, setResolveOpen] = useState(false)
+   190→  const [evidenceOpen, setEvidenceOpen] = useState(false)
+   191→  const [sortBy, setSortBy] = useState<'recent' | 'priority'>('recent')
+   192→
+   193→  const loadList = useCallback(() => {
+   194→    if (!tenantId) return
+   195→    setLoading(true)
+   196→    const params = new URLSearchParams({ tenantId })
+   197→    if (statusFilter !== 'all') params.set('status', statusFilter)
+   198→    if (carrierFilter !== 'all') params.set('carrier', carrierFilter)
+   199→    if (typeFilter !== 'all') params.set('type', typeFilter)
+   200→    fetch(`/api/novedades?${params.toString()}`).then(r => r.json()).then(d => {
+   201→      setList(d)
+   202→      setLoading(false)
+   203→    }).catch(() => setLoading(false))
+   204→  }, [tenantId, statusFilter, carrierFilter, typeFilter])
+   205→
+   206→  const loadDetail = useCallback((id: string) => {
+   207→    if (!tenantId) return
+   208→    setDetailLoading(true)
+   209→    fetch(`/api/novedades/${id}`).then(r => r.json()).then(d => {
+   210→      setDetail(d)
+   211→      setDetailLoading(false)
+   212→    }).catch(() => setDetailLoading(false))
+   213→  }, [tenantId])
+   214→
+   215→  useEffect(() => { loadList() }, [loadList])
+   216→  useEffect(() => {
+   217→    if (selectedId) loadDetail(selectedId)
+   218→    else setDetail(null)
+   219→  }, [selectedId, loadDetail])
+   220→
+   221→  // Filtered + sorted cases for left column
+   222→  const filteredCases = (list?.cases || []).filter(c => {
+   223→    if (!q) return true
+   224→    const ql = q.toLowerCase()
+   225→    return c.caseNumber.toLowerCase().includes(ql)
+   226→      || c.customerName.toLowerCase().includes(ql)
+   227→      || (c.guideNumber || '').toLowerCase().includes(ql)
+   228→      || (c.carrierName || '').toLowerCase().includes(ql)
+   229→      || c.phone.toLowerCase().includes(ql)
+   230→  })
+   231→  const PRIORITY_RANK: Record<Priority, number> = { urgent: 4, high: 3, normal: 2, low: 1 }
+   232→  const sortedCases = [...filteredCases].sort((a, b) => {
+   233→    if (sortBy === 'priority') return PRIORITY_RANK[b.priority] - PRIORITY_RANK[a.priority]
+   234→    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+   235→  })
+   236→
+   237→  // ─── Actions ──────────────────────────────────────────────────────────────
+   238→  const patchCase = async (caseId: string, body: Record<string, unknown>) => {
+   239→    const res = await fetch('/api/novedades', {
+   240→      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+   241→      body: JSON.stringify({ caseId, ...body }),
+   242→    })
+   243→    const d = await res.json()
+   244→    if (!res.ok) throw new Error(d.error || 'Error')
+   245→    return d
+   246→  }
+   247→
+   248→  const handleAssign = async (caseId: string, human?: string, carrierRep?: string) => {
+   249→    try {
+   250→      await patchCase(caseId, { action: 'assign', humanAssignedTo: human, carrierRepAssignedTo: carrierRep })
+   251→      toast.success('Caso asignado')
+   252→      loadDetail(caseId)
+   253→      loadList()
+   254→    } catch (e) { toast.error(e instanceof Error ? e.message : 'Error asignando') }
+   255→  }
+   256→
+   257→  const handleAddMessage = async (caseId: string, body: string, internal: boolean) => {
+   258→    if (!body.trim()) return
+   259→    try {
+   260→      await patchCase(caseId, {
+   261→        action: 'add_message', authorRole: 'agent', authorName: 'Agente',
+   262→        messageBody: body, internal,
+   263→      })
+   264→      toast.success(internal ? 'Nota interna añadida' : 'Mensaje enviado')
+   265→      loadDetail(caseId)
+   266→      loadList()
+   267→    } catch (e) { toast.error(e instanceof Error ? e.message : 'Error enviando mensaje') }
+   268→  }
+   269→
+   270→  const handleEscalate = async (caseId: string) => {
+   271→    try {
+   272→      await patchCase(caseId, { action: 'escalate', reason: 'Escalación manual por agente' })
+   273→      toast.success('Caso escalado a humano')
+   274→      loadDetail(caseId)
+   275→      loadList()
+   276→    } catch (e) { toast.error(e instanceof Error ? e.message : 'Error escalando') }
+   277→  }
+   278→
+   279→  const handleRequestEvidence = async (caseId: string) => {
+   280→    try {
+   281→      await patchCase(caseId, { action: 'request_evidence' })
+   282→      toast.success('Evidencia solicitada al cliente')
+   283→      loadDetail(caseId)
+   284→      loadList()
+   285→    } catch (e) { toast.error(e instanceof Error ? e.message : 'Error') }
+   286→  }
+   287→
+   288→  const handleClose = async (caseId: string) => {
+   289→    try {
+   290→      await patchCase(caseId, { action: 'close' })
+   291→      toast.success('Caso cerrado')
+   292→      loadDetail(caseId)
+   293→      loadList()
+   294→    } catch (e) { toast.error(e instanceof Error ? e.message : 'Error cerrando') }
+   295→  }
+   296→
+   297→  const handleAddEvidence = async (caseId: string, type: Evidence['type'], url: string, description: string) => {
+   298→    try {
+   299→      await patchCase(caseId, { action: 'add_evidence', type, url, description, uploadedBy: 'agent' })
+   300→      toast.success('Evidencia añadida')
+   301→      loadDetail(caseId)
+   302→      loadList()
+   303→    } catch (e) { toast.error(e instanceof Error ? e.message : 'Error añadiendo evidencia') }
+   304→  }
+   305→
+   306→  const handleResolve = async (caseId: string, resolution: string, note: string, comp: number | null) => {
+   307→    try {
+   308→      await patchCase(caseId, {
+   309→        action: 'resolve', resolution, resolutionNote: note,
+   310→        compensationAmount: comp,
+   311→      })
+   312→      toast.success('Caso resuelto')
+   313→      setResolveOpen(false)
+   314→      loadDetail(caseId)
+   315→      loadList()
+   316→    } catch (e) { toast.error(e instanceof Error ? e.message : 'Error resolviendo') }
+   317→  }
+   318→
+   319→  const handleCreate = async (data: Record<string, string>) => {
+   320→    if (!tenantId) return
+   321→    try {
+   322→      const res = await fetch('/api/novedades', {
+   323→        method: 'POST', headers: { 'Content-Type': 'application/json' },
+   324→        body: JSON.stringify({ tenantId, ...data }),
+   325→      })
+   326→      const d = await res.json()
+   327→      if (!res.ok) throw new Error(d.error || 'Error')
+   328→      toast.success(`Caso ${d.case.caseNumber} creado`)
+   329→      setCreateOpen(false)
+   330→      loadList()
+   331→      setSelectedId(d.case.id)
+   332→    } catch (e) { toast.error(e instanceof Error ? e.message : 'Error creando caso') }
+   333→  }
+   334→
+   335→  // ─── Render ───────────────────────────────────────────────────────────────
+   336→  if (loading || !list) {
+   337→    return <div className="space-y-4">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-32" />)}</div>
+   338→  }
+   339→
+   340→  return (
+   341→    <div className="space-y-4 animate-fade-in-up">
+   342→      {/* Header */}
+   343→      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+   344→        <div>
+   345→          <h2 className="text-xl font-semibold flex items-center gap-2">
+   346→            <AlertOctagon className="size-5 text-primary" /> Novedades
+   347→          </h2>
+   348→          <p className="text-sm text-muted-foreground">CRM de incidencias logísticas con escalación humana y anti-alucinación</p>
+   349→        </div>
+   350→        <Button onClick={() => setCreateOpen(true)} className="gap-1.5">
+   351→          <Plus className="size-4" /> Nuevo caso
+   352→        </Button>
+   353→      </div>
+   354→
+   355→      {/* 3-column layout (md+) — list | detail | stats */}
+   356→      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+   357→        {/* LEFT — Filters + list */}
+   358→        <div className="lg:col-span-4 xl:col-span-3">
+   359→          <Card className="h-full">
+   360→            <CardHeader className="pb-3">
+   361→              <CardTitle className="text-base flex items-center gap-2"><Inbox className="size-4 text-primary" /> Casos</CardTitle>
+   362→              <CardDescription className="text-xs">{list.stats.total} total · {list.stats.open} abiertos</CardDescription>
+   363→            </CardHeader>
+   364→            <CardContent className="space-y-3">
+   365→              {/* Search */}
+   366→              <div className="relative">
+   367→                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+   368→                <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar caso, cliente, guía..." className="h-8 pl-8 text-xs" />
+   369→              </div>
+   370→
+   371→              {/* Filters */}
+   372→              <div className="grid grid-cols-3 gap-1.5">
+   373→                <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as Status | 'all')}>
+   374→                  <SelectTrigger className="h-8 text-xs"><Filter className="size-3 mr-1" /><SelectValue /></SelectTrigger>
+   375→                  <SelectContent>{STATUS_FILTERS.map(s => <SelectItem key={s.id} value={s.id} className="text-xs">{s.label}</SelectItem>)}</SelectContent>
+   376→                </Select>
+   377→                <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as CaseType | 'all')}>
+   378→                  <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+   379→                  <SelectContent>{TYPE_FILTERS.map(t => <SelectItem key={t.id} value={t.id} className="text-xs">{t.label}</SelectItem>)}</SelectContent>
+   380→                </Select>
+   381→                <Select value={carrierFilter} onValueChange={setCarrierFilter}>
+   382→                  <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+   383→                  <SelectContent>
+   384→                    <SelectItem value="all" className="text-xs">Toda transportadora</SelectItem>
+   385→                    {list.carriers.map(c => <SelectItem key={c} value={c} className="text-xs">{c}</SelectItem>)}
+   386→                  </SelectContent>
+   387→                </Select>
+   388→              </div>
+   389→
+   390→              {/* Sort + count */}
+   391→              <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+   392→                <button
+   393→                  onClick={() => setSortBy(s => s === 'recent' ? 'priority' : 'recent')}
+   394→                  className="flex items-center gap-1 hover:text-foreground transition-colors"
+   395→                >
+   396→                  {sortBy === 'recent' ? <><Clock className="size-3" /> Recientes</> : <><ChevronDown className="size-3" /> Prioridad</>}
+   397→                </button>
+   398→                <span>{sortedCases.length} resultados</span>
+   399→              </div>
+   400→
+   401→              <Separator />
+   402→
+   403→              {/* List */}
+   404→              {sortedCases.length === 0 ? (
+   405→                <div className="text-center py-10">
+   406→                  <Inbox className="size-10 text-muted-foreground/30 mx-auto mb-2" />
+   407→                  <p className="text-xs text-muted-foreground">Sin casos con estos filtros</p>
+   408→                </div>
+   409→              ) : (
+   410→                <ScrollArea className="h-[calc(100vh-22rem)] min-h-[300px] -mx-1 px-1">
+   411→                  <div className="space-y-1.5 pr-1">
+   412→                    {sortedCases.map(c => {
+   413→                      const isSelected = c.id === selectedId
+   414→                      return (
+   415→                        <button
+   416→                          key={c.id}
+   417→                          onClick={() => setSelectedId(c.id)}
+   418→                          className={cn(
+   419→                            'w-full text-left rounded-lg border p-2.5 transition-all duration-200 group',
+   420→                            isSelected
+   421→                              ? 'border-primary/40 bg-primary/5 shadow-sm'
+   422→                              : 'border-border hover:border-primary/30 hover:bg-muted/50'
+   423→                          )}
+   424→                        >
+   425→                          <div className="flex items-start gap-2">
+   426→                            <div className={cn(
+   427→                              'mt-0.5 size-7 shrink-0 rounded-md flex items-center justify-center',
+   428→                              isSelected ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground group-hover:text-primary'
+   429→                            )}>
+   430→                              <TypeIcon type={c.type} className="size-3.5" />
+   431→                            </div>
+   432→                            <div className="flex-1 min-w-0">
+   433→                              <div className="flex items-center gap-1.5 justify-between">
+   434→                                <span className="font-mono text-[11px] font-semibold truncate">{c.caseNumber}</span>
+   435→                                <span className="text-[10px] text-muted-foreground shrink-0">{timeAgo(c.createdAt)}</span>
+   436→                              </div>
+   437→                              <div className="text-xs font-medium truncate">{c.customerName}</div>
+   438→                              <div className="flex items-center gap-1 text-[10px] text-muted-foreground mt-0.5">
+   439→                                <Truck className="size-2.5" />
+   440→                                <span className="truncate">{c.carrierName || 'Sin transportadora'}</span>
+   441→                                {c.guideNumber && <span className="truncate">· {c.guideNumber}</span>}
+   442→                              </div>
+   443→                              <div className="flex flex-wrap items-center gap-1 mt-1.5">
+   444→                                <PriorityBadge priority={c.priority} />
+   445→                                <StatusBadge status={c.status} />
+   446→                                {c.requiresHuman && (
+   447→                                  <Badge variant="outline" className="gap-0.5 text-[10px] px-1 py-0 bg-rose-500/10 text-rose-600 border-rose-500/20">
+   448→                                    <AlertOctagon className="size-2.5" /> Humano
+   449→                                  </Badge>
+   450→                                )}
+   451→                                {!c.orderValidated && c.orderId && (
+   452→                                  <Badge variant="outline" className="gap-0.5 text-[10px] px-1 py-0 bg-rose-500/10 text-rose-600 border-rose-500/20">
+   453→                                    <ShieldAlert className="size-2.5" />
+   454→                                  </Badge>
+   455→                                )}
+   456→                                {c.orderValidated && (
+   457→                                  <Badge variant="outline" className="gap-0.5 text-[10px] px-1 py-0 bg-emerald-500/10 text-emerald-600 border-emerald-500/20">
+   458→                                    <ShieldCheck className="size-2.5" />
+   459→                                  </Badge>
+   460→                                )}
+   461→                                {c.evidenceCount > 0 && (
+   462→                                  <Badge variant="outline" className="gap-0.5 text-[10px] px-1 py-0">
+   463→                                    <Paperclip className="size-2.5" /> {c.evidenceCount}
+   464→                                  </Badge>
+   465→                                )}
+   466→                              </div>
+   467→                            </div>
+   468→                          </div>
+   469→                        </button>
+   470→                      )
+   471→                    })}
+   472→                  </div>
+   473→                </ScrollArea>
+   474→              )}
+   475→            </CardContent>
+   476→          </Card>
+   477→        </div>
+   478→
+   479→        {/* CENTER — Detail */}
+   480→        <div className="lg:col-span-5 xl:col-span-6">
+   481→          <CaseDetailPanel
+   482→            selectedId={selectedId}
+   483→            detail={detail}
+   484→            detailLoading={detailLoading}
+   485→            onAssign={handleAssign}
+   486→            onAddMessage={handleAddMessage}
+   487→            onEscalate={handleEscalate}
+   488→            onRequestEvidence={handleRequestEvidence}
+   489→            onClose={handleClose}
+   490→            onOpenResolve={() => setResolveOpen(true)}
+   491→            onOpenEvidence={() => setEvidenceOpen(true)}
+   492→          />
+   493→        </div>
+   494→
+   495→        {/* RIGHT — Stats */}
+   496→        <div className="lg:col-span-3">
+   497→          <StatsPanel stats={list.stats} carriers={list.carriers} />
+   498→        </div>
+   499→      </div>
+   500→
+   501→      {/* Dialogs */}
+   502→      <CreateCaseDialog open={createOpen} onOpenChange={setCreateOpen} onCreate={handleCreate} carriers={list.carriers} />
+   503→      {detail && (
+   504→        <>
+   505→          <ResolveDialog
+   506→            open={resolveOpen}
+   507→            onOpenChange={setResolveOpen}
+   508→            caseItem={detail.case}
+   509→            onResolve={handleResolve}
+   510→          />
+   511→          <EvidenceDialog
+   512→            open={evidenceOpen}
+   513→            onOpenChange={setEvidenceOpen}
+   514→            onAdd={(type, url, desc) => handleAddEvidence(detail.case.id, type, url, desc)}
+   515→          />
+   516→        </>
+   517→      )}
+   518→    </div>
+   519→  )
+   520→}
+   521→
+   522→// ─── Case detail panel (center) ─────────────────────────────────────────────
+   523→function CaseDetailPanel({
+   524→  selectedId, detail, detailLoading,
+   525→  onAssign, onAddMessage, onEscalate, onRequestEvidence, onClose, onOpenResolve, onOpenEvidence,
+   526→}: {
+   527→  selectedId: string | null
+   528→  detail: DetailResponse | null
+   529→  detailLoading: boolean
+   530→  onAssign: (caseId: string, human?: string, carrierRep?: string) => void
+   531→  onAddMessage: (caseId: string, body: string, internal: boolean) => void
+   532→  onEscalate: (caseId: string) => void
+   533→  onRequestEvidence: (caseId: string) => void
+   534→  onClose: (caseId: string) => void
+   535→  onOpenResolve: () => void
+   536→  onOpenEvidence: () => void
+   537→}) {
+   538→  const [msgBody, setMsgBody] = useState('')
+   539→  const [internal, setInternal] = useState(false)
+   540→  const [humanAgent, setHumanAgent] = useState('')
+   541→  const [carrierRep, setCarrierRep] = useState('')
+   542→
+   543→  // Sync assignment dropdowns when selected case changes (detail becomes available)
+   544→  const [lastSyncedId, setLastSyncedId] = useState<string | null>(null)
+   545→  if (detail && detail.case.id !== lastSyncedId) {
+   546→    setLastSyncedId(detail.case.id)
+   547→    setMsgBody('')
+   548→    setInternal(false)
+   549→    setHumanAgent(detail.case.humanAssignedTo || '')
+   550→    setCarrierRep(detail.case.carrierRepAssignedTo || '')
+   551→  }
+   552→
+   553→  if (!selectedId) {
+   554→    return (
+   555→      <Card className="h-full min-h-[400px]">
+   556→        <CardContent className="flex flex-col items-center justify-center h-full p-10 text-center">
+   557→          <div className="size-14 rounded-2xl bg-primary/10 ring-1 ring-primary/20 flex items-center justify-center mb-3">
+   558→            <AlertOctagon className="size-7 text-primary" />
+   559→          </div>
+   560→          <h3 className="text-base font-semibold">Selecciona un caso</h3>
+   561→          <p className="text-sm text-muted-foreground mt-1">Elige un caso de la lista para ver su detalle, evidencias y mensajes</p>
+   562→        </CardContent>
+   563→      </Card>
+   564→    )
+   565→  }
+   566→
+   567→  if (detailLoading || !detail) {
+   568→    return <Card className="h-full min-h-[400px]"><CardContent className="p-6 space-y-3">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-12" />)}</CardContent></Card>
+   569→  }
+   570→
+   571→  const c = detail.case
+   572→  const isClosed = c.status === 'closed'
+   573→  const isResolved = c.status === 'resolved'
+   574→
+   575→  return (
+   576→    <Card className="h-full">
+   577→      <CardHeader className="pb-3">
+   578→        <div className="flex items-start justify-between gap-3">
+   579→          <div className="flex items-start gap-2 min-w-0">
+   580→            <div className="size-10 rounded-xl bg-primary/10 ring-1 ring-primary/20 text-primary flex items-center justify-center shrink-0">
+   581→              <TypeIcon type={c.type} className="size-5" />
+   582→            </div>
+   583→            <div className="min-w-0">
+   584→              <div className="flex items-center gap-2 flex-wrap">
+   585→                <span className="font-mono text-sm font-semibold">{c.caseNumber}</span>
+   586→                <StatusBadge status={c.status} />
+   587→                <PriorityBadge priority={c.priority} />
+   588→              </div>
+   589→              <p className="text-sm text-muted-foreground mt-0.5">{TYPE_CONFIG[c.type]?.label || c.type}</p>
+   590→            </div>
+   591→          </div>
+   592→          <div className="text-right shrink-0">
+   593→            <div className="text-[11px] text-muted-foreground">Creado {shortDate(c.createdAt)} · {shortTime(c.createdAt)}</div>
+   594→            <div className="text-[11px] text-muted-foreground">Actualizado {timeAgo(c.updatedAt)}</div>
+   595→          </div>
+   596→        </div>
+   597→      </CardHeader>
+   598→      <CardContent className="space-y-4">
+   599→        {/* Anti-alucination + escalation alerts */}
+   600→        {(c.requiresHuman || (!c.orderValidated && c.orderId)) && (
+   601→          <div className="space-y-1.5">
+   602→            {c.requiresHuman && (
+   603→              <div className="flex items-center gap-2 rounded-md border border-rose-500/30 bg-rose-500/5 px-3 py-1.5">
+   604→                <AlertOctagon className="size-4 text-rose-600 shrink-0" />
+   605→                <span className="text-xs text-rose-700 dark:text-rose-400">Requiere escalación humana obligatoria (compensación/reposición)</span>
+   606→              </div>
+   607→            )}
+   608→            {!c.orderValidated && c.orderId && (
+   609→              <div className="flex items-center gap-2 rounded-md border border-rose-500/30 bg-rose-500/5 px-3 py-1.5">
+   610→                <ShieldAlert className="size-4 text-rose-600 shrink-0" />
+   611→                <span className="text-xs text-rose-700 dark:text-rose-400">⚠ Pedido NO validado — posible alucinación. {c.orderValidationNote}</span>
+   612→              </div>
+   613→            )}
+   614→          </div>
+   615→        )}
+   616→
+   617→        {/* Description */}
+   618→        <div>
+   619→          <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Descripción</div>
+   620→          <p className="text-sm bg-muted/40 rounded-md p-3 border border-border/60">{c.description}</p>
+   621→        </div>
+   622→
+   623→        {/* Customer + guide info */}
+   624→        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+   625→          <div className="rounded-md border border-border/60 p-3 space-y-1.5">
+   626→            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Cliente</div>
+   627→            <div className="text-sm font-medium">{c.customerName}</div>
+   628→            <div className="text-xs text-muted-foreground">{c.phone}</div>
+   629→            {c.orderId && (
+   630→              <div className="flex items-center gap-1.5 text-xs">
+   631→                <span className="text-muted-foreground">Pedido:</span>
+   632→                <span className="font-mono">{c.orderId.slice(-8)}</span>
+   633→                {c.orderValidated
+   634→                  ? <Badge variant="outline" className="gap-0.5 text-[10px] px-1 py-0 bg-emerald-500/10 text-emerald-600 border-emerald-500/20 ml-1"><ShieldCheck className="size-2.5" /> Validado</Badge>
+   635→                  : <Badge variant="outline" className="gap-0.5 text-[10px] px-1 py-0 bg-rose-500/10 text-rose-600 border-rose-500/20 ml-1"><ShieldAlert className="size-2.5" /> No validado</Badge>
+   636→                }
+   637→              </div>
+   638→            )}
+   639→          </div>
+   640→          <div className="rounded-md border border-border/60 p-3 space-y-1.5">
+   641→            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Envío</div>
+   642→            <div className="text-sm font-medium flex items-center gap-1.5">
+   643→              <Truck className="size-3.5 text-muted-foreground" />
+   644→              {c.carrierName || 'Sin transportadora'}
+   645→            </div>
+   646→            <div className="text-xs text-muted-foreground">
+   647→              Guía: {c.guideNumber ? <span className="font-mono">{c.guideNumber}</span> : '—'}
+   648→            </div>
+   649→          </div>
+   650→        </div>
+   651→
+   652→        {/* Assignments */}
+   653→        <div className="rounded-md border border-border/60 p-3 space-y-2">
+   654→          <div className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1"><UserCog className="size-3" /> Asignaciones</div>
+   655→          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+   656→            <div>
+   657→              <Label className="text-[10px] text-muted-foreground">Agente humano</Label>
+   658→              <Select value={humanAgent} onValueChange={setHumanAgent}>
+   659→                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+   660→                <SelectContent>
+   661→                  {HUMAN_AGENT_OPTIONS.map(o => <SelectItem key={o.value} value={o.value} className="text-xs">{o.label}</SelectItem>)}
+   662→                </SelectContent>
+   663→              </Select>
+   664→            </div>
+   665→            <div>
+   666→              <Label className="text-[10px] text-muted-foreground">Rep. transportadora</Label>
+   667→              <Select value={carrierRep} onValueChange={setCarrierRep}>
+   668→                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+   669→                <SelectContent>
+   670→                  {CARRIER_REP_OPTIONS.map(o => <SelectItem key={o.value} value={o.value} className="text-xs">{o.label}</SelectItem>)}
+   671→                </SelectContent>
+   672→              </Select>
+   673→            </div>
+   674→          </div>
+   675→          <Button
+   676→            size="sm" variant="outline" className="h-7 text-xs w-full"
+   677→            onClick={() => onAssign(c.id, humanAgent, carrierRep)}
+   678→            disabled={humanAgent === (c.humanAssignedTo || '') && carrierRep === (c.carrierRepAssignedTo || '')}
+   679→          >
+   680→            <Headset className="size-3 mr-1" /> Guardar asignación
+   681→          </Button>
+   682→        </div>
+   683→
+   684→        {/* Action bar */}
+   685→        {!isClosed && (
+   686→          <div className="flex flex-wrap gap-1.5">
+   687→            <Button size="sm" variant="outline" className="h-8 text-xs gap-1" onClick={() => onRequestEvidence(c.id)}>
+   688→              <Paperclip className="size-3" /> Solicitar evidencia
+   689→            </Button>
+   690→            <Button size="sm" variant="outline" className="h-8 text-xs gap-1" onClick={onOpenEvidence}>
+   691→              <ImageIcon className="size-3" /> Subir evidencia
+   692→            </Button>
+   693→            <Button size="sm" variant="outline" className="h-8 text-xs gap-1 text-rose-600 hover:text-rose-700" onClick={() => onEscalate(c.id)}>
+   694→              <AlertOctagon className="size-3" /> Escalar
+   695→            </Button>
+   696→            <Button size="sm" className="h-8 text-xs gap-1 bg-primary hover:bg-primary/90" onClick={onOpenResolve} disabled={isResolved}>
+   697→              <CheckCircle2 className="size-3" /> Resolver
+   698→            </Button>
+   699→            {isResolved && (
+   700→              <Button size="sm" variant="outline" className="h-8 text-xs gap-1" onClick={() => onClose(c.id)}>
+   701→                <X className="size-3" /> Cerrar caso
+   702→              </Button>
+   703→            )}
+   704→          </div>
+   705→        )}
+   706→
+   707→        {/* Resolution summary */}
+   708→        {c.resolution && (
+   709→          <div className="rounded-md border border-emerald-500/30 bg-emerald-500/5 p-3 space-y-1">
+   710→            <div className="text-[10px] uppercase tracking-wider text-emerald-700 dark:text-emerald-400 flex items-center gap-1">
+   711→              <CheckCircle2 className="size-3" /> Resolución
+   712→            </div>
+   713→            <div className="text-xs font-medium">
+   714→              {RESOLUTION_OPTIONS.find(r => r.value === c.resolution)?.label || c.resolution}
+   715→              {c.compensationAmount != null && c.compensationAmount > 0 && (
+   716→                <span className="ml-2 text-emerald-700 dark:text-emerald-400">· Compensación: {formatCurrency(c.compensationAmount)}</span>
+   717→              )}
+   718→            </div>
+   719→            {c.resolutionNote && <p className="text-xs text-muted-foreground">{c.resolutionNote}</p>}
+   720→            {c.resolvedAt && <div className="text-[10px] text-muted-foreground">Resuelto {shortDate(c.resolvedAt)} · {shortTime(c.resolvedAt)}</div>}
+   721→          </div>
+   722→        )}
+   723→
+   724→        {/* Evidence */}
+   725→        <div>
+   726→          <div className="flex items-center justify-between mb-1.5">
+   727→            <div className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+   728→              <Paperclip className="size-3" /> Evidencias ({detail.evidence.length})
+   729→            </div>
+   730→            {!isClosed && (
+   731→              <Button size="sm" variant="ghost" className="h-6 text-[11px] px-2" onClick={onOpenEvidence}>
+   732→                <Plus className="size-3" /> Añadir
+   733→              </Button>
+   734→            )}
+   735→          </div>
+   736→          {detail.evidence.length === 0 ? (
+   737→            <div className="rounded-md border border-dashed border-border/60 p-4 text-center">
+   738→              <ImageIcon className="size-6 text-muted-foreground/30 mx-auto mb-1" />
+   739→              <p className="text-xs text-muted-foreground">Sin evidencias</p>
+   740→            </div>
+   741→          ) : (
+   742→            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+   743→              {detail.evidence.map(e => (
+   744→                <a
+   745→                  key={e.id}
+   746→                  href={e.url}
+   747→                  target="_blank"
+   748→                  rel="noopener noreferrer"
+   749→                  className="group relative aspect-square rounded-md overflow-hidden border border-border/60 hover:border-primary/40 transition-all"
+   750→                >
+   751→                  {e.type === 'photo' || e.type === 'guide_photo' || e.type === 'screenshot' ? (
+   752→                    <img src={e.url} alt={e.description || e.type} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+   753→                  ) : (
+   754→                    <div className="w-full h-full flex flex-col items-center justify-center bg-muted/40 gap-1">
+   755→                      <EvidenceIcon type={e.type} className="size-6 text-muted-foreground" />
+   756→                      <span className="text-[10px] text-muted-foreground">{e.type}</span>
+   757→                    </div>
+   758→                  )}
+   759→                  <div className="absolute top-1 left-1">
+   760→                    <Badge variant="outline" className="text-[9px] px-1 py-0 bg-background/80 backdrop-blur-sm">{e.type}</Badge>
+   761→                  </div>
+   762→                  <div className="absolute bottom-0 left-0 right-0 bg-black/60 backdrop-blur-sm text-white text-[9px] px-1.5 py-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+   763→                    {e.uploadedBy} · {shortTime(e.createdAt)}
+   764→                  </div>
+   765→                </a>
+   766→              ))}
+   767→            </div>
+   768→          )}
+   769→        </div>
+   770→
+   771→        {/* Messages timeline */}
+   772→        <div>
+   773→          <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5 flex items-center gap-1">
+   774→            <MessageSquare className="size-3" /> Línea de tiempo ({detail.messages.length})
+   775→          </div>
+   776→          {detail.messages.length === 0 ? (
+   777→            <div className="rounded-md border border-dashed border-border/60 p-4 text-center">
+   778→              <MessageSquare className="size-6 text-muted-foreground/30 mx-auto mb-1" />
+   779→              <p className="text-xs text-muted-foreground">Sin mensajes</p>
+   780→            </div>
+   781→          ) : (
+   782→            <ScrollArea className="max-h-80">
+   783→              <div className="space-y-2 pr-1">
+   784→                {detail.messages.map(m => {
+   785→                  const isInternal = m.internal
+   786→                  const isSystem = m.authorRole === 'system' || m.authorRole === 'ai'
+   787→                  const isCustomer = m.authorRole === 'customer'
+   788→                  const isCarrier = m.authorRole === 'carrier_rep'
+   789→                  return (
+   790→                    <div key={m.id} className={cn(
+   791→                      'flex gap-2',
+   792→                      isCustomer ? 'flex-row' : 'flex-row-reverse',
+   793→                    )}>
+   794→                      <div className={cn(
+   795→                        'max-w-[85%] rounded-md px-2.5 py-1.5 text-xs',
+   796→                        isInternal
+   797→                          ? 'bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200'
+   798→                          : isSystem
+   799→                            ? 'bg-muted/60 border border-border/60 text-muted-foreground italic'
+   800→                            : isCustomer
+   801→                              ? 'bg-sky-500/10 border border-sky-500/20 text-sky-900 dark:text-sky-100'
+   802→                              : isCarrier
+   803→                                ? 'bg-violet-500/10 border border-violet-500/20 text-violet-900 dark:text-violet-100'
+   804→                                : 'bg-primary/10 border border-primary/20 text-primary-foreground'
+   805→                      )}>
+   806→                        <div className="flex items-center gap-1.5 mb-0.5">
+   807→                          <span className="text-[10px] font-semibold uppercase tracking-wide opacity-70">
+   808→                            {m.authorRole === 'customer' ? 'Cliente' : m.authorRole === 'agent' ? 'Agente' : m.authorRole === 'carrier_rep' ? 'Rep. transportadora' : m.authorRole === 'ai' ? 'IA' : 'Sistema'}
+   809→                          </span>
+   810→                          {m.authorName && <span className="text-[10px] opacity-60">· {m.authorName}</span>}
+   811→                          {isInternal && <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 bg-amber-500/20 border-amber-500/40 text-amber-700">Interno</Badge>}
+   812→                          <span className="text-[10px] opacity-50 ml-auto">{shortTime(m.createdAt)}</span>
+   813→                        </div>
+   814→                        <p className={cn('leading-relaxed', isSystem && 'italic')}>{m.body}</p>
+   815→                      </div>
+   816→                    </div>
+   817→                  )
+   818→                })}
+   819→              </div>
+   820→            </ScrollArea>
+   821→          )}
+   822→        </div>
+   823→
+   824→        {/* Message composer */}
+   825→        {!isClosed && (
+   826→          <div className="rounded-md border border-border/60 p-2 space-y-1.5">
+   827→            <Textarea
+   828→              value={msgBody}
+   829→              onChange={(e) => setMsgBody(e.target.value)}
+   830→              placeholder="Escribe un mensaje o nota..."
+   831→              className="min-h-[60px] text-xs resize-none"
+   832→              onKeyDown={(e) => {
+   833→                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+   834→                  onAddMessage(c.id, msgBody, internal)
+   835→                  setMsgBody('')
+   836→                }
+   837→              }}
+   838→            />
+   839→            <div className="flex items-center justify-between gap-2">
+   840→              <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer">
+   841→                <Switch checked={internal} onCheckedChange={setInternal} className="scale-75 origin-left" />
+   842→                <span>Nota interna {internal && <span className="text-amber-600">(no visible al cliente)</span>}</span>
+   843→              </label>
+   844→              <Button
+   845→                size="sm" className="h-7 text-xs gap-1"
+   846→                disabled={!msgBody.trim()}
+   847→                onClick={() => { onAddMessage(c.id, msgBody, internal); setMsgBody('') }}
+   848→              >
+   849→                <Send className="size-3" /> Enviar
+   850→              </Button>
+   851→            </div>
+   852→          </div>
+   853→        )}
+   854→      </CardContent>
+   855→    </Card>
+   856→  )
+   857→}
+   858→
+   859→// ─── Stats panel (right) ────────────────────────────────────────────────────
+   860→function StatsPanel({ stats, carriers }: { stats: Stats; carriers: string[] }) {
+   861→  const total = Math.max(stats.total, 1)
+   862→  return (
+   863→    <Card className="h-full">
+   864→      <CardHeader className="pb-3">
+   865→        <CardTitle className="text-base flex items-center gap-2"><Activity className="size-4 text-primary" /> Estadísticas</CardTitle>
+   866→      </CardHeader>
+   867→      <CardContent className="space-y-4">
+   868→        {/* KPIs */}
+   869→        <div className="grid grid-cols-2 gap-2">
+   870→          <div className="rounded-md border border-border/60 p-2.5">
+   871→            <div className="text-[10px] text-muted-foreground">Abiertos</div>
+   872→            <div className="text-xl font-bold tabular-nums text-sky-600">{stats.open}</div>
+   873→          </div>
+   874→          <div className="rounded-md border border-border/60 p-2.5">
+   875→            <div className="text-[10px] text-muted-foreground">Resueltos hoy</div>
+   876→            <div className="text-xl font-bold tabular-nums text-emerald-600">{stats.resolvedToday}</div>
+   877→          </div>
+   878→        </div>
+   879→
+   880→        <div className="rounded-md border border-border/60 p-2.5">
+   881→          <div className="text-[10px] text-muted-foreground flex items-center gap-1"><TrendingUp className="size-3" /> Tiempo prom. resolución</div>
+   882→          <div className="text-lg font-bold tabular-nums">{stats.avgResolutionHours > 0 ? `${stats.avgResolutionHours} h` : '—'}</div>
+   883→        </div>
+   884→
+   885→        <Separator />
+   886→
+   887→        {/* By status */}
+   888→        <div>
+   889→          <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5">Por estado</div>
+   890→          <div className="space-y-1">
+   891→            {(Object.keys(STATUS_CONFIG) as Status[]).map(s => {
+   892→              const count = stats.byStatus[s] || 0
+   893→              if (count === 0) return null
+   894→              const pct = Math.round((count / total) * 100)
+   895→              return (
+   896→                <div key={s} className="flex items-center gap-2 text-xs">
+   897→                  <StatusBadge status={s} />
+   898→                  <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
+   899→                    <div className={cn('h-full', STATUS_CONFIG[s].cls.split(' ')[0].replace('/10', '/60'))} style={{ width: `${pct}%` }} />
+   900→                  </div>
+   901→                  <span className="font-mono text-[11px] tabular-nums w-5 text-right">{count}</span>
+   902→                </div>
+   903→              )
+   904→            })}
+   905→          </div>
+   906→        </div>
+   907→
+   908→        <Separator />
+   909→
+   910→        {/* By carrier */}
+   911→        <div>
+   912→          <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5">Por transportadora</div>
+   913→          {carriers.length === 0 ? (
+   914→            <p className="text-xs text-muted-foreground">Sin datos</p>
+   915→          ) : (
+   916→            <div className="space-y-1 max-h-32 overflow-y-auto scroll-thin">
+   917→              {Object.entries(stats.byCarrier)
+   918→                .sort((a, b) => b[1] - a[1])
+   919→                .map(([carrier, count]) => (
+   920→                  <div key={carrier} className="flex items-center justify-between text-xs">
+   921→                    <span className="truncate flex items-center gap-1"><Truck className="size-2.5 text-muted-foreground" /> {carrier}</span>
+   922→                    <span className="font-mono tabular-nums shrink-0">{count}</span>
+   923→                  </div>
+   924→                ))}
+   925→            </div>
+   926→          )}
+   927→        </div>
+   928→
+   929→        <Separator />
+   930→
+   931→        {/* By type */}
+   932→        <div>
+   933→          <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5">Por tipo</div>
+   934→          <div className="space-y-1">
+   935→            {(Object.keys(TYPE_CONFIG) as CaseType[]).map(t => {
+   936→              const count = stats.byType[t] || 0
+   937→              if (count === 0) return null
+   938→              return (
+   939→                <div key={t} className="flex items-center justify-between text-xs">
+   940→                  <span className="flex items-center gap-1.5">
+   941→                    <TypeIcon type={t} className="size-3 text-muted-foreground" />
+   942→                    {TYPE_CONFIG[t].label}
+   943→                  </span>
+   944→                  <span className="font-mono tabular-nums">{count}</span>
+   945→                </div>
+   946→              )
+   947→            })}
+   948→            {Object.values(stats.byType).every(v => !v) && <p className="text-xs text-muted-foreground">Sin datos</p>}
+   949→          </div>
+   950→        </div>
+   951→      </CardContent>
+   952→    </Card>
+   953→  )
+   954→}
+   955→
+   956→// ─── Create case dialog ─────────────────────────────────────────────────────
+   957→function CreateCaseDialog({
+   958→  open, onOpenChange, onCreate, carriers,
+   959→}: {
+   960→  open: boolean
+   961→  onOpenChange: (v: boolean) => void
+   962→  onCreate: (data: Record<string, string>) => void
+   963→  carriers: string[]
+   964→}) {
+   965→  const [type, setType] = useState<CaseType>('damaged')
+   966→  const [priority, setPriority] = useState<Priority>('normal')
+   967→  const [phone, setPhone] = useState('')
+   968→  const [customerName, setCustomerName] = useState('')
+   969→  const [orderId, setOrderId] = useState('')
+   970→  const [guideNumber, setGuideNumber] = useState('')
+   971→  const [carrierName, setCarrierName] = useState('')
+   972→  const [description, setDescription] = useState('')
+   973→
+   974→  const handleOpenChange = (v: boolean) => {
+   975→    if (!v) {
+   976→      setType('damaged'); setPriority('normal'); setPhone(''); setCustomerName('')
+   977→      setOrderId(''); setGuideNumber(''); setCarrierName(''); setDescription('')
+   978→    }
+   979→    onOpenChange(v)
+   980→  }
+   981→
+   982→  const valid = phone.trim() && customerName.trim() && description.trim()
+   983→
+   984→  const submit = () => {
+   985→    if (!valid) return
+   986→    onCreate({
+   987→      type, priority, phone, customerName,
+   988→      orderId, guideNumber, carrierName: carrierName || (carriers[0] || ''),
+   989→      description,
+   990→    })
+   991→  }
+   992→
+   993→  return (
+   994→    <Dialog open={open} onOpenChange={handleOpenChange}>
+   995→      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto scroll-thin">
+   996→        <DialogHeader>
+   997→          <DialogTitle>Nuevo caso de novedad</DialogTitle>
+   998→          <DialogDescription>Registra una incidencia logística. Se generará un número de caso automáticamente.</DialogDescription>
+   999→        </DialogHeader>
+  1000→        <div className="space-y-3">
+  1001→          <div className="grid grid-cols-2 gap-3">
+  1002→            <div className="space-y-1">
+  1003→              <Label className="text-xs">Tipo *</Label>
+  1004→              <Select value={type} onValueChange={(v) => setType(v as CaseType)}>
+  1005→                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+  1006→                <SelectContent>
+  1007→                  {(Object.keys(TYPE_CONFIG) as CaseType[]).map(t => (
+  1008→                    <SelectItem key={t} value={t}>{TYPE_CONFIG[t].label}</SelectItem>
+  1009→                  ))}
+  1010→                </SelectContent>
+  1011→              </Select>
+  1012→            </div>
+  1013→            <div className="space-y-1">
+  1014→              <Label className="text-xs">Prioridad</Label>
+  1015→              <Select value={priority} onValueChange={(v) => setPriority(v as Priority)}>
+  1016→                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+  1017→                <SelectContent>
+  1018→                  {(Object.keys(PRIORITY_CONFIG) as Priority[]).map(p => (
+  1019→                    <SelectItem key={p} value={p}>{PRIORITY_CONFIG[p].label}</SelectItem>
+  1020→                  ))}
+  1021→                </SelectContent>
+  1022→              </Select>
+  1023→            </div>
+  1024→          </div>
+  1025→
+  1026→          <div className="grid grid-cols-2 gap-3">
+  1027→            <div className="space-y-1">
+  1028→              <Label className="text-xs">Cliente *</Label>
+  1029→              <Input value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="Nombre del cliente" className="h-9" />
+  1030→            </div>
+  1031→            <div className="space-y-1">
+  1032→              <Label className="text-xs">Teléfono *</Label>
+  1033→              <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+57..." className="h-9" />
+  1034→            </div>
+  1035→          </div>
+  1036→
+  1037→          <div className="grid grid-cols-2 gap-3">
+  1038→            <div className="space-y-1">
+  1039→              <Label className="text-xs">ID Pedido (opcional)</Label>
+  1040→              <Input value={orderId} onChange={(e) => setOrderId(e.target.value)} placeholder="orderId para validación" className="h-9 font-mono text-xs" />
+  1041→              <p className="text-[10px] text-muted-foreground">Si se proporciona, se valida que el pedido pertenezca al tenant</p>
+  1042→            </div>
+  1043→            <div className="space-y-1">
+  1044→              <Label className="text-xs">Transportadora</Label>
+  1045→              <Select value={carrierName} onValueChange={setCarrierName}>
+  1046→                <SelectTrigger className="h-9"><SelectValue placeholder="Selecciona" /></SelectTrigger>
+  1047→                <SelectContent>
+  1048→                  <SelectItem value="">Sin transportadora</SelectItem>
+  1049→                  {carriers.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+  1050→                  <SelectItem value="Interrapidísimo">Interrapidísimo</SelectItem>
+  1051→                  <SelectItem value="Servientrega">Servientrega</SelectItem>
+  1052→                  <SelectItem value="Coordinadora">Coordinadora</SelectItem>
+  1053→                  <SelectItem value="Envía">Envía</SelectItem>
+  1054→                  <SelectItem value="TCC">TCC</SelectItem>
+  1055→                </SelectContent>
+  1056→              </Select>
+  1057→            </div>
+  1058→          </div>
+  1059→
+  1060→          <div className="space-y-1">
+  1061→            <Label className="text-xs">Número de guía</Label>
+  1062→            <Input value={guideNumber} onChange={(e) => setGuideNumber(e.target.value)} placeholder="Guía de envío" className="h-9 font-mono text-xs" />
+  1063→          </div>
+  1064→
+  1065→          <div className="space-y-1">
+  1066→            <Label className="text-xs">Descripción *</Label>
+  1067→            <Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Describe la incidencia..." className="min-h-[80px] text-sm" />
+  1068→          </div>
+  1069→
+  1070→          {['damaged', 'lost', 'wrong_product'].includes(type) && (
+  1071→            <div className="flex items-center gap-2 rounded-md border border-rose-500/30 bg-rose-500/5 px-3 py-2">
+  1072→              <AlertOctagon className="size-4 text-rose-600 shrink-0" />
+  1073→              <span className="text-xs text-rose-700 dark:text-rose-400">Este tipo requiere escalación humana obligatoria</span>
+  1074→            </div>
+  1075→          )}
+  1076→        </div>
+  1077→
+  1078→        <DialogFooter>
+  1079→          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+  1080→          <Button onClick={submit} disabled={!valid}>Crear caso</Button>
+  1081→        </DialogFooter>
+  1082→      </DialogContent>
+  1083→    </Dialog>
+  1084→  )
+  1085→}
+  1086→
+  1087→// ─── Resolve dialog ─────────────────────────────────────────────────────────
+  1088→function ResolveDialog({
+  1089→  open, onOpenChange, caseItem, onResolve,
+  1090→}: {
+  1091→  open: boolean
+  1092→  onOpenChange: (v: boolean) => void
+  1093→  caseItem: CaseDetail
+  1094→  onResolve: (caseId: string, resolution: string, note: string, comp: number | null) => void
+  1095→}) {
+  1096→  const [resolution, setResolution] = useState('replacement')
+  1097→  const [note, setNote] = useState('')
+  1098→  const [comp, setComp] = useState('')
+  1099→
+  1100→  const handleOpenChange = (v: boolean) => {
+  1101→    if (!v) { setResolution('replacement'); setNote(''); setComp('') }
+  1102→    onOpenChange(v)
+  1103→  }
+  1104→
+  1105→  const valid = note.trim().length >= 3
+  1106→
+  1107→  return (
+  1108→    <Dialog open={open} onOpenChange={handleOpenChange}>
+  1109→      <DialogContent className="max-w-md">
+  1110→        <DialogHeader>
+  1111→          <DialogTitle>Resolver caso {caseItem.caseNumber}</DialogTitle>
+  1112→          <DialogDescription>Selecciona el tipo de resolución y añade una nota. Esta acción es auditada.</DialogDescription>
+  1113→        </DialogHeader>
+  1114→        <div className="space-y-3">
+  1115→          <div className="space-y-1">
+  1116→            <Label className="text-xs">Tipo de resolución *</Label>
+  1117→            <Select value={resolution} onValueChange={setResolution}>
+  1118→              <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+  1119→              <SelectContent>
+  1120→                {RESOLUTION_OPTIONS.map(r => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
+  1121→              </SelectContent>
+  1122→            </Select>
+  1123→          </div>
+  1124→
+  1125→          {resolution === 'compensation' && (
+  1126→            <div className="space-y-1">
+  1127→              <Label className="text-xs">Monto de compensación (COP)</Label>
+  1128→              <Input
+  1129→                value={comp}
+  1130→                onChange={(e) => setComp(e.target.value)}
+  1131→                placeholder="50000"
+  1132→                type="number"
+  1133→                className="h-9 font-mono"
+  1134→              />
+  1135→              {comp && Number(comp) > 0 && (
+  1136→                <p className="text-[10px] text-muted-foreground">{formatCurrency(Number(comp))}</p>
+  1137→              )}
+  1138→            </div>
+  1139→          )}
+  1140→
+  1141→          <div className="space-y-1">
+  1142→            <Label className="text-xs">Nota de resolución *</Label>
+  1143→            <Textarea
+  1144→              value={note}
+  1145→              onChange={(e) => setNote(e.target.value)}
+  1146→              placeholder="Explica la resolución aplicada..."
+  1147→              className="min-h-[80px] text-sm"
+  1148→            />
+  1149→          </div>
+  1150→        </div>
+  1151→        <DialogFooter>
+  1152→          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+  1153→          <Button
+  1154→            disabled={!valid}
+  1155→            onClick={() => onResolve(
+  1156→              caseItem.id,
+  1157→              resolution,
+  1158→              note,
+  1159→              resolution === 'compensation' && comp ? Number(comp) : null,
+  1160→            )}
+  1161→          >
+  1162→            <CheckCircle2 className="size-4 mr-1" /> Resolver caso
+  1163→          </Button>
+  1164→        </DialogFooter>
+  1165→      </DialogContent>
+  1166→    </Dialog>
+  1167→  )
+  1168→}
+  1169→
+  1170→// ─── Evidence dialog ────────────────────────────────────────────────────────
+  1171→function EvidenceDialog({
+  1172→  open, onOpenChange, onAdd,
+  1173→}: {
+  1174→  open: boolean
+  1175→  onOpenChange: (v: boolean) => void
+  1176→  onAdd: (type: Evidence['type'], url: string, description: string) => void
+  1177→}) {
+  1178→  const [type, setType] = useState<Evidence['type']>('photo')
+  1179→  const [url, setUrl] = useState('')
+  1180→  const [description, setDescription] = useState('')
+  1181→
+  1182→  const handleOpenChange = (v: boolean) => {
+  1183→    if (!v) { setType('photo'); setUrl(''); setDescription('') }
+  1184→    onOpenChange(v)
+  1185→  }
+  1186→
+  1187→  const valid = url.trim().length > 0
+  1188→
+  1189→  return (
+  1190→    <Dialog open={open} onOpenChange={handleOpenChange}>
+  1191→      <DialogContent className="max-w-md">
+  1192→        <DialogHeader>
+  1193→          <DialogTitle>Subir evidencia</DialogTitle>
+  1194→          <DialogDescription>Añade una URL de evidencia (foto, video, foto de guía, screenshot o documento).</DialogDescription>
+  1195→        </DialogHeader>
+  1196→        <div className="space-y-3">
+  1197→          <div className="space-y-1">
+  1198→            <Label className="text-xs">Tipo *</Label>
+  1199→            <Select value={type} onValueChange={(v) => setType(v as Evidence['type'])}>
+  1200→              <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+  1201→              <SelectContent>
+  1202→                {EVIDENCE_TYPE_OPTIONS.map(o => {
+  1203→                  const Icon = o.icon
+  1204→                  return <SelectItem key={o.value} value={o.value}><Icon className="size-3 inline mr-1" /> {o.label}</SelectItem>
+  1205→                })}
+  1206→              </SelectContent>
+  1207→            </Select>
+  1208→          </div>
+  1209→
+  1210→          <div className="space-y-1">
+  1211→            <Label className="text-xs">URL *</Label>
+  1212→            <Input
+  1213→              value={url}
+  1214→              onChange={(e) => setUrl(e.target.value)}
+  1215→              placeholder="https://..."
+  1216→              className="h-9 font-mono text-xs"
+  1217→            />
+  1218→          </div>
+  1219→
+  1220→          <div className="space-y-1">
+  1221→            <Label className="text-xs">Descripción (opcional)</Label>
+  1222→            <Textarea
+  1223→              value={description}
+  1224→              onChange={(e) => setDescription(e.target.value)}
+  1225→              placeholder="Describe qué muestra la evidencia..."
+  1226→              className="min-h-[60px] text-sm"
+  1227→            />
+  1228→          </div>
+  1229→
+  1230→          {(type === 'photo' || type === 'guide_photo' || type === 'screenshot') && url && (
+  1231→            <div className="rounded-md border border-border/60 overflow-hidden aspect-video bg-muted/40">
+  1232→              <img src={url} alt="preview" className="w-full h-full object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
+  1233→            </div>
+  1234→          )}
+  1235→        </div>
+  1236→        <DialogFooter>
+  1237→          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+  1238→          <Button disabled={!valid} onClick={() => { onAdd(type, url, description); onOpenChange(false) }}>
+  1239→            <Paperclip className="size-4 mr-1" /> Subir evidencia
+  1240→          </Button>
+  1241→        </DialogFooter>
+  1242→      </DialogContent>
+  1243→    </Dialog>
+  1244→  )
+  1245→}
+  1246→

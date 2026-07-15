@@ -1,0 +1,123 @@
+{
+  "name": "CommerceFlow — Agente 6.7 Confirmación de datos (10 campos)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "agent-address",
+        "responseMode": "responseNode"
+      },
+      "id": "webhook-address",
+      "name": "Webhook Entrada",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://app:3000/api/agents/address",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "tenantId",
+              "value": "={{ $json.body.tenantId }}"
+            },
+            {
+              "name": "conversationId",
+              "value": "={{ $json.body.conversationId }}"
+            },
+            {
+              "name": "customerId",
+              "value": "={{ $json.body.customerId }}"
+            },
+            {
+              "name": "perfil",
+              "value": "={{ $json.body.perfil }}"
+            },
+            {
+              "name": "items",
+              "value": "={{ $json.body.items }}"
+            },
+            {
+              "name": "query",
+              "value": "={{ $json.body.query }}"
+            },
+            {
+              "name": "message",
+              "value": "={{ $json.body.message }}"
+            },
+            {
+              "name": "partialAddress",
+              "value": "={{ $json.body.partialAddress }}"
+            },
+            {
+              "name": "imageUrl",
+              "value": "={{ $json.body.imageUrl }}"
+            }
+          ]
+        }
+      },
+      "id": "call-agent-address",
+      "name": "Llamar Agente address",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      },
+      "id": "respond-address",
+      "name": "Responder",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        440,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook Entrada": {
+      "main": [
+        [
+          {
+            "node": "Llamar Agente address",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Llamar Agente address": {
+      "main": [
+        [
+          {
+            "node": "Responder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "_notes": [
+    "Agente 6.7 Confirmación de datos (10 campos) — Nombre, teléfono, dirección, etc.",
+    "Endpoint: POST http://app:3000/api/agents/address",
+    "Importar: n8n → Workflows → Import from File → seleccionar este JSON",
+    "Activar workflow después de importar."
+  ]
+}

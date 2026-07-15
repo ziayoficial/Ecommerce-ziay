@@ -1791,3 +1791,32 @@ model StatusCheck {
   @@unique([date])
   @@index([date])
 }
+
+// ───────────────────────────────────────────────────────────────────────────
+// FX RATE CACHE — SPRINT-OPENAPI-FINAL-001 / §ADR-0012
+// ───────────────────────────────────────────────────────────────────────────
+// Cached exchange rates from the live FX feed (open.er-api.com).
+// `getLiveExchangeRates()` in src/lib/i18n/currency.ts upserts a row per
+// currency on every successful fetch, and on cold start (no in-memory cache)
+// reads the latest row per currency instead of falling back to the static
+// `CURRENCIES[*].exchangeRateFromUSD` table. This closes the cold-start gap
+// on serverless deploys (Vercel) where every invocation starts with an empty
+// `fxCache` — without this table the first request after a deploy would use
+// the static rates, which can be weeks stale for volatile LATAM currencies
+// (ARS in particular).
+//
+// One row per currency code (ISO 4217). `currency` is `@unique` so upserts
+// replace the rate in-place. The `@@index([currency, fetchedAt])` lets the
+// cold-start read fetch all rows in one go (small table, ≤7 rows).
+/// Cached exchange rates from live FX feed
+/// Document §ADR-0012: cold-start persistence for FX rates
+model FxRate {
+  id        String   @id @default(cuid())
+  base      String   @default("USD")
+  currency  String   @unique // "COP", "MXN", etc.
+  rate      Float
+  source    String   @default("open.er-api.com")
+  fetchedAt DateTime @default(now())
+
+  @@index([currency, fetchedAt])
+}

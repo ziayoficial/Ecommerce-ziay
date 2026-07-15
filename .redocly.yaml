@@ -1,0 +1,52 @@
+# Redocly CLI configuration — Sprint 13B (SPRINT-OPENAPI-FINAL-001)
+#
+# Built on top of the `recommended` ruleset. The rules disabled below are
+# either intentionally divergent from Redocly's defaults for this project
+# or are stylistic rules that produce noise without catching real bugs.
+#
+# CI runs `npx @redocly/cli lint docs/openapi.yaml` in strict mode
+# (`continue-on-error: false` in .github/workflows/ci.yml). Any *error*
+# fails the build; the warnings suppressed here are tracked as accepted
+# technical debt.
+extends:
+  - recommended
+
+rules:
+  # Most operations in this spec return only 2XX (the route handlers fall
+  # through to a central error handler that returns a generic 500). Forcing
+  # every operation to declare a 4XX response would balloon the spec without
+  # adding real documentation value — the global ErrorResponse schema is
+  # referenced where a 4XX is actually part of the contract (auth, validation).
+  operation-4xx-response: off
+
+  # The spec ships a few reusable schemas (PaginatedResponse, TenantIdQuery,
+  # MandateVC, ServerError, …) that are part of the public API contract for
+  # SDK consumers but aren't yet $ref'd from a path operation. They document
+  # the canonical shape for future endpoints.
+  no-unused-components: off
+
+  # `Proprietary` license without a URL is intentional — this is closed-source
+  # software, there's no license URL to link to.
+  info-license: off
+  info-license-strict: off
+
+  # The `http://localhost:3000` dev server triggers no-server-example.com. We
+  # keep it so contributors can paste the URL straight into a local client.
+  # NOTE: the rule id literally contains a dot before `com` — quote it so YAML
+  # doesn't interpret it as a nested key path.
+  'no-server-example.com': off
+
+  # The production URL (`https://ziay.co`) has no trailing slash; the rule is
+  # pre-disabled so adding a server with a trailing slash later won't suddenly
+  # start producing warnings.
+  no-server-trailing-slash: off
+
+  # The info contact is defined inline (email only); no separate `contact`
+  # object with name/url is needed.
+  info-contact: off
+
+# Tell Redocly where the spec lives so `npx redocly lint` (without args)
+# picks it up automatically. CI passes the path explicitly.
+apis:
+  api:
+    root: docs/openapi.yaml

@@ -39,10 +39,19 @@ jobs:
 
   # ──────────────────────────────────────────────────────────────────────────
   # openapi-spec job — Sprint 12D. Runs @redocly/cli lint against the
-  # OpenAPI spec. `continue-on-error: true` means warnings don't fail the
-  # build; only hard parse/schema errors (which would also break the docs
-  # site / ReDoc rendering) bubble up. Runs in parallel with lint /
-  # typecheck / unit-tests so it doesn't add wall-clock time.
+  # OpenAPI spec.
+  #
+  # Sprint 13B (SPRINT-OPENAPI-FINAL-001): `continue-on-error` flipped from
+  # `true` → `false` (strict mode). The spec now carries `operationId` on
+  # every operation (136/136), has no `nullable: true` (migrated to the
+  # OpenAPI 3.1 `type: [X, 'null']` form), and the remaining stylistic
+  # warnings are suppressed via `.redocly.yaml`. The config file is passed
+  # explicitly with `--config` because Redocly's auto-discovery only looks
+  # for `redocly.yaml` (no leading dot) — keeping the dotfile name matches
+  # the task spec and the project's other dotfile conventions.
+  #
+  # Runs in parallel with lint / typecheck / unit-tests so it doesn't add
+  # wall-clock time.
   # ──────────────────────────────────────────────────────────────────────────
   openapi-spec:
     runs-on: ubuntu-latest
@@ -53,8 +62,9 @@ jobs:
           bun-version: latest
       - run: bun install
       - name: Validate OpenAPI spec
-        run: npx @redocly/cli lint docs/openapi.yaml
-        continue-on-error: true  # warnings don't fail the build
+        run: npx @redocly/cli lint docs/openapi.yaml --config .redocly.yaml
+        # Now strict — operationId + nullable fixes should have cleared errors
+        continue-on-error: false
 
   # ──────────────────────────────────────────────────────────────────────────
   # build job — pushes Prisma schema + runs `next build` against PostgreSQL

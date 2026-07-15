@@ -144,7 +144,20 @@ export function getCurrencyConfig(code: CurrencyCode): CurrencyConfig {
 // (Vercel) the cache lasts one function invocation; on Docker / bare metal
 // it lasts the process lifetime — fine either way because the TTL is 6h
 // and the worst case of a cache miss is one extra upstream request.
+//
+// SPRINT-OPENAPI-FINAL-001 — cold-start persistence (§ADR-0012 follow-up):
+//   Every successful live fetch now upserts per-currency rows into the
+//   `FxRate` Prisma table. On cold start (no in-memory cache + fetch fails
+//   or before the first fetch lands), `getLiveExchangeRates` reads the
+//   latest persisted rates from the DB instead of falling straight back
+//   to the static `CURRENCIES` table. This closes the "first-request-after-
+//   deploy uses stale static rates" gap on serverless. The DB calls are
+//   non-blocking (wrapped in try/catch) so any DB error falls through to
+//   the static-rate fallback — the contract "always returns rates" is
+//   preserved.
 // ─────────────────────────────────────────────────────────────────────────────
+
+import { db } from '@/lib/db'
 
 /**
  * Base URL for the FX API. Defaults to the free `open.er-api.com` endpoint
@@ -210,13 +223,55 @@ export async function getLiveExchangeRates(): Promise<Record<CurrencyCode, numbe
       fetchedAt: Date.now(),
     }
 
+    // SPRINT-OPENAPI-FINAL-001 / §ADR-0012 — persist the freshly fetched
+    // rates to the `FxRate` table so a cold start (serverless invocation
+    // with empty `fxCache`) can recover the last-known live rate without
+    // hitting the upstream again. Wrapped in try/catch — a DB error is
+    // non-blocking: rates are already in the in-memory cache and will be
+    // returned to this caller; the next fetch will retry the upsert.
+    try {
+      const now = new Date()
+      for (const [code, rate] of Object.entries(supportedRates)) {
+        await db.fxRate.upsert({
+          where: { currency: code },
+          update: { rate, fetchedAt: now },
+          create: { currency: code, rate, fetchedAt: now },
+        })
+      }
+    } catch {
+      // DB error — non-blocking, rates are still in memory cache.
+    }
+
     return fxCache.rates as Record<CurrencyCode, number>
   } catch {
-    // Fallback to static rates. We intentionally swallow the error — the
-    // contract is "always returns rates" so callers don't need try/catch.
-    // A real outage will show up as stale-looking numbers in the UI, which
-    // is strictly better than throwing (a currency conversion failure
-    // would break order totals, invoice rendering, etc.).
+    // Upstream fetch failed. Before falling back to the static rates, try
+    // to recover the last-known live rates from the `FxRate` table — this
+    // is the cold-start path documented in §ADR-0012 (a fresh serverless
+    // invocation that has never successfully fetched should still see the
+    // rates persisted by a previous invocation, which are at most a few
+    // hours old rather than the weeks/months that the static table can
+    // drift). Wrapped in try/catch — a DB error falls through to the
+    // static-rate fallback below.
+    try {
+      const dbRates = await db.fxRate.findMany()
+      if (dbRates.length > 0) {
+        const rates: Record<string, number> = { USD: 1 }
+        for (const r of dbRates) {
+          rates[r.currency] = r.rate
+        }
+        fxCache = { rates, fetchedAt: Date.now() }
+        return rates as Record<CurrencyCode, number>
+      }
+    } catch {
+      // DB error — fall through to static rates.
+    }
+
+    // Final fallback — static rates from CURRENCIES. We intentionally
+    // swallow the upstream error — the contract is "always returns rates"
+    // so callers don't need try/catch. A real outage will show up as
+    // stale-looking numbers in the UI, which is strictly better than
+    // throwing (a currency conversion failure would break order totals,
+    // invoice rendering, etc.).
     const staticRates: Record<CurrencyCode, number> = {} as Record<CurrencyCode, number>
     for (const [code, config] of Object.entries(CURRENCIES)) {
       staticRates[code as CurrencyCode] = config.exchangeRateFromUSD

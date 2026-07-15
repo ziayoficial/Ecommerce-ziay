@@ -61,6 +61,46 @@ tags:
   - name: Public
     description: Public endpoints (no auth)
 
+x-tagGroups:
+  - name: Authentication
+    tags:
+      - Auth
+  - name: Commerce
+    tags:
+      - Overview
+      - Orders
+      - Catalog
+      - Channels
+  - name: Conversations
+    tags:
+      - Conversations
+      - Agents
+  - name: Marketing
+    tags:
+      - Ads
+      - Marketplace
+  - name: Finance
+    tags:
+      - Monetization
+      - Wallet
+      - Finance
+  - name: Logistics
+    tags:
+      - Logistics
+      - Novedades
+  - name: Protocols
+    tags:
+      - Protocols
+  - name: Compliance
+    tags:
+      - Compliance
+      - Governance
+  - name: Operations
+    tags:
+      - Monitoring
+      - Webhooks
+      - Public
+
 servers:
   - url: https://ziay.co
     description: Production
@@ -112,8 +152,9 @@ components:
       type: object
       properties:
         nextCursor:
-          type: string
-          nullable: true
+          type:
+            - string
+            - 'null'
         hasMore:
           type: boolean
       additionalProperties: true
@@ -211,6 +252,7 @@ paths:
   # ─────────────────────────────────────────────────────────────────────
   /api:
     get:
+      operationId: getApi
       tags: [Monitoring]
       summary: API root / identity
       description: Returns the API name + status. Requires auth.
@@ -224,9 +266,11 @@ paths:
 
   /api/health:
     get:
+      operationId: getHealth
       tags: [Monitoring]
       summary: Full health check (integrations + runtime)
-      description: Reports DB, Redis, LLM provider, adapter, webhook, disk, and runtime metrics. Cached 30s. Returns 503 on overall `error`.
+      description: Reports DB, Redis, LLM provider, adapter, webhook, disk, and runtime metrics. Cached 30s. Returns 503
+        on overall `error`.
       security: []
       parameters:
         - name: tenantId
@@ -241,6 +285,7 @@ paths:
 
   /api/health/live:
     get:
+      operationId: getHealthLive
       tags: [Monitoring]
       summary: Liveness probe
       description: Kubernetes / load balancer liveness. No DB touch.
@@ -251,6 +296,7 @@ paths:
 
   /api/health/ready:
     get:
+      operationId: getHealthReady
       tags: [Monitoring]
       summary: Readiness probe
       description: DB + critical integrations ready to serve traffic.
@@ -263,6 +309,7 @@ paths:
 
   /api/health/uptime:
     get:
+      operationId: getHealthUptime
       tags: [Monitoring]
       summary: Uptime + process metrics
       description: Process uptime, memory, pid, Node version.
@@ -273,6 +320,7 @@ paths:
 
   /api/metrics:
     get:
+      operationId: getMetrics
       tags: [Monitoring]
       summary: Prometheus metrics
       description: Prometheus text-format counters + histograms for scraping.
@@ -286,6 +334,7 @@ paths:
   # ─────────────────────────────────────────────────────────────────────
   /api/auth/[...nextauth]:
     get:
+      operationId: getAuthNextauth
       tags: [Auth]
       summary: NextAuth handler (GET)
       description: Sign-in pages, session lookup, csrf token.
@@ -294,6 +343,7 @@ paths:
         '200':
           description: NextAuth response (HTML/JSON).
     post:
+      operationId: createAuthNextauth
       tags: [Auth]
       summary: NextAuth handler (POST)
       description: Credentials sign-in / form submissions / sign-out.
@@ -306,6 +356,7 @@ paths:
 
   /api/tenants:
     get:
+      operationId: getTenants
       tags: [Public]
       summary: List tenants
       description: Platform admins see all; tenant users see their own.
@@ -317,6 +368,7 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
     post:
+      operationId: createTenants
       tags: [Public]
       summary: Create tenant (onboarding)
       description: Create a new tenant — platform admin only.
@@ -334,6 +386,7 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
     patch:
+      operationId: updateTenants
       tags: [Public]
       summary: Update tenant config
       description: Update name, currency, country, AI provider, etc.
@@ -353,6 +406,7 @@ paths:
 
   /api/public/tenants:
     get:
+      operationId: getPublicTenants
       tags: [Public]
       summary: Public tenant directory
       description: Slugs + display names for the login tenant picker. No sensitive fields.
@@ -366,6 +420,7 @@ paths:
   # ─────────────────────────────────────────────────────────────────────
   /api/catalog/products:
     get:
+      operationId: getCatalogProducts
       tags: [Catalog]
       summary: List catalog products
       description: Search + pagination over the tenant's product catalog.
@@ -385,6 +440,7 @@ paths:
 
   /api/catalog/send-to-chat:
     post:
+      operationId: createCatalogSendToChat
       tags: [Catalog]
       summary: Send product card to chat
       description: Push a product card into an active conversation (chat-up sell flow).
@@ -404,6 +460,7 @@ paths:
 
   /api/catalog/sync:
     get:
+      operationId: getCatalogSync
       tags: [Catalog]
       summary: Catalog sync status
       description: Last sync status + audit log entry.
@@ -415,6 +472,7 @@ paths:
         '200':
           description: Sync status.
     post:
+      operationId: createCatalogSync
       tags: [Catalog]
       summary: Trigger catalog sync
       description: Enqueue a background sync job from the external platform (WooCommerce/Shopify/etc.).
@@ -437,6 +495,7 @@ paths:
 
   /api/public/catalog:
     get:
+      operationId: getPublicCatalog
       tags: [Public]
       summary: Public catalog endpoint
       description: Product list for storefront / AI agent discovery (no auth).
@@ -453,6 +512,7 @@ paths:
 
   /api/product-enrichment:
     get:
+      operationId: getProductEnrichment
       tags: [Catalog]
       summary: List product enrichments + pending
       description: Existing ProductEnrichment rows + products that still lack enrichment.
@@ -464,6 +524,7 @@ paths:
         '200':
           description: '{ enrichments, pending }'
     post:
+      operationId: createProductEnrichment
       tags: [Catalog]
       summary: Enrich a product (VLM)
       description: Call the VLM (glm-4.6v) to analyze the product image and upsert ProductEnrichment.
@@ -491,6 +552,7 @@ paths:
   # ─────────────────────────────────────────────────────────────────────
   /api/orders:
     get:
+      operationId: getOrders
       tags: [Orders]
       summary: List orders (cursor-paginated)
       description: Filter by status / mode / search query. Cursor-based pagination (max 100).
@@ -518,6 +580,7 @@ paths:
 
   /api/orders/{id}:
     patch:
+      operationId: updateOrdersById
       tags: [Orders]
       summary: Update order
       description: Update status / payment status. Optional `event` is recorded atomically in a transaction.
@@ -561,6 +624,7 @@ paths:
 
   /api/overview:
     get:
+      operationId: getOverview
       tags: [Overview]
       summary: Dashboard overview KPIs
       description: Revenue, orders, conversations, ads KPIs for a tenant + date range.
@@ -578,6 +642,7 @@ paths:
   # ─────────────────────────────────────────────────────────────────────
   /api/conversations:
     get:
+      operationId: getConversations
       tags: [Conversations]
       summary: List conversations (cursor-paginated)
       description: Filter by status / channel / search query.
@@ -603,6 +668,7 @@ paths:
         '200':
           description: Paginated conversations + nextCursor + hasMore.
     post:
+      operationId: createConversations
       tags: [Conversations]
       summary: Send a conversation message
       description: Routes through conversationService so WhatsApp adapter delivers + TTR is stamped.
@@ -630,6 +696,7 @@ paths:
 
   /api/conversations/{id}:
     get:
+      operationId: getConversationsById
       tags: [Conversations]
       summary: Fetch conversation detail
       description: Single conversation with messages + customer + channel context.
@@ -649,6 +716,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
     patch:
+      operationId: updateConversationsById
       tags: [Conversations]
       summary: Update conversation
       description: Update status / priority / assignee.
@@ -672,6 +740,7 @@ paths:
 
   /api/ai-reply:
     post:
+      operationId: createAiReply
       tags: [Agents]
       summary: Generate AI draft reply
       description: Generate an AI draft reply for a conversation message (uses the tenant's LLM adapter).
@@ -692,6 +761,7 @@ paths:
   # ─────────────────────────────────────────────────────────────────────
   /api/channels:
     get:
+      operationId: getChannels
       tags: [Channels]
       summary: List channels
       description: List channels for a tenant. Tokens are masked (hasToken flags only).
@@ -703,6 +773,7 @@ paths:
         '200':
           description: Channel list with masked credentials.
     post:
+      operationId: createChannels
       tags: [Channels]
       summary: Create channel
       description: Add a new channel (WhatsApp / Messenger / Instagram / Telegram). Validates per-type required fields.
@@ -730,6 +801,7 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
     patch:
+      operationId: updateChannels
       tags: [Channels]
       summary: Update channel
       description: Update a channel (e.g., rotate credentials). Tenant ownership verified.
@@ -752,6 +824,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
     delete:
+      operationId: deleteChannels
       tags: [Channels]
       summary: Deactivate channel (soft delete)
       description: Soft-delete a channel — preserves conversation history.
@@ -771,6 +844,7 @@ paths:
 
   /api/integrations/credentials:
     get:
+      operationId: getIntegrationsCredentials
       tags: [Channels]
       summary: List integration credentials (masked)
       description: List credential Setting rows (`cred::*` keys) with masked values.
@@ -780,6 +854,7 @@ paths:
         '200':
           description: Masked credential list.
     post:
+      operationId: createIntegrationsCredentials
       tags: [Channels]
       summary: Create / update integration credential
       description: Upsert a `cred::*` Setting row.
@@ -795,6 +870,7 @@ paths:
         '200':
           description: Upserted credential.
     put:
+      operationId: replaceIntegrationsCredentials
       tags: [Channels]
       summary: Replace integration credential
       description: Replace a `cred::*` Setting row.
@@ -810,6 +886,7 @@ paths:
         '200':
           description: Replaced credential.
     delete:
+      operationId: deleteIntegrationsCredentials
       tags: [Channels]
       summary: Delete integration credential
       description: Delete a `cred::*` Setting row.
@@ -830,6 +907,7 @@ paths:
   # ─────────────────────────────────────────────────────────────────────
   /api/ads:
     get:
+      operationId: getAds
       tags: [Ads]
       summary: Ad-level performance
       description: Per-ad spend, ROAS, CPA, ROI, cannibalization detection, kill recommendation.
@@ -848,6 +926,7 @@ paths:
 
   /api/ads/{id}:
     patch:
+      operationId: updateAdsById
       tags: [Ads]
       summary: Kill / pause / resume / scale an ad
       description: Pushes the action to the ad platform (simulated in dev).
@@ -881,6 +960,7 @@ paths:
 
   /api/ads/import:
     post:
+      operationId: createAdsImport
       tags: [Ads]
       summary: Import ad spend from platform
       description: Importa spend/impressions/clicks de Google/TikTok Ads. Rate-limited (20 req/min).
@@ -910,6 +990,7 @@ paths:
 
   /api/conversions:
     get:
+      operationId: getConversions
       tags: [Ads]
       summary: List conversion events
       description: Server-side pixel events + stats (sent / failed / pending).
@@ -921,6 +1002,7 @@ paths:
         '200':
           description: '{ events, stats }'
     post:
+      operationId: createConversions
       tags: [Ads]
       summary: Fire conversion event (CAPI)
       description: Server-side pixel fire (Meta CAPI / Google MP / TikTok Events API). Enqueues a `capi-fire` job.
@@ -938,8 +1020,9 @@ paths:
                 eventType:
                   type: string
                 value:
-                  type: number
-                  nullable: true
+                  type:
+                    - number
+                    - 'null'
                 currency:
                   type: string
       responses:
@@ -948,6 +1031,7 @@ paths:
 
   /api/trafficker:
     get:
+      operationId: getTrafficker
       tags: [Wallet]
       summary: List traffickers
       description: Trafficker roster + wallet balance + campaign performance.
@@ -959,6 +1043,7 @@ paths:
         '200':
           description: Trafficker list.
     post:
+      operationId: createTrafficker
       tags: [Wallet]
       summary: Create trafficker
       description: Onboard a new trafficker for a tenant.
@@ -976,6 +1061,7 @@ paths:
 
   /api/remarketing:
     get:
+      operationId: getRemarketing
       tags: [Agents]
       summary: List remarketing campaigns
       description: List scheduled remarketing touches (win-back / cross-sell).
@@ -987,6 +1073,7 @@ paths:
         '200':
           description: Remarketing campaign list.
     post:
+      operationId: createRemarketing
       tags: [Agents]
       summary: Create remarketing campaign
       description: Schedule a new remarketing touch.
@@ -1002,6 +1089,7 @@ paths:
         '201':
           description: Created campaign.
     patch:
+      operationId: updateRemarketing
       tags: [Agents]
       summary: Update remarketing campaign
       description: Pause / resume / reschedule.
@@ -1022,6 +1110,7 @@ paths:
   # ─────────────────────────────────────────────────────────────────────
   /api/agents:
     get:
+      operationId: getAgents
       tags: [Agents]
       summary: List available agents
       description: Saramantha agent registry (cached 1 hour).
@@ -1033,6 +1122,7 @@ paths:
 
   /api/agents/{agentName}:
     get:
+      operationId: getAgentsByAgentName
       tags: [Agents]
       summary: Agent metadata
       description: Fetch metadata for a single agent (schema, label).
@@ -1050,9 +1140,11 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
     post:
+      operationId: createAgentsByAgentName
       tags: [Agents]
       summary: Invoke an agent
-      description: Call an agent with a context payload — returns reply + confidence + agent name. Rate-limited (10 req/min/IP).
+      description: Call an agent with a context payload — returns reply + confidence + agent name. Rate-limited (10 
+        req/min/IP).
       security:
         - sessionAuth: []
       parameters:
@@ -1082,6 +1174,7 @@ paths:
 
   /api/orchestrate:
     post:
+      operationId: createOrchestrate
       tags: [Agents]
       summary: Orchestrate multi-agent flow
       description: Run a multi-agent orchestration (profile → quote → checkout → etc.).
@@ -1102,6 +1195,7 @@ paths:
   # ─────────────────────────────────────────────────────────────────────
   /api/ap2/mandates:
     get:
+      operationId: getAp2Mandates
       tags: [Protocols]
       summary: List mandates
       description: List AP2 mandates for a tenant, optionally filtered by userId/type/status.
@@ -1127,6 +1221,7 @@ paths:
         '200':
           description: Mandate list.
     post:
+      operationId: createAp2Mandates
       tags: [Protocols]
       summary: Create Intent Mandate
       description: Create a signed W3C VC Intent Mandate — first link in the Intent → Cart → Payment chain.
@@ -1161,6 +1256,7 @@ paths:
 
   /api/ap2/mandates/{id}:
     get:
+      operationId: getAp2MandatesById
       tags: [Protocols]
       summary: Fetch mandate by id
       description: Fetch a single AP2 mandate (full VC payload + signature verification status).
@@ -1178,6 +1274,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
     patch:
+      operationId: updateAp2MandatesById
       tags: [Protocols]
       summary: Update mandate
       description: Advance status (active→consumed), stamp orderId / paymentRef.
@@ -1209,6 +1306,7 @@ paths:
 
   /api/ap2/mandates/{id}/revoke:
     patch:
+      operationId: updateAp2MandatesByIdRevoke
       tags: [Protocols]
       summary: Revoke mandate (with cascade)
       description: Revoke an AP2 mandate. Cascades to children (Intent → Cart → Payment) in a single transaction.
@@ -1238,6 +1336,7 @@ paths:
 
   /api/ap2/mandates/cart:
     post:
+      operationId: createAp2MandatesCart
       tags: [Protocols]
       summary: Create Cart Mandate
       description: Create a Cart Mandate signed by the agent (parent = Intent).
@@ -1255,6 +1354,7 @@ paths:
 
   /api/ap2/mandates/payment:
     post:
+      operationId: createAp2MandatesPayment
       tags: [Protocols]
       summary: Create Payment Mandate
       description: Create a Payment Mandate signed by the agent (parent = Cart, intentCartHash binds to Intent+Cart).
@@ -1275,6 +1375,7 @@ paths:
   # ─────────────────────────────────────────────────────────────────────
   /api/ucp/v1/checkout:
     post:
+      operationId: createUcpV1Checkout
       tags: [Protocols]
       summary: UCP checkout — create session
       description: Create a UCP checkout session bound to a signed mandate.
@@ -1292,6 +1393,7 @@ paths:
 
   /api/ucp/v1/checkout/{sessionId}:
     get:
+      operationId: getUcpV1CheckoutBySessionId
       tags: [Protocols]
       summary: UCP checkout — fetch session
       description: Fetch a UCP checkout session by id (read-only).
@@ -1309,6 +1411,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
     patch:
+      operationId: updateUcpV1CheckoutBySessionId
       tags: [Protocols]
       summary: UCP checkout — advance session
       description: Advance a UCP checkout session through its state machine.
@@ -1332,6 +1435,7 @@ paths:
 
   /api/ucp/v1/identity-linking:
     post:
+      operationId: createUcpV1IdentityLinking
       tags: [Protocols]
       summary: UCP identity linking
       description: Bind an external AI agent identity to a platform user (per UCP spec).
@@ -1349,6 +1453,7 @@ paths:
 
   /api/ucp/v1/order/{orderId}:
     get:
+      operationId: getUcpV1OrderByOrderId
       tags: [Protocols]
       summary: UCP order fetch
       description: Read-only order access for an external AI agent (per UCP spec).
@@ -1366,6 +1471,7 @@ paths:
 
   /api/ucp/v1/payment-token-exchange:
     post:
+      operationId: createUcpV1PaymentTokenExchange
       tags: [Protocols]
       summary: UCP payment token exchange
       description: Swap a signed mandate for a one-time payment token (per UCP spec).
@@ -1386,6 +1492,7 @@ paths:
   # ─────────────────────────────────────────────────────────────────────
   /api/acp/v1/checkout:
     post:
+      operationId: createAcpV1Checkout
       tags: [Protocols]
       summary: ACP checkout
       description: Agentic Commerce Protocol checkout endpoint (ChatGPT/Copilot).
@@ -1403,6 +1510,7 @@ paths:
 
   /api/acp/v1/orders/{id}:
     get:
+      operationId: getAcpV1OrdersById
       tags: [Protocols]
       summary: ACP order fetch
       description: Read-only order access for an external AI agent (per ACP spec).
@@ -1420,6 +1528,7 @@ paths:
 
   /api/acp/v1/refunds:
     post:
+      operationId: createAcpV1Refunds
       tags: [Protocols]
       summary: ACP refund
       description: Initiate a refund via ACP (external AI agent).
@@ -1440,6 +1549,7 @@ paths:
   # ─────────────────────────────────────────────────────────────────────
   /api/mcp:
     post:
+      operationId: createMcp
       tags: [Protocols]
       summary: MCP JSON-RPC endpoint
       description: Model Context Protocol for Claude/ChatGPT tool calling.
@@ -1465,6 +1575,7 @@ paths:
 
   /.well-known/ucp:
     get:
+      operationId: getUcp
       tags: [Protocols]
       summary: UCP manifest
       security: []
@@ -1475,6 +1586,7 @@ paths:
 
   /.well-known/acp:
     get:
+      operationId: getAcp
       tags: [Protocols]
       summary: ACP manifest
       security: []
@@ -1485,6 +1597,7 @@ paths:
 
   /.well-known/agent-card:
     get:
+      operationId: getAgentCard
       tags: [Protocols]
       summary: A2A agent card
       security: []
@@ -1498,6 +1611,7 @@ paths:
   # ─────────────────────────────────────────────────────────────────────
   /api/payments/config:
     get:
+      operationId: getPaymentsConfig
       tags: [Monetization]
       summary: List payment config
       description: Payment strategy per channel + non-credential global thresholds.
@@ -1507,6 +1621,7 @@ paths:
         '200':
           description: '{ channels, global }'
     patch:
+      operationId: updatePaymentsConfig
       tags: [Monetization]
       summary: Update payment config
       description: Update a channel's payment strategy + whitelisted global Setting keys.
@@ -1524,6 +1639,7 @@ paths:
 
   /api/payments/create-link:
     post:
+      operationId: createPaymentsCreateLink
       tags: [Monetization]
       summary: Create payment link
       description: Create a payment link for an order (checkout URL).
@@ -1541,9 +1657,11 @@ paths:
 
   /api/payments/local:
     post:
+      operationId: createPaymentsLocal
       tags: [Monetization]
       summary: Create local payment (PSE/PIX/OXXO/SPEI)
-      description: LATAM cash/bank-transfer flow. Resolves currency + tax, creates Order, calls adapter, stamps paymentRef atomically.
+      description: LATAM cash/bank-transfer flow. Resolves currency + tax, creates Order, calls adapter, stamps 
+        paymentRef atomically.
       security:
         - sessionAuth: []
       requestBody:
@@ -1570,6 +1688,7 @@ paths:
 
   /api/payments/local/{reference}/status:
     get:
+      operationId: getPaymentsLocalByReferenceStatus
       tags: [Monetization]
       summary: Poll local payment status
       description: Check the status of a local payment reference.
@@ -1592,6 +1711,7 @@ paths:
   # ─────────────────────────────────────────────────────────────────────
   /api/shipping/guide:
     post:
+      operationId: createShippingGuide
       tags: [Logistics]
       summary: Create shipping guide
       description: Create a shipping guide with the configured logistics adapter (Dropi/99envios/AveOnline).
@@ -1609,6 +1729,7 @@ paths:
 
   /api/shipping/quote:
     post:
+      operationId: createShippingQuote
       tags: [Logistics]
       summary: Get shipping rate quotes
       description: Get rate quotes from one or more carriers for an address + package.
@@ -1626,6 +1747,7 @@ paths:
 
   /api/guide-movements:
     get:
+      operationId: getGuideMovements
       tags: [Logistics]
       summary: List guide movements
       description: Tracking movement events per guide.
@@ -1641,9 +1763,11 @@ paths:
         '200':
           description: '{ movements }'
     post:
+      operationId: createGuideMovements
       tags: [Logistics]
       summary: Create guide movement
-      description: Append a tracking event (picked_up / in_transit / delivered / exception). Best-effort cascades a Shipment status update.
+      description: Append a tracking event (picked_up / in_transit / delivered / exception). Best-effort cascades a 
+        Shipment status update.
       security:
         - sessionAuth: []
       requestBody:
@@ -1658,6 +1782,7 @@ paths:
 
   /api/logistics-intelligence:
     get:
+      operationId: getLogisticsIntelligence
       tags: [Logistics]
       summary: Logistics intelligence insights
       description: Carrier performance, delivery SLA, exception rates.
@@ -1674,6 +1799,7 @@ paths:
   # ─────────────────────────────────────────────────────────────────────
   /api/wallet:
     get:
+      operationId: getWallet
       tags: [Wallet]
       summary: List wallet accounts + balances
       description: Per trafficker / marketplace.
@@ -1685,6 +1811,7 @@ paths:
         '200':
           description: Wallet account list + balances.
     post:
+      operationId: createWallet
       tags: [Wallet]
       summary: Create wallet transaction
       description: Deposit / withdrawal / commission credit. Admin/finance role required.
@@ -1702,6 +1829,7 @@ paths:
 
   /api/monetization/commission:
     get:
+      operationId: getMonetizationCommission
       tags: [Monetization]
       summary: List commission entries
       description: Per trafficker / marketplace / order.
@@ -1713,9 +1841,11 @@ paths:
         '200':
           description: Commission entry list.
     post:
+      operationId: createMonetizationCommission
       tags: [Monetization]
       summary: Upsert commission entry
-      description: Create / upsert a commission entry (uses upsert to avoid the POST race condition). Admin/finance role.
+      description: Create / upsert a commission entry (uses upsert to avoid the POST race condition). Admin/finance 
+        role.
       security:
         - sessionAuth: []
       requestBody:
@@ -1730,6 +1860,7 @@ paths:
 
   /api/monetization/generate-invoice:
     post:
+      operationId: createMonetizationGenerateInvoice
       tags: [Monetization]
       summary: Generate commission invoice
       description: Generate an invoice PDF for trafficker/marketplace commissions in a date range. Admin/finance role.
@@ -1747,6 +1878,7 @@ paths:
 
   /api/monetization/gmv:
     get:
+      operationId: getMonetizationGmv
       tags: [Monetization]
       summary: GMV aggregation
       description: Gross Merchandise Volume per tenant / channel / period. Admin/finance role.
@@ -1761,6 +1893,7 @@ paths:
 
   /api/marketplace:
     get:
+      operationId: getMarketplace
       tags: [Marketplace]
       summary: Marketplace listings + referrals + stats
       description: Other tenants' active listings, my listings, lead-share config, referrals sent/received + stats.
@@ -1772,6 +1905,7 @@ paths:
         '200':
           description: '{ listings, myListings, leadConfig, referrals, currentTenant, stats }'
     post:
+      operationId: createMarketplace
       tags: [Marketplace]
       summary: Marketplace action dispatch
       description: '`publish_listing` | `update_config` | `create_referral` (discriminated union on `action`).'
@@ -1796,6 +1930,7 @@ paths:
   # ─────────────────────────────────────────────────────────────────────
   /api/compliance/consent:
     get:
+      operationId: getComplianceConsent
       tags: [Compliance]
       summary: List consent records
       description: Lista los consentimientos de un data subject (Ley 1581 de 2012).
@@ -1812,6 +1947,7 @@ paths:
         '200':
           description: '{ consents }'
     post:
+      operationId: createComplianceConsent
       tags: [Compliance]
       summary: Register consent
       description: Registra un consentimiento (Ley 1581 de 2012 — protección de datos personales).
@@ -1843,6 +1979,7 @@ paths:
         '201':
           description: Created consent record.
     delete:
+      operationId: deleteComplianceConsent
       tags: [Compliance]
       summary: Revoke consent
       description: Revoke a consent (granted=false, revokedAt=now).
@@ -1864,6 +2001,7 @@ paths:
 
   /api/compliance/dian-invoice:
     post:
+      operationId: createComplianceDianInvoice
       tags: [Compliance]
       summary: Generate DIAN invoice draft
       description: Generate a DIAN electronic invoice draft for an order (Ley 1819 — facturación electrónica).
@@ -1881,6 +2019,7 @@ paths:
 
   /api/compliance/dian-invoice/{invoiceId}/submit:
     post:
+      operationId: createComplianceDianInvoiceByInvoiceIdSubmit
       tags: [Compliance]
       summary: Submit DIAN invoice
       description: Submit a DIAN invoice to the tax authority (DIAN) for formal acceptance.
@@ -1898,6 +2037,7 @@ paths:
 
   /api/compliance/dsr:
     post:
+      operationId: createComplianceDsr
       tags: [Compliance]
       summary: Data Subject Request
       description: DSR — access / deletion / portability (Ley 1581 Art. 8).
@@ -1915,6 +2055,7 @@ paths:
 
   /api/compliance/kyc:
     get:
+      operationId: getComplianceKyc
       tags: [Compliance]
       summary: List KYC records
       description: KYC verification records (Ley 2573 Colombia — required for credit/installments).
@@ -1926,6 +2067,7 @@ paths:
         '200':
           description: KYC record list.
     post:
+      operationId: createComplianceKyc
       tags: [Compliance]
       summary: Create KYC request
       description: Create a KYC verification request for a customer.
@@ -1943,6 +2085,7 @@ paths:
 
   /api/compliance/kyc/{id}/verify:
     post:
+      operationId: createComplianceKycByIdVerify
       tags: [Compliance]
       summary: Verify KYC
       description: Mark a KYC request as verified or rejected (manual review decision).
@@ -1966,15 +2109,18 @@ paths:
 
   /api/compliance/retention:
     get:
+      operationId: getComplianceRetention
       tags: [Compliance]
       summary: Retention policy + volumes
-      description: Retention policy matrix (Ley 1581 Art 11 + Estatuto Tributario Art 632) + current data volumes. Admin only.
+      description: Retention policy matrix (Ley 1581 Art 11 + Estatuto Tributario Art 632) + current data volumes. Admin
+        only.
       security:
         - sessionAuth: []
       responses:
         '200':
           description: '{ policy, legalBasis, currentVolumes, lastRun }'
     post:
+      operationId: createComplianceRetention
       tags: [Compliance]
       summary: Trigger retention sweep
       description: Trigger a retention sweep immediately (admin-only, idempotent).
@@ -1986,6 +2132,7 @@ paths:
 
   /api/compliance/retention/cron:
     get:
+      operationId: getComplianceRetentionCron
       tags: [Compliance]
       summary: Daily retention sweep (cron)
       description: Cron-triggered daily retention sweep. Idempotent.
@@ -2001,6 +2148,7 @@ paths:
 
   /api/compliance/retracto:
     post:
+      operationId: createComplianceRetracto
       tags: [Compliance]
       summary: Process retracto
       description: Procesa un retracto de venta (Ley 1480 Estatuto del Consumidor — derecho de retracto 14 días).
@@ -2021,6 +2169,7 @@ paths:
   # ─────────────────────────────────────────────────────────────────────
   /api/governance/decisions:
     get:
+      operationId: getGovernanceDecisions
       tags: [Governance]
       summary: List DecisionLog entries
       description: Governance DecisionLog entries (verifiable intent audit trail).
@@ -2032,6 +2181,7 @@ paths:
         '200':
           description: Decision log list.
     post:
+      operationId: createGovernanceDecisions
       tags: [Governance]
       summary: Record governance decision
       description: Record a new governance decision (escalation, age-gate override, mandate enforcement).
@@ -2049,6 +2199,7 @@ paths:
 
   /api/governance/decisions/{id}:
     get:
+      operationId: getGovernanceDecisionsById
       tags: [Governance]
       summary: Fetch DecisionLog by id
       description: Fetch a single DecisionLog entry.
@@ -2066,6 +2217,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
     patch:
+      operationId: updateGovernanceDecisionsById
       tags: [Governance]
       summary: Update governance decision
       description: Update a decision (e.g., resolve an escalation).
@@ -2089,6 +2241,7 @@ paths:
 
   /api/governance/escalations:
     get:
+      operationId: getGovernanceEscalations
       tags: [Governance]
       summary: List escalations
       description: Pending governance escalations (age-gate, KYC, mandate override requests).
@@ -2100,6 +2253,7 @@ paths:
         '200':
           description: Escalation list.
     post:
+      operationId: createGovernanceEscalations
       tags: [Governance]
       summary: Create escalation
       description: Create a new governance escalation for human review.
@@ -2117,6 +2271,7 @@ paths:
 
   /api/governance/liability:
     post:
+      operationId: createGovernanceLiability
       tags: [Governance]
       summary: Record liability entry
       description: Record who is accountable when an agent acts on behalf of a user.
@@ -2137,6 +2292,7 @@ paths:
   # ─────────────────────────────────────────────────────────────────────
   /api/audit/{id}/verifiable:
     get:
+      operationId: getAuditByIdVerifiable
       tags: [Governance]
       summary: Build audit-log Verifiable Credential
       description: Build a W3C Verifiable Credential for an audit log entry (signed with the tenant keypair).
@@ -2159,6 +2315,7 @@ paths:
   # ─────────────────────────────────────────────────────────────────────
   /api/novedades:
     get:
+      operationId: getNovedades
       tags: [Novedades]
       summary: List novedades
       description: Post-sale cases — complaints, returns, refunds.
@@ -2174,6 +2331,7 @@ paths:
         '200':
           description: Case list.
     post:
+      operationId: createNovedades
       tags: [Novedades]
       summary: Create novedad
       description: Open a new post-sale case.
@@ -2189,6 +2347,7 @@ paths:
         '201':
           description: Created case.
     patch:
+      operationId: updateNovedades
       tags: [Novedades]
       summary: Dispatch novedad action
       description: '`assign` | `resolve` | `add_evidence` | `add_message` | `escalate` | `close`.'
@@ -2214,6 +2373,7 @@ paths:
 
   /api/novedades/{id}:
     get:
+      operationId: getNovedadesById
       tags: [Novedades]
       summary: Fetch novedad detail
       description: Single case with events + assignee + customer.
@@ -2229,6 +2389,7 @@ paths:
         '200':
           description: Case detail.
     patch:
+      operationId: updateNovedadesById
       tags: [Novedades]
       summary: Update novedad
       description: Update case fields (status, priority, assignment).
@@ -2252,6 +2413,7 @@ paths:
 
   /api/redelivery:
     get:
+      operationId: getRedelivery
       tags: [Novedades]
       summary: List redelivery requests
       description: Failed/returned orders with attempt history + status stats.
@@ -2267,9 +2429,10 @@ paths:
         '200':
           description: '{ stats, requests }'
     post:
+      operationId: createRedelivery
       tags: [Novedades]
       summary: Create redelivery request
-      description: Create a new RedeliveryRequest. Auto-schedules attempt #1.
+      description: Create a new RedeliveryRequest. Auto-schedules attempt
       security:
         - sessionAuth: []
       parameters:
@@ -2284,6 +2447,7 @@ paths:
         '201':
           description: '{ request, attempt }'
     patch:
+      operationId: updateRedelivery
       tags: [Novedades]
       summary: Dispatch redelivery action
       description: '`confirm_address` | `schedule` | `assign_human` | `complete` | `cancel` | `add_attempt`.'
@@ -2312,9 +2476,11 @@ paths:
   # ─────────────────────────────────────────────────────────────────────
   /api/finance/channel-contribution:
     get:
+      operationId: getFinanceChannelContribution
       tags: [Finance]
       summary: Channel contribution margin
-      description: Per-channel revenue minus ad spend minus channel cost (WhatsApp Cloud API fee, Meta Ads platform fee).
+      description: Per-channel revenue minus ad spend minus channel cost (WhatsApp Cloud API fee, Meta Ads platform 
+        fee).
       security:
         - sessionAuth: []
       parameters:
@@ -2326,6 +2492,7 @@ paths:
 
   /api/finance/channel-cost/sync:
     post:
+      operationId: createFinanceChannelCostSync
       tags: [Finance]
       summary: Sync channel costs
       description: Import channel-cost rows from external sources (Meta Ads platform fee, WhatsApp Cloud API).
@@ -2346,6 +2513,7 @@ paths:
   # ─────────────────────────────────────────────────────────────────────
   /api/llm/budget:
     get:
+      operationId: getLlmBudget
       tags: [Finance]
       summary: Get tenant LLM budget
       description: Daily budget + spent + remaining for the tenant's LLM calls.
@@ -2357,6 +2525,7 @@ paths:
         '200':
           description: '{ budget, spent, remaining }'
     post:
+      operationId: createLlmBudget
       tags: [Finance]
       summary: Set tenant LLM budget
       description: Update the daily LLM budget cap. Admin only.
@@ -2374,6 +2543,7 @@ paths:
 
   /api/llm/costs:
     get:
+      operationId: getLlmCosts
       tags: [Finance]
       summary: List LLM costs
       description: Per-tenant / provider / day cost aggregation.
@@ -2391,6 +2561,7 @@ paths:
   # ─────────────────────────────────────────────────────────────────────
   /api/analytics/web-vitals:
     post:
+      operationId: createAnalyticsWebVitals
       tags: [Monitoring]
       summary: Receive Core Web Vitals
       description: Browser-side web-vitals beacon (no auth).
@@ -2407,6 +2578,7 @@ paths:
 
   /api/buyer-behavior:
     get:
+      operationId: getBuyerBehavior
       tags: [Agents]
       summary: List buyer-behavior records
       description: BuyerBehavior records + risk-level stats.
@@ -2418,6 +2590,7 @@ paths:
         '200':
           description: '{ behaviors, stats }'
     post:
+      operationId: createBuyerBehavior
       tags: [Agents]
       summary: Upsert buyer-behavior record
       description: Upsert by (tenantId, phone). When riskLevel is 'high_risk'/'blacklist', also creates a BehaviorAlert.
@@ -2435,6 +2608,7 @@ paths:
 
   /api/notifications:
     get:
+      operationId: getNotifications
       tags: [Monitoring]
       summary: List notifications
       description: Inbox for the current user.
@@ -2444,6 +2618,7 @@ paths:
         '200':
           description: Notification list.
     post:
+      operationId: createNotifications
       tags: [Monitoring]
       summary: Create notification
       description: System-generated — user mentions, escalations.
@@ -2464,6 +2639,7 @@ paths:
   # ─────────────────────────────────────────────────────────────────────
   /api/webhooks/meta:
     get:
+      operationId: getWebhooksMeta
       tags: [Webhooks]
       summary: Meta webhook verification
       description: Meta webhook subscribe/verify handshake (`hub.mode=subscribe`, `hub.verify_token`).
@@ -2485,6 +2661,7 @@ paths:
         '200':
           description: hub.challenge echoed back.
     post:
+      operationId: createWebhooksMeta
       tags: [Webhooks]
       summary: Meta webhook inbound
       description: Meta (Instagram/Facebook) webhook for messaging events, leadgen, etc.
@@ -2502,6 +2679,7 @@ paths:
 
   /api/webhooks/whatsapp:
     get:
+      operationId: getWebhooksWhatsapp
       tags: [Webhooks]
       summary: WhatsApp webhook verification
       description: WhatsApp Cloud API webhook verify handshake.
@@ -2523,6 +2701,7 @@ paths:
         '200':
           description: hub.challenge echoed back.
     post:
+      operationId: createWebhooksWhatsapp
       tags: [Webhooks]
       summary: WhatsApp webhook inbound
       description: WhatsApp Cloud API inbound message / status webhook.
@@ -2540,6 +2719,7 @@ paths:
 
   /api/webhooks/stripe:
     post:
+      operationId: createWebhooksStripe
       tags: [Webhooks]
       summary: Stripe webhook
       description: Stripe payment_intent.* / charge.* events.
@@ -2557,6 +2737,7 @@ paths:
 
   /api/webhooks/mercadopago:
     post:
+      operationId: createWebhooksMercadopago
       tags: [Webhooks]
       summary: MercadoPago webhook
       description: MercadoPago payment notifications.
@@ -2573,6 +2754,7 @@ paths:
 
   /api/webhooks/payu:
     post:
+      operationId: createWebhooksPayu
       tags: [Webhooks]
       summary: PayU webhook
       description: PayU payment status callbacks.
@@ -2589,6 +2771,7 @@ paths:
 
   /api/webhooks/pix:
     post:
+      operationId: createWebhooksPix
       tags: [Webhooks]
       summary: PIX webhook
       description: Brazilian PIX payment webhook.
@@ -2605,6 +2788,7 @@ paths:
 
   /api/webhooks/pse:
     post:
+      operationId: createWebhooksPse
       tags: [Webhooks]
       summary: PSE webhook
       description: Colombian PSE bank-transfer payment webhook.
@@ -2621,6 +2805,7 @@ paths:
 
   /api/webhooks/wompi:
     post:
+      operationId: createWebhooksWompi
       tags: [Webhooks]
       summary: Wompi webhook
       description: Wompi (Colombia) payment webhook.

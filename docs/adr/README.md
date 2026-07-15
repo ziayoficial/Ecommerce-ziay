@@ -17,6 +17,9 @@
 | 0013 | Local Payment Methods (PSE/PIX/OXXO/SPEI) | 2026-07-15 | Accepted |
 | 0014 | Input Sanitization Strategy | 2026-07-15 | Accepted |
 | 0015 | CORS + CSRF Hardening | 2026-07-15 | Accepted |
+| 0016 | SSR Shell with Client Islands for Dashboard | 2026-07-15 | Accepted |
+| 0017 | FxRate Persistence for Cold-Start FX Rates | 2026-07-15 | Accepted |
+| 0018 | Webhook Signature Rotation with Grace Period | 2026-07-15 | Accepted |
 
 ## How to create a new ADR
 

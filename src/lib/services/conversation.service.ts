@@ -323,6 +323,89 @@ export const conversationService = {
       throw new Error('Failed to update conversation')
     }
   },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // LLM context reads — SPRINT-BACKEND-FINAL-001.
+  //
+  // Used by `/api/ai-reply` to load everything the LLM needs in a single
+  // service seam: the conversation (with the 12 most recent messages +
+  // customer + channel), the tenant's LLM provider, and a small catalog
+  // slice for the system prompt.
+  //
+  // These are "context-only" reads — they do NOT clear the unread badge
+  // (unlike `getConversationById` which does, on the assumption that the
+  // caller is opening the thread in the UI). The ai-reply route runs in
+  // the background of an already-open thread — clearing the badge would
+  // be a side-effect the caller doesn't expect.
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Load a conversation with its 12 most recent messages + customer +
+   * channel — the LLM context for the ai-reply route. Does NOT clear the
+   * unread badge (see comment above).
+   */
+  async getConversationContextForAiReply(conversationId: string) {
+    try {
+      return await db.conversation.findUnique({
+        where: { id: conversationId },
+        include: {
+          customer: true,
+          channel: true,
+          messages: { orderBy: { createdAt: 'asc' }, take: 12 },
+        },
+      })
+    } catch (err) {
+      captureError(err as Error, {
+        service: 'conversation',
+        method: 'getConversationContextForAiReply',
+        conversationId,
+      })
+      throw new Error('Failed to fetch conversation context')
+    }
+  },
+
+  /**
+   * Fetch the tenant's LLM provider (`proveedorIa`). Used by the ai-reply
+   * route to resolve the provider before the LLM call. Returns null when
+   * the tenant doesn't exist — the route falls back to the adapter's
+   * default provider.
+   */
+  async getTenantLlmProvider(tenantId: string) {
+    try {
+      return await db.tenant.findUnique({
+        where: { id: tenantId },
+        select: { proveedorIa: true },
+      })
+    } catch (err) {
+      captureError(err as Error, {
+        service: 'conversation',
+        method: 'getTenantLlmProvider',
+        tenantId,
+      })
+      // Non-blocking — the route can fall back to the default provider.
+      return null
+    }
+  },
+
+  /**
+   * Fetch a small slice of the tenant's active catalog for the LLM system
+   * prompt. Caps at `limit` (default 8) to keep the prompt compact.
+   */
+  async getCatalogContext(tenantId: string, limit = 8) {
+    try {
+      return await db.product.findMany({
+        where: { active: true, tenantId },
+        take: limit,
+      })
+    } catch (err) {
+      captureError(err as Error, {
+        service: 'conversation',
+        method: 'getCatalogContext',
+        tenantId,
+      })
+      throw new Error('Failed to fetch catalog context')
+    }
+  },
 }
 
 export type ConversationService = typeof conversationService

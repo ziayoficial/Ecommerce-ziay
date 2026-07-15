@@ -1,3 +1,7 @@
+/**
+ * Dashboard client island — handles all interactivity.
+ * @see docs/adr/0016-ssr-shell-pattern.md
+ */
 'use client'
 // SPRINT-SSR-SHELL-001 §1 — Dashboard client island.
 //

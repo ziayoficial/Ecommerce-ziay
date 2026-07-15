@@ -583,4 +583,79 @@ describe('conversationService.updateStatus', () => {
       conversationService.updateStatus('c-1', { status: 'closed' }),
     ).rejects.toThrow('Failed to update conversation')
   })
+
+  // ── Sprint 15C edge cases (SPRINT-TESTS-COMPLETE-001) ─────────────────
+  // The pipelineMemory clearing on close has 3 sub-branches:
+  //   1. pipelineMemory IS populated → clear it (covered above)
+  //   2. pipelineMemory is null/empty → DON'T include the field in the
+  //      update (avoids unnecessary writes — most conversations never
+  //      had orchestrator memory populated)
+  //   3. findUnique itself rejects → best-effort: skip the clear + still
+  //      run the status update (don't block the close on a read error)
+  it('does NOT include pipelineMemory in the update when status=closed but pipelineMemory is already null', async () => {
+    vi.mocked(db.conversation.findUnique).mockResolvedValue({
+      id: 'c-1',
+      pipelineMemory: null,
+    } as any)
+    db.conversation.update.mockResolvedValue({ id: 'c-1', status: 'closed' })
+
+    await conversationService.updateStatus('c-1', { status: 'closed' })
+
+    // The findUnique read happened (we needed to check).
+    expect(db.conversation.findUnique).toHaveBeenCalledWith({
+      where: { id: 'c-1' },
+      select: { pipelineMemory: true },
+    })
+    // The update payload does NOT include `pipelineMemory` — the field is
+    // conditionally spread only when the prior value was truthy.
+    expect(db.conversation.update).toHaveBeenCalledWith({
+      where: { id: 'c-1' },
+      data: { status: 'closed' },
+    })
+  })
+
+  it('does NOT include pipelineMemory in the update when status=closed and the findUnique returns null (conversation missing)', async () => {
+    // Edge case: the findUnique for the pipelineMemory check returns null
+    // (conversation deleted between the caller's auth check and our read).
+    // The service must NOT crash — `existing?.pipelineMemory` short-circuits
+    // and the update still runs (which will itself throw P2025, but that's
+    // the caller's problem to handle as 'Failed to update conversation').
+    vi.mocked(db.conversation.findUnique).mockResolvedValue(null)
+    db.conversation.update.mockResolvedValue({ id: 'c-1', status: 'closed' })
+
+    await conversationService.updateStatus('c-1', { status: 'closed' })
+
+    expect(db.conversation.update).toHaveBeenCalledWith({
+      where: { id: 'c-1' },
+      data: { status: 'closed' },
+    })
+  })
+
+  it('still runs the status=closed update when the pipelineMemory findUnique rejects (best-effort)', async () => {
+    // The findUnique is wrapped in a try/catch — failures are swallowed so
+    // the close itself isn't blocked by a transient read error. The update
+    // proceeds without `pipelineMemory: null` in the payload.
+    vi.mocked(db.conversation.findUnique).mockRejectedValue(new Error('read error'))
+    db.conversation.update.mockResolvedValue({ id: 'c-1', status: 'closed' })
+
+    const result = await conversationService.updateStatus('c-1', { status: 'closed' })
+
+    expect(result).toEqual({ id: 'c-1', status: 'closed' })
+    expect(db.conversation.update).toHaveBeenCalledWith({
+      where: { id: 'c-1' },
+      data: { status: 'closed' },
+    })
+  })
+
+  it('does NOT call findUnique when status is not closed (no pipelineMemory check needed)', async () => {
+    db.conversation.update.mockResolvedValue({ id: 'c-1', status: 'open' })
+
+    await conversationService.updateStatus('c-1', { status: 'open' })
+
+    expect(db.conversation.findUnique).not.toHaveBeenCalled()
+    expect(db.conversation.update).toHaveBeenCalledWith({
+      where: { id: 'c-1' },
+      data: { status: 'open' },
+    })
+  })
 })

@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
 import { requireAuth } from '@/lib/auth-helpers'
 import {
   INTEGRATION_REGISTRY,
@@ -7,9 +6,16 @@ import {
   maskSecret,
   isIntegrationConfigured,
   type CredentialField,
-  type IntegrationConfig,
 } from '@/lib/adapters/credential-fields'
 import { withErrorHandling } from '@/lib/middleware/api-error-handler'
+import {
+  credentialsService,
+  resolveCredentialNamespace,
+  integrationIdToCredKey,
+  credKeyToIntegrationId,
+  maskAllCredentialFields,
+  parseCredValue,
+} from '@/lib/services'
 
 // ───────────────────────────────────────────────────────────────────────────
 // Credential management endpoint — stores integration credentials in the
@@ -33,91 +39,20 @@ import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 //   Setting.key   = `cred::{tenantId}::{integrationId}`
 //   Setting.value = JSON.stringify({ [fieldKey]: rawValue, ... })
 //
-// SPRINT8-SERVICES-REST-001 — left inline. Every method touches only the
-// `Setting` table (key/value JSON blob under a `cred::*` prefix). Per
-// rule #2 (1-2 simple db calls OK to leave) and per the SPRINT7 architect's
-// note ("Settings is a tiny key/value table, not worth a service on its
-// own"), the masking/merge logic + the Setting upsert are best kept
-// together in the route. A `setting.service.ts` would only be worth it
-// if more key prefixes (`feature::*`, `policy::*`) accumulate.
-// TODO: migrate to service layer when more Setting consumers land.
+// SPRINT-BACKEND-FINAL-001 — DB access + key/mask helpers migrated to
+// `credentialsService`. The route owns: request parsing, registry lookup,
+// response shaping. The masking + namespace-resolution helpers live in
+// the service so future admin tools can reuse them.
 // ───────────────────────────────────────────────────────────────────────────
 
-const CRED_ROOT = 'cred::'
-/** Namespace for platform-admin credentials (no tenantId on session). */
-const GLOBAL_NAMESPACE = '_global'
-
-/**
- * Resolve the credential namespace for the current session.
- * - Tenant users → their tenantId.
- * - Platform admins (no tenantId) → `_global`.
- */
-function resolveNamespace(tenantId: string | null): string {
-  return tenantId ?? GLOBAL_NAMESPACE
-}
-
-/** Build the Setting key prefix for a namespace: `cred::{ns}::`. */
-function credKeyPrefix(ns: string): string {
-  return `${CRED_ROOT}${ns}::`
-}
-
-/** Build the Setting key for a namespace + integration id. */
-function integrationIdToKey(ns: string, integrationId: string): string {
-  return `${credKeyPrefix(ns)}${integrationId}`
-}
-
-/**
- * Strip the `cred::{ns}::` prefix to recover the integration id from a
- * Setting key. Falls back to stripping just `cred::` for legacy keys.
- */
-function keyToIntegrationId(key: string, ns: string): string {
-  const prefix = credKeyPrefix(ns)
-  if (key.startsWith(prefix)) return key.slice(prefix.length)
-  // Legacy key (pre-V5): `cred::{integrationId}` — no namespace.
-  if (key.startsWith(CRED_ROOT)) return key.slice(CRED_ROOT.length)
-  return key
-}
-
-/**
- * Mask every field of a credential payload. Password / text / url are all
- * masked uniformly — even URLs and consumer keys can contain secrets we
- * never want to ship back to the browser.
- */
-function maskAllFields(
-  integration: IntegrationConfig,
-  raw: Record<string, string>,
-): Record<string, string> {
-  const masked: Record<string, string> = {}
-  for (const field of integration.fields) {
-    const v = raw[field.key]
-    masked[field.key] = v ? maskSecret(v) : ''
+/** Mask every value in a raw credential payload (used when the integration
+ *  id is unknown — registry was pruned or it's a legacy row). */
+function maskAllFieldsUnknown(raw: Record<string, string>): Record<string, string> {
+  const out: Record<string, string> = {}
+  for (const [k, v] of Object.entries(raw)) {
+    out[k] = v ? maskSecret(String(v)) : ''
   }
-  // Also include any unknown keys (legacy / forward-compat) — masked too.
-  for (const k of Object.keys(raw)) {
-    if (masked[k] === undefined && raw[k]) {
-      masked[k] = maskSecret(String(raw[k]))
-    }
-  }
-  return masked
-}
-
-/** Safely parse the JSON value of a Setting row. Returns {} on any error. */
-function parseCredValue(value: string | null | undefined): Record<string, string> {
-  if (!value) return {}
-  try {
-    const parsed = JSON.parse(value)
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-      const out: Record<string, string> = {}
-      for (const [k, v] of Object.entries(parsed)) {
-        if (typeof v === 'string') out[k] = v
-        else if (v !== null && v !== undefined) out[k] = String(v)
-      }
-      return out
-    }
-  } catch {
-    // fall through
-  }
-  return {}
+  return out
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -130,14 +65,10 @@ export const GET = withErrorHandling(async () => {
   const { session, error } = await requireAuth()
   if (error) return error
 
-  const ns = resolveNamespace(session?.user?.tenantId ?? null)
-  const prefix = credKeyPrefix(ns)
+  const ns = resolveCredentialNamespace(session?.user?.tenantId ?? null)
 
   // Only Setting rows whose key starts with `cred::{ns}::`
-  const rows = await db.setting.findMany({
-    where: { key: { startsWith: prefix } },
-    select: { key: true, value: true },
-  })
+  const rows = await credentialsService.listForNamespace(ns)
 
   const integrations: Record<
     string,
@@ -145,23 +76,19 @@ export const GET = withErrorHandling(async () => {
   > = {}
 
   for (const row of rows) {
-    const integrationId = keyToIntegrationId(row.key, ns)
+    const integrationId = credKeyToIntegrationId(row.key, ns)
     const config = getIntegrationById(integrationId)
     const raw = parseCredValue(row.value)
     if (config) {
       integrations[integrationId] = {
         configured: isIntegrationConfigured(config, raw),
-        fields: maskAllFields(config, raw),
+        fields: maskAllCredentialFields(config, raw),
       }
     } else {
       // Unknown integration id (e.g. registry was pruned) — return masked.
-      const masked: Record<string, string> = {}
-      for (const [k, v] of Object.entries(raw)) {
-        if (v) masked[k] = maskSecret(String(v))
-      }
       integrations[integrationId] = {
         configured: Object.values(raw).some(Boolean),
-        fields: masked,
+        fields: maskAllFieldsUnknown(raw),
       }
     }
   }
@@ -184,7 +111,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   const { session, error } = await requireAuth()
   if (error) return error
 
-  const ns = resolveNamespace(session?.user?.tenantId ?? null)
+  const ns = resolveCredentialNamespace(session?.user?.tenantId ?? null)
 
   let body: unknown
   try {
@@ -230,24 +157,23 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   // Merge with existing stored values so callers can PATCH a single field
   // without resending the whole payload. (A caller that wants to truly
   // clear a field sends an empty string for that key, which overwrites.)
-  const settingKey = integrationIdToKey(ns, integration)
-  const existing = await db.setting.findUnique({ where: { key: settingKey } })
+  const existing = await credentialsService.getForIntegration(ns, integration)
   const existingFields = existing ? parseCredValue(existing.value) : {}
   const merged: Record<string, string> = { ...existingFields }
   for (const [k, v] of Object.entries(sanitized)) {
     merged[k] = v
   }
 
-  await db.setting.upsert({
-    where: { key: settingKey },
-    update: { value: JSON.stringify(merged) },
-    create: { key: settingKey, value: JSON.stringify(merged) },
-  })
+  await credentialsService.upsertCredentialRow(
+    ns,
+    integration,
+    JSON.stringify(merged),
+  )
 
   return NextResponse.json({
     integration,
     configured: isIntegrationConfigured(config, merged),
-    fields: maskAllFields(config, merged),
+    fields: maskAllCredentialFields(config, merged),
   })
 
 })
@@ -263,7 +189,7 @@ export const DELETE = withErrorHandling(async (req: NextRequest) => {
   const { session, error } = await requireAuth()
   if (error) return error
 
-  const ns = resolveNamespace(session?.user?.tenantId ?? null)
+  const ns = resolveCredentialNamespace(session?.user?.tenantId ?? null)
 
   let body: unknown
   try {
@@ -281,8 +207,8 @@ export const DELETE = withErrorHandling(async (req: NextRequest) => {
     return NextResponse.json({ error: '`integration` (string) is required' }, { status: 400 })
   }
 
-  const settingKey = integrationIdToKey(ns, integration)
-  const existing = await db.setting.findUnique({ where: { key: settingKey } })
+  const settingKey = integrationIdToCredKey(ns, integration)
+  const existing = await credentialsService.getForIntegration(ns, integration)
   if (!existing) {
     return NextResponse.json(
       { error: 'No credentials stored for this integration' },
@@ -297,7 +223,7 @@ export const DELETE = withErrorHandling(async (req: NextRequest) => {
     const raw = parseCredValue(existing.value)
     delete raw[field]
     if (Object.keys(raw).length === 0) {
-      await db.setting.delete({ where: { key: settingKey } })
+      await credentialsService.deleteCredentialRow(settingKey)
       return NextResponse.json({
         integration,
         configured: false,
@@ -305,22 +231,17 @@ export const DELETE = withErrorHandling(async (req: NextRequest) => {
         deleted: 'all',
       })
     }
-    await db.setting.update({
-      where: { key: settingKey },
-      data: { value: JSON.stringify(raw) },
-    })
+    await credentialsService.updateCredentialValue(settingKey, JSON.stringify(raw))
     return NextResponse.json({
       integration,
       configured: config ? isIntegrationConfigured(config, raw) : Object.values(raw).some(Boolean),
-      fields: config ? maskAllFields(config, raw) : Object.fromEntries(
-        Object.entries(raw).map(([k, v]) => [k, v ? maskSecret(String(v)) : '']),
-      ),
+      fields: config ? maskAllCredentialFields(config, raw) : maskAllFieldsUnknown(raw),
       deleted: 'field',
     })
   }
 
   // Case B: delete the whole integration
-  await db.setting.delete({ where: { key: settingKey } })
+  await credentialsService.deleteCredentialRow(settingKey)
   return NextResponse.json({
     integration,
     configured: false,

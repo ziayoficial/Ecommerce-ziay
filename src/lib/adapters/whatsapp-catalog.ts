@@ -22,8 +22,9 @@
 // - Graceful fallback: si no hay creds configurados o la llamada HTTP falla,
 //   se usa el espejo local (`Product`/`Order` con fuenteSincronizacion=
 //   'whatsapp_catalog') — nunca se crashea el agente.
-// - TODO (futuro): webhooks `catalog_update` para recibir cambios hechos desde
-//   la app WA; enviar `order_card` message type al cliente tras crear la orden.
+// - SPRINT-ADAPTERS-DOCS-FINAL-001: webhook handler `catalog_update` para
+//   reflejar en el espejo local los cambios que el merchant hace desde la
+//   app WhatsApp Business (editar precio/stock/foto sin pasar por nuestra API).
 
 import { db } from '@/lib/db'
 import { logger } from '@/lib/logger'
@@ -250,6 +251,72 @@ export class WhatsappCatalogAdapter implements EcommerceAdapter {
     })
     if (!order) return { estado: 'no_encontrado', fecha_actualizacion: new Date().toISOString() }
     return { estado: order.status, fecha_actualizacion: order.updatedAt.toISOString() }
+  }
+
+  /**
+   * Webhook handler para `catalog_update` (Meta Commerce API).
+   *
+   * SPRINT-ADAPTERS-DOCS-FINAL-001. Meta envía un evento `catalog_update` vía
+   * WhatsApp Cloud API webhook (campo `field: 'catalog_update'` en el entry)
+   * cada vez que el merchant edita un producto desde la app WhatsApp Business
+   * (cambiar precio, stock, foto, nombre). Este método aplica el payload al
+   * espejo local `Product` (fuenteSincronizacion='whatsapp_catalog').
+   *
+   * El route handler `src/app/api/webhooks/whatsapp/route.ts` (o `/meta`) DEBE
+   * validar la firma X-Hub-Signature-256 ANTES de llamar a este método — el
+   * adapter confía en que el caller ya autenticó el payload.
+   *
+   * @param payload Estructura simplificada del payload de `catalog_update`.
+   * @returns `{ applied: boolean, sku: string }` — `applied=false` si el SKU
+   *          no existe en el espejo local (producto nuevo aún no sincronizado).
+   */
+  async handleCatalogUpdateWebhook(payload: {
+    retailer_id?: string
+    product_id?: string
+    name?: string
+    title?: string
+    price?: number | string
+    image_url?: string
+    inventory?: number
+    availability?: string
+    category?: string
+    custom_label_0?: string
+    custom_label_1?: string
+  }): Promise<{ applied: boolean; sku: string }> {
+    const sku = payload.retailer_id ?? payload.product_id ?? ''
+    if (!sku) {
+      logger.warn({ tenantId: this.tenantId, payload }, 'WA catalog_update webhook: sin retailer_id — ignorado')
+      return { applied: false, sku: '' }
+    }
+
+    const data: {
+      name?: string
+      price?: number
+      imageUrl?: string | null
+      stock?: number
+      diseno?: string | null
+      categoria?: string | null
+    } = {}
+    if (payload.name ?? payload.title) data.name = payload.name ?? payload.title
+    if (payload.price != null) {
+      const p = Number(payload.price)
+      if (Number.isFinite(p)) data.price = p
+    }
+    if (payload.image_url != null) data.imageUrl = payload.image_url
+    if (payload.inventory != null) data.stock = payload.inventory
+    if (payload.custom_label_0 != null) data.diseno = payload.custom_label_0
+    if (payload.category ?? payload.custom_label_1) data.categoria = payload.category ?? payload.custom_label_1
+
+    const result = await db.product.updateMany({
+      where: { tenantId: this.tenantId, sku, fuenteSincronizacion: 'whatsapp_catalog' },
+      data,
+    }).catch((err) => {
+      logger.warn({ tenantId: this.tenantId, sku, err: err instanceof Error ? err.message : String(err) }, 'WA catalog_update webhook: fallo update espejo local')
+      return { count: 0 }
+    })
+
+    logger.info({ tenantId: this.tenantId, sku, updated: result.count }, 'WA catalog_update webhook aplicado')
+    return { applied: result.count > 0, sku }
   }
 
   // ───────────────────────────────────────────────────────────────────────

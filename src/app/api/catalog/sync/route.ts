@@ -17,13 +17,10 @@
 // Esta ruta es idempotente: ejecutarla múltiples veces produce el mismo estado
 // final en la tabla `Product` (upsert por [tenantId, sku]).
 //
-// SPRINT8-SERVICES-REST-001 — left inline. The route does two simple db
-// reads (tenant existence check + audit log read-back) sandwiching an
-// `enqueue('catalog-sync', …)` call. The actual product upsert lives in
-// the queue worker, which already uses `catalogService.syncCatalog`.
-// Per rule #2 (1-2 simple db calls OK to leave), the two reads don't
-// warrant a service method on their own.
-// TODO: migrate to service layer when the queue handler is inlined.
+// SPRINT-BACKEND-FINAL-001 — DB access (tenant existence check + audit-log
+// read-back) migrated to `catalogService.getTenantForSync` +
+// `catalogService.getLatestCatalogSyncAudit`. The actual product upsert
+// lives in the queue worker, which already uses `catalogService.syncCatalog`.
 //
 // FIX-SECURITY-AUTH-001 (#25) — requireTenantAccess(tenantId). Any authed
 // user used to be able to trigger catalog sync against any tenant (costs
@@ -31,8 +28,8 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { requireTenantAccess } from '@/lib/auth-helpers'
-import { db } from '@/lib/db'
 import { enqueue, isInlineMode } from '@/lib/queue'
+import { catalogService } from '@/lib/services'
 import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 
 /**
@@ -56,10 +53,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     const { error } = await requireTenantAccess(tenantId)
     if (error) return error
 
-    const tenant = await db.tenant.findUnique({
-      where: { id: tenantId },
-      select: { plataformaCatalogo: true, slug: true, nombreNegocio: true },
-    })
+    const tenant = await catalogService.getTenantForSync(tenantId)
     if (!tenant) {
       return NextResponse.json({ error: `Tenant not found: ${tenantId}` }, { status: 404 })
     }
@@ -86,10 +80,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     // Inline mode — the sync already ran. Read back the latest `catalog_sync`
     // audit log entry to surface the synced count + fuente in the response
     // (keeps the existing response shape backward-compatible).
-    const audit = await db.auditLog.findFirst({
-      where: { tenantId, action: 'catalog_sync' },
-      orderBy: { createdAt: 'desc' },
-    })
+    const audit = await catalogService.getLatestCatalogSyncAudit(tenantId)
 
     let synced = 0
     let fuente = 'whatsapp_catalog'

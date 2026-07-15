@@ -163,6 +163,60 @@ export const catalogService = {
   },
 
   // ─────────────────────────────────────────────────────────────────────────
+  // Catalog sync trigger — SPRINT-BACKEND-FINAL-001.
+  //
+  // The route `/api/catalog/sync` enqueues a `catalog-sync` job (the actual
+  // product upsert lives in the queue worker — `catalogService.syncCatalog`
+  // is the persistence seam the worker uses). The route still needs two
+  // small DB reads around the enqueue call: a tenant existence check +
+  // read-back of the latest `catalog_sync` audit-log entry to surface the
+  // synced count in the HTTP response (inline mode only).
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Fetch the tenant fields needed by the catalog sync route:
+   * `plataformaCatalogo` (used in the response + by the queue worker),
+   * `slug` (response), `nombreNegocio` (debug). Returns null when the
+   * tenant doesn't exist — the route maps that to a 404.
+   */
+  async getTenantForSync(tenantId: string) {
+    try {
+      return await db.tenant.findUnique({
+        where: { id: tenantId },
+        select: { plataformaCatalogo: true, slug: true, nombreNegocio: true },
+      })
+    } catch (err) {
+      captureError(err as Error, {
+        service: 'catalog',
+        method: 'getTenantForSync',
+        tenantId,
+      })
+      throw new Error('Failed to fetch tenant for catalog sync')
+    }
+  },
+
+  /**
+   * Read back the latest `catalog_sync` audit-log row for the tenant. Used
+   * by the route in inline queue mode to surface the synced count + fuente
+   * in the HTTP response. Returns null when no sync has run yet.
+   */
+  async getLatestCatalogSyncAudit(tenantId: string) {
+    try {
+      return await db.auditLog.findFirst({
+        where: { tenantId, action: 'catalog_sync' },
+        orderBy: { createdAt: 'desc' },
+      })
+    } catch (err) {
+      captureError(err as Error, {
+        service: 'catalog',
+        method: 'getLatestCatalogSyncAudit',
+        tenantId,
+      })
+      throw new Error('Failed to fetch latest catalog sync audit log')
+    }
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
   // ProductEnrichment — VLM-generated tags / description / score per SKU.
   // Kept here (rather than a new enrichment.service.ts) because
   // ProductEnrichment is a 1:1 extension of Product — same domain.

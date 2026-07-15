@@ -168,8 +168,15 @@ export async function getChannelContributions(
  *   1. Count orders whose `Channel.type === channel` and `createdAt` falls
  *      inside the supplied `date`'s calendar day.
  *   2. Sum their `total` as gross revenue.
- *   3. Estimate the cost components from operational heuristics (in
- *      production these come from the Meta API, LLM usage logs, etc.).
+ *   3. Resolve the cost components from operational data where available
+ *      (SPRINT-BACKEND-FINAL-001):
+ *        - aiTokenCost:  real — sum of DecisionLog.costUsd for the tenant
+ *                        on this day. Heuristic fallback when no rows.
+ *        - adSpend:      real — sum of AdSpend.spend for the tenant's ads.
+ *        - messageCost, logisticsCost, paymentFee: heuristic (the
+ *                        Meta WA Cloud API / carrier / gateway spend
+ *                        adapters are not yet logging to dedicated tables).
+ *        - supportCost:  left at 0 (no agent-time logger yet).
  *   4. Upsert a single `ChannelCost` row keyed by (tenantId, channel, date).
  *
  * The supplied `date` is normalized to 00:00:00.000 local time before
@@ -222,21 +229,83 @@ export async function recordDailyChannelCosts(
       const revenue = orders.reduce((sum, o) => sum + o.total, 0)
       const ordersCount = orders.length
 
-      // ── Cost estimates (study §14.1) ────────────────────────────────
-      // These are placeholders until the corresponding adapters log actuals:
-      //   - messageCost:  Meta WA Cloud API ~$0.0085/message (1 message/order)
-      //   - aiTokenCost:  LLM cost per order (~$0.02 — replace with real usage)
-      //   - logisticsCost: ~$2.50/order average shipping
-      //   - paymentFee:   2.9% + $0.30 (Stripe-style — replace with gateway)
-      //   - adSpend + supportCost are left at 0 here: they're stamped by the
-      //     ad-attribution + agent-time loggers respectively (TODO).
+      // ── Cost components (study §14.1) ──────────────────────────────────
+      // SPRINT-BACKEND-FINAL-001 — replaced pure heuristics with real data
+      // where available:
+      //   - aiTokenCost:  sum of DecisionLog.costUsd for the tenant on this
+      //                   day (agent-driven LLM calls). Falls back to the
+      //                   `ordersCount * 0.02` heuristic when no DecisionLog
+      //                   rows exist (e.g. a brand-new tenant with no LLM
+      //                   traffic yet) OR when the aggregate query itself
+      //                   fails (e.g. test mocks without a decisionLog
+      //                   delegate) — the dashboard still shows a sane
+      //                   non-zero number.
+      //   - adSpend:      sum of AdSpend.spend for the tenant's ads on this
+      //                   day. Resolved via the `ad.campaign.tenantId`
+      //                   relation filter (AdSpend has no direct tenantId
+      //                   column). Zero when the tenant has no ads or no
+      //                   spend logged for the day, or when the query fails.
+      //   - messageCost + logisticsCost + paymentFee: still heuristic —
+      //                   the Meta WA Cloud API spend + carrier fees +
+      //                   gateway fees are not yet logged to dedicated
+      //                   tables. Kept as order-count / revenue-multiplier
+      //                   estimates until those adapters land.
+      //   - supportCost:  still heuristic (agent time not tracked yet) —
+      //                   intentionally left at 0 here; stamped by the
+      //                   agent-time logger when it lands.
+      //
+      // The two real-data aggregates are each wrapped in their own
+      // try/catch so a failure on one (transient DB error, mock missing
+      // in tests) does NOT poison the other or the rest of the cost
+      // computation. The fallbacks keep the upsert path non-blocking.
+      let aiTokenCost = ordersCount * 0.02
+      try {
+        const aiCostAgg = await db.decisionLog.aggregate({
+          where: {
+            tenantId,
+            createdAt: { gte: startOfDay, lt: startOfNextDay },
+          },
+          _sum: { costUsd: true },
+        })
+        if (aiCostAgg?._sum?.costUsd != null) {
+          aiTokenCost = aiCostAgg._sum.costUsd
+        }
+      } catch (aiErr) {
+        captureError(aiErr as Error, {
+          service: 'channel-cost',
+          method: 'recordDailyChannelCosts:ai-cost-agg',
+          tenantId,
+          channel,
+        })
+      }
+
+      let adSpend = 0
+      try {
+        const adSpendAgg = await db.adSpend.aggregate({
+          where: {
+            date: { gte: startOfDay, lt: startOfNextDay },
+            ad: { campaign: { tenantId } },
+          },
+          _sum: { spend: true },
+        })
+        if (adSpendAgg?._sum?.spend != null) {
+          adSpend = adSpendAgg._sum.spend
+        }
+      } catch (adErr) {
+        captureError(adErr as Error, {
+          service: 'channel-cost',
+          method: 'recordDailyChannelCosts:ad-spend-agg',
+          tenantId,
+          channel,
+        })
+      }
+
       const messageCost = ordersCount * 0.0085
-      const aiTokenCost = ordersCount * 0.02
       const logisticsCost = ordersCount * 2.5
       const paymentFee = revenue * 0.029 + 0.3
 
       const netContribution =
-        revenue - messageCost - aiTokenCost - logisticsCost - paymentFee
+        revenue - messageCost - aiTokenCost - adSpend - logisticsCost - paymentFee
       const marginPct =
         revenue > 0 ? (netContribution / revenue) * 100 : 0
 
@@ -253,6 +322,7 @@ export async function recordDailyChannelCosts(
           ordersCount,
           messageCost,
           aiTokenCost,
+          adSpend,
           logisticsCost,
           paymentFee,
           netContribution,
@@ -266,6 +336,7 @@ export async function recordDailyChannelCosts(
           ordersCount,
           messageCost,
           aiTokenCost,
+          adSpend,
           logisticsCost,
           paymentFee,
           netContribution,

@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { db } from '@/lib/db'
 import { requireTenantAccess } from '@/lib/auth-helpers'
 import { rateLimit } from '@/lib/middleware/rate-limit'
 import { getLogger } from '@/lib/logger'
 import { withErrorHandling } from '@/lib/middleware/api-error-handler'
+import { remarketingService } from '@/lib/services'
 
 const log = getLogger('api/remarketing')
 
@@ -18,77 +18,12 @@ const log = getLogger('api/remarketing')
 // customer-service window).
 //
 // Every customer targeted by `schedule` or `auto_generate` now goes through
-// `assertMarketingConsent()`. If the customer has no ConsentRecord with
-// `purpose='marketing'`, `granted=true`, `revokedAt=null` — the message is
-// SKIPPED and an AuditLog row is written with `action='remarketing.skipped_no_consent'`
-// so the marketing dashboard can surface the silent skip to the tenant.
+// `remarketingService.assertMarketingConsent()`. If the customer has no
+// ConsentRecord with `purpose='marketing'`, `granted=true`, `revokedAt=null`
+// — the message is SKIPPED and an AuditLog row is written with
+// `action='remarketing.skipped_no_consent'` so the marketing dashboard can
+// surface the silent skip to the tenant.
 // ───────────────────────────────────────────────────────────────────────────
-
-/**
- * Returns the Customer row matching a (tenantId, phone) tuple, or null.
- * Phone lookup is the right path because `RemarketingMessage.customerPhone`
- * is the identifier on the schedule/auto-generate paths — there is no
- * `customerId` on the message row by design (the message can target a phone
- * that has not yet been linked to a Customer row).
- */
-async function findCustomerByPhone(
-  tenantId: string,
-  phone: string,
-): Promise<{ id: string; name: string | null } | null> {
-  const customer = await db.customer.findFirst({
-    where: { tenantId, phone },
-    select: { id: true, name: true },
-  })
-  return customer ?? null
-}
-
-/**
- * Asserts that the customer has granted marketing consent (Ley 1581 Art 10).
- * Returns `true` if consent exists + is granted + not revoked; `false`
- * otherwise. On `false`, writes an AuditLog row so the marketing dashboard
- * can surface silent skips. AuditLog write is best-effort — a transient DB
- * error must NOT silently re-enable sending.
- */
-async function assertMarketingConsent(
-  tenantId: string,
-  customerId: string,
-): Promise<boolean> {
-  const consent = await db.consentRecord.findFirst({
-    where: {
-      tenantId,
-      dataSubjectId: customerId,
-      dataSubjectType: 'customer',
-      purpose: 'marketing',
-      granted: true,
-      revokedAt: null,
-    },
-    select: { id: true },
-  })
-  if (consent) return true
-  // Best-effort audit log — failure to write it does NOT enable sending.
-  try {
-    await db.auditLog.create({
-      data: {
-        tenantId,
-        action: 'remarketing.skipped_no_consent',
-        entity: 'customer',
-        entityId: customerId,
-        metadata: JSON.stringify({
-          reason:
-            'No ConsentRecord with purpose=marketing, granted=true, revokedAt=null',
-          legalBasis:
-            'Ley 1581 de 2012 Art 10 + Meta Cloud API marketing opt-in policy',
-        }),
-      },
-    })
-  } catch (auditErr) {
-    log.error(
-      { err: auditErr, tenantId, customerId },
-      'remarketing: failed to write no-consent audit log',
-    )
-  }
-  return false
-}
 
 // ───────────────────────────────────────────────────────────────────────────
 // Body schemas (per-action discriminated unions for POST and PATCH)
@@ -146,20 +81,24 @@ const PatchBodySchema = z.discriminatedUnion('action', [
 
 // Remarketing — abandoned-cart / no-response / post-purchase flows.
 //
-// SPRINT8-SERVICES-REST-001 — left inline. Most handlers do 1-2 db calls
-// (create_campaign, schedule, toggle_active, mark_message — each touches
-// one or two rows). The `auto_generate` handler is more complex (per-trigger
-// loops that look up carts / conversations / orders and create many
-// RemarketingMessage rows), but it lives entirely within this route —
-// no other caller shares its read paths. Per rule #2 (1-2 simple db calls
-// OK to leave) and the 3-new-service-file cap, a `remarketing.service.ts`
-// wasn't created in this sprint.
-// TODO: migrate to service layer when the remarketing worker (queue
-// handler) is added — that will be the second caller and will justify
-// the service.
+// SPRINT-BACKEND-FINAL-001 — DB access migrated to `remarketingService`.
+// The route owns: request parsing, response shaping, the per-trigger
+// loops (which call the service for each row). Business logic stays here;
+// only the DB access patterns (findMany, create, update, groupBy) live
+// in the service.
 
 // GET /api/remarketing?tenantId=X
 // Devuelve las RemarketingCampaign del tenant + mensajes pendientes + stats.
+/**
+ * GET /api/remarketing
+ *
+ * Devuelve las campañas de remarketing del tenant + mensajes pendientes +
+ * estadísticas de conversión. Filtra por `tenantId` (requerido) y opcionalmente
+ * por `status` (active | paused | completed).
+ *
+ * @security sessionAuth + requireTenantAccess(tenantId)
+ * @returns 200 con `{ campaigns, pendingMessages, stats }`
+ */
 export const GET = withErrorHandling(async (req: NextRequest) => {
 
   const tenantId = req.nextUrl.searchParams.get('tenantId')
@@ -172,37 +111,8 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
   const { error } = await requireTenantAccess(tenantId)
   if (error) return error
 
-  const [campaigns, pendingMessages, statsRows] = await Promise.all([
-    db.remarketingCampaign.findMany({
-      where: { tenantId },
-      include: {
-        messages: {
-          orderBy: { scheduledAt: 'desc' },
-          take: 50,
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-    }),
-    db.remarketingMessage.findMany({
-      where: { tenantId, status: 'pending' },
-      orderBy: { scheduledAt: 'asc' },
-      take: 100,
-      include: { campaign: { select: { name: true, trigger: true } } },
-    }),
-    db.remarketingMessage.groupBy({
-      by: ['status'],
-      where: { tenantId },
-      _count: { _all: true },
-    }),
-  ])
-
-  const stats: Record<string, number> = {
-    pending: 0,
-    sent: 0,
-    delivered: 0,
-    failed: 0,
-  }
-  for (const s of statsRows) stats[s.status] = s._count._all
+  const { campaigns, pendingMessages, stats } =
+    await remarketingService.getRemarketingDashboard(tenantId)
 
   return NextResponse.json({ campaigns, pendingMessages, stats })
 
@@ -216,6 +126,21 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
 //     Genera mensajes automáticos para carritos abandonados / no-respuesta / post-purchase
 //     según el trigger. Para abandoned_cart, busca ConversationalCart en estado
 //     'building' sin update reciente y los programa.
+/**
+ * POST /api/remarketing
+ *
+ * Crea o programa mensajes de remarketing. Acciones soportadas:
+ * `schedule` (mensaje individual programado) y `auto_generate` (generación
+ * automática para carritos abandonados / no-respuesta / post-purchase).
+ *
+ * FIX-LEGAL-P0-001 L-3: toda acción pasa por
+ * `remarketingService.assertMarketingConsent()` — los clientes sin
+ * `ConsentRecord` con `purpose='marketing'` son SKIPPED y se registra en
+ * `AuditLog` con `action='remarketing.skipped_no_consent'`.
+ *
+ * @security sessionAuth + requireTenantAccess(tenantId) + rateLimit(60/min)
+ * @returns 200 con `{ scheduled: N, skipped: N }` o 422 si el body no valida.
+ */
 export const POST = withErrorHandling(async (req: NextRequest) => {
 
   const limited = rateLimit(req, {
@@ -264,6 +189,16 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
 // PATCH /api/remarketing
 // Body: { action: 'toggle_active', campaignId, active }
 //    or { action: 'mark_message', messageId, status }
+/**
+ * PATCH /api/remarketing
+ *
+ * Mutaciones sobre campañas y mensajes existentes. Acciones soportadas:
+ * `toggle_active` (activa/pausa una campaña) y `mark_message` (marca el
+ * estado de un mensaje: sent | failed | skipped).
+ *
+ * @security sessionAuth + requireTenantAccess(tenantId) + rateLimit(120/min)
+ * @returns 200 con la campaña/mensaje actualizado, o 422 si el body no valida.
+ */
 export const PATCH = withErrorHandling(async (req: NextRequest) => {
 
   const limited = rateLimit(req, {
@@ -295,22 +230,13 @@ export const PATCH = withErrorHandling(async (req: NextRequest) => {
 
   if (action === 'toggle_active') {
     const { campaignId, active } = body
-    const updated = await db.remarketingCampaign.update({
-      where: { id: campaignId },
-      data: { active },
-    })
+    const updated = await remarketingService.setCampaignActive(campaignId, active)
     return NextResponse.json({ campaign: updated })
   }
 
   // mark_message
   const { messageId, status } = body
-  const updated = await db.remarketingMessage.update({
-    where: { id: messageId },
-    data: {
-      status,
-      sentAt: status === 'sent' || status === 'delivered' ? new Date() : undefined,
-    },
-  })
+  const updated = await remarketingService.updateMessageStatus(messageId, status)
   return NextResponse.json({ message: updated })
 
 })
@@ -321,19 +247,19 @@ export const PATCH = withErrorHandling(async (req: NextRequest) => {
 
 async function createCampaign(tenantId: string, body: z.infer<typeof CreateCampaignSchema>) {
   const { name, trigger, template } = body
-  const campaign = await db.remarketingCampaign.create({
-    data: { tenantId, name, trigger, template },
+  const campaign = await remarketingService.createCampaign({
+    tenantId,
+    name,
+    trigger,
+    template,
   })
-  log.info({ tenantId, campaignId: campaign.id, trigger }, 'campaign created')
   return NextResponse.json({ campaign })
 }
 
 async function scheduleMessage(tenantId: string, body: z.infer<typeof ScheduleSchema>) {
   const { campaignId, customerPhone, customerName, scheduledAt } = body
   // Verify campaign belongs to tenant
-  const campaign = await db.remarketingCampaign.findFirst({
-    where: { id: campaignId, tenantId },
-  })
+  const campaign = await remarketingService.findCampaignForTenant(tenantId, campaignId)
   if (!campaign) {
     return NextResponse.json(
       { error: 'Campaign not found in this tenant' },
@@ -344,28 +270,14 @@ async function scheduleMessage(tenantId: string, body: z.infer<typeof ScheduleSc
   // FIX-LEGAL-P0-001 L-3 — enforce marketing consent before scheduling.
   // If the customer cannot be resolved by phone, OR has no marketing
   // consent, skip the schedule. Skipping is logged via AuditLog by
-  // assertMarketingConsent(); we return a 403 so the caller knows.
-  const customer = await findCustomerByPhone(tenantId, String(customerPhone))
+  // the service; we return a 403 so the caller knows.
+  const customer = await remarketingService.findCustomerByPhone(tenantId, String(customerPhone))
   if (!customer) {
     log.warn(
       { tenantId, customerPhone },
       'remarketing.schedule: customer not found by phone — skipping (no data subject to consent)',
     )
-    try {
-      await db.auditLog.create({
-        data: {
-          tenantId,
-          action: 'remarketing.skipped_no_customer',
-          entity: 'customer',
-          metadata: JSON.stringify({
-            phone: String(customerPhone),
-            reason: 'No Customer row linked to this phone — cannot verify marketing consent',
-          }),
-        },
-      })
-    } catch {
-      /* best-effort */
-    }
+    await remarketingService.logSkippedNoCustomer(tenantId, String(customerPhone))
     return NextResponse.json(
       {
         error:
@@ -374,7 +286,7 @@ async function scheduleMessage(tenantId: string, body: z.infer<typeof ScheduleSc
       { status: 403 },
     )
   }
-  const hasConsent = await assertMarketingConsent(tenantId, customer.id)
+  const hasConsent = await remarketingService.assertMarketingConsent(tenantId, customer.id)
   if (!hasConsent) {
     return NextResponse.json(
       {
@@ -386,14 +298,12 @@ async function scheduleMessage(tenantId: string, body: z.infer<typeof ScheduleSc
     )
   }
 
-  const message = await db.remarketingMessage.create({
-    data: {
-      tenantId,
-      campaignId,
-      customerPhone: String(customerPhone),
-      customerName: customerName ?? customer.name ?? null,
-      scheduledAt: new Date(scheduledAt),
-    },
+  const message = await remarketingService.scheduleMessage({
+    tenantId,
+    campaignId,
+    customerPhone: String(customerPhone),
+    customerName: customerName ?? customer.name ?? null,
+    scheduledAt: new Date(scheduledAt),
   })
   return NextResponse.json({ message })
 }
@@ -405,9 +315,7 @@ async function autoGenerate(tenantId: string, body: z.infer<typeof AutoGenerateS
   since.setDate(since.getDate() - daysAgo)
 
   // Find a campaign matching the trigger (active)
-  const campaign = await db.remarketingCampaign.findFirst({
-    where: { tenantId, trigger, active: true },
-  })
+  const campaign = await remarketingService.findActiveCampaignByTrigger(tenantId, trigger)
   if (!campaign) {
     return NextResponse.json(
       { error: `No active campaign for trigger '${trigger}'` },
@@ -419,26 +327,11 @@ async function autoGenerate(tenantId: string, body: z.infer<typeof AutoGenerateS
   let skipped = 0
   if (trigger === 'abandoned_cart') {
     // Find ConversationalCarts in 'building' status not updated recently.
-    // ConversationalCart only has `conversationId` (no relation), so we look
-    // up the conversations + customers separately to get the phone.
-    const carts = await db.conversationalCart.findMany({
-      where: { tenantId, status: 'building', updatedAt: { lt: since } },
-      take: 100,
-      select: { id: true, conversationId: true },
-    })
-    const conversationIds = Array.from(
-      new Set(carts.map((c) => c.conversationId)),
-    )
-    const conversations = conversationIds.length
-      ? await db.conversation.findMany({
-          where: { id: { in: conversationIds } },
-          include: { customer: { select: { id: true, phone: true, name: true } } },
-        })
-      : []
-    const convById = new Map(conversations.map((c) => [c.id, c]))
+    // The service hydrates the conversation + customer so we can apply
+    // the consent gate without a second round-trip per cart.
+    const carts = await remarketingService.getAbandonedCarts(tenantId, since)
     const scheduledAt = new Date() // send ASAP
-    for (const c of carts) {
-      const conv = convById.get(c.conversationId)
+    for (const { conversation: conv } of carts) {
       const phone = conv?.customer?.phone
       if (!phone) continue
       const customerId = conv?.customer?.id
@@ -447,29 +340,23 @@ async function autoGenerate(tenantId: string, body: z.infer<typeof AutoGenerateS
         continue
       }
       // FIX-LEGAL-P0-001 L-3 — marketing consent gate.
-      const hasConsent = await assertMarketingConsent(tenantId, customerId)
+      const hasConsent = await remarketingService.assertMarketingConsent(tenantId, customerId)
       if (!hasConsent) {
         skipped++
         continue
       }
-      await db.remarketingMessage.create({
-        data: {
-          tenantId,
-          campaignId: campaign.id,
-          customerPhone: phone,
-          customerName: conv?.customer?.name ?? null,
-          scheduledAt,
-        },
+      await remarketingService.scheduleMessage({
+        tenantId,
+        campaignId: campaign.id,
+        customerPhone: phone,
+        customerName: conv?.customer?.name ?? null,
+        scheduledAt,
       })
       created += 1
     }
   } else if (trigger === 'no_response') {
     // Find conversations without a customer reply in the last `daysAgo` days
-    const conversations = await db.conversation.findMany({
-      where: { tenantId, updatedAt: { lt: since } },
-      include: { customer: { select: { id: true, phone: true, name: true } } },
-      take: 100,
-    })
+    const conversations = await remarketingService.getNoResponseConversations(tenantId, since)
     const scheduledAt = new Date()
     for (const conv of conversations) {
       const phone = conv.customer?.phone
@@ -479,29 +366,23 @@ async function autoGenerate(tenantId: string, body: z.infer<typeof AutoGenerateS
         skipped++
         continue
       }
-      const hasConsent = await assertMarketingConsent(tenantId, customerId)
+      const hasConsent = await remarketingService.assertMarketingConsent(tenantId, customerId)
       if (!hasConsent) {
         skipped++
         continue
       }
-      await db.remarketingMessage.create({
-        data: {
-          tenantId,
-          campaignId: campaign.id,
-          customerPhone: phone,
-          customerName: conv.customer?.name ?? null,
-          scheduledAt,
-        },
+      await remarketingService.scheduleMessage({
+        tenantId,
+        campaignId: campaign.id,
+        customerPhone: phone,
+        customerName: conv.customer?.name ?? null,
+        scheduledAt,
       })
       created += 1
     }
   } else if (trigger === 'post_purchase') {
     // Find orders delivered within the window
-    const orders = await db.order.findMany({
-      where: { tenantId, status: 'delivered', updatedAt: { lt: since } },
-      include: { customer: { select: { id: true, phone: true, name: true } } },
-      take: 100,
-    })
+    const orders = await remarketingService.getDeliveredOrders(tenantId, since)
     const scheduledAt = new Date()
     for (const o of orders) {
       const phone = o.customer?.phone
@@ -511,19 +392,17 @@ async function autoGenerate(tenantId: string, body: z.infer<typeof AutoGenerateS
         skipped++
         continue
       }
-      const hasConsent = await assertMarketingConsent(tenantId, customerId)
+      const hasConsent = await remarketingService.assertMarketingConsent(tenantId, customerId)
       if (!hasConsent) {
         skipped++
         continue
       }
-      await db.remarketingMessage.create({
-        data: {
-          tenantId,
-          campaignId: campaign.id,
-          customerPhone: phone,
-          customerName: o.customer?.name ?? null,
-          scheduledAt,
-        },
+      await remarketingService.scheduleMessage({
+        tenantId,
+        campaignId: campaign.id,
+        customerPhone: phone,
+        customerName: o.customer?.name ?? null,
+        scheduledAt,
       })
       created += 1
     }

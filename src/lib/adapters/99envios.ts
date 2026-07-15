@@ -23,8 +23,9 @@
 // - Timeout: 10s por request (AbortController).
 // - Graceful fallback: si no hay `ENVIOS99_API_KEY` o la llamada HTTP falla,
 //   se usa la tabla de tarifas local hardcoded — nunca se crashea el agente.
-// - TODO (futuro): webhooks para que 99envios pushee estado de guía;
-//   recaudo contra entrega se liquida D+8 a D+15.
+// - SPRINT-ADAPTERS-DOCS-FINAL-001: webhook handler `handleGuideStatusWebhook`
+//   para que 99envios pushee cambios de estado de guía en tiempo real (en
+//   vez de depender del polling que hace `consultarEstadoGuia`).
 
 import { db } from '@/lib/db'
 import { normalizeCarrierName } from '@/lib/carriers'
@@ -270,6 +271,81 @@ export class Envios99Adapter implements LogisticsAdapter {
       ok: !!this.hasCreds(),
       siguiente_accion: acciones[tipo_novedad] ?? 'Escalado a 99envios IA + equipo de logística.',
     }
+  }
+
+  /**
+   * Webhook handler para que 99envios pushee cambios de estado de guía.
+   *
+   * SPRINT-ADAPTERS-DOCS-FINAL-001. 99envios puede configurarse para enviar un
+   * POST a una URL pública del tenant cada vez que una guía cambia de estado
+   * (en_transito → en_oficina_destino → en_ruta_entrega → entregada) o se
+   * registra una novedad. Este método aplica el payload a la tabla `Shipment`
+   * + emite un `OrderEvent` en la orden asociada para que el agente de
+   * logística pueda notificar al cliente.
+   *
+   * El route handler (p.ej. `src/app/api/webhooks/99envios/route.ts`) DEBE
+   * validar la firma HMAC-SHA256 del header `X-99envios-Signature` ANTES de
+   * llamar a este método — el adapter confía en que el caller ya autenticó.
+   *
+   * @param payload Cuerpo del webhook de 99envios.
+   * @returns `{ applied: boolean, guideNumber: string, newState: string }` —
+   *          `applied=false` si la guía no existe localmente (skip silencioso).
+   */
+  async handleGuideStatusWebhook(payload: {
+    guide_number?: string
+    numero_guia?: string
+    tracking_number?: string
+    status?: string
+    estado?: string
+    updated_at?: string
+    ultima_actualizacion?: string
+    novedad?: string
+    incident?: string
+  }): Promise<{ applied: boolean; guideNumber: string; newState: string }> {
+    const guideNumber = payload.guide_number ?? payload.numero_guia ?? payload.tracking_number ?? ''
+    if (!guideNumber) {
+      logger.warn({ tenantId: this.tenantId, payload }, '99envios webhook: payload sin guide_number — ignorado')
+      return { applied: false, guideNumber: '', newState: '' }
+    }
+
+    const newState = payload.status ?? payload.estado ?? ''
+    const ts = payload.updated_at ?? payload.ultima_actualizacion ?? new Date().toISOString()
+    const novedad = payload.novedad ?? payload.incident
+
+    // 1) Actualizar la Shipment row (si existe localmente).
+    const updated = await db.shipment.updateMany({
+      where: { numeroGuia: guideNumber },
+      data: {
+        ...(newState ? { estado: newState } : {}),
+        ...(novedad ? { novedad } : {}),
+      },
+    }).catch((err) => {
+      logger.warn({ tenantId: this.tenantId, guideNumber, err: err instanceof Error ? err.message : String(err) }, '99envios webhook: fallo update Shipment')
+      return { count: 0 }
+    })
+
+    if (updated.count > 0) {
+      // 2) Emitir OrderEvent en la orden asociada (si la hay) para que el
+      // agente de logística pueda notificar al cliente proactivamente.
+      const shipment = await db.shipment.findFirst({
+        where: { numeroGuia: guideNumber },
+        select: { orderId: true },
+      }).catch(() => null)
+      if (shipment?.orderId) {
+        await db.orderEvent.create({
+          data: {
+            orderId: shipment.orderId,
+            type: 'guide_status_update',
+            note: `99envios webhook: estado=${newState || 'sin_cambio'}${novedad ? ` novedad=${novedad}` : ''} (ts=${ts})`,
+          },
+        }).catch((err) => {
+          logger.warn({ tenantId: this.tenantId, guideNumber, err: err instanceof Error ? err.message : String(err) }, '99envios webhook: fallo crear OrderEvent')
+        })
+      }
+    }
+
+    logger.info({ tenantId: this.tenantId, guideNumber, newState, novedad, applied: updated.count > 0 }, '99envios webhook procesado')
+    return { applied: updated.count > 0, guideNumber, newState }
   }
 
   // ───────────────────────────────────────────────────────────────────────

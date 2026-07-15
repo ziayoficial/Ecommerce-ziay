@@ -1,3 +1,7 @@
+/**
+ * Dashboard home — Server Component shell.
+ * @see docs/adr/0016-ssr-shell-pattern.md
+ */
 // SPRINT-SSR-SHELL-001 §1 — Dashboard SSR shell (server component).
 //
 // This file is a Next.js Server Component (no `'use client'` directive).

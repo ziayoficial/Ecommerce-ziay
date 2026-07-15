@@ -47,10 +47,11 @@ export function hashPii(value: string): string {
  * Idempotency: callers guard with `wasAlreadyPaid` so this only fires on
  * the webhook that actually transitions the order to `paid`. Even if a
  * duplicate fire happens, Meta dedupes on `event_id` (we use
- * `order-<id>-<platform>`) — the CAPI payload includes it as the JSON
- * metadata stored in `ConversionEvent.response`. The worker currently
- * does not forward `event_id` to Meta (TODO) but the dedup key is
- * persisted for future use.
+ * `order-<id>-<platform>`) — the worker reads it back from the
+ * ConversionEvent `response` JSON and forwards it as the CAPI payload's
+ * `event_id` field (SPRINT-BACKEND-FINAL-001). The dedup key is
+ * preserved across replays (the worker merges the platform response
+ * into the existing JSON instead of overwriting it).
  */
 export async function fireCapiPurchaseEvent(
   orderId: string,

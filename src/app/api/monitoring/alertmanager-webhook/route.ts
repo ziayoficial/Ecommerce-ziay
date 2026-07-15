@@ -34,6 +34,17 @@ import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 
 // POST /api/monitoring/alertmanager-webhook
 // Receives alerts from Alertmanager and auto-creates StatusIncident rows.
+
+/**
+ * POST /api/monitoring/alertmanager-webhook
+ *
+ * Receives alerts from Alertmanager and auto-creates/resolves StatusIncident
+ * rows. Critical alerts create new incidents; resolved alerts close matching
+ * incidents.
+ *
+ * @security Bearer token via ALERTMANAGER_WEBHOOK_SECRET (not NextAuth)
+ * @returns 200 with { received: true, incidentsCreated: N }
+ */
 export const POST = withErrorHandling(async (req: NextRequest) => {
   const authHeader = req.headers.get('authorization')
   const expectedSecret = process.env.ALERTMANAGER_WEBHOOK_SECRET

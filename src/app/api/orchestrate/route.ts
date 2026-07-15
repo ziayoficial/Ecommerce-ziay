@@ -5,13 +5,10 @@
 // - action='full'   → runs ALL 9 agents sequentially, returns the timeline of replies.
 // - action='step'   → runs a SINGLE agent (currentStep), returns one reply + next step.
 //
-// SPRINT8-SERVICES-REST-001 — left inline. The db calls here are:
-//   1. `db.tenant.findUnique` — single tenant existence check.
-//   2. `db.conversation.update` — profile-detection side-effect, runs at
-//      most once per pipeline invocation.
-// Per rule #2 (1-2 simple db calls OK to leave), the orchestration flow
-// is dominated by LLM calls (9 per pipeline), not db calls.
-// TODO: migrate to service layer if more db writes get added per step.
+// SPRINT-BACKEND-FINAL-001 — DB side-effects (tenant findUnique, conversation
+// update for profile detection + pipelineMemory load/persist, decisionLog
+// create on escalation) migrated to `orchestrateService`. The route keeps the
+// LLM calls, the 9-step pipeline walk, confidence scoring + escalation emit.
 //
 // Returns: {
 //   ok: true,
@@ -32,7 +29,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireTenantAccess } from '@/lib/auth-helpers'
 import { rateLimit } from '@/lib/middleware/rate-limit'
-import { db } from '@/lib/db'
 import { AGENT_LABELS, AgentName, buildAgentPrompt, FALLBACKS } from '@/lib/agents/prompts'
 import {
   ORCHESTRATOR_STEPS, ORCHESTRATOR_SCENARIOS, OrchestratorStepId, OrchestratorScenario,
@@ -42,7 +38,7 @@ import { getLogger } from '@/lib/logger'
 // adapter pluggable. El provider se resuelve desde `tenant.proveedorIa`
 // (leído una vez en el POST handler y pasado a callAgent).
 import { chat, type LLMChatResult } from '@/lib/llm/adapter'
-import { calculateCost, type TokenUsage } from '@/lib/llm/costs'
+import type { TokenUsage } from '@/lib/llm/costs'
 // FIX-AI-AGENTS-001 — defensas y validación de salida para los 9 agentes
 // del pipeline de orquestación.
 import { parseAgentOutput, hasOutputSchema } from '@/lib/agents/schemas'
@@ -70,6 +66,8 @@ import { emitToTenant } from '@/lib/chat-emit'
 // `for` loops are preserved (they implement §A-3 fallback-reply logic
 // per agent — business logic, not boilerplate).
 import { withErrorHandling } from '@/lib/middleware/api-error-handler'
+// SPRINT-BACKEND-FINAL-001 — DB side-effects migrated to `orchestrateService`.
+import { orchestrateService } from '@/lib/services'
 
 const log = getLogger('api:orchestrate')
 
@@ -140,40 +138,14 @@ async function escalateIfLowConfidence(params: {
   if (params.result.confidence >= 0.6) return
   // Persistir DecisionLog solo en casos de baja confianza — el pipeline
   // orquesta 9 agentes por request, persistir todos sería ruido.
-  try {
-    const usage = params.result.usage
-    await db.decisionLog.create({
-      data: {
-        tenantId: params.tenantId,
-        agentName: params.agentName,
-        conversationId: params.conversationId ?? null,
-        input: JSON.stringify(params.ctx),
-        output: JSON.stringify({
-          reply: params.result.reply,
-          confidence: params.result.confidence,
-          error: params.result.error ?? null,
-        }),
-        reasoning: null,
-        confidence: params.result.confidence,
-        // humanReviewed: false (default del schema Prisma).
-        // §A-6: tracking de tokens/costo/latencia.
-        model: params.result.model ?? null,
-        provider: params.result.provider ?? null,
-        promptTokens: usage?.promptTokens ?? null,
-        completionTokens: usage?.completionTokens ?? null,
-        totalTokens: usage?.totalTokens ?? null,
-        costUsd: usage
-          ? calculateCost(params.result.provider ?? 'zai', usage)
-          : null,
-        latencyMs: params.result.latencyMs ?? null,
-      },
-    })
-  } catch (err) {
-    log.warn(
-      { err, agentName: params.agentName, tenantId: params.tenantId },
-      'No se pudo persistir DecisionLog en escalación (non-blocking)',
-    )
-  }
+  // SPRINT-BACKEND-FINAL-001 — DB write migrated to `orchestrateService.persistDecisionLog`.
+  await orchestrateService.persistDecisionLog({
+    tenantId: params.tenantId,
+    agentName: params.agentName,
+    conversationId: params.conversationId,
+    ctx: params.ctx,
+    result: params.result,
+  })
   emitToTenant(params.tenantId, 'agent:low_confidence', {
     agentName: params.agentName,
     conversationId: params.conversationId ?? null,
@@ -343,13 +315,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
       )
     }
 
-    const tenant = await db.tenant.findUnique({
-      where: { id: tenantId },
-      // SPRINT-AI-LLM-ADAPTER-001 — sólo necesitamos proveedorIa para
-      // resolver el LLM provider. El check de existencia (`if (!tenant)`)
-      // sigue funcionando con un select parcial.
-      select: { id: true, proveedorIa: true },
-    })
+    const tenant = await orchestrateService.getTenantForOrchestration(tenantId)
     if (!tenant) return NextResponse.json({ ok: false, error: `Tenant not found: ${tenantId}` }, { status: 404 })
     // Provider resuelto una sola vez por request — se pasa a todas las
     // llamadas callAgent del pipeline (9 para action='full').
@@ -418,12 +384,11 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
       }
 
       // Persist profile detection (mirror of /api/agents/[agentName]/route.ts)
+      // SPRINT-BACKEND-FINAL-001 — DB write migrated to `orchestrateService`.
       if (step.id === 'profile' && conversationId) {
         const detected = ['mayorista', 'emprendedor', 'detal', 'regalo'].find(p => reply.toLowerCase().includes(p))
         if (detected) {
-          try {
-            await db.conversation.update({ where: { id: conversationId }, data: { perfilConversacion: detected } })
-          } catch { /* ignore */ }
+          await orchestrateService.persistDetectedProfile(conversationId, detected)
         }
       }
 
@@ -479,13 +444,10 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     // asigna un timestamp al persistir de nuevo.
     let pipelineMemory: PipelineMemoryEntry[] = []
     if (conversationId) {
-      const conv = await db.conversation.findUnique({
-        where: { id: conversationId },
-        select: { pipelineMemory: true },
-      })
-      if (conv?.pipelineMemory) {
+      const memoryJson = await orchestrateService.getPipelineMemory(conversationId)
+      if (memoryJson) {
         try {
-          const parsed = JSON.parse(conv.pipelineMemory)
+          const parsed = JSON.parse(memoryJson)
           // Validar que cada entrada tenga shape de Message antes de
           // inyectarla al pipeline — un JSON corrupto o con formato
           // inesperado no debe romper el pipeline.
@@ -566,12 +528,11 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
       })
 
       // Persist profile detection
+      // SPRINT-BACKEND-FINAL-001 — DB write migrated to `orchestrateService`.
       if (step.id === 'profile' && conversationId) {
         const detected = ['mayorista', 'emprendedor', 'detal', 'regalo'].find(p => reply.toLowerCase().includes(p))
         if (detected) {
-          try {
-            await db.conversation.update({ where: { id: conversationId }, data: { perfilConversacion: detected } })
-          } catch { /* ignore */ }
+          await orchestrateService.persistDetectedProfile(conversationId, detected)
         }
       }
 
@@ -616,25 +577,18 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     // storage sin timestamp — entries previas a este sprint — se les
     // asigna el timestamp actual). Así la próxima carga podrá aplicar
     // la evicción TTL uniformemente.
+    //
+    // SPRINT-BACKEND-FINAL-001 — DB write migrated to `orchestrateService.persistPipelineMemory`.
     if (conversationId && pipelineMemory.length > 0) {
-      try {
-        const nowIso = new Date().toISOString()
-        const toPersist = pipelineMemory.slice(-30).map((entry) => ({
-          ...entry,
-          timestamp: entry.timestamp || nowIso,
-        }))
-        await db.conversation.update({
-          where: { id: conversationId },
-          data: {
-            pipelineMemory: JSON.stringify(toPersist),
-          },
-        })
-      } catch (err) {
-        log.warn(
-          { err: err instanceof Error ? err.message : String(err), tenantId, conversationId },
-          'No se pudo persistir pipelineMemory en Conversation (non-blocking)',
-        )
-      }
+      const nowIso = new Date().toISOString()
+      const toPersist = pipelineMemory.slice(-30).map((entry) => ({
+        ...entry,
+        timestamp: entry.timestamp || nowIso,
+      }))
+      await orchestrateService.persistPipelineMemory(
+        conversationId,
+        JSON.stringify(toPersist),
+      )
     }
 
     return NextResponse.json({

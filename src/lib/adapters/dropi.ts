@@ -20,9 +20,10 @@
 // - Graceful fallback: si no hay `DROPI_API_KEY` o la llamada HTTP falla,
 //   se usa la tabla de tarifas local hardcoded (calibrada a tarifas reales
 //   colombianas 2024-2025) — nunca se crashea el agente de logística.
-// - TODO (futuro): cachear cotizaciones por 5 min en tabla `cotizaciones_flete`
-//   para no recotizar el mismo destino (~60 req/min por API key).
-// - TODO (futuro): registrar webhook URL pública para que Dropi pushee estado.
+// - SPRINT-ADAPTERS-DOCS-FINAL-001: caché in-memory 5 min para cotizaciones
+//   de flete (mismo destino + units → misma tarifa; evita recotizar a
+//   ~60 req/min por API key) + webhook handler `handleGuideStatusWebhook`
+//   para que Dropi pushee cambios de estado en tiempo real.
 
 import { db } from '@/lib/db'
 import { normalizeCarrierName } from '@/lib/carriers'
@@ -31,6 +32,52 @@ import type { LogisticsAdapter, FreightQuote, ShipmentResult, ShipmentStatus, Ge
 
 const HTTP_TIMEOUT_MS = 10_000
 const DROPI_API_BASE = process.env.DROPI_API_BASE ?? 'https://api.dropi.co/api/v1'
+
+/** TTL del caché in-memory de cotizaciones de flete (5 min).
+ *  SPRINT-ADAPTERS-DOCS-FINAL-001 — Dropi recomienda cachear cotizaciones
+ *  por 5 min porque la tarifa para el mismo destino+units no cambia dentro
+ *  de esa ventana (salvo picos de demanda navideña). El rate-limit del API
+ *  es ~60 req/min por API key. */
+const QUOTE_CACHE_TTL_MS = 5 * 60_000
+
+interface QuoteCacheEntry {
+  value: FreightQuote
+  expiresAt: number
+}
+
+/** Caché por tenant + ciudad + units. Sin límite estricto — la TTL de 5 min
+ *  mantiene la memoria acotada (típicamente <500 entradas activas por tenant). */
+const quoteCache = new Map<string, QuoteCacheEntry>()
+
+/** Construye la clave de caché para `cotizarFlete`. */
+function quoteCacheKey(tenantId: string, ciudad: string, pais: string, units: number): string {
+  return `${tenantId}::${(ciudad ?? '').trim().toLowerCase()}::${(pais ?? '').trim().toUpperCase()}::${units}`
+}
+
+/** Lee del caché si la entrada existe y no ha expirado. */
+function readQuoteCache(key: string): FreightQuote | null {
+  const hit = quoteCache.get(key)
+  if (!hit) return null
+  if (Date.now() > hit.expiresAt) {
+    quoteCache.delete(key)
+    return null
+  }
+  return hit.value
+}
+
+/** Escribe en el caché con la TTL estándar de 5 min. */
+function writeQuoteCache(key: string, value: FreightQuote): void {
+  quoteCache.set(key, { value, expiresAt: Date.now() + QUOTE_CACHE_TTL_MS })
+}
+
+/** Invalida todas las entradas de caché de cotizaciones para un tenant.
+ *  Llamar tras cualquier cambio de tarifa negociada con Dropi. */
+export function invalidateQuoteCache(tenantId: string): void {
+  const prefix = `${tenantId}::`
+  for (const key of quoteCache.keys()) {
+    if (key.startsWith(prefix)) quoteCache.delete(key)
+  }
+}
 
 // Tarifas base realistas (COP) por ciudad destino nacional — Dropi CO.
 // Las cifras están calibradas a tarifas reales 2024-2025 de dropshipping
@@ -158,6 +205,12 @@ export class DropiAdapter implements LogisticsAdapter {
       }
     }
 
+    // SPRINT-ADAPTERS-DOCS-FINAL-001 — Caché 5 min: si la cotización para este
+    // destino+units está en caché y no expiró, la devolvemos sin tocar la red.
+    const cacheKey = quoteCacheKey(this.tenantId, ciudad, pais, cantidad_unidades)
+    const cached = readQuoteCache(cacheKey)
+    if (cached) return cached
+
     if (this.hasCreds()) {
       const data = await this.http<DropiRateResponse | DropiRateResponse[]>('POST', '/shipping/rates', {
         destination_city: ciudad,
@@ -173,17 +226,23 @@ export class DropiAdapter implements LogisticsAdapter {
         const transportadoraRaw = rate.carrier ?? rate.transportadora ?? rate.transportadora_nombre ?? DROPI_DEFAULT_CARRIER
         if (Number.isFinite(tarifa) && tarifa > 0) {
           const transportadora = await normalizeCarrierName(this.tenantId, transportadoraRaw || DROPI_DEFAULT_CARRIER)
-          return {
+          const quote: FreightQuote = {
             tarifa,
             tiempo_estimado_dias: dias ?? 3,
             transportadora,
           }
+          writeQuoteCache(cacheKey, quote)
+          return quote
         }
       }
     }
 
     // Fallback: tabla local.
-    return this.localCotizarFlete(ciudad, cantidad_unidades)
+    const fallback = await this.localCotizarFlete(ciudad, cantidad_unidades)
+    // El fallback también se cachea (5 min) — la tabla local no cambia entre
+    // llamadas y así evitamos re-calcular + re-normalizar la transportadora.
+    writeQuoteCache(cacheKey, fallback)
+    return fallback
   }
 
   async generarGuia(datos_pedido: GenerarGuiaInput): Promise<ShipmentResult> {
@@ -285,6 +344,78 @@ export class DropiAdapter implements LogisticsAdapter {
       ok: !!this.hasCreds(),
       siguiente_accion: acciones[tipo_novedad] ?? 'Escalado al equipo de logística para revisión manual.',
     }
+  }
+
+  /**
+   * Webhook handler para que Dropi pushee cambios de estado de guía.
+   *
+   * SPRINT-ADAPTERS-DOCS-FINAL-001. Dropi puede configurarse (panel →
+   * Integraciones → Webhooks) para enviar un POST a una URL pública del
+   * tenant cada vez que una guía cambia de estado o se registra una novedad.
+   * Este método aplica el payload a la tabla `Shipment` + emite un
+   * `OrderEvent` en la orden asociada para que el agente de logística pueda
+   * notificar al cliente proactivamente.
+   *
+   * El route handler (p.ej. `src/app/api/webhooks/dropi/route.ts`) DEBE
+   * validar la firma HMAC-SHA256 del header `X-Dropi-Signature` ANTES de
+   * llamar a este método — el adapter confía en que el caller ya autenticó.
+   *
+   * @param payload Cuerpo del webhook de Dropi.
+   * @returns `{ applied: boolean, guideNumber: string, newState: string }` —
+   *          `applied=false` si la guía no existe localmente (skip silencioso).
+   */
+  async handleGuideStatusWebhook(payload: {
+    guide_number?: string
+    numero_guia?: string
+    tracking_number?: string
+    status?: string
+    estado?: string
+    updated_at?: string
+    ultima_actualizacion?: string
+    novedad?: string
+    incident?: string
+  }): Promise<{ applied: boolean; guideNumber: string; newState: string }> {
+    const guideNumber = payload.guide_number ?? payload.numero_guia ?? payload.tracking_number ?? ''
+    if (!guideNumber) {
+      logger.warn({ tenantId: this.tenantId, payload }, 'Dropi webhook: payload sin guide_number — ignorado')
+      return { applied: false, guideNumber: '', newState: '' }
+    }
+
+    const newState = payload.status ?? payload.estado ?? ''
+    const ts = payload.updated_at ?? payload.ultima_actualizacion ?? new Date().toISOString()
+    const novedad = payload.novedad ?? payload.incident
+
+    const updated = await db.shipment.updateMany({
+      where: { numeroGuia: guideNumber },
+      data: {
+        ...(newState ? { estado: newState } : {}),
+        ...(novedad ? { novedad } : {}),
+      },
+    }).catch((err) => {
+      logger.warn({ tenantId: this.tenantId, guideNumber, err: err instanceof Error ? err.message : String(err) }, 'Dropi webhook: fallo update Shipment')
+      return { count: 0 }
+    })
+
+    if (updated.count > 0) {
+      const shipment = await db.shipment.findFirst({
+        where: { numeroGuia: guideNumber },
+        select: { orderId: true },
+      }).catch(() => null)
+      if (shipment?.orderId) {
+        await db.orderEvent.create({
+          data: {
+            orderId: shipment.orderId,
+            type: 'guide_status_update',
+            note: `Dropi webhook: estado=${newState || 'sin_cambio'}${novedad ? ` novedad=${novedad}` : ''} (ts=${ts})`,
+          },
+        }).catch((err) => {
+          logger.warn({ tenantId: this.tenantId, guideNumber, err: err instanceof Error ? err.message : String(err) }, 'Dropi webhook: fallo crear OrderEvent')
+        })
+      }
+    }
+
+    logger.info({ tenantId: this.tenantId, guideNumber, newState, novedad, applied: updated.count > 0 }, 'Dropi webhook procesado')
+    return { applied: updated.count > 0, guideNumber, newState }
   }
 
   // ───────────────────────────────────────────────────────────────────────

@@ -113,6 +113,12 @@ jobs:
   # e2e-tests job — same PostgreSQL service as build; seeds + runs Playwright.
   # Sprint 5C: previously used SQLite; now matches production engine so any
   # PostgreSQL-specific migration (indexes, enums, JSONB) gets exercised.
+  #
+  # Sprint 15C (SPRINT-TESTS-COMPLETE-001): added the `actions/upload-artifact`
+  # step so Playwright HTML report + traces + screenshots are retained for 7
+  # days on every run (including passing runs — `if: always()`). Also added
+  # `NEXTAUTH_URL` to the env so NextAuth.js URL reconstruction works inside
+  # the runner (login callbacks + CORS origin checks).
   # ──────────────────────────────────────────────────────────────────────────
   e2e-tests:
     runs-on: ubuntu-latest
@@ -159,3 +165,15 @@ jobs:
 
       - name: Run Playwright E2E tests
         run: bunx playwright test
+
+      # Sprint 15C — upload Playwright HTML report + traces + screenshots on
+      # every run (including failures). `if: always()` ensures the artifact
+      # is uploaded even when the previous step fails so devs can debug.
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-results
+          path: |
+            test-results/
+            playwright-report/
+          retention-days: 7

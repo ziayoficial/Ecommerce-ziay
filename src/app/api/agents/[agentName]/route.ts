@@ -1,14 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireTenantAccess, requireAuth } from '@/lib/auth-helpers'
 import { rateLimit } from '@/lib/middleware/rate-limit'
-import { db } from '@/lib/db'
 import { buildAgentPrompt, AGENT_NAMES, AGENT_LABELS, AgentName } from '@/lib/agents/prompts'
-import { getLogger } from '@/lib/logger'
 // SPRINT-AI-LLM-ADAPTER-001 — reemplazo de la llamada directa al SDK de ZAI por el
 // adapter pluggable. Resuelve el provider vía `tenant.proveedorIa` y
 // unifica la superficie de llamada para los 4 providers (zai/openai/xai/ollama).
 import { chat, type LLMChatResult } from '@/lib/llm/adapter'
-import { calculateCost, type TokenUsage } from '@/lib/llm/costs'
 // FIX-AI-AGENTS-001 — defensas y validación de salida para los 26 agentes.
 import { parseAgentOutput, hasOutputSchema } from '@/lib/agents/schemas'
 import { wrapUserInput, ANTI_INJECTION_PREFIX } from '@/lib/agents/sanitize'
@@ -26,8 +23,12 @@ import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 // it reaches the LLM prompt + DB lookups. Strips null bytes that would
 // break pino's JSON log formatter when `ctx` is logged for tracing.
 import { sanitizeParsed } from '@/lib/middleware/sanitize'
-
-const log = getLogger('api/agents/[agentName]')
+// SPRINT-BACKEND-FINAL-001 — DB side-effects migrated to `agentsService`.
+// The route keeps the LLM call, prompt building, output validation,
+// confidence scoring + escalation; only the DB access patterns
+// (tenant findUnique, conversation update, imageIdentification create,
+// decisionLog create) live in the service.
+import { agentsService } from '@/lib/services'
 
 // FIX-AI-AGENTS-001 §A-3 — tabla de fallbacks movida a module-scope para
 // que sea accesible tanto del bloque try (cuando la validación de salida
@@ -101,76 +102,18 @@ function escalateLowConfidence(params: {
 }
 
 // SPRINT-GOVERNANCE-001 — pilar #4 "Trazabilidad de decisiones".
-// Persiste una entrada DecisionLog por cada llamada al agente (éxito o
-// fallback). Best-effort: si la persistencia falla, el agente sigue
-// respondiendo — la llamada principal no debe romper por el log.
+// La persistencia del DecisionLog ahora vive en `agentsService.persistDecisionLog`
+// (SPRINT-BACKEND-FINAL-001). El wrapper local se eliminó — la firma del
+// servicio es idéntica y el comportamiento non-blocking se conserva.
 //
-// SPRINT-AI-LLM-ADAPTER-001 §A-6 — ahora persiste también el model,
-// provider, tokens y costo USD de la llamada LLM (cuando el LLM
-// respondió; en fallback no hay usage y los campos quedan en null).
-async function persistDecisionLog(params: {
-  tenantId: string
-  agentName: string
-  conversationId?: string
-  ctx: unknown
-  result: { reply: string; confidence: number; error?: string }
-  llmData?: {
-    model?: string
-    provider?: string
-    usage?: TokenUsage
-    latencyMs?: number
-  }
-}) {
-  try {
-    const usage = params.llmData?.usage
-    await db.decisionLog.create({
-      data: {
-        tenantId: params.tenantId,
-        agentName: params.agentName,
-        conversationId: params.conversationId ?? null,
-        input: JSON.stringify(params.ctx),
-        output: JSON.stringify({
-          reply: params.result.reply,
-          confidence: params.result.confidence,
-          error: params.result.error ?? null,
-        }),
-        // El SDK actual no expone reasoning por separado — lo dejamos en null
-        // para futuras integraciones con modelos con chain-of-thought visible.
-        reasoning: null,
-        confidence: params.result.confidence,
-        // §A-6: tracking de tokens/costo/latencia (null cuando el LLM
-        // falló antes de responder — no hay usage disponible).
-        model: params.llmData?.model ?? null,
-        provider: params.llmData?.provider ?? null,
-        promptTokens: usage?.promptTokens ?? null,
-        completionTokens: usage?.completionTokens ?? null,
-        totalTokens: usage?.totalTokens ?? null,
-        costUsd: usage
-          ? calculateCost(params.llmData?.provider ?? 'zai', usage)
-          : null,
-        latencyMs: params.llmData?.latencyMs ?? null,
-      },
-    })
-  } catch (err) {
-    // Non-blocking: el log de decisión es secundario a la respuesta del
-    // agente. Se captura para observabilidad pero no se propaga.
-    log.warn(
-      { err, agentName: params.agentName, tenantId: params.tenantId },
-      'No se pudo persistir DecisionLog (non-blocking)',
-    )
-  }
-}
-
 // POST /api/agents/[agentName]
 // Body: AgentContext (tenantId required; conversationId/customerId/perfil/items/query/etc optional)
 // Returns: { reply, agent, confidence, error? }
 //
-// SPRINT8-SERVICES-REST-001 — left inline. The two db writes here are
-// side-effects after the LLM call (profile detection → conversation
-// update; vision JSON → ImageIdentification create). Per rule #2 (1-2
-// simple db calls OK to leave), the migration cost outweighs the benefit
-// — neither write benefits from a transaction or shared error surface.
-// TODO: migrate to service layer if more agent side-effects accumulate.
+// SPRINT-BACKEND-FINAL-001 — DB side-effects (tenant findUnique, conversation
+// update for profile detection, imageIdentification create for vision,
+// decisionLog create) migrated to `agentsService`. The route keeps the LLM
+// call, prompt building, output validation, confidence scoring + escalation.
 //
 // FIX-SECURITY-AUTH-001 (#30) — requireTenantAccess(ctx.tenantId). Any
 // authed user used to be able to run any agent against any tenant (LLM
@@ -242,10 +185,8 @@ export const POST = withErrorHandling(
     // `tenant.proveedorIa` viene del schema Prisma (default 'zai').
     // Si el tenant no existe (caso edge), dejamos que el adapter use
     // `LLM_PROVIDER` env var o su default ('zai').
-    const tenant = await db.tenant.findUnique({
-      where: { id: ctx.tenantId },
-      select: { proveedorIa: true },
-    })
+    // SPRINT-BACKEND-FINAL-001 — DB lookup migrated to `agentsService`.
+    const tenant = await agentsService.getTenantLlmProvider(ctx.tenantId)
 
     // FIX-AI-AGENTS-001 §A-1: el system prompt va con rol `system`
     // (antes iba con rol `assistant` — el modelo lo trataba como una
@@ -309,11 +250,12 @@ export const POST = withErrorHandling(
     // Para vision, el side-effect parsea el JSON del reply crudo (no del
     // Zod-validated parsed) porque los campos {sku, confianza, metodo}
     // no están en el VisionSchema de §A-2 — se mantiene la lógica original.
+    // SPRINT-BACKEND-FINAL-001 — DB writes migrated to `agentsService`.
     if (agentName === 'profile') {
       // Try to detect the profile from the reply and persist on conversation
       const detected = ['mayorista', 'emprendedor', 'detal', 'regalo'].find(p => reply.toLowerCase().includes(p))
       if (detected && ctx.conversationId) {
-        await db.conversation.update({ where: { id: ctx.conversationId }, data: { perfilConversacion: detected }})
+        await agentsService.persistDetectedProfile(ctx.conversationId, detected)
       }
     }
     if (agentName === 'vision' && ctx.imageUrl && ctx.tenantId) {
@@ -322,15 +264,13 @@ export const POST = withErrorHandling(
         const jsonMatch = reply.match(/\{[\s\S]*\}/)
         if (jsonMatch) {
           const parsedVision = JSON.parse(jsonMatch[0])
-          await db.imageIdentification.create({
-            data: {
-              tenantId: ctx.tenantId,
-              contactoId: ctx.customerId,
-              imagenUrl: ctx.imageUrl,
-              skuDetectado: parsedVision.sku || null,
-              metodo: parsedVision.metodo || 'vlm',
-              confianza: parsedVision.confianza != null ? Number(parsedVision.confianza) : 0,
-            }
+          await agentsService.persistImageIdentification({
+            tenantId: ctx.tenantId,
+            customerId: ctx.customerId,
+            imageUrl: ctx.imageUrl,
+            skuDetectado: parsedVision.sku || null,
+            metodo: parsedVision.metodo || 'vlm',
+            confianza: parsedVision.confianza != null ? Number(parsedVision.confianza) : 0,
           })
         }
       } catch { /* non-JSON reply, skip persist */ }
@@ -339,7 +279,7 @@ export const POST = withErrorHandling(
     // SPRINT-GOVERNANCE-001 — pilar #4: persistir la decisión del agente.
     // SPRINT-AI-LLM-ADAPTER-001 §A-6: persistimos también model/provider/
     // tokens/costo/latencia desde el resultado del adapter.
-    await persistDecisionLog({
+    await agentsService.persistDecisionLog({
       tenantId: ctx.tenantId,
       agentName,
       conversationId: ctx.conversationId,
@@ -380,7 +320,7 @@ export const POST = withErrorHandling(
     // (la trazabilidad cubre los casos de error del agente).
     // Si el LLM respondió pero una side-effect falló, persistimos el
     // usage; si el LLM no respondió (timeout/error), usage queda en null.
-    await persistDecisionLog({
+    await agentsService.persistDecisionLog({
       tenantId: ctx.tenantId,
       agentName,
       conversationId: ctx.conversationId,

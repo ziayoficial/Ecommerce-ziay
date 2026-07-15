@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireAuth, requireTenantAccess } from '@/lib/auth-helpers'
-import { db } from '@/lib/db'
 import { withErrorHandling } from '@/lib/middleware/api-error-handler'
+import { channelsService, CHANNEL_UPDATABLE_FIELDS } from '@/lib/services'
 
 // TD-2: Zod schemas for POST + PATCH. Both use `.passthrough()` so unknown
 // keys are preserved on `parseResult.data` (matches the previous behaviour
@@ -38,13 +38,9 @@ const UpdateChannelSchema = z.object({
 
 // Channel CRUD — list / create / update / deactivate.
 //
-// SPRINT8-SERVICES-REST-001 — left inline. Each method does at most 2 db
-// calls (one Channel write + one AuditLog insert). Per rule #2 (1-2
-// simple db calls OK to leave), a `channel.service.ts` would just be a
-// thin pass-through — the value of a service layer shows up when callers
-// share read paths or transactions, and the only other caller touching
-// `Channel` is `/api/payments/config` (which writes a single field).
-// TODO: migrate to service layer when channel verification flows land.
+// SPRINT-BACKEND-FINAL-001 — DB access migrated to `channelsService`.
+// The route owns: auth, request parsing, per-type required-field
+// validation, response shaping, masking of credential fields in GET.
 //
 // FIX-SECURITY-AUTH-001 (#12) — every entry point now enforces tenant
 // access. Previously `requireAuth()` only, allowing cross-tenant channel
@@ -71,10 +67,7 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
   const { error } = await requireTenantAccess(tenantId)
   if (error) return error
 
-  const channels = await db.channel.findMany({
-    where: { tenantId },
-    orderBy: { type: 'asc' },
-  })
+  const channels = await channelsService.listForTenant(tenantId)
   // Mask tokens — return hasToken flags instead of actual values
   const result = channels.map((c) => ({
     id: c.id, tenantId: c.tenantId, type: c.type, name: c.name, displayName: c.displayName,
@@ -126,31 +119,27 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     return NextResponse.json({ error: 'Instagram channels require igAccountId' }, { status: 400 })
   }
 
-  const channel = await db.channel.create({
-    data: {
-      tenantId, type, name, displayName,
-      accountId: body.accountId || null,
-      verified: body.verified || false,
-      active: body.active !== false,
-      country: body.country || null,
-      paymentStrategy: body.paymentStrategy || 'hybrid',
-      requirePrepayMin: body.requirePrepayMin || null,
-      prepayDiscountPct: body.prepayDiscountPct || 0,
-      codFee: body.codFee || 0,
-      // Credentials by type
-      wabaId: body.wabaId || null,
-      phoneNumberId: body.phoneNumberId || null,
-      whatsappToken: body.whatsappToken || null,
-      pageId: body.pageId || null,
-      pageAccessToken: body.pageAccessToken || null,
-      igAccountId: body.igAccountId || null,
-      verifyToken: body.verifyToken || null,
-      appSecret: body.appSecret || null,
-    },
-  })
-
-  await db.auditLog.create({
-    data: { tenantId, action: 'channel.created', entity: 'Channel', entityId: channel.id,  metadata: JSON.stringify({ type, name }) }
+  const channel = await channelsService.createChannel({
+    tenantId,
+    type,
+    name,
+    displayName,
+    accountId: body.accountId,
+    verified: body.verified,
+    active: body.active,
+    country: body.country,
+    paymentStrategy: body.paymentStrategy,
+    requirePrepayMin: body.requirePrepayMin,
+    prepayDiscountPct: body.prepayDiscountPct,
+    codFee: body.codFee,
+    wabaId: body.wabaId,
+    phoneNumberId: body.phoneNumberId,
+    whatsappToken: body.whatsappToken,
+    pageId: body.pageId,
+    pageAccessToken: body.pageAccessToken,
+    igAccountId: body.igAccountId,
+    verifyToken: body.verifyToken,
+    appSecret: body.appSecret,
   })
 
   return NextResponse.json({ channel: { id: channel.id, type: channel.type, name: channel.name } })
@@ -182,7 +171,7 @@ export const PATCH = withErrorHandling(async (req: NextRequest) => {
   // FIX-SECURITY-AUTH-001 (#12) — fetch the channel, verify tenant
   // ownership before update. Any authed user used to be able to mutate
   // any channel's credentials by id.
-  const existing = await db.channel.findUnique({ where: { id: channelId } })
+  const existing = await channelsService.getById(channelId)
   if (!existing) {
     return NextResponse.json({ error: 'channel not found' }, { status: 404 })
   }
@@ -196,21 +185,15 @@ export const PATCH = withErrorHandling(async (req: NextRequest) => {
 
   // Build update data — only update provided fields
   const updateData: Record<string, unknown> = {}
-  const allowedFields = [
-    'name', 'displayName', 'accountId', 'verified', 'active', 'country',
-    'paymentStrategy', 'requirePrepayMin', 'prepayDiscountPct', 'codFee',
-    'wabaId', 'phoneNumberId', 'whatsappToken', 'pageId', 'pageAccessToken',
-    'igAccountId', 'verifyToken', 'appSecret'
-  ]
-  for (const f of allowedFields) {
+  for (const f of CHANNEL_UPDATABLE_FIELDS) {
     if (fields[f] !== undefined) updateData[f] = fields[f]
   }
 
-  const channel = await db.channel.update({ where: { id: channelId }, data: updateData })
-
-  await db.auditLog.create({
-    data: { tenantId: channel.tenantId, action: 'channel.updated', entity: 'Channel', entityId: channelId, metadata: JSON.stringify(Object.keys(updateData)) }
-  })
+  const channel = await channelsService.updateChannel(
+    channelId,
+    existing.tenantId,
+    updateData,
+  )
 
   return NextResponse.json({ channel: { id: channel.id, name: channel.name, updated: Object.keys(updateData) } })
 })
@@ -231,7 +214,7 @@ export const DELETE = withErrorHandling(async (req: NextRequest) => {
   const channelId = req.nextUrl.searchParams.get('channelId')
   if (!channelId) return NextResponse.json({ error: 'channelId required' }, { status: 400 })
 
-  const channel = await db.channel.findUnique({ where: { id: channelId } })
+  const channel = await channelsService.getById(channelId)
   if (!channel) return NextResponse.json({ error: 'channel not found' }, { status: 404 })
 
   // FIX-SECURITY-AUTH-001 (#12) — tenant ownership check before delete.
@@ -244,11 +227,7 @@ export const DELETE = withErrorHandling(async (req: NextRequest) => {
   }
 
   // Soft delete — deactivate instead of hard delete to preserve conversation history
-  await db.channel.update({ where: { id: channelId }, data: { active: false } })
-
-  await db.auditLog.create({
-    data: { tenantId: channel.tenantId, action: 'channel.deactivated', entity: 'Channel', entityId: channelId, metadata: JSON.stringify({ name: channel.name }) }
-  })
+  await channelsService.deactivateChannel(channelId, channel.tenantId, channel.name)
 
   return NextResponse.json({ ok: true, deactivated: channelId })
 })

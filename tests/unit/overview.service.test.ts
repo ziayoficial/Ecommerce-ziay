@@ -461,3 +461,129 @@ describe('overviewService.getChartData', () => {
     )
   })
 })
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Sprint 15C edge cases (SPRINT-TESTS-COMPLETE-001)
+//
+// Additional coverage for the 4 task-listed branches beyond what the existing
+// 10 tests already exercise:
+//   - explicit "gap" test: orders on day 1 + day 3 of a 3-day window, with
+//     day 2 empty — verifies the empty bucket still appears with zeros.
+//   - channel split with 3 channels (one with revenue, two without).
+//   - error wrapping via a different parallel query (not just order.aggregate).
+// ─────────────────────────────────────────────────────────────────────────────
+describe('overviewService.getKPIs — Sprint 15C edge cases', () => {
+  it('fills empty buckets with zeros when there is a gap between filled days', async () => {
+    // 3-day window with orders on day 1 and day 3, day 2 empty. The
+    // dayMap populates all 3 buckets up-front with zeros, then the
+    // seriesOrders loop only fills the buckets whose date matches.
+    const today = new Date()
+    today.setHours(12, 0, 0, 0)
+    const twoDaysAgo = new Date(today)
+    twoDaysAgo.setDate(twoDaysAgo.getDate() - 2)
+    twoDaysAgo.setHours(10, 0, 0, 0)
+
+    primeMocks({
+      seriesOrders: [
+        { total: 1500, createdAt: today },
+        { total: 3000, createdAt: twoDaysAgo },
+      ],
+      seriesAdSpends: [
+        { spend: 100, date: today },
+        { spend: 200, date: twoDaysAgo },
+      ],
+    })
+
+    const result = await overviewService.getKPIs(3, 'ten-1')
+
+    expect(result.series).toHaveLength(3)
+    // Buckkets are ordered oldest → newest (the dayMap fills from
+    // days-1 down to 0, so series[0] is two days ago, series[2] is today).
+    const todayKey = today.toISOString().slice(0, 10)
+    const twoDaysAgoKey = twoDaysAgo.toISOString().slice(0, 10)
+    const gapKey = result.series.find(
+      (s) => s.date !== todayKey && s.date !== twoDaysAgoKey,
+    )?.date
+
+    expect(result.series[0]).toEqual({
+      date: twoDaysAgoKey,
+      revenue: 3000,
+      spend: 200,
+      orders: 1,
+    })
+    // The middle bucket (yesterday) has no orders/spend — must still
+    // appear with zeros (no div-by-zero, no missing bucket).
+    expect(result.series[1]).toEqual({
+      date: gapKey,
+      revenue: 0,
+      spend: 0,
+      orders: 0,
+    })
+    expect(result.series[2]).toEqual({
+      date: todayKey,
+      revenue: 1500,
+      spend: 100,
+      orders: 1,
+    })
+  })
+
+  it('channel split with 3 channels emits zero-revenue entries for channels with no matching groupBy row', async () => {
+    primeMocks({
+      channels: [
+        { id: 'ch-a', displayName: 'WhatsApp', type: 'whatsapp', paymentStrategy: 'advance' },
+        { id: 'ch-b', displayName: 'Messenger', type: 'messenger', paymentStrategy: 'cod' },
+        { id: 'ch-c', displayName: 'Instagram', type: 'instagram', paymentStrategy: 'cod' },
+      ],
+      channelGroups: [
+        // Only ch-b has matching orders
+        { channelId: 'ch-b', _sum: { total: 750_000 }, _count: { _all: 12 } },
+      ],
+    })
+
+    const result = await overviewService.getKPIs(7, 'ten-1')
+
+    expect(result.channelSplit).toEqual([
+      { id: 'ch-a', name: 'WhatsApp', type: 'whatsapp', orders: 0, revenue: 0, strategy: 'advance' },
+      { id: 'ch-b', name: 'Messenger', type: 'messenger', orders: 12, revenue: 750_000, strategy: 'cod' },
+      { id: 'ch-c', name: 'Instagram', type: 'instagram', orders: 0, revenue: 0, strategy: 'cod' },
+    ])
+  })
+
+  it('throws a wrapped Error when any of the 11 parallel queries rejects (not just order.aggregate)', async () => {
+    // Verify error wrapping fires for any query — exercise the
+    // conversation.count path which is the 8th query in the Promise.all.
+    primeMocks()
+    db.conversation.count.mockRejectedValueOnce(new Error('conv count boom'))
+
+    await expect(overviewService.getKPIs(7, 'ten-1')).rejects.toThrow(
+      'Failed to fetch overview KPIs',
+    )
+  })
+
+  it('empty data with zero orders + zero spend returns zeros for every derived KPI (no NaN, no Infinity)', async () => {
+    // Belt-and-suspenders for the div-by-zero guard: explicitly verify
+    // that BOTH spend=0 (roi/roas/cpa) AND orders=0 (aov/advanceRate)
+    // paths return 0 (not NaN, not Infinity).
+    primeMocks()
+
+    const result = await overviewService.getKPIs(14, 'ten-empty')
+
+    expect(result.kpis.revenue).toBe(0)
+    expect(result.kpis.revenuePaid).toBe(0)
+    expect(result.kpis.totalSpend).toBe(0)
+    expect(result.kpis.orders).toBe(0)
+    expect(result.kpis.roi).toBe(0)
+    expect(result.kpis.roas).toBe(0)
+    expect(result.kpis.cpa).toBe(0)
+    expect(result.kpis.aov).toBe(0)
+    expect(result.kpis.advanceRate).toBe(0)
+    expect(result.kpis.ctr).toBe(0)
+    expect(result.kpis.grossProfit).toBe(0)
+    expect(result.kpis.netProfit).toBe(0)
+    // No NaN / Infinity leaks — Number.isFinite returns false for both.
+    expect(Number.isFinite(result.kpis.roi)).toBe(true)
+    expect(Number.isFinite(result.kpis.roas)).toBe(true)
+    expect(Number.isFinite(result.kpis.cpa)).toBe(true)
+    expect(Number.isFinite(result.kpis.aov)).toBe(true)
+  })
+})

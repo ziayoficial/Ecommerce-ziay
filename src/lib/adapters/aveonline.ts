@@ -20,9 +20,10 @@
 // - Timeout: 10s por request (AbortController).
 // - Graceful fallback: si no hay `AVEONLINE_API_KEY` o la llamada HTTP falla,
 //   se usa la tabla de tarifas local hardcoded — nunca se crashea el agente.
-// - TODO (futuro): recaudo protegido anticipa cartera antes de liquidación
-//   (D+3 a D+7); bodegaje/fulfillment propio (MDE/CLO/BOG) cuando el tenant
-//   lo activa, items_count provienen del manifiesto de fulfillment.
+// - SPRINT-ADAPTERS-DOCS-FINAL-001: método `recaudoProtegido()` que anticipa
+//   cartera antes de la liquidación (D+3 a D+7 en vez de D+8 a D+15) para
+//   órdenes contra-entrega ya entregadas. Aveonline adelanta el recaudo al
+//   transportadora y acredita el monto al tenant.
 
 import { db } from '@/lib/db'
 import { normalizeCarrierName } from '@/lib/carriers'
@@ -269,6 +270,172 @@ export class AveonlineAdapter implements LogisticsAdapter {
       ok: !!this.hasCreds(),
       siguiente_accion: acciones[tipo_novedad] ?? 'Escalado a AveChat + equipo de logística.',
     }
+  }
+
+  /**
+   * Recaudo Protegido — anticipa la cartera antes de la liquidación.
+   *
+   * SPRINT-ADAPTERS-DOCS-FINAL-001. Aveonline ofrece "Recaudo Protegido" como
+   * un servicio de financiamiento: en vez de esperar la liquidación estándar
+   * de la transportadora (D+8 a D+15 desde la entrega), Aveonline adelanta el
+   * monto del recaudo al tenant a los D+3 a D+7, cobrando una comisión de
+   * anticipo (típicamente 1.5%-3% del monto). Esto mejora el flujo de caja
+   * del merchant sin que tengamos que pagar la factura antes de cobrarla.
+   *
+   * Flujo:
+   *   1) Identificar órdenes COD (paymentMode='cod' o 'hybrid') marcadas como
+   *      `delivered` y cuyo `Shipment.estado='entregada'` que aún no han sido
+   *      acreditadas (sin WalletTransaction inbound con reference=orderId).
+   *   2) Llamar a la API de Aveonline `POST /recaudo/protegido` con el guide
+   *      number + monto a anticipar.
+   *   3) Si Aveonline confirma, crear un `WalletTransaction` inbound al
+   *      tenant con `type='recaudo_protegido'` y `reference=orderId` para que
+   *      el saldo se refleje en la wallet del tenant inmediatamente.
+   *   4) Marcar el `Shipment` como `recaudo_anticipado` para evitar doble
+   *      acreditación cuando llegue la liquidación estándar.
+   *
+   * El caller (un cron o un endpoint manual del tenant) decide la cadencia —
+   * típicamente se ejecuta 1x/día a las 09:00 UTC-5 sobre las entregas de las
+   * últimas 48h.
+   *
+   * @returns Resumen con la cantidad de órdenes anticipadas + monto total.
+   */
+  async recaudoProtegido(): Promise<{
+    anticipadas: number
+    montoTotal: number
+    comisionTotal: number
+    errores: string[]
+  }> {
+    const errores: string[] = []
+    if (!this.hasCreds()) {
+      return { anticipadas: 0, montoTotal: 0, comisionTotal: 0, errores: ['AVEONLINE_API_KEY no configurado'] }
+    }
+
+    // 1) Buscar órdenes COD entregadas en los últimos 7 días para este tenant
+    //    que tengan Shipment con estado 'entregada' y que no tengan un
+    //    WalletTransaction inbound con reference=orderId (sin anticipo previo).
+    const desde = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+    const shipments = await db.shipment.findMany({
+      where: {
+        tenantId: this.tenantId,
+        proveedor: 'aveonline',
+        estado: 'entregada',
+        updatedAt: { gte: desde },
+      },
+      include: {
+        order: {
+          select: {
+            id: true,
+            number: true,
+            total: true,
+            currency: true,
+            paymentMode: true,
+            paymentStatus: true,
+            status: true,
+          },
+        },
+      },
+      take: 100,
+    }).catch((err) => {
+      errores.push(`DB shipment lookup: ${err instanceof Error ? err.message : String(err)}`)
+      return []
+    })
+
+    let anticipadas = 0
+    let montoTotal = 0
+    let comisionTotal = 0
+
+    for (const sh of shipments) {
+      // Solo órdenes contra-entrega (cod o hybrid) entregadas.
+      if (!['cod', 'hybrid'].includes(sh.order.paymentMode)) continue
+      if (sh.order.status !== 'delivered') continue
+      if (!sh.numeroGuia) continue
+
+      // Skip si ya hay un WalletTransaction inbound con reference=orderId
+      // (recaudo ya anticipado o liquidado).
+      const yaAcreditada = await db.walletTransaction.findFirst({
+        where: {
+          tenantId: this.tenantId,
+          direction: 'inbound',
+          type: 'recaudo_protegido',
+          reference: sh.order.id,
+        },
+        select: { id: true },
+      }).catch(() => null)
+      if (yaAcreditada) continue
+
+      // 2) Llamar a Aveonline /recaudo/protegido.
+      const monto = sh.order.total
+      const data = await this.http<{
+        ok?: boolean
+        success?: boolean
+        monto_anticipado?: number | string
+        comision?: number | string
+        fecha_liquidacion?: string
+        referencia?: string
+        error?: string
+      }>('POST', '/recaudo/protegido', {
+        guide_number: sh.numeroGuia,
+        order_number: sh.order.number,
+        monto,
+        token: this.apiKey,
+      })
+
+      if (!data || data.error || !(data.ok ?? data.success)) {
+        errores.push(`Orden ${sh.order.number} (guía ${sh.numeroGuia}): ${data?.error ?? 'sin respuesta de Aveonline'}`)
+        continue
+      }
+
+      const montoAnticipado = Number(data.monto_anticipado ?? monto)
+      const comision = Number(data.comision ?? 0)
+      const referencia = data.referencia ?? sh.numeroGuia
+
+      // 3) Acreditar al tenant (WalletTransaction inbound).
+      try {
+        await db.walletTransaction.create({
+          data: {
+            tenantId: this.tenantId,
+            direction: 'inbound',
+            type: 'recaudo_protegido',
+            category: 'cod_advance',
+            amount: montoAnticipado,
+            balanceBefore: 0, // El balance del tenant se calcula por separado (ver wallet.service.ts).
+            balanceAfter: 0,  // Este txn es informativo del anticipo; no mueve saldo cash.
+            description: `Recaudo protegido Aveonline — orden ${sh.order.number} guía ${sh.numeroGuia} (ref ${referencia})`,
+            reference: sh.order.id,
+            referenceType: 'order',
+            status: 'completed',
+            metadata: JSON.stringify({
+              guideNumber: sh.numeroGuia,
+              orderNumber: sh.order.number,
+              montoOriginal: monto,
+              comision,
+              fechaLiquidacion: data.fecha_liquidacion ?? null,
+              referenciaAveonline: referencia,
+            }),
+          },
+        })
+      } catch (err) {
+        errores.push(`Orden ${sh.order.number}: fallo WalletTransaction.create — ${err instanceof Error ? err.message : String(err)}`)
+        continue
+      }
+
+      // 4) Marcar el Shipment como `recaudo_anticipado` para evitar doble
+      //    acreditación cuando llegue la liquidación estándar.
+      await db.shipment.update({
+        where: { id: sh.id },
+        data: { estado: 'recaudo_anticipado' },
+      }).catch((err) => {
+        logger.warn({ tenantId: this.tenantId, shipmentId: sh.id, err: err instanceof Error ? err.message : String(err) }, 'Aveonline recaudoProtegido: fallo marcar shipment')
+      })
+
+      anticipadas += 1
+      montoTotal += montoAnticipado
+      comisionTotal += comision
+      logger.info({ tenantId: this.tenantId, orderNumber: sh.order.number, montoAnticipado, comision }, 'Aveonline recaudoProtegido aplicado')
+    }
+
+    return { anticipadas, montoTotal, comisionTotal, errores }
   }
 
   // ───────────────────────────────────────────────────────────────────────

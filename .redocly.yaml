@@ -12,12 +12,12 @@ extends:
   - recommended
 
 rules:
-  # Most operations in this spec return only 2XX (the route handlers fall
-  # through to a central error handler that returns a generic 500). Forcing
-  # every operation to declare a 4XX response would balloon the spec without
-  # adding real documentation value — the global ErrorResponse schema is
-  # referenced where a 4XX is actually part of the contract (auth, validation).
-  operation-4xx-response: off
+  # SPRINT-ADAPTERS-DOCS-FINAL-001 — Re-enabled after programmatically adding
+  # 4XX responses to all 136 operations in docs/openapi.yaml (script:
+  # scripts/sprint-15b/add_4xx_responses.py). Public/webhook endpoints get only
+  # '400' (no 401/403 — they don't use sessionAuth); auth-protected endpoints
+  # get 400/401/403 via $ref to components/responses.
+  operation-4xx-response: error
 
   # The spec ships a few reusable schemas (PaginatedResponse, TenantIdQuery,
   # MandateVC, ServerError, …) that are part of the public API contract for

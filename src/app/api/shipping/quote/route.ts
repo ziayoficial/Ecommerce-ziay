@@ -7,11 +7,9 @@
 // valor real se fija al generar la guía); pero dejamos un log en AuditLog
 // para trazabilidad.
 //
-// SPRINT8-SERVICES-REST-001 — left inline. The only db call here is a
-// single `db.auditLog.create` after the adapter returns. Per rule #2
-// (1-2 simple db calls OK to leave), a one-row audit-log insert doesn't
-// warrant a service method.
-// TODO: migrate to service layer if quote caching/persistence is added.
+// SPRINT-BACKEND-FINAL-001 — the AuditLog write migrated to
+// `logisticsService.logShippingQuote`. The route keeps: auth, request
+// parsing, the LogisticsAdapter call, response shaping.
 //
 // FIX-SECURITY-AUTH-001 (#26) — requireTenantAccess(tenantId). Any authed
 // user used to be able to burn any tenant's external logistics API quota.
@@ -20,7 +18,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireTenantAccess } from '@/lib/auth-helpers'
 import { getLogisticsAdapter } from '@/lib/adapters/registry'
-import { db } from '@/lib/db'
+import { logisticsService } from '@/lib/services'
 import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 
 // TD-2: Zod schema for shipping quote POST.
@@ -68,20 +66,15 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
 
     // Trazabilidad: registramos la cotización en audit log (no en tabla de
     // cotizaciones_flete dedicada — ese caché se puede añadir más adelante).
-    await db.auditLog.create({
-      data: {
-        tenantId,
-        action: 'shipping_quote',
-        entity: 'shipment',
-        metadata: JSON.stringify({
-          ciudad,
-          pais: paisNorm,
-          cantidad_unidades: cantidad,
-          tarifa: quote.tarifa,
-          tiempo_estimado_dias: quote.tiempo_estimado_dias,
-          transportadora: quote.transportadora,
-        }),
-      },
+    // SPRINT-BACKEND-FINAL-001 — DB write migrated to `logisticsService.logShippingQuote`.
+    await logisticsService.logShippingQuote({
+      tenantId,
+      ciudad,
+      pais: paisNorm,
+      cantidadUnidades: cantidad,
+      tarifa: quote.tarifa,
+      tiempoEstimadoDias: quote.tiempo_estimado_dias,
+      transportadora: quote.transportadora,
     })
 
     return NextResponse.json({

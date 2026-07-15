@@ -237,11 +237,65 @@ registerJobHandler('capi-fire', async (payload) => {
   for (let i = 0; i < pixels.length; i++) {
     const pixel = pixels[i]
     const eventId = eventIds[i]
-    const result = await fireCapiPlatform(pixel, { eventType, value, currency })
+
+    // SPRINT-BACKEND-FINAL-001 — fetch the ConversionEvent row to extract
+    // the deduplication `event_id` stored in its `response` JSON (set by
+    // `fireCapiPurchaseEvent` as `order-<id>-<platform>`). Forwarding
+    // `event_id` to Meta lets the platform dedupe CAPI events against
+    // pixel-fired (browser) events that share the same id — closing the
+    // attribution loop without double-counting. Best-effort: if the row
+    // can't be loaded (already deleted, JSON malformed, …) we still fire
+    // without an event_id — Meta will dedupe on (event_name, event_time,
+    // user_data) hash instead, slightly less reliable but non-blocking.
+    let dedupEventId: string | undefined
+    let existingMeta: Record<string, unknown> = {}
     try {
+      const row = await db.conversionEvent.findUnique({
+        where: { id: eventId },
+        select: { response: true },
+      })
+      if (row?.response) {
+        try {
+          const parsed = JSON.parse(row.response)
+          if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+            existingMeta = parsed as Record<string, unknown>
+            const maybeEventId = existingMeta.eventId
+            if (typeof maybeEventId === 'string' && maybeEventId.length > 0) {
+              dedupEventId = maybeEventId
+            }
+          }
+        } catch {
+          // malformed JSON in `response` — fall back to no event_id.
+        }
+      }
+    } catch (loadErr) {
+      captureError(loadErr, {
+        action: 'capi-fire:load-event',
+        eventId,
+        pixelConfigId: pixel.id,
+      })
+    }
+
+    const result = await fireCapiPlatform(pixel, {
+      eventType,
+      value,
+      currency,
+      eventId: dedupEventId,
+    })
+    try {
+      // SPRINT-BACKEND-FINAL-001 — preserve the original metadata
+      // (orderId, eventId, clickId, hashed PII, …) by merging the
+      // platform response into the existing JSON rather than
+      // overwriting it. That way a replay (re-enqueued capi-fire job)
+      // can still extract the dedup event_id + the attribution context.
+      const mergedResponse = JSON.stringify({
+        ...existingMeta,
+        platformStatus: result.status,
+        platformResponse: result.response,
+      })
       await db.conversionEvent.update({
         where: { id: eventId },
-        data: { status: result.status, response: result.response },
+        data: { status: result.status, response: mergedResponse },
       })
     } catch (err) {
       captureError(err, {
@@ -252,7 +306,7 @@ registerJobHandler('capi-fire', async (payload) => {
     }
     if (result.status === 'sent') {
       log.info(
-        { tenantId, platform: pixel.platform, pixelConfigId: pixel.id, eventType },
+        { tenantId, platform: pixel.platform, pixelConfigId: pixel.id, eventType, dedupEventId: dedupEventId ?? null },
         'platform fire success',
       )
     } else {
@@ -428,6 +482,14 @@ interface CapiEvent {
   eventType: string
   value: number | null
   currency: string
+  /**
+   * SPRINT-BACKEND-FINAL-001 — deduplication `event_id` forwarded to the
+   * platform (Meta / Google / TikTok). Lets the platform dedupe CAPI
+   * events against pixel-fired (browser) events that share the same id.
+   * Undefined when the ConversionEvent row's `response` JSON didn't
+   * carry an `eventId` (legacy row or JSON malformed).
+   */
+  eventId?: string
 }
 
 async function fireCapiPlatform(
@@ -465,6 +527,12 @@ async function fireMeta(
         event_name: event.eventType,
         event_time: Math.floor(Date.now() / 1000),
         action_source: 'system',
+        // SPRINT-BACKEND-FINAL-001 — forward the dedup `event_id` so Meta
+        // can match this CAPI event against the browser pixel event with
+        // the same id (set by capi-auto-fire as `order-<id>-meta`).
+        // Omitted when undefined so the payload stays clean for legacy
+        // events without a stored eventId.
+        ...(event.eventId ? { event_id: event.eventId } : {}),
         value: event.value ?? 0,
         currency: event.currency,
         test_event_code: pixel.testMode ? 'TEST12345' : undefined,
@@ -497,7 +565,14 @@ async function fireGoogle(
     events: [
       {
         name: event.eventType.toLowerCase(),
-        params: { value: event.value ?? 0, currency: event.currency },
+        params: {
+          value: event.value ?? 0,
+          currency: event.currency,
+          // SPRINT-BACKEND-FINAL-001 — GA4 dedup: `event_id` in params
+          // lets the platform dedupe against gtag-fired events with the
+          // same id. Omitted when undefined.
+          ...(event.eventId ? { event_id: event.eventId } : {}),
+        },
       },
     ],
   }
@@ -526,6 +601,10 @@ async function fireTikTok(
     pixel_code: pixel.pixelId,
     event: event.eventType,
     event_time: Math.floor(Date.now() / 1000),
+    // SPRINT-BACKEND-FINAL-001 — TikTok dedup: `event_id` at the top
+    // level lets the platform dedupe against pixel-fired events with
+    // the same id. Omitted when undefined.
+    ...(event.eventId ? { event_id: event.eventId } : {}),
     value: event.value ?? 0,
     currency: event.currency,
     test_event_code: pixel.testMode ? 'TEST12345' : undefined,

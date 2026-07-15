@@ -72,3 +72,38 @@ export type { WalletService } from './wallet.service'
 // withdrawals / record-transaction; Trafficker owns the rest.
 export { traffickerService } from './trafficker.service'
 export type { TraffickerService } from './trafficker.service'
+
+// SPRINT-BACKEND-FINAL-001 — additional service files migrated from inline
+// route handlers. Each owns a single bounded context that was previously
+// touched directly by `db.*` calls in the corresponding route.
+export { remarketingService } from './remarketing.service'
+export type { RemarketingService, CustomerPhoneLookup } from './remarketing.service'
+
+export {
+  credentialsService,
+  resolveCredentialNamespace,
+  credKeyPrefix,
+  integrationIdToCredKey,
+  credKeyToIntegrationId,
+  maskAllCredentialFields,
+  parseCredValue,
+} from './credentials.service'
+export type { CredentialsService } from './credentials.service'
+
+export { agentsService } from './agents.service'
+export type { AgentsService } from './agents.service'
+
+export { channelsService, CHANNEL_UPDATABLE_FIELDS } from './channels.service'
+export type { ChannelsService, CreateChannelInput } from './channels.service'
+
+export { orchestrateService } from './orchestrate.service'
+export type { OrchestrateService } from './orchestrate.service'
+
+export { tenantsService } from './tenants.service'
+export type { TenantsService } from './tenants.service'
+
+export {
+  paymentsConfigService,
+  ALLOWED_PAYMENTS_SETTING_KEYS,
+} from './payments-config.service'
+export type { PaymentsConfigService } from './payments-config.service'

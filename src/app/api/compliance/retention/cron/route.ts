@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { runRetentionCleanup } from '@/lib/compliance/retention'
+import { db } from '@/lib/db'
+import { captureError } from '@/lib/capture-error'
 import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -55,5 +57,26 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
   }
 
   const results = await runRetentionCleanup()
+
+  // SPRINT-BACKEND-FINAL-001 — persist last-run timestamp so the
+  // `/api/compliance/retention` GET handler can surface "última ejecución"
+  // without scanning the audit log. Best-effort: a transient DB error here
+  // does NOT fail the cron response — the retention work has already been
+  // done + the audit-log row (written by `runRetentionCleanup` itself)
+  // already records the sweep.
+  try {
+    await db.setting.upsert({
+      where: { key: 'compliance::retention::lastRun' },
+      update: { value: new Date().toISOString() },
+      create: { key: 'compliance::retention::lastRun', value: new Date().toISOString() },
+    })
+  } catch (settingErr) {
+    captureError(settingErr as Error, {
+      path: '/api/compliance/retention/cron',
+      method: 'GET',
+      step: 'last-run-setting-write',
+    })
+  }
+
   return NextResponse.json({ success: true, results })
 })

@@ -450,3 +450,119 @@ describe('logisticsService.upsertBuyerBehavior', () => {
     ).rejects.toThrow('Failed to upsert buyer behavior')
   })
 })
+
+// ─────────────────────────────────────────────────────────────────────────────
+// getStuckGuides — added in SPRINT-TESTS-COMPLETE-001
+//
+// Stuck-guide leaderboard: rows where status='stuck' OR daysStuck>3, capped
+// at 100 so the dashboard never renders thousands of rows.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('logisticsService.getStuckGuides', () => {
+  it('returns guides stuck for >3 days OR with status=stuck, capped at 100, ordered by daysStuck desc', async () => {
+    const stuck = [
+      {
+        id: 'gt-1',
+        tenantId: 'ten-1',
+        guideNumber: 'GUIDE-001',
+        status: 'stuck',
+        daysStuck: 8,
+      },
+      {
+        id: 'gt-2',
+        tenantId: 'ten-1',
+        guideNumber: 'GUIDE-002',
+        status: 'in_transit',
+        daysStuck: 5,
+      },
+    ]
+    db.guideTracking.findMany.mockResolvedValue(stuck)
+
+    const result = await logisticsService.getStuckGuides('ten-1')
+
+    expect(result).toEqual(stuck)
+    expect(db.guideTracking.findMany).toHaveBeenCalledWith({
+      where: {
+        tenantId: 'ten-1',
+        OR: [{ status: 'stuck' }, { daysStuck: { gt: 3 } }],
+      },
+      orderBy: { daysStuck: 'desc' },
+      take: 100,
+    })
+  })
+
+  it('returns an empty array when the tenant has no stuck guides', async () => {
+    db.guideTracking.findMany.mockResolvedValue([])
+    const result = await logisticsService.getStuckGuides('ten-clean')
+    expect(result).toEqual([])
+  })
+
+  it('throws a wrapped Error when the underlying db call rejects', async () => {
+    db.guideTracking.findMany.mockRejectedValue(new Error('boom'))
+    await expect(logisticsService.getStuckGuides('ten-1')).rejects.toThrow(
+      'Failed to fetch stuck guides',
+    )
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// getGuideMovements — added in SPRINT-TESTS-COMPLETE-001
+//
+// Lists GuideMovement rows for a tenant, optionally filtered by guideNumber.
+// Caps at 200 rows when a guideNumber is given (full history) or 100
+// (tenant-wide).
+// ─────────────────────────────────────────────────────────────────────────────
+describe('logisticsService.getGuideMovements', () => {
+  it('returns tenant-wide movements capped at 100 when no guideNumber is provided', async () => {
+    const movements = [
+      {
+        id: 'gm-1',
+        tenantId: 'ten-1',
+        guideNumber: 'GUIDE-001',
+        eventType: 'in_transit',
+        createdAt: new Date(),
+      },
+      {
+        id: 'gm-2',
+        tenantId: 'ten-1',
+        guideNumber: 'GUIDE-002',
+        eventType: 'delivered',
+        createdAt: new Date(),
+      },
+    ]
+    db.guideMovement.findMany.mockResolvedValue(movements)
+
+    const result = await logisticsService.getGuideMovements('ten-1')
+
+    expect(result).toEqual(movements)
+    expect(db.guideMovement.findMany).toHaveBeenCalledWith({
+      where: { tenantId: 'ten-1' },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    })
+  })
+
+  it('filters by guideNumber + caps at 200 when guideNumber is provided (full history)', async () => {
+    db.guideMovement.findMany.mockResolvedValue([])
+
+    await logisticsService.getGuideMovements('ten-1', 'GUIDE-001')
+
+    expect(db.guideMovement.findMany).toHaveBeenCalledWith({
+      where: { tenantId: 'ten-1', guideNumber: 'GUIDE-001' },
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+    })
+  })
+
+  it('returns an empty array when the tenant has no movements', async () => {
+    db.guideMovement.findMany.mockResolvedValue([])
+    const result = await logisticsService.getGuideMovements('ten-empty')
+    expect(result).toEqual([])
+  })
+
+  it('throws a wrapped Error when the underlying db call rejects', async () => {
+    db.guideMovement.findMany.mockRejectedValue(new Error('db down'))
+    await expect(logisticsService.getGuideMovements('ten-1')).rejects.toThrow(
+      'Failed to fetch guide movements',
+    )
+  })
+})

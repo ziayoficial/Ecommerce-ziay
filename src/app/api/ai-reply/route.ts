@@ -2,11 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireTenantAccess } from '@/lib/auth-helpers'
 import { rateLimit } from '@/lib/middleware/rate-limit'
-import { db } from '@/lib/db'
 // SPRINT-AI-LLM-ADAPTER-001 — reemplazo de la llamada directa al SDK de ZAI por el
 // adapter pluggable. Provider resuelto desde `tenant.proveedorIa`.
 import { chat, type LLMChatResult } from '@/lib/llm/adapter'
-import { calculateCost } from '@/lib/llm/costs'
 // SPRINT-AI-LLM-ADAPTER-001 §A-7 — truncado del historial para prevenir
 // desbordamiento del context window en conversaciones largas.
 import { truncateHistory, type Message } from '@/lib/agents/history'
@@ -29,6 +27,11 @@ import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 // before they reach the DB lookup + the LLM system prompt. Strips
 // null bytes (log-injection) + trims whitespace (DB lookup miss).
 import { sanitizeParsed } from '@/lib/middleware/sanitize'
+// SPRINT-BACKEND-FINAL-001 — DB access migrated to the service layer.
+// `conversationService` owns the LLM-context reads (conversation,
+// tenant provider, catalog slice); `agentsService` owns the
+// DecisionLog persistence (shared with /api/agents/[agentName]).
+import { conversationService, agentsService } from '@/lib/services'
 
 // TD-2: Zod schema for ai-reply POST.
 const AiReplySchema = z.object({
@@ -40,17 +43,11 @@ const AiReplySchema = z.object({
 // Generates context-aware sales replies using the LLM skill.
 // Uses conversation history + channel payment strategy + catalog context.
 //
-// SPRINT8-SERVICES-REST-001 — left inline. The two db calls here
-// (conversation.findUnique with messages/customer/channel relations +
-// product.findMany for catalog context) load LLM context, not data for
-// the response. Per rule #2 (1-2 simple db calls OK to leave), the
-// existing `conversationService.getConversationById` would also clear
-// the unread badge (side-effect we don't want here) and `catalogService.
-// getProducts` filters by `active=true` but doesn't take a `take` limit
-// (the route uses `take: 8`). The shapes don't match cleanly — migrate
-// only when those services gain LLM-context-shaped methods.
-// TODO: migrate to service layer when conversationService gains a
-// "context-only" read method (no side-effects).
+// SPRINT-BACKEND-FINAL-001 — DB access migrated to the service layer.
+// `conversationService` owns the LLM-context reads (conversation,
+// tenant provider, catalog slice); `agentsService` owns the DecisionLog
+// persistence (shared with /api/agents/[agentName]). The route keeps
+// the LLM call, prompt building, confidence scoring + escalation emit.
 //
 // FIX-SECURITY-AUTH-001 (#11) — fetch the conversation, verify tenant
 // ownership before the LLM call. Any authed user used to be able to feed
@@ -95,14 +92,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     tone?: string
   }
 
-  const conv = await db.conversation.findUnique({
-    where: { id: conversationId },
-    include: {
-      customer: true,
-      channel: true,
-      messages: { orderBy: { createdAt: 'asc' }, take: 12 },
-    },
-  })
+  const conv = await conversationService.getConversationContextForAiReply(conversationId)
   if (!conv) return NextResponse.json({ error: 'conversation not found' }, { status: 404 })
 
   // FIX-SECURITY-AUTH-001 (#11) — tenant gate before the LLM gets fed PII.
@@ -122,7 +112,8 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   }
 
   // Build context for the model
-  const products = await db.product.findMany({ where: { active: true, tenantId: conv.tenantId }, take: 8 })
+  // SPRINT-BACKEND-FINAL-001 — DB read migrated to `conversationService.getCatalogContext`.
+  const products = await conversationService.getCatalogContext(conv.tenantId, 8)
   const catalog = products.map(p => `- ${p.name} ($${p.price.toLocaleString('es-CO')} COP, sku ${p.sku})`).join('\n')
 
   const strategyText = (() => {
@@ -143,10 +134,8 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
 
   // SPRINT-AI-LLM-ADAPTER-001 — resolver el provider desde el tenant.
   // Reutilizamos el tenantId del conversation (ya cargado con customer/channel).
-  const tenant = await db.tenant.findUnique({
-    where: { id: conv.tenantId },
-    select: { proveedorIa: true },
-  })
+  // SPRINT-BACKEND-FINAL-001 — DB read migrated to `conversationService.getTenantLlmProvider`.
+  const tenant = await conversationService.getTenantLlmProvider(conv.tenantId)
 
   const systemPrompt = `Eres un asistente de ventas conversacional experto para una tienda de belleza y cuidado personal en Colombia (y expansión internacional).
 Canal: ${conv.channel.displayName} (${conv.channel.type}).
@@ -223,31 +212,20 @@ Tono: ${tone}, cálido, cercano (estilo LATAM), emojis moderados. Máximo 2 mens
     // en DecisionLog. El path de éxito antes no persistía nada; ahora
     // registramos tokens y costo para observabilidad (¿cuánto cobra cada
     // respuesta automática al tenant?).
-    try {
-      const usage = llmResult.usage
-      await db.decisionLog.create({
-        data: {
-          tenantId: conv.tenantId,
-          agentName: 'ai_reply',
-          conversationId: conv.id,
-          input: JSON.stringify({ conversationId: conv.id, tone }),
-          output: JSON.stringify({ reply, confidence }),
-          reasoning: null,
-          confidence,
-          model: llmResult.model ?? null,
-          provider: llmResult.provider ?? null,
-          promptTokens: usage?.promptTokens ?? null,
-          completionTokens: usage?.completionTokens ?? null,
-          totalTokens: usage?.totalTokens ?? null,
-          costUsd: usage
-            ? calculateCost(llmResult.provider ?? 'zai', usage)
-            : null,
-          latencyMs: Date.now() - startTime,
-        },
-      })
-    } catch {
-      // Non-blocking: la trazabilidad es best-effort.
-    }
+    // SPRINT-BACKEND-FINAL-001 — DB write migrated to `agentsService.persistDecisionLog`.
+    await agentsService.persistDecisionLog({
+      tenantId: conv.tenantId,
+      agentName: 'ai_reply',
+      conversationId: conv.id,
+      ctx: { conversationId: conv.id, tone },
+      result: { reply, confidence },
+      llmData: {
+        model: llmResult.model,
+        provider: llmResult.provider,
+        usage: llmResult.usage,
+        latencyMs: Date.now() - startTime,
+      },
+    })
 
     return NextResponse.json({ reply, confidence })
   } catch (err) {
@@ -261,33 +239,22 @@ Tono: ${tone}, cálido, cercano (estilo LATAM), emojis moderados. Máximo 2 mens
     const confidence = 0.1
     // §A-3 auto-escalación: 0.1 < 0.6 → persistir DecisionLog con
     // `humanReviewed: false` y emitir `agent:low_confidence` al tenant.
-    try {
-      await db.decisionLog.create({
-        data: {
-          tenantId: conv.tenantId,
-          agentName: 'ai_reply',
-          conversationId: conv.id,
-          input: JSON.stringify({ conversationId: conv.id, tone }),
-          output: JSON.stringify({ reply: fallback, confidence, error: message }),
-          reasoning: null,
-          confidence,
-          // §A-6: si el LLM respondió antes de fallar una side-effect
-          // (raro), tenemos usage; si no, queda en null.
-          model: llmResult?.model ?? null,
-          provider: llmResult?.provider ?? null,
-          promptTokens: llmResult?.usage?.promptTokens ?? null,
-          completionTokens: llmResult?.usage?.completionTokens ?? null,
-          totalTokens: llmResult?.usage?.totalTokens ?? null,
-          costUsd: llmResult?.usage
-            ? calculateCost(llmResult.provider ?? 'zai', llmResult.usage)
-            : null,
-          latencyMs: Date.now() - startTime,
-          // humanReviewed: false (default del schema Prisma).
-        },
-      })
-    } catch {
-      // Non-blocking: la escalada es best-effort.
-    }
+    // SPRINT-BACKEND-FINAL-001 — DB write migrated to `agentsService.persistDecisionLog`.
+    await agentsService.persistDecisionLog({
+      tenantId: conv.tenantId,
+      agentName: 'ai_reply',
+      conversationId: conv.id,
+      ctx: { conversationId: conv.id, tone },
+      result: { reply: fallback, confidence, error: message },
+      llmData: llmResult
+        ? {
+            model: llmResult.model,
+            provider: llmResult.provider,
+            usage: llmResult.usage,
+            latencyMs: Date.now() - startTime,
+          }
+        : undefined,
+    })
     emitToTenant(conv.tenantId, 'agent:low_confidence', {
       agentName: 'ai_reply',
       conversationId: conv.id,

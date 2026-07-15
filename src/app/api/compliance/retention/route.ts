@@ -47,6 +47,7 @@ export const GET = withErrorHandling(async (_req: NextRequest) => {
       auditLogsTotal,
       consentsRevokedTotal,
       decisionLogsTotal,
+      lastRunSetting,
     ] = await Promise.all([
       db.customer.count(),
       db.conversation.count(),
@@ -54,7 +55,14 @@ export const GET = withErrorHandling(async (_req: NextRequest) => {
       db.auditLog.count(),
       db.consentRecord.count({ where: { granted: false } }),
       db.decisionLog.count(),
+      db.setting.findFirst({ where: { key: 'compliance::retention::lastRun' } }),
     ])
+
+    // SPRINT-BACKEND-FINAL-001 — persist last-run timestamp to a Setting row
+    // keyed `compliance::retention::lastRun` (ISO string). The GET handler
+    // reads it back so the dashboard can surface "última ejecución" without
+    // scanning the audit log. `null` when no sweep has run yet.
+    const lastRun = lastRunSetting ? new Date(lastRunSetting.value) : null
 
     return NextResponse.json({
       policy: RETENTION_POLICY_METADATA,
@@ -81,7 +89,7 @@ export const GET = withErrorHandling(async (_req: NextRequest) => {
         consentsRevoked: consentsRevokedTotal,
         decisionLogs: decisionLogsTotal,
       },
-      lastRun: null, // TODO: persist last run to a Setting/audit row.
+      lastRun,
     })
   
 
@@ -119,6 +127,24 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     }
 
     const result: RetentionResult = await runRetentionCleanup()
+
+    // SPRINT-BACKEND-FINAL-001 — persist last-run timestamp to a Setting row
+    // so the GET handler can surface "última ejecución" without scanning
+    // the audit log. Best-effort: a transient DB error here does NOT fail
+    // the request — the retention work has already been done.
+    try {
+      await db.setting.upsert({
+        where: { key: 'compliance::retention::lastRun' },
+        update: { value: new Date().toISOString() },
+        create: { key: 'compliance::retention::lastRun', value: new Date().toISOString() },
+      })
+    } catch (settingErr) {
+      captureError(settingErr as Error, {
+        path: '/api/compliance/retention',
+        method: 'POST',
+        step: 'last-run-setting-write',
+      })
+    }
 
     // Best-effort: record the sweep in the audit log so admins can trace
     // manual triggers. Failure to write the audit row does NOT fail the

@@ -432,6 +432,58 @@ export const logisticsService = {
       throw new Error('Failed to fetch logistics dashboard data')
     }
   },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Shipping quote — SPRINT-BACKEND-FINAL-001.
+  //
+  // `/api/shipping/quote` calls the LogisticsAdapter to get a freight
+  // quote + ETA + carrier, then writes an AuditLog row for traceability
+  // (the quote itself is not persisted — it can change and the real value
+  // is fixed when the guide is generated). The AuditLog write is the
+  // single DB call in the route — migrated here so future callers (a
+  // batch quote-comparison tool, a quote cache warmer) can share the seam.
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Persist a `shipping_quote` AuditLog row recording the tenantId,
+   * destination, package size, and the carrier's quoted rate + ETA.
+   * Best-effort: the route does NOT fail if the audit write errors —
+   * the quote is returned to the caller regardless.
+   */
+  async logShippingQuote(input: {
+    tenantId: string
+    ciudad: string
+    pais: string
+    cantidadUnidades: number
+    tarifa: number
+    tiempoEstimadoDias: number
+    transportadora: string
+  }): Promise<void> {
+    try {
+      await db.auditLog.create({
+        data: {
+          tenantId: input.tenantId,
+          action: 'shipping_quote',
+          entity: 'shipment',
+          metadata: JSON.stringify({
+            ciudad: input.ciudad,
+            pais: input.pais,
+            cantidad_unidades: input.cantidadUnidades,
+            tarifa: input.tarifa,
+            tiempo_estimado_dias: input.tiempoEstimadoDias,
+            transportadora: input.transportadora,
+          }),
+        },
+      })
+    } catch (err) {
+      captureError(err as Error, {
+        service: 'logistics',
+        method: 'logShippingQuote',
+        tenantId: input.tenantId,
+      })
+      // Non-blocking — the quote is returned to the caller regardless.
+    }
+  },
 }
 
 export type LogisticsService = typeof logisticsService

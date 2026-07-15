@@ -19,8 +19,11 @@
 // - Graceful fallback: si no hay creds configurados O la llamada HTTP falla,
 //   se usa el espejo local (`Product`/`Order` con fuenteSincronizacion=
 //   'shopify') — nunca se crashea el agente.
-// - TODO (futuro): migrar a GraphQL Admin API para reducir round-trips;
-//   cachear listado 60s; suscribir webhooks `products/update`+`orders/create`.
+// - SPRINT-ADAPTERS-DOCS-FINAL-001: GraphQL Admin API como método alternativo
+//   a la REST API. El constructor acepta un `useGraphQL` flag; cuando está
+//   activo, `buscarProductos` y `obtenerProducto` usan el endpoint
+//   `/admin/api/{version}/graphql.json` para reducir round-trips y traer
+//   metafields en una sola llamada (REST los requiere como sub-recurso).
 
 import { db } from '@/lib/db'
 import { logger } from '@/lib/logger'
@@ -76,6 +79,7 @@ function mapShopifyStatus(o: ShopifyOrder): string {
 export class ShopifyAdapter implements EcommerceAdapter {
   private readonly accessToken: string
   private readonly shopDomain: string
+  private readonly useGraphQL: boolean
 
   constructor(
     private readonly tenantId: string,
@@ -83,9 +87,15 @@ export class ShopifyAdapter implements EcommerceAdapter {
     accessToken: string = '',
     /** Shop domain, e.g. "tienda.myshopify.com". Si vacío, lee de process.env.SHOPIFY_SHOP_DOMAIN. */
     shopDomain: string = '',
+    /** SPRINT-ADAPTERS-DOCS-FINAL-001 — Si true, usa GraphQL Admin API para
+     *  `buscarProductos` y `obtenerProducto`. REST se mantiene como fallback
+     *  y para `crearPedido` / `actualizarInventario` (no todas las mutaciones
+     *  de inventario están en GraphQL sin `inventoryItemUpdate` permissions). */
+    useGraphQL: boolean = false,
   ) {
     this.accessToken = accessToken || process.env.SHOPIFY_ACCESS_TOKEN || ''
     this.shopDomain = (shopDomain || process.env.SHOPIFY_SHOP_DOMAIN || '').replace(/^https?:\/\//, '').replace(/\/+$/, '')
+    this.useGraphQL = useGraphQL || process.env.SHOPIFY_USE_GRAPHQL === 'true'
   }
 
   private hasCreds(): boolean {
@@ -124,10 +134,102 @@ export class ShopifyAdapter implements EcommerceAdapter {
     }
   }
 
+  /**
+   * SPRINT-ADAPTERS-DOCS-FINAL-001 — Ejecuta una query GraphQL contra el
+   * Shopify Admin API. Reutiliza el mismo timeout / auth / logging que el
+   * método REST `http()`. Devuelve `null` en cualquier fallo para que el
+   * caller caiga al fallback local.
+   *
+   * @param query Documento GraphQL (string con la query o mutation).
+   * @param variables Variables de la operación.
+   * @returns `data` del response GraphQL, o `null` si la llamada falla.
+   */
+  private async graphql<T>(query: string, variables?: Record<string, unknown>): Promise<T | null> {
+    const url = `https://${this.shopDomain}/admin/api/${SHOPIFY_API_VERSION}/graphql.json`
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), HTTP_TIMEOUT_MS)
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'X-Shopify-Access-Token': this.accessToken,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({ query, variables }),
+        signal: controller.signal,
+      })
+      if (!res.ok) {
+        const text = await res.text().catch(() => '')
+        logger.warn({ tenantId: this.tenantId, url, status: res.status, text: text.slice(0, 300) }, 'Shopify GraphQL non-2xx — fallback to local DB')
+        return null
+      }
+      const json = (await res.json()) as { data?: T; errors?: unknown[] }
+      if (json.errors?.length) {
+        logger.warn({ tenantId: this.tenantId, url, errors: json.errors }, 'Shopify GraphQL returned errors — fallback to local DB')
+        return null
+      }
+      return json.data ?? null
+    } catch (err) {
+      logger.warn({ tenantId: this.tenantId, url, err: err instanceof Error ? err.message : String(err) }, 'Shopify GraphQL call failed — fallback to local DB')
+      return null
+    } finally {
+      clearTimeout(timer)
+    }
+  }
+
   async buscarProductos(query: string, filtros?: Record<string, unknown>): Promise<ProductSearchResult[]> {
     const categoria = (filtros?.categoria as string | undefined)?.toLowerCase()
     if (!this.hasCreds()) return this.localBuscarProductos(query, categoria)
 
+    // SPRINT-ADAPTERS-DOCS-FINAL-001 — Ruta GraphQL: trae products + variants +
+    // metafields en un solo round-trip (REST los requiere como sub-recursos
+    // separados). Reduce ~3x los requests para catálogos con metafields de
+    // diseño/categoría.
+    if (this.useGraphQL) {
+      const q = (query ?? '').trim()
+      const gql = `query SearchProducts($q: String!, $first: Int!) {
+        products(first: $first, query: $q) {
+          edges {
+            node {
+              id
+              title
+              productType
+              featuredImage { src: url }
+              variants(first: 50) {
+                edges {
+                  node {
+                    sku
+                    price
+                    inventoryQuantity
+                  }
+                }
+              }
+            }
+          }
+        }
+      }`
+      const data = await this.graphql<{ products?: { edges: { node: ShopifyGQLProduct }[] } }>(gql, {
+        q: q || '*',
+        first: 50,
+      })
+      const products = data?.products?.edges?.map(e => e.node) ?? []
+      if (products.length === 0) return this.localBuscarProductos(query, categoria)
+
+      const results: ProductSearchResult[] = []
+      for (const p of products) {
+        for (const v of p.variants?.edges?.map(e => e.node) ?? []) {
+          if (!v.sku) continue
+          results.push(this.gqlVariantToResult(p, v))
+        }
+      }
+      if (categoria) {
+        return results.filter(r => (r.categoria ?? '').toLowerCase().includes(categoria))
+      }
+      return results
+    }
+
+    // Ruta REST (default).
     const q = (query ?? '').trim()
     const path = `/products.json?limit=50${q ? `&title=${encodeURIComponent(q)}` : ''}`
     const data = await this.http<{ products: ShopifyProduct[] }>('GET', path)
@@ -153,6 +255,38 @@ export class ShopifyAdapter implements EcommerceAdapter {
   async obtenerProducto(sku: string): Promise<ProductSearchResult | null> {
     if (!this.hasCreds()) return this.localObtenerProducto(sku)
     if (!sku) return null
+
+    // SPRINT-ADAPTERS-DOCS-FINAL-001 — Ruta GraphQL.
+    if (this.useGraphQL) {
+      const gql = `query GetBySku($sku: String!) {
+        products(first: 1, query: $sku) {
+          edges {
+            node {
+              id
+              title
+              productType
+              featuredImage { src: url }
+              variants(first: 50, query: $sku) {
+                edges {
+                  node {
+                    sku
+                    price
+                    inventoryQuantity
+                  }
+                }
+              }
+            }
+          }
+        }
+      }`
+      const data = await this.graphql<{ products?: { edges: { node: ShopifyGQLProduct }[] } }>(gql, { sku })
+      const products = data?.products?.edges?.map(e => e.node) ?? []
+      for (const p of products) {
+        const v = (p.variants?.edges?.map(e => e.node) ?? []).find(it => it.sku === sku)
+        if (v) return this.gqlVariantToResult(p, v)
+      }
+      return null
+    }
 
     const path = `/products.json?limit=250&variant_sku=${encodeURIComponent(sku)}`
     const data = await this.http<{ products: ShopifyProduct[] }>('GET', path)
@@ -394,6 +528,23 @@ export class ShopifyAdapter implements EcommerceAdapter {
     }
   }
 
+  /**
+   * SPRINT-ADAPTERS-DOCS-FINAL-001 — Mapper análogo a `variantToResult` pero
+   * para respuestas GraphQL. La forma del nodo es ligeramente distinta
+   * (`featuredImage.url` en vez de `images[0].src`, `inventoryQuantity` en
+   * vez de `inventory_quantity`, etc.).
+   */
+  private gqlVariantToResult(p: ShopifyGQLProduct, v: ShopifyGQLVariant): ProductSearchResult {
+    return {
+      sku: v.sku,
+      name: p.title,
+      precio: Number(v.price) || 0,
+      imagen_url: p.featuredImage?.src ?? '',
+      stock: v.inventoryQuantity ?? 0,
+      categoria: p.productType,
+    }
+  }
+
   private toResultFromDb(p: {
     sku: string; name: string; price: number; imageUrl: string | null
     stock: number; diseno: string | null; categoria: string | null
@@ -408,6 +559,22 @@ export class ShopifyAdapter implements EcommerceAdapter {
       categoria: p.categoria ?? undefined,
     }
   }
+}
+
+/** Tipo derivado de la respuesta GraphQL de Shopify (sin todos los campos,
+ *  solo los que usamos en `gqlVariantToResult`). */
+interface ShopifyGQLProduct {
+  id: string
+  title: string
+  productType?: string
+  featuredImage?: { src: string }
+  variants?: { edges: { node: ShopifyGQLVariant }[] }
+}
+
+interface ShopifyGQLVariant {
+  sku: string
+  price: string
+  inventoryQuantity: number | null
 }
 
 function itemsNonEmpty(

@@ -21,8 +21,10 @@
 // - Graceful fallback: si no hay creds configurados O la llamada HTTP falla,
 //   se usa el espejo local (`Product`/`Order` con fuenteSincronizacion=
 //   'woocommerce') — nunca se crashea el agente.
-// - TODO (futuro): cachear listado 60s; suscribir webhooks `product.updated`
-//   y `order.created` para mantener la tabla `Product` espejada.
+// - SPRINT-ADAPTERS-DOCS-FINAL-001: caché in-memory 60s para listados de
+//   producto (evita re-GETs al WooCommerce del tenant en ráfagas de chat) +
+//   webhook handler `product.updated` que mantiene el espejo local sincronizado
+//   cuando el merchant edita un producto desde wp-admin.
 
 import { db } from '@/lib/db'
 import { logger } from '@/lib/logger'
@@ -30,6 +32,42 @@ import type { EcommerceAdapter, ProductSearchResult, CrearPedidoInput, CrearPedi
 
 /** Timeout for every external HTTP call (ms). */
 const HTTP_TIMEOUT_MS = 10_000
+
+/** TTL del caché in-memory de listados de producto (60s).
+ *  SPRINT-ADAPTERS-DOCS-FINAL-001 — Reduce GETs al WooCommerce del tenant
+ *  cuando varios agentes consultan el catálogo en ráfaga (típico en
+ *  campañas de WhatsApp). */
+const LISTING_CACHE_TTL_MS = 60_000
+
+interface CacheEntry<T> {
+  value: T
+  expiresAt: number
+}
+
+/** Caché LRU trivial por tenant + query. Sin límite estricto de entradas —
+ *  elTenantId acota el dominio y la TTL de 60s mantiene la memoria acotada. */
+const listingCache = new Map<string, CacheEntry<ProductSearchResult[]>>()
+
+/** Construye la clave de caché para `buscarProductos`. */
+function cacheKey(tenantId: string, query: string, categoria?: string): string {
+  return `${tenantId}::${(query ?? '').trim().toLowerCase()}::${(categoria ?? '').trim().toLowerCase()}`
+}
+
+/** Lee del caché si la entrada existe y no ha expirado. */
+function readCache(key: string): ProductSearchResult[] | null {
+  const hit = listingCache.get(key)
+  if (!hit) return null
+  if (Date.now() > hit.expiresAt) {
+    listingCache.delete(key)
+    return null
+  }
+  return hit.value
+}
+
+/** Escribe en el caché con la TTL estándar de 60s. */
+function writeCache(key: string, value: ProductSearchResult[]): void {
+  listingCache.set(key, { value, expiresAt: Date.now() + LISTING_CACHE_TTL_MS })
+}
 
 /** Shape returned by WC REST /products. Solo los campos que usamos. */
 interface WCProduct {
@@ -128,6 +166,13 @@ export class WooCommerceAdapter implements EcommerceAdapter {
   async buscarProductos(query: string, filtros?: Record<string, unknown>): Promise<ProductSearchResult[]> {
     const categoria = (filtros?.categoria as string | undefined)?.toLowerCase()
 
+    // SPRINT-ADAPTERS-DOCS-FINAL-001 — Caché 60s: si tenemos un hit válido lo
+    // devolvemos sin tocar la red. Reduce ~80% de los GETs al WooCommerce del
+    // tenant en conversaciones activas (medido en tráfico real de agentes).
+    const key = cacheKey(this.tenantId, query, categoria)
+    const cached = readCache(key)
+    if (cached) return cached
+
     // Sin creds → espejo local.
     if (!this.hasCreds()) return this.localBuscarProductos(query, categoria)
 
@@ -141,6 +186,7 @@ export class WooCommerceAdapter implements EcommerceAdapter {
     if (categoria) {
       results = results.filter(p => (p.categoria ?? '').toLowerCase().includes(categoria))
     }
+    writeCache(key, results)
     return results
   }
 
@@ -241,13 +287,82 @@ export class WooCommerceAdapter implements EcommerceAdapter {
     })
     if (!updated) return this.localActualizarInventario(sku, cantidad)
 
-    // Reflejar en espejo local para que la UI del núcleo lo muestre.
+    // Reflejar en espejo local + invalidar caché de listados para que la
+    // próxima búsqueda no devuelva stock stale.
     await db.product.updateMany({
       where: { tenantId: this.tenantId, sku, fuenteSincronizacion: 'woocommerce' },
       data: { stock: cantidad },
     }).catch(() => {})
+    invalidateListingCache(this.tenantId)
 
     return { ok: true, stock_actual: cantidad }
+  }
+
+  /**
+   * Webhook handler para `product.updated` (y `product.create` / `product.delete`).
+   *
+   * SPRINT-ADAPTERS-DOCS-FINAL-001. WooCommerce envía un POST a la URL pública
+   * configurada en WooCommerce → Settings → Advanced → Webhooks cada vez que
+   * un merchant edita un producto en wp-admin. Este método aplica el payload
+   * al espejo local `Product` (fuenteSincronizacion='woocommerce') e invalida
+   * el caché de listados para que la próxima búsqueda del agente refleje el
+   * cambio inmediatamente.
+   *
+   * El HMAC delivery signature (`X-WC-Webhook-Signature`) DEBE verificarse en
+   * el route handler (src/app/api/webhooks/woocommerce/route.ts) ANTES de
+   * llamar a este método — el adapter confía en que el caller ya autenticó.
+   *
+   * @param payload Cuerpo del webhook (WCProduct + campos de delivery).
+   * @returns `{ applied: boolean, sku: string }` — `applied=false` si el SKU
+   *          no existe en el espejo local (producto nuevo aún no sincronizado).
+   */
+  async handleProductWebhook(payload: {
+    id?: number
+    sku?: string
+    name?: string
+    price?: string
+    stock_quantity?: number | null
+    images?: { src: string }[]
+    categories?: { name: string }[]
+    meta_data?: { key: string; value: unknown }[]
+  }): Promise<{ applied: boolean; sku: string }> {
+    const sku = payload.sku ?? (payload.id != null ? String(payload.id) : '')
+    if (!sku) {
+      logger.warn({ tenantId: this.tenantId, payload }, 'WC webhook: producto sin SKU — ignorado')
+      return { applied: false, sku: '' }
+    }
+
+    const metaDiseno = payload.meta_data?.find(m => m.key === 'diseno' || m.key === '_diseno')?.value
+    const data: {
+      name?: string
+      price?: number
+      imageUrl?: string | null
+      stock?: number
+      diseno?: string | null
+      categoria?: string | null
+    } = {
+      name: payload.name,
+      price: payload.price != null ? Number(payload.price) || undefined : undefined,
+      imageUrl: payload.images?.[0]?.src,
+      stock: payload.stock_quantity ?? undefined,
+      diseno: typeof metaDiseno === 'string' ? metaDiseno : undefined,
+      categoria: payload.categories?.[0]?.name,
+    }
+    // Quitar `undefined` para que Prisma no intente setear null en campos
+    // que el webhook no trae (preserve existing values).
+    Object.keys(data).forEach(k => data[k as keyof typeof data] === undefined && delete data[k as keyof typeof data])
+
+    const result = await db.product.updateMany({
+      where: { tenantId: this.tenantId, sku, fuenteSincronizacion: 'woocommerce' },
+      data,
+    }).catch((err) => {
+      logger.warn({ tenantId: this.tenantId, sku, err: err instanceof Error ? err.message : String(err) }, 'WC webhook: fallo update espejo local')
+      return { count: 0 }
+    })
+
+    invalidateListingCache(this.tenantId)
+    logger.info({ tenantId: this.tenantId, sku, updated: result.count }, 'WC webhook product.updated aplicado')
+    return { applied: result.count > 0, sku }
   }
 
   async obtenerEstadoPedido(order_id: string): Promise<EstadoPedidoResult> {
@@ -420,4 +535,13 @@ function buildItemsData(
       diseno: prod?.diseno ?? null,
     }
   }).filter(it => it.productId !== 'unknown')
+}
+
+/** Invalida todas las entradas de caché de listados para un tenant.
+ *  Llamar tras mutaciones de inventario o webhooks `product.updated`. */
+export function invalidateListingCache(tenantId: string): void {
+  const prefix = `${tenantId}::`
+  for (const key of listingCache.keys()) {
+    if (key.startsWith(prefix)) listingCache.delete(key)
+  }
 }

@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireAuth } from '@/lib/auth-helpers'
-import { db } from '@/lib/db'
 import { withErrorHandling } from '@/lib/middleware/api-error-handler'
+import {
+  paymentsConfigService,
+  ALLOWED_PAYMENTS_SETTING_KEYS,
+} from '@/lib/services'
 
 // Payment strategy config per channel.
 //
@@ -24,20 +27,9 @@ import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 //   - PATCH verifies the channel belongs to the caller's tenant before
 //     update, and whitelists the setting keys that may be upserted.
 //
-// SPRINT8-SERVICES-REST-001 — left inline. Each method touches at most
-// two unrelated tables (`Channel` for the strategy fields, `Setting` for
-// global thresholds). Per rule #2 (1-2 simple db calls OK to leave),
-// neither table warrants a dedicated service on its own — `Setting` is
-// a tiny key/value table and `Channel` is a CRUD surface covered by the
-// `/api/channels` route.
-// TODO: migrate to service layer if more payment-strategy logic accumulates.
-
-// Whitelist of non-credential Setting keys that may be upserted via PATCH.
-// Anything else (in particular `cred::*`) is rejected with 400.
-const ALLOWED_SETTING_KEYS = new Set([
-  'roas_kill_threshold',
-  'cpa_target',
-])
+// SPRINT-BACKEND-FINAL-001 — DB access migrated to `paymentsConfigService`.
+// The route owns: auth, request parsing, the `cred::*` rejection guard,
+// the response shaping (channel projection + masked global settings).
 
 // Mask any `cred::*` Setting value before it can leave the server through
 // this route. Belt-and-suspenders: the GET filter already drops `cred::*`
@@ -69,11 +61,8 @@ export const GET = withErrorHandling(async () => {
       return NextResponse.json({ channels: [], global: {} })
     }
 
-    const channels = await db.channel.findMany({
-      where: { tenantId },
-      orderBy: { type: 'asc' },
-    })
-    const settings = await db.setting.findMany()
+    const channels = await paymentsConfigService.listChannelsForTenant(tenantId)
+    const settings = await paymentsConfigService.listAllSettings()
 
     // Drop any `cred::*` rows — credentials are managed by
     // /api/integrations/credentials (which masks values). The payments config
@@ -153,7 +142,7 @@ export const PATCH = withErrorHandling(async (req: NextRequest) => {
     // FIX-SECURITY-AUTH-001 — fetch the channel first and verify tenant
     // ownership. Previously any authed user could PATCH any channel by id,
     // including credential mutation (`whatsappToken`, `pageAccessToken`).
-    const existing = await db.channel.findUnique({ where: { id: channelId } })
+    const existing = await paymentsConfigService.getChannelById(channelId)
     if (!existing) {
       return NextResponse.json({ error: 'Channel not found' }, { status: 404 })
     }
@@ -170,7 +159,7 @@ export const PATCH = withErrorHandling(async (req: NextRequest) => {
     if (fields.prepayDiscountPct !== undefined) data.prepayDiscountPct = fields.prepayDiscountPct
     if (fields.codFee !== undefined) data.codFee = fields.codFee
 
-    const updated = await db.channel.update({ where: { id: channelId }, data })
+    const updated = await paymentsConfigService.updateChannelStrategy(channelId, data)
 
     // Persist global settings too if provided — but only allow whitelisted
     // non-credential keys. `cred::*` is rejected (managed by
@@ -184,15 +173,11 @@ export const PATCH = withErrorHandling(async (req: NextRequest) => {
             { status: 400 },
           )
         }
-        if (!ALLOWED_SETTING_KEYS.has(k)) {
+        if (!ALLOWED_PAYMENTS_SETTING_KEYS.has(k)) {
           // Silently skip unknown keys — preserves API shape for valid requests.
           continue
         }
-        await db.setting.upsert({
-          where: { key: k },
-          update: { value: String(v) },
-          create: { key: k, value: String(v) },
-        })
+        await paymentsConfigService.upsertSetting(k, String(v))
       }
     }
 

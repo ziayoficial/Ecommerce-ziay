@@ -21244,3 +21244,25 @@ La guía incluye tablas de configuración para 5 nichos:
 | Lint | ✅ 0 errores |
 | Tests | ✅ 986/986 |
 | Build | ✅ 35.9s |
+
+---
+
+## SPRINT-AJUSTE-EXCLUYENCIA-001 — Ajuste de arquitectura: herramientas excluyentes
+
+**Contexto:** ChateaPro y el Generador son herramientas de terceros EXCLUYENTES. No se conectan con ZIAY ni comparten la solución. Los endpoints desarrollados son exclusivos de ZIAY.
+
+### Cambios realizados
+
+1. **Renombrado:** `/api/chateapro-bridge` → `/api/ziay-bridge` (sin referencia a terceros)
+2. **Actualizada guía:** `docs/ESTRATEGIA-ANTI-FRICCION.md` reescrita completamente:
+   - Sección 1 "Contexto" explica que ChateaPro/Generador son terceros excluyentes
+   - Arquitectura muestra ZIAY como solución 100% propia (sin conexión a terceros)
+   - Tabla comparativa "Terceros vs ZIAY" en lugar de "ChateaPro + ZIAY"
+   - Endpoints documentados como "uso interno + n8n" (no para terceros)
+   - Sección "Lo que NO se hace": ❌ No compartir con ChateaPro, ❌ No compartir con Generador, ❌ No conectar ZIAY con terceros
+3. **Actualizada guía:** `docs/GUIA-COMPORTAMIENTO-AGENTES.md` — referencias actualizadas
+
+### Verificación
+- Lint: ✅ 0 errores
+- Tests: ✅ 986/986
+- Build: ✅ 32.3s

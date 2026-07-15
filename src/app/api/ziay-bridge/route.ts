@@ -1,5 +1,5 @@
 /**
- * POST /api/chateapro-bridge
+ * POST /api/ziay-bridge
  *
  * Puente entre ChateaPro y ZIAY.
  *

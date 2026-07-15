@@ -7,6 +7,7 @@ import { findWhatsAppChannelByPhoneNumberId, getWhatsAppAdapter } from '@/lib/ad
 import { emitToTenant } from '@/lib/chat-emit'
 import { getLogger } from '@/lib/logger'
 import { captureError } from '@/lib/capture-error'
+import { withWebhookErrorHandling } from '@/lib/middleware/webhook-error-handler'
 
 const log = getLogger('webhook:whatsapp')
 
@@ -82,7 +83,7 @@ export async function GET(req: NextRequest) {
  *          `'processed'` (mensaje persistido) /
  *          `'processing_failed'` (DB error — capturado, ACK 200).
  */
-export async function POST(req: NextRequest) {
+export const POST = withWebhookErrorHandling(async (req: NextRequest) => {
   // ── HMAC verification (Saramantha §10) ───────────────────────────────
   // Meta firma el body con HMAC-SHA256 usando el App Secret y lo envía en
   // el header `X-Hub-Signature-256`. Si la firma no verifica, devolvemos 403.
@@ -427,4 +428,4 @@ export async function POST(req: NextRequest) {
     )
     return NextResponse.json({ received: true, status: 'processing_failed' })
   }
-}
+})

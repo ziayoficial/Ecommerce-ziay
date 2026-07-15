@@ -74,6 +74,14 @@ const SettingsView = dynamic(
   () => import('@/components/dashboard/settings-view').then(m => ({ default: m.SettingsView })),
   { loading: viewLoading },
 )
+const LLMCostsView = dynamic(
+  () => import('@/components/dashboard/llm-costs-view').then(m => ({ default: m.LLMCostsView })),
+  { loading: viewLoading },
+)
+const GovernanceView = dynamic(
+  () => import('@/components/dashboard/governance-view').then(m => ({ default: m.GovernanceView })),
+  { loading: viewLoading },
+)
 
 export default function Home() {
   const [view, setView] = useState<ViewId>('overview')
@@ -175,6 +183,8 @@ export default function Home() {
               {view === 'novedades' && <NovedadesView />}
               {view === 'integrations' && <IntegrationsView />}
               {view === 'settings' && <SettingsView />}
+              {view === 'llm-costs' && <LLMCostsView />}
+              {view === 'governance' && <GovernanceView />}
             </div>
           </main>
         </div>

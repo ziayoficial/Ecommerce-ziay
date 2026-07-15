@@ -24,6 +24,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { WompiAdapter } from '@/lib/adapters/wompi'
 import { applyPaymentUpdate, safeAudit } from '@/lib/adapters/payment-webhook-utils'
 import { isDuplicateWebhook, isDuplicateWebhookDB, generateWebhookId } from '@/lib/middleware/idempotency'
+import { withWebhookErrorHandling } from '@/lib/middleware/webhook-error-handler'
 
 /**
  * Wompi webhook handler.
@@ -46,7 +47,7 @@ import { isDuplicateWebhook, isDuplicateWebhookDB, generateWebhookId } from '@/l
  *          `status: 'invalid_signature'` si la firma no verifica;
  *          `status: 'duplicate'` si ya fue procesado.
  */
-export async function POST(req: NextRequest) {
+export const POST = withWebhookErrorHandling(async (req: NextRequest) => {
   const rawBody = await req.text()
   const signature = req.headers.get('x-events-signature') ?? ''
   const adapter = new WompiAdapter()
@@ -124,4 +125,4 @@ export async function POST(req: NextRequest) {
   }
 
   return NextResponse.json({ received: true })
-}
+})

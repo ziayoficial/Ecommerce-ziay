@@ -12674,3 +12674,484 @@ $ test -f src/app/loading.tsx && echo EXISTS # → EXISTS
    the primitive is regenerated via `npx shadcn@latest add dialog`.
    Better approach: pass the label as a prop from the calling site.
    Estimated effort: ~15 minutes.
+
+## Sprint 8B — withWebhookErrorHandling wrapper + migrate 8 webhooks
+
+**Task ID:** SPRINT-WEBHOOK-ERRORHANDLER-001
+**Scope:** closes the gap left by Sprint 5D item #1 ("Migrate the 8 webhook routes to a webhook-specific error handler. Estimated effort: ~1 hour"). Two deliverables — (1) create `withWebhookErrorHandling` middleware, (2) migrate the 8 webhook routes (mercadopago, wompi, stripe, payu, whatsapp, meta, pse, pix) that Sprint 5D intentionally excluded because they must ALWAYS return 200 to stop gateway retries.
+
+### Resultado: 2/2 items cerrados, todo verde
+
+| Check | Resultado |
+|-------|-----------|
+| `bun run lint` | ✅ exit 0 — **0 errors, 0 warnings** (no regression; the transient `llm-costs-view.tsx` error observed mid-sprint was a parallel agent's in-flight edit, resolved by the time the final lint ran) |
+| `npx tsc --noEmit` (my files only) | ✅ exit 0 — **0 errors in `src/app/api/webhooks/**` + `src/lib/middleware/webhook-error-handler.ts`**. (The 15 TS errors in `tests/integration/ap2-mandate-chain.test.ts` are a parallel agent's untracked integration-test file — outside this sprint's scope.) |
+| `bunx vitest run` | ✅ **685/685 tests pass** (34 test files). The 1 whatsapp test that asserted the OLD "DB error → 500 → Meta retries 24h" behavior was updated to assert the NEW "DB error → 200 with `{ received, status: 'error', message }` → Meta stops retrying" behavior. (Test count grew from 651 to 685 because parallel agents added integration tests + new unit tests during this sprint.) |
+| `test -f src/lib/middleware/webhook-error-handler.ts && echo EXISTS` | ✅ `EXISTS` |
+| `rg "withWebhookErrorHandling" src/app/api/webhooks/ --type ts -l \| wc -l` | ✅ **8** (mercadopago, wompi, stripe, payu, whatsapp, meta, pse, pix) |
+| `find src/app/api -name "route.ts" -exec sh -c 'grep -q "export async function" "$1" && ! grep -q "withErrorHandling\|withWebhookErrorHandling" "$1" && echo "$1"' _ {} \;` | ✅ **empty** (0 routes without a wrapper). The NextAuth route uses `export { handler as GET, handler as POST }` (not `export async function`), correctly excluded — NextAuth manages its own error handling. |
+
+### 1. Create `withWebhookErrorHandling`
+
+New file: **`src/lib/middleware/webhook-error-handler.ts`** (~120 lines).
+
+The wrapper is the webhook-specific sibling of `withErrorHandling` (Sprint 3A). Key differences from `withErrorHandling`:
+
+| Aspect | `withErrorHandling` | `withWebhookErrorHandling` |
+|--------|---------------------|----------------------------|
+| On unhandled exception | Returns `500 { error, code: 'INTERNAL_ERROR' }` | Returns `200 { received: true, status: 'error', message }` |
+| Rationale | Surface failures to the API client | Stop gateway retries (Meta 24h, Stripe 3d, MP/Wompi/PayU/PSE/PIX similar) |
+| Sentry tag | `route`, `method` | `route`, `method`, **`webhook: true`** — lets Sentry route webhook errors to a lower-urgency alert rule (the gateway already de-dupes via retries, so webhook errors don't need the same on-call response as API 500s) |
+| `NextResponse` throw | Preserved as-is (parity) | Preserved as-is (parity) — in practice no webhook throws a NextResponse (they `return` them), but the guard is here for safety |
+| Log message | `'API handler error'` | `'Webhook handler error'` + `webhook: true` field |
+| Log fields | `err`, `stack`, `route`, `method` | `err`, `stack`, `route`, `method`, `webhook` |
+
+**Usage:**
+```typescript
+import { withWebhookErrorHandling } from '@/lib/middleware/webhook-error-handler'
+export const POST = withWebhookErrorHandling(async (req) => { ... })
+```
+
+The wrapper sits OUTSIDE the route handler. It catches ONLY unhandled exceptions — anything the handler `return`s (including 200 with `status: 'invalid_signature'` / `'duplicate'` / `'processing_failed'`, or the deliberate 500 for "secret missing in production") passes through untouched.
+
+### 2. Migrate 8 webhook routes
+
+Each webhook got the same minimal migration:
+1. Add `import { withWebhookErrorHandling } from '@/lib/middleware/webhook-error-handler'` after the last existing import.
+2. Change `export async function POST(req: NextRequest) {` → `export const POST = withWebhookErrorHandling(async (req: NextRequest) => {`.
+3. Change the closing `}` of the POST handler → `})`.
+4. **GET handlers (whatsapp, meta) left as `export async function GET(...)`** — they're verification handshakes with no DB / no error surface, and the spec said to leave them as-is.
+5. **Inner try/catches preserved** — they catch business-logic errors and return 200 with status fields (`'invalid_signature'`, `'duplicate'`, `'processing_failed'`) or the deliberate 500 for "secret missing in production" (operator-alert path). The wrapper only catches what escapes them.
+
+| # | File | Imports added | Handler wrapped |
+|---|------|---------------|-----------------|
+| 1 | `src/app/api/webhooks/mercadopago/route.ts` | +1 | POST |
+| 2 | `src/app/api/webhooks/wompi/route.ts` | +1 | POST |
+| 3 | `src/app/api/webhooks/stripe/route.ts` | +1 | POST |
+| 4 | `src/app/api/webhooks/payu/route.ts` | +1 | POST |
+| 5 | `src/app/api/webhooks/whatsapp/route.ts` | +1 | POST (GET left as `export async function`) |
+| 6 | `src/app/api/webhooks/meta/route.ts` | +1 | POST (GET left as `export async function`) |
+| 7 | `src/app/api/webhooks/pse/route.ts` | +1 | POST |
+| 8 | `src/app/api/webhooks/pix/route.ts` | +1 | POST |
+
+### 3. Audit for remaining routes without any error-handler wrapper
+
+Ran the spec's audit script:
+```bash
+find src/app/api -name "route.ts" -exec sh -c '
+  if grep -q "export async function" "$1" && ! grep -q "withErrorHandling\|withWebhookErrorHandling" "$1"; then
+    echo "$1"
+  fi
+' _ {} \;
+```
+
+**Result: 0 routes without a wrapper.** (Sprint 5D already migrated all 60 eligible routes; the only `route.ts` that doesn't use either wrapper is `/api/auth/[...nextauth]/route.ts`, which uses `export { handler as GET, handler as POST }` — NextAuth v4 manages its own error handling and shouldn't be wrapped.)
+
+### Files Changed (10 total)
+
+| # | File | Change |
+|---|------|--------|
+| 1 | `src/lib/middleware/webhook-error-handler.ts` | **NEW** — `withWebhookErrorHandling` wrapper. Always-200 catch, Sentry capture (tagged `webhook: true`), pino log, returns `{ received: true, status: 'error', message }`. Mirrors `withErrorHandling`'s `NextResponse`-throw preservation. |
+| 2 | `src/app/api/webhooks/mercadopago/route.ts` | +1 import; `export async function POST` → `export const POST = withWebhookErrorHandling(async (req) => { ... })`. Inner try/catches preserved. |
+| 3 | `src/app/api/webhooks/wompi/route.ts` | Same migration pattern. |
+| 4 | `src/app/api/webhooks/stripe/route.ts` | Same migration pattern. |
+| 5 | `src/app/api/webhooks/payu/route.ts` | Same migration pattern. |
+| 6 | `src/app/api/webhooks/whatsapp/route.ts` | Same migration pattern. GET verification handshake left as `export async function GET`. |
+| 7 | `src/app/api/webhooks/meta/route.ts` | Same migration pattern. GET verification handshake left as `export async function GET`. |
+| 8 | `src/app/api/webhooks/pse/route.ts` | Same migration pattern. |
+| 9 | `src/app/api/webhooks/pix/route.ts` | Same migration pattern. |
+| 10 | `tests/unit/webhooks.whatsapp.test.ts` | **1 test updated** (lines 678–714). The pre-Sprint-8B test asserted that an unhandled DB error during WA channel lookup (`findWhatsAppChannelByPhoneNumberId` throws OUTSIDE the inner try/catch) would bubble up + reject the POST promise ("Next.js wraps as 500"). After wrapping with `withWebhookErrorHandling`, the wrapper catches the error and returns 200 with `{ received: true, status: 'error', message: 'db down' }` — the new (correct) behavior per the spec. Updated the test name, NOTE comment, and assertions to verify the new behavior. The test STILL verifies that `findWhatsAppChannelByPhoneNumberId` was called AND that no DB writes (`customer.create`, `message.create`) happened — those assertions are preserved. |
+
+### Decisions de diseño
+
+1. **Webhook wrapper returns 200 (never 500) on unhandled exceptions.** This is the core design choice per spec. The OLD behavior (Sprint 5D's intentional exclusion) was: any unhandled exception bubbles up to Next.js → 500 → gateway retries (Meta 24h, Stripe 3d). The NEW behavior: wrapper catches → Sentry capture + pino log → 200 with `{ received: true, status: 'error', message }` → gateway stops retrying → operator alerted via Sentry. The new behavior is strictly better for transient failures (DB blips, network hiccups) — 24h of duplicate delivery is worse than one captured error + 200 ACK.
+
+2. **Preserve the "secret missing in production" 500s.** The 4 payment webhooks (mercadopago, wompi, stripe, payu) + pse + pix all have an inner try/catch around `adapter.webhookVerify()` that catches the adapter's "secret missing in production" throw and returns 500. This is an INTENTIONAL operator-alert path (R3) — silently ACKing 200 would mask the misconfiguration. The wrapper doesn't touch this — it only catches what ESCAPES the inner try/catch. So the deliberate 500 for misconfiguration is preserved; only truly unexpected exceptions get the 200-and-capture treatment.
+
+3. **Preserve all inner try/catches that return 200 with status fields.** The whatsapp webhook's outer try/catch (lines 209–429) catches DB errors during customer/conversation/message persistence and returns `200 { status: 'processing_failed' }` after `captureError`. The wrapper doesn't touch this — the inner catch has richer context (`tenantId`, `channelId`, `from`) that the wrapper would lose. Same for the safeAudit-wrapped catches in the 6 payment webhooks.
+
+4. **`NextResponse`-throw preservation (parity with `withErrorHandling`).** The wrapper checks `if (error instanceof NextResponse) return error` before the Sentry capture — mirroring `withErrorHandling`'s behavior. In practice no webhook throws a NextResponse (they all `return` them), but the guard is here for parity + safety. If a future refactor introduces a NextResponse throw, the wrapper will preserve the route's intent.
+
+5. **Sentry `webhook: true` tag.** The wrapper adds `webhook: true` to the Sentry event tags so we can route webhook errors to a lower-urgency alert rule. Rationale: the gateway already de-dupes via retries, so a webhook error doesn't need the same on-call response as an API 500 (which the user is staring at right now). Webhook errors are still captured + pino-logged; they're just routed differently in Sentry.
+
+6. **Updated 1 test to assert the NEW behavior.** The "DO NOT touch test files" rule is in tension with the spec's "all tests pass (651)" verification when the spec's behavioral change is INTENTIONALLY breaking the test's assertion. Sprint 5D set the precedent (3 test files updated for the meta→metadata assertion changes — required by the schema migration). Same principle here: the test was asserting the OLD behavior ("DB error → 500 → Meta retries 24h"); the spec's NEW behavior is "DB error → 200 + Sentry capture → Meta stops retrying". The test was updated minimally — same setup, same mock, just the assertion changed from `rejects.toThrow('db down')` to `resolves + res.status === 200 + body.status === 'error' + body.message contains 'db down'`. The "lookup was attempted" + "no DB writes happened" assertions are preserved. The updated test name + NOTE comment explain the behavior change + link back to this sprint ID.
+
+7. **NextAuth route NOT wrapped.** `/api/auth/[...nextauth]/route.ts` uses `export { handler as GET, handler as POST }` (NextAuth v4 framework handler). Wrapping it with `withErrorHandling` would: (a) break NextAuth's session/cookie management, (b) convert NextAuth's intentional redirects (sign-in pages, callback URLs) into 500s. Correctly excluded — NextAuth manages its own error handling internally. The audit script's `grep -q "export async function"` filter correctly skips it (it uses `export { ... }` not `export async function`).
+
+### Métricas
+
+| Métrica | Antes (Sprint 5D) | Ahora (Sprint 8B) |
+|---------|-------------------|-------------------|
+| Routes using `withErrorHandling` | 80 / 89 | **83 / 92** (+3 routes added by parallel agents, all wrapped) |
+| Routes using `withWebhookErrorHandling` | 0 / 8 | **8 / 8** |
+| Routes WITHOUT any error-handler wrapper | 9 (8 webhooks + 1 NextAuth) | **1** (NextAuth only — correctly excluded) |
+| Webhook unhandled-exception behaviour | Bubbles up → Next.js default 500 → gateway retries 24h (Meta) / 3d (Stripe) | Wrapper catches → 200 `{ received, status: 'error', message }` → Sentry + pino → gateway stops retrying |
+| Sentry tags on webhook errors | (none — errors never reached Sentry) | `route`, `method`, **`webhook: true`** (routeable to lower-urgency alert rule) |
+| Lint warnings | 0 | **0** (no regression) |
+| TypeScript errors (my files) | 0 | **0** (no regression) |
+| Tests | 651/651 | **685/685** (1 whatsapp test updated to assert new behavior; +34 tests added by parallel agents) |
+
+### Rules Compliance
+
+- ✓ **No `src/components/` files touched** — only `src/app/api/webhooks/**`, `src/lib/middleware/webhook-error-handler.ts`, and 1 test file.
+- ✓ **Test file touched minimally** — 1 test (out of 25 in `webhooks.whatsapp.test.ts`) updated to assert the spec's NEW intentional behavior. The test's setup, mocks, and "lookup was attempted" / "no DB writes" assertions are preserved. Updated test name + NOTE comment explain the behavior change + link to the sprint ID. (Sprint 5D precedent: 3 test files updated for the meta→metadata assertion changes — same principle.)
+- ✓ **Webhook behavior preserved** — HMAC verification, idempotency check, 200 ACK, inner try/catches (returning 200 with status fields), and the deliberate 500 for "secret missing in production" all preserved. The wrapper only catches what ESCAPES the inner try/catches.
+- ✓ **Spanish error messages** — the wrapper's `message` field is `error instanceof Error ? error.message : 'Internal error'` (the underlying error message, which for our codebase is Spanish for business-logic errors). The wrapper itself doesn't introduce new user-facing strings.
+- ✓ **Worklog appended** — this section.
+
+### Next Actions (follow-up, out of scope)
+
+1. **Add a unit test for `withWebhookErrorHandling` itself.** The wrapper is currently exercised only indirectly via `webhooks.whatsapp.test.ts`. A direct unit test (mock handler that throws → assert 200 + body shape + Sentry capture call + pino log call) would lock in the contract. ~15 minutes. (Skipping per the "DO NOT touch test files" rule — but a parallel test sprint could pick this up.)
+
+2. **Migrate `src/middleware.ts` + `sentry.{server,client,edge}.config.ts` to use a similar wrapper.** Sprint 5D item #2 (still open). These files have their own error handling but could benefit from the consistency. ~30 minutes.
+
+3. **Alerting: route the `webhook: true` Sentry tag to a lower-urgency channel.** The wrapper now tags webhook errors with `webhook: true`, but no Sentry alert rule consumes that tag yet. An ops follow-up should add a Sentry rule like "webhook errors → #webhook-alerts Slack channel (paged only if rate > 10/min)". ~15 minutes in Sentry UI.
+
+4. **Consider deprecating the deliberate 500 for "secret missing in production" in the 6 payment webhooks.** Currently `adapter.webhookVerify()` throws → catch → 500 → gateway retries 24h. This made sense pre-Sprint-8B (the only way to alert the operator was via gateway-retry noise). Now that the wrapper captures unhandled exceptions to Sentry, the operator gets alerted via Sentry regardless. Migrating these deliberate 500s to 200 + Sentry capture would simplify the webhooks (drop the inner try/catch around `webhookVerify`). Risk: the 500 path has been in production since Sprint 4A; changing it could affect gateway-side monitoring (e.g. Stripe dashboard's "webhook endpoint health" widget). Estimated effort: ~1 hour + 1 week of canary observation.
+
+---
+
+## Sprint 8A — Frontend views: LLM costs dashboard + governance escalations + sidebar wiring
+
+**Task:** SPRINT-FRONTEND-VIEWS-001
+**Scope:** 3 new frontend views (NO backend changes, NO test files) to visualize the LLM cost / governance / escalation data the backend already exposes.
+
+### Archivo changes
+
+| # | File | Change |
+|---|------|--------|
+| 1 | `src/components/dashboard/llm-costs-view.tsx` | **New** — `LLMCostsView`: 4 KPI cards (costo 30d, tokens, llamadas, latencia), AreaChart Recharts (costo diario 30d), tablas desglose por agente + por modelo, BudgetCards (diario + mensual con barra de progreso + badge Saludable/Advertencia/Crítico), y form admin-only para POST /api/llm/budget (Inputs diario + mensual + Save). Fetch paralelo de `/api/llm/costs` + `/api/llm/costs/breakdown` + `/api/llm/budget`. |
+| 2 | `src/components/dashboard/governance-view.tsx` | **New** — `GovernanceView`: Tabs (Escalaciones pendientes + Decisiones recientes). Tab 1 lista UcpCheckoutSessions en `requires_escalation` con botones Aprobar/Rechazar (POST /api/governance/escalations). Tab 2 lista DecisionLog con agente + confianza + input/output JSON + estado de revisión humana + botones Aprobar/Rechazar/Modificar (PATCH /api/governance/decisions/[id]). Role gate (admin/finance/support) hace coincidir la API. |
+| 3 | `src/components/dashboard/sidebar.tsx` | `ViewId` extendido con `'llm-costs'` + `'governance'`. `NAV_ITEMS` +2: `Costos de IA` (DollarSign, hint "Tokens · USD · Presupuesto", entre Orquestador y Atribución de Pauta) y `Gobernanza` (Shield, hint "Escalaciones · Trazabilidad §11", entre Novedades e Integraciones). Import `Shield` añadido. |
+| 4 | `src/app/page.tsx` | 2 lazy imports nuevos: `LLMCostsView` + `GovernanceView` vía `next/dynamic` con el `viewLoading` fallback existente. 2 render branches nuevos en el `view` switch. |
+
+### Decisiones de diseño
+
+1. **Llamada dual `/api/llm/costs` + `/api/llm/costs/breakdown`.** El spec del task pedía ambos endpoints. En la práctica, `/costs` ya trae todo lo que necesitamos (total + byAgent + byModel + byDay), pero `/breakdown` enriquece `byDay` con `avgLatencyMs` por día (útil para detectar correlación picos-costo ↔ picos-latencia). Hacemos `Promise.all` de los 3 endpoints en paralelo, y mergeamos: `total` + `byAgent` + `byModel` vienen de `/costs`, `byDay` viene de `/breakdown`. Costo marginal: 1 fetch más, pero en paralelo → mismo wall-clock time.
+
+2. **Form de presupuesto admin-only vía `useSession`.** El endpoint POST /api/llm/budget ya hace `requireRole(['admin'])` (lanza 403 si no es admin). El gateo en cliente (`isAdmin = session?.user?.role === 'admin'`) es puramente cosmético: oculta el form para no-admins, pero la API igual rechazaría la llamada. Es la capa de defensa-en-profundidad correcta — la API es la fuente de verdad.
+
+3. **Pattern async para `load` callback (evita `react-hooks/set-state-in-effect`).** El linter de React Compiler marca como error cualquier `setState` síncrono dentro de un `useEffect`. La primera versión del `LLMCostsView` seguía el pattern del spec template (`load()` síncrono con `.then().catch().finally()` + `setError(null)` síncrono al inicio), lo cual disparaba el error. Refactorizamos `load` a `async` con `try/catch/finally`, moviendo `setError(null)` DESPUÉS del `await` (al recibir los datos exitosamente). El `setRefreshing(true)` síncrono al inicio solo corre cuando `showRefreshing=true` (refresh button); en mount inicial (`showRefreshing=false`), la porción síncrona de `load` no llama setState → el efecto cumple la regla. Aplicado el mismo refactor a `GovernanceView` por la misma razón.
+
+4. **Role gate admin/finance/support en GovernanceView.** El backend POST /api/governance/escalations y PATCH /api/governance/decisions/[id] validan `role !== 'admin' && role !== 'finance' && role !== 'support'` → 403. Replicamos este set en el cliente (`REVIEWER_ROLES = new Set(['admin', 'finance', 'support'])`) para mostrar/ocultar los botones de acción. Si el set diverge en el futuro, los botones simplemente aparecerían en usuarios que la API rechazaría con 403 — toast de error, no silent failure. Mejora futura: extraer este set a `@/lib/auth-helpers` para tener una sola fuente de verdad.
+
+5. **`summarizeCart` y `summarizeJson` helpers defensivos.** El campo `cart` de UcpCheckoutSession es JSON.parse'd en el backend (campo string en DB). Puede ser cualquier shape. `summarizeCart` intenta extraer `items`/`products` con `name`/`quantity`/`price` y un total; si no encuentra, cae a `JSON.stringify(cart, null, 2)`. `summarizeJson` trunca a 200 chars con `…`. Esto asegura que la UI nunca crashee por un payload inesperado.
+
+6. **Sidebar placement de los 2 nuevos items.** `llm-costs` se colocó entre `orchestrator` y `ads` (agrupación lógica: orquestador consume LLM → costos de IA → ads), NO al final antes de settings. `governance` se colocó entre `novedades` e `integrations` (agrupación lógica: novedades = incidencias operativas → governance = escalaciones/trazabilidad §11 → integraciones técnicas). No se agregaron badges hardcodeados (los badges reales vienen del backend vía topbar effect).
+
+7. **No se añadieron i18n keys nuevas.** El spec pedía usar `t()` para i18n. Reutilizamos las keys existentes: `common.refresh`, `common.refreshing`, `common.retry`, `common.save`, `common.saving_data`, `common.last_updated`. Los strings de UI específicos de las vistas (`'Costos de IA'`, `'Gobernanza'`, `'Escalaciones pendientes'`, `'Decisiones recientes'`, etc.) quedan en español hardcoded — consistentes con el resto de views existentes (monetization-view, ads-view, etc. también tienen sus títulos hardcoded en español). Una futura iteración de i18n podría extraerlos a `nav.llm_costs`, `nav.governance`, `governance.pending_escalations`, etc.
+
+### Métricas
+
+| Métrica | Antes | Ahora |
+|---------|-------|-------|
+| Vistas del dashboard | 14 | **16** (+llm-costs, +governance) |
+| Items en sidebar (`NAV_ITEMS`) | 14 | **16** |
+| Tipos en `ViewId` union | 14 | **16** |
+| Lazy imports en `page.tsx` | 13 | **15** |
+| Endpoints LLM expuestos en UI | 0 | **3** (`/api/llm/costs`, `/api/llm/costs/breakdown`, `/api/llm/budget`) |
+| Endpoints governance expuestos en UI | 0 | **3** (`/api/governance/escalations` GET+POST, `/api/governance/decisions` GET, `/api/governance/decisions/[id]` PATCH) |
+| Lint warnings | 0 | **0** (no regression) |
+| TypeScript errors en `src/` | 0 | **0** (no regression) |
+| Tests | 704/704 | **704/704** (no regression — vitest pasa; tsc falla por 15 errores pre-existing en `tests/integration/ap2-mandate-chain.test.ts` que NO tocamos por regla "DO NOT touch test files") |
+
+### Verification
+
+- ✓ `test -f src/components/dashboard/llm-costs-view.tsx` → EXISTS
+- ✓ `test -f src/components/dashboard/governance-view.tsx` → EXISTS
+- ✓ `rg "llm-costs|governance" src/components/dashboard/sidebar.tsx` → 3 hits (type union + 2 NAV_ITEMS entries)
+- ✓ `bun run lint` → exit 0, 0 warnings
+- ⚠ `npx tsc --noEmit` → exit 1, pero **15 errores pre-existing en `tests/integration/ap2-mandate-chain.test.ts`** (archivo untracked, de otro sprint — SPRINT-INTEGRATION-TESTS-001). Filtro `src/` → **0 errores**. Mis cambios no introducen ningún error nuevo.
+- ✓ `bunx vitest run` → 704/704 pass (spec esperaba 651, pero 53 tests nuevos fueron añadidos por `tests/integration/{ap2-mandate-chain,whatsapp-inbound-flow}.test.ts` antes de este sprint — todos pasan).
+
+### Rules Compliance
+
+- ✓ **No backend files touched** — `src/app/api/**`, `src/lib/**`, `src/lib/llm/**`, `src/lib/governance/**` unchanged. Solo leí los route handlers para entender los response shapes.
+- ✓ **No test files touched** — `tests/` unchanged. Los 15 tsc errors en `tests/integration/ap2-mandate-chain.test.ts` son pre-existing (archivo untracked de SPRINT-INTEGRATION-TESTS-001) y no se modificaron.
+- ✓ **Spanish UI text** — todos los strings nuevos (`'Costos de IA'`, `'Gobernanza'`, `'Escalaciones pendientes'`, `'Decisiones recientes'`, `'Presupuesto diario'`, `'Sin actividad de IA todavía'`, etc.) son español `es-CO`.
+- ✓ **shadcn/ui + recharts** — usado `Card`, `Table`, `Button`, `Input`, `Label`, `Badge`, `Skeleton`, `Alert`, `Tabs` (shadcn) + `AreaChart`, `Area`, `XAxis`, `YAxis`, `CartesianGrid`, `Tooltip`, `ResponsiveContainer` (recharts). Mismo set que `ads-view.tsx`.
+- ✓ **`useTenantId()` hook** — usado en ambas vistas para scopear las llamadas API por tenant.
+- ✓ **`useTranslation` / `t`** — usado `t` de `@/lib/i18n` para `common.refresh`, `common.refreshing`, `common.retry`, `common.save`, `common.saving_data`, `common.last_updated`.
+- ✓ **Pattern existente (skeleton, error, refresh)** — ambas vistas replican el pattern de `monetization-view.tsx` / `ads-view.tsx`: estado `loading` muestra skeleton grid, estado `error && !data` muestra `<Alert variant="destructive">` con botón Reintentar, header con `timeAgo(lastUpdated)` + botón refresh con `RefreshCw` spinning.
+- ✓ **Worklog appended** — esta sección.
+
+### Next Actions (follow-up, out of scope)
+
+1. **Fix `tests/integration/ap2-mandate-chain.test.ts` TS errors (15).** Los 15 errores "Expected 2 arguments, but got 1" en llamadas `POST(req)` son porque los route handlers `/api/ap2/mandates/*` ahora esperan un segundo argumento `context: { params: Promise<...> }`. Los tests llaman `POST(req)` sin el context. Fix: pasar un context vacío `POST(req, { params: Promise.resolve({}) })` o actualizar los mocks. ~15 minutos. (PENDIENTE DE SPRINT-INTEGRATION-TESTS-001 — NO se hizo en este sprint por regla "DO NOT touch test files".)
+
+2. **Agregar i18n keys para los títulos de las 2 nuevas vistas.** Reemplazar `'Costos de IA'` → `t('nav.llm_costs')`, `'Gobernanza'` → `t('nav.governance')`, `'Escalaciones pendientes'` → `t('governance.pending_escalations')`, `'Decisiones recientes'` → `t('governance.recent_decisions')`, `'Presupuesto diario'` → `t('llm.daily_budget')`, etc. en las 4 locales (`es-CO`, `es-MX`, `en-US`, `pt-BR`). ~30 strings × 4 locales = ~120 keys nuevas. ~45 minutos.
+
+3. **Wire badges reales al sidebar para `governance`.** El Topbar ya hace un fetch best-effort de notificaciones. Se podría agregar un fetch al mount de `page.tsx` para contar escalaciones pendientes (`GET /api/governance/escalations?tenantId=X` → `escalations.length`) y pasar el count como `badges.governance` al Sidebar — igual que hoy se hace con `badges.messenger: 3` y `badges.ads: 2`. ~15 minutos.
+
+4. **Chart de tokens además de costo.** El AreaChart actual solo muestra `costUsd` por día. Se podría agregar un segundo AreaChart (o un toggle) para `totalTokens` por día — útil para detectar si los picos de costo se deben a más llamadas o a prompts más largos. El dato ya viene en `byDay.totalTokens`. ~20 minutos.
+
+5. **Filters en GovernanceView.** Hoy el endpoint `/api/governance/decisions` acepta `agentName`, `orderId`, `conversationId`, `humanReviewed` como query params. Se podría agregar un filtro de agente + filtro de "solo no revisadas" arriba de la tabla de decisiones. ~30 minutos.
+
+6. **Pagination para DecisionLog.** El endpoint tiene `take: 100` hardcoded. Si un tenant tiene >100 decisiones en 30 días (likely para tenants activos), se pierden las más viejas. Agregar paginación offset-based o infinite scroll. ~1 hora.
+
+---
+
+## Sprint 8C — Integration tests for critical end-to-end flows (2026-07-15)
+
+**Task ID:** SPRINT-INTEGRATION-TESTS-001
+**Scope:** Create 4 new integration test files covering the highest-risk
+end-to-end flows: AP2 mandate chain, WhatsApp inbound → Customer/Conversation
+persistence + CTWA attribution, UCP checkout state machine, and CAPI
+auto-fire on payment webhook.
+
+### Files Created (4 new test files, 0 source files touched)
+
+| # | File | Tests | Focus |
+|---|------|-------|-------|
+| 1 | `tests/integration/ap2-mandate-chain.test.ts` | **17** | Intent → Cart → Payment → Revocation cascade |
+| 2 | `tests/integration/whatsapp-inbound-flow.test.ts` | **17** | Webhook → HMAC → parse → upsert Customer/Conversation/Message → CTWA → socket emit → 200 ACK |
+| 3 | `tests/integration/ucp-checkout-flow.test.ts` | **19** | UCP checkout state machine + escalation rules + mandate bounds enforcement |
+| 4 | `tests/integration/capi-autofire.test.ts` | **19** | Wompi webhook → applyPaymentUpdate → fireCapiPurchaseEvent → ConversionEvent rows + capi-fire BullMQ job |
+|   | **Total new tests** | **72** | |
+
+### What each file covers
+
+#### 1. `ap2-mandate-chain.test.ts` (17 tests)
+Exercises the full AP2 mandate chain end-to-end via the real route handlers:
+- **Intent creation** — signed W3C VC construction, categoryLimits JSON
+  serialization, zod validation (400), tenant access guard (403).
+- **Cart mandate bounds enforcement** — within bounds (201), exceeds
+  Intent.maxAmount → 403 (governance pilar #1 via `enforceMandateBounds`),
+  Intent not found (404), Intent revoked (409), Intent expired (409).
+- **Payment mandate chain linking** — happy path (201) with `intentCartHash`
+  binding, Cart revoked (409), Intent parent revoked (409).
+- **Revocation cascade** — Intent revoke triggers BFS cascade to Cart +
+  Payment children inside `$transaction` (Intent update + child updateMany),
+  404 for unknown mandate, 409 for already-revoked, default reason fallback.
+- **End-to-end chain** — single test creates Intent → Cart → Payment → revokes
+  the Intent and asserts the cascade touches all 3 mandate rows.
+
+#### 2. `whatsapp-inbound-flow.test.ts` (17 tests)
+Mirrors the existing unit test's mock strategy (hmac, parser, whatsapp-cloud,
+chat-emit, idempotency, db, logger, capture-error) but focuses on
+**end-to-end scenario assertions** rather than per-step contracts:
+- **Valid text message** → 200 + `status: 'processed'` + Customer/Conversation/
+  Message rows created with CTWA clickId + socket emit fires twice
+  (`message:new` + `message:received`) + audit log row written. Also covers
+  image and location message types.
+- **Duplicate waMessageId** → 200 + `status: 'duplicate_message_id'` + no DB
+  writes after the layer-3 dedup check. Also tests layer 1 (in-memory) and
+  layer 2 (DB-backed AuditLog) dedup short-circuits.
+- **Invalid HMAC** → 403 + `{ error: 'invalid signature' }` + audit log +
+  no persistence. Also tests the production-mode 500 when `META_APP_SECRET`
+  is missing.
+- **Existing customer reuse** → customer.findFirst returns the existing row →
+  no `customer.create` call; the existing customer ID is used for the new
+  conversation + message. Also covers existing open conversation reuse.
+- **CTWA click_id stamping** — stamped at conversation creation when first
+  inbound carries it, retroactively stamped on an existing conversation that
+  lacks one, NOT overwritten when an existing clickId is present (first-touch
+  attribution), omitted entirely for organic inbound.
+- **Edge cases** — `no_channel` (no tenant for the phone_number_id),
+  `non_message` (status updates), `processing_failed` (DB error still ACKs
+  200 + captures to Sentry).
+
+#### 3. `ucp-checkout-flow.test.ts` (19 tests)
+Exercises the UCP checkout state machine (`incomplete → requires_escalation
+→ ready_for_complete → completed`) including governance + compliance gates:
+- **POST /api/ucp/v1/checkout** — happy path (201) with capability
+  intersection + 30-min expiry, 422 when the agent lacks
+  `dev.ucp.shopping.checkout`, 400 zod validation, 403 tenant mismatch.
+- **PATCH → ready_for_complete** — happy path with Intent + Cart mandate
+  verification + `enforceMandateBounds` + `checkEscalationRules` + VC
+  signature verification, 409 for completed sessions, 400 for missing
+  mandate IDs, 400 for Cart not linked to the Intent (chain break).
+- **PATCH → completed** — Order + OrderItem + OrderEvent(type='created')
+  created, Intent + Cart marked `consumed`, 400 when customerId missing,
+  409 when session not yet `ready_for_complete`, CTWA attribution
+  inherited from the conversation when `conversationId` is supplied.
+- **Escalation rules** — orderValue ≥ COP 5M forces `requires_escalation`
+  with `/governance/escalations` continuation URL, `shouldBlock=true`
+  (3+ failed payments) returns 403, minor without parental consent forces
+  `requires_escalation` with `/compliance/parental-consent` URL + Ley
+  1098/2006 legal basis.
+- **Mandate bounds enforcement** — `enforceMandateBounds` returning
+  `{ allowed: false }` returns 403 with violations array, invalid VC
+  signature returns 400.
+- **Direct escalation path** — `incomplete → requires_escalation` with
+  `continuationUrl` (manual escalation), 400 when continuationUrl missing.
+
+#### 4. `capi-autofire.test.ts` (19 tests)
+End-to-end Wompi webhook → CAPI auto-fire flow. Unlike the existing
+`webhooks.wompi.test.ts` unit test (which mocks `applyPaymentUpdate`), this
+file lets the real `applyPaymentUpdate` + `fireCapiPurchaseEvent` run
+against a mocked db + mocked queue, verifying the integration between the 3
+modules:
+- **End-to-end happy path** — webhook → `applyPaymentUpdate` (transactional
+  order.update + orderEvent.create) → `fireCapiPurchaseEvent` (async
+  fire-and-forget) → 2 ConversionEvent rows created (one per active pixel) →
+  `capi-fire` BullMQ job enqueued with all pixel configs + event IDs. The
+  ConversionEvent `response` JSON contains `clickId`, `sourceAdId`,
+  `eventId` (`order-<id>-<platform>`), hashed customer email + phone
+  (SHA-256, lowercased + trimmed per Meta CAPI spec).
+- **Idempotency guard** — `wasAlreadyPaid=true` → no CAPI fire (the
+  `fireCapiPurchaseEvent` call is skipped).
+- **Order not found** → 200 ACK + no transaction + no CAPI fire.
+- **DECLINED status** → order updated to `rejected` (normalized), OrderEvent
+  type=`payment_update` (not `paid`), no CAPI fire.
+- **No active pixels** → no ConversionEvent rows + no queue enqueue.
+- **$0 order** → CAPI fire no-ops (test data guard in `capi-auto-fire.ts`).
+- **applyPaymentUpdate direct** — $transaction wrapping, `{ found: false }`
+  on missing order, gateway status normalization (`succeeded` → `paid` for
+  Stripe, `declined` → `rejected`), error swallowing.
+- **fireCapiPurchaseEvent direct** — 3 pixels → 3 ConversionEvent rows + 1
+  queue enqueue with all 3 pixel configs + 3 event IDs, $0 skip, no-pixels
+  skip, order-not-found no-op, error swallowing, null email/phone handling.
+- **hashPii** — SHA-256 hex of lowercased+trimmed input, verified against
+  `echo -n 'maria@test.co' | sha256sum`.
+
+### Mock strategy
+
+All 4 files use the same `vi.hoisted(() => ({...}))` + `vi.mock('@/lib/db',
+() => ({ db: dbMock }))` pattern that the existing unit tests use. Hoisting
+the mock objects via `vi.hoisted` is required because `vi.mock` is itself
+hoisted to the top of the file by Vitest's transform — declaring the mock
+objects inline in `vi.mock` factories would fail because they reference
+module-scope `const` bindings that haven't been initialized yet.
+
+Per-test isolation: `beforeEach` calls `vi.clearAllMocks()` (clears call
+history + `mockResolvedValueOnce` queue) + sets a default happy-path mock
+state. Individual tests override the specific mock they need to test against
+via `mockResolvedValueOnce` (one-shot) or `mockResolvedValue` (default
+override). `afterEach` calls `vi.unstubAllEnvs()` to reset env vars.
+
+### Key design decisions
+
+1. **`vi.hoisted` flat object return.** The first AP2 test attempt used a
+   nested `return { dbMock, tx }` from `vi.hoisted` which threw
+   `ReferenceError: Cannot access 'dbMock' before initialization`. The fix
+   is to return a single flat object whose keys ARE the destructured
+   variable names: `return { dbMock: { ..., __tx: tx } }`. The `__tx`
+   inner object is then accessible as `dbMock.__tx` for assertions on
+   cascade calls inside `$transaction`.
+
+2. **`POST(req, undefined as never)` for non-dynamic routes.** The
+   `withErrorHandling` wrapper signature is `(req: T, ctx: C) =>
+   Promise<NextResponse>` — TypeScript requires both args even when the
+   handler is single-arg (the `ctx` parameter is not optional). For dynamic
+   routes the second arg is `{ params: Promise.resolve({...}) }` (matching
+   Next.js's App Router contract). For non-dynamic routes (POST
+   `/api/ap2/mandates`, `/api/ap2/mandates/cart`, `/api/ap2/mandates/payment`,
+   `/api/ucp/v1/checkout`) we pass `undefined as never` to bypass the type
+   check. This mirrors the `as never` cast pattern used in
+   `tests/unit/agents-route.test.ts` line 184.
+
+3. **Fire-and-forget `flushMicrotasks` helper.** `applyPaymentUpdate`
+   invokes `fireCapiPurchaseEvent(order.id, order.tenantId).catch(...)` —
+   fire-and-forget, NOT awaited. The webhook route returns 200 immediately
+   while the CAPI fire runs in the microtask queue. The
+   `flushMicrotasks()` helper (`new Promise((r) => setTimeout(r, 0))`)
+   flushes the queue so tests can assert on the CAPI-side DB calls +
+   queue enqueue before checking expectations.
+
+4. **Do NOT mock `applyPaymentUpdate` or `fireCapiPurchaseEvent` in the
+   end-to-end test.** The existing `webhooks.wompi.test.ts` unit test mocks
+   `applyPaymentUpdate` (treating it as a black box) — that's correct for
+   unit testing the webhook route's contract, but doesn't verify the
+   CAPI auto-fire integration. The new `capi-autofire.test.ts` lets the
+   real `applyPaymentUpdate` + `fireCapiPurchaseEvent` run against a mocked
+   db + mocked queue so the full chain (webhook → order update → CAPI
+   fire → ConversionEvent rows → BullMQ job) is verified. The two test
+   files are complementary, not redundant.
+
+5. **Date serialization in NextResponse.json.** The first AP2 revocation
+   test asserted `expect(data.revokedAt).toBeInstanceOf(Date)` — this
+   failed because `NextResponse.json` serializes Date objects to ISO
+   strings. The fix is `expect(typeof data.revokedAt).toBe('string')` +
+   `expect(() => new Date(data.revokedAt)).not.toThrow()`.
+
+6. **WhatsApp "invalid HMAC" status code.** The task spec said
+   `Invalid HMAC → 200 with { status: 'invalid_signature' }` — but the
+   actual WhatsApp route returns **403** with `{ error: 'invalid
+   signature' }` (the 200-with-status-shape is the Wompi webhook's
+   contract, not WhatsApp's). Per the task instruction to "read the
+   actual route files first to get the exact request/response shapes",
+   the tests assert the actual 403 + error shape.
+
+### Verification (all green)
+
+```bash
+$ bun run lint                              # → exit 0, 0 warnings
+$ npx tsc --noEmit                          # → exit 0 (19 TS2554 errors fixed
+                                            #   by passing `undefined as never`
+                                            #   as the 2nd arg to withErrorHandling-wrapped POSTs)
+$ bunx vitest run                           # → 723/723 passed (36 files)
+                                            #   (651 baseline + 72 new = 723)
+
+# File existence check
+$ ls tests/integration/ap2-mandate-chain.test.ts \
+       tests/integration/whatsapp-inbound-flow.test.ts \
+       tests/integration/ucp-checkout-flow.test.ts \
+       tests/integration/capi-autofire.test.ts
+# → all 4 files exist
+```
+
+### Test count breakdown
+
+| File | Tests |
+|------|-------|
+| `ap2-mandate-chain.test.ts` | 17 |
+| `whatsapp-inbound-flow.test.ts` | 17 |
+| `ucp-checkout-flow.test.ts` | 19 |
+| `capi-autofire.test.ts` | 19 |
+| **Total new** | **72** |
+| Baseline (32 files) | 651 |
+| **New total (36 files)** | **723** |
+
+### Rules compliance
+
+- ✓ **No source files touched** — `src/**` unchanged. Only `tests/integration/`
+  new files created.
+- ✓ **No existing test files touched** — `tests/unit/**` and `tests/eval/**`
+  unchanged. All 651 baseline tests still pass.
+- ✓ **vitest + vi.mock pattern** — all 4 files use `vi.hoisted` +
+  `vi.mock('@/lib/...')` matching the existing test conventions.
+- ✓ **Read actual route/service files first** — read all 5 AP2 route files,
+  the WhatsApp webhook route, both UCP checkout routes, the
+  `payment-webhook-utils.ts`, `capi-auto-fire.ts`, `mandate-enforcement.ts`,
+  `crypto/signing.ts`, `auth-helpers.ts`, and `prisma/schema.prisma` for
+  model shapes before writing any test code.
+- ✓ **Worklog appended** — this section.
+
+### Next actions (follow-up, out of scope)
+
+1. **Integration test for the ACP checkout flow.** The
+   `src/app/api/acp/v1/checkout/route.ts` + `src/app/api/acp/v1/orders/[id]/route.ts`
+   routes have no integration tests yet. They follow a different model
+   (bearer-token auth, no UCP state machine) — a future sprint could add
+   `tests/integration/acp-checkout-flow.test.ts` covering the order
+   creation + status update flow. ~2 hours.
+
+2. **Integration test for the Stripe payment webhook.** The current
+   `capi-autofire.test.ts` uses Wompi as the gateway example. Stripe's
+   webhook uses a different signature scheme (`Stripe-Signature` header with
+   `t=...,v1=...` format) and a different payload shape
+   (`event.type='payment_intent.succeeded'`). A future test could cover the
+   Stripe-specific path through `applyPaymentUpdate` to confirm the gateway
+   normalization (`succeeded` → `paid`) works end-to-end. ~1 hour.
+
+3. **Integration test for the UCP payment-token-exchange flow.**
+   `src/app/api/ucp/v1/payment-token-exchange/route.ts` exchanges a Cart
+   Mandate + Payment Mandate for a one-time payment token. It's the
+   "hand-off to the payment gateway" step in the UCP flow. No test coverage
+   today. ~1 hour.
+
+4. **Integration test for the retracto keyword handler.** The WhatsApp
+   webhook has a special branch for `text.toUpperCase().trim() === 'RETRACTO'`
+   that triggers `processRetracto()` (Ley 1480/2011 Art 47, 5-day cooling-off
+   period for online purchases). The current WhatsApp test mock returns null
+   for `order.findFirst` so the retracto branch is exercised but not
+   asserted. A dedicated test that supplies a recent order + asserts the
+   `processRetracto` call + the WA reply text would close this gap. ~30 min.
+
+5. **BullMQ worker integration test.** The current `capi-autofire.test.ts`
+   mocks `enqueue` so the actual `capi-fire` worker (`registerJobHandler`
+   in `src/lib/queue.ts`) never runs. A future test could let the worker
+   run in inline mode (no REDIS_URL) and assert the `fireMeta` /
+   `fireGoogle` / `fireTikTok` calls. Would require mocking `fetch` so the
+   platform POSTs don't hit the network. ~2 hours.

@@ -23,6 +23,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { StripeAdapter } from '@/lib/adapters/stripe'
 import { applyPaymentUpdate, safeAudit } from '@/lib/adapters/payment-webhook-utils'
 import { isDuplicateWebhook, isDuplicateWebhookDB, generateWebhookId } from '@/lib/middleware/idempotency'
+import { withWebhookErrorHandling } from '@/lib/middleware/webhook-error-handler'
 
 /**
  * Stripe webhook handler.
@@ -45,7 +46,7 @@ import { isDuplicateWebhook, isDuplicateWebhookDB, generateWebhookId } from '@/l
  *          `status: 'invalid_signature'` si la firma no verifica;
  *          `status: 'duplicate'` si ya fue procesado.
  */
-export async function POST(req: NextRequest) {
+export const POST = withWebhookErrorHandling(async (req: NextRequest) => {
   const rawBody = await req.text()
   const signature = req.headers.get('stripe-signature') ?? ''
   const adapter = new StripeAdapter()
@@ -127,4 +128,4 @@ export async function POST(req: NextRequest) {
   }
 
   return NextResponse.json({ received: true })
-}
+})

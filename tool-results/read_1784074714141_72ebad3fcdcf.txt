@@ -1,0 +1,716 @@
+     1→import { NextRequest, NextResponse } from 'next/server'
+     2→import { z } from 'zod'
+     3→import { requireAuth } from '@/lib/auth-helpers'
+     4→import { getLogger } from '@/lib/logger'
+     5→import { db } from '@/lib/db'
+     6→import {
+     7→  getTenantPublicKey,
+     8→  verifyVC,
+     9→  computeIntentCartHash,
+    10→} from '@/lib/crypto/signing'
+    11→import { requireIdentityVerification } from '@/lib/compliance/kyc-gate'
+    12→import {
+    13→  checkAgeGate,
+    14→  requireParentalConsent,
+    15→} from '@/lib/compliance/age-gate'
+    16→import {
+    17→  enforceMandateBounds,
+    18→  checkEscalationRules,
+    19→  normalizeUcpCartToItems,
+    20→} from '@/lib/governance/mandate-enforcement'
+    21→import { withErrorHandling } from '@/lib/middleware/api-error-handler'
+    22→
+    23→const log = getLogger('api/ucp/v1/checkout/[sessionId]')
+    24→
+    25→// GET /api/ucp/v1/checkout/[sessionId]
+    26→// Devuelve el estado actual de la sesión (estado, carrito, continuationUrl
+    27→// si requires_escalation, etc.).
+    28→/**
+    29→ * UCP checkout session status handler (GET).
+    30→ *
+    31→ * Devuelve el estado actual de la sesión UCP: `state`, `cart` (parsed),
+    32→ * `continuationUrl` (si `requires_escalation`), `negotiatedCaps`,
+    33→ * `paymentHandler`, IDs de los mandatos vinculados (intent / cart /
+    34→ * payment), `orderId` (si `completed`) y `expiresAt`.
+    35→ *
+    36→ * Auth: sesión NextAuth (`requireAuth`). El `tenantId` del usuario debe
+    37→ * coincidir con el de la sesión (403 si no).
+    38→ *
+    39→ * @see docs/openapi.yaml `/api/ucp/v1/checkout/{sessionId}`
+    40→ * @security Sesión NextAuth + tenant scoping.
+    41→ * @returns 200 con la representación de la sesión;
+    42→ *          401 / 403 (tenant mismatch) / 404 (sesión no encontrada) /
+    43→ *          500 (error interno).
+    44→ */
+    45→export const GET = withErrorHandling(async (_req: NextRequest,
+    46→  { params }: { params: Promise<{ sessionId: string }> },) => {
+    47→
+    48→  const { sessionId } = await params
+    49→  const { error } = await requireAuth()
+    50→  if (error) return error
+    51→
+    52→    const session = await db.ucpCheckoutSession.findUnique({
+    53→      where: { sessionId },
+    54→    })
+    55→    if (!session) {
+    56→      return NextResponse.json(
+    57→        { error: 'Sesión de checkout no encontrada' },
+    58→        { status: 404 },
+    59→      )
+    60→    }
+    61→
+    62→    // Tenant guard.
+    63→    const { session: userSession, error: tErr } = await requireAuth()
+    64→    if (tErr) return tErr
+    65→    const userTenantId = userSession?.user?.tenantId ?? null
+    66→    if (userTenantId && userTenantId !== session.tenantId) {
+    67→      return NextResponse.json(
+    68→        { error: 'Forbidden: tenant mismatch' },
+    69→        { status: 403 },
+    70→      )
+    71→    }
+    72→
+    73→    return NextResponse.json({
+    74→      sessionId: session.sessionId,
+    75→      state: session.state,
+    76→      cart: session.cart ? JSON.parse(session.cart) : null,
+    77→      continuationUrl: session.continuationUrl,
+    78→      negotiatedCaps: session.negotiatedCaps
+    79→        ? JSON.parse(session.negotiatedCaps)
+    80→        : null,
+    81→      paymentHandler: session.paymentHandler,
+    82→      intentMandateId: session.intentMandateId,
+    83→      cartMandateId: session.cartMandateId,
+    84→      paymentMandateId: session.paymentMandateId,
+    85→      orderId: session.orderId,
+    86→      expiresAt: session.expiresAt,
+    87→    })
+    88→  
+    89→
+    90→})
+    91→
+    92→// PATCH /api/ucp/v1/checkout/[sessionId]
+    93→// Avanza la máquina de estados.
+    94→//   incomplete → requires_escalation → ready_for_complete → completed
+    95→//
+    96→// Transiciones válidas:
+    97→//   incomplete → requires_escalation  (body: { continuationUrl })
+    98→//   requires_escalation → ready_for_complete  (verifica Intent + Cart)
+    99→//   ready_for_complete → completed  (crea order, return orderId)
+   100→//
+   101→// Body (todas opcionales según la transición):
+   102→//   { to: 'requires_escalation' | 'ready_for_complete' | 'completed',
+   103→//     continuationUrl?, intentMandateId?, cartMandateId?, paymentMandateId?,
+   104→//     customerId?, paymentMode?, conversationId?, clickId?, sourceAdId?,
+   105→//     sourceCampaign?, sourcePlatform? }
+   106→//
+   107→// SPRINT-WHATSAPP-FUNCTIONAL-001 — when `conversationId` is supplied on the
+   108→// `completed` transition, the resulting Order inherits the conversation's
+   109→// `clickId` / `sourceAdId` / `sourceCampaign` (CTWA attribution closed
+   110→// loop, study §14.4). The caller may also pass these fields directly to
+   111→// override (e.g. for web-checkout flows where the click_id was captured
+   112→// client-side and never went through a WhatsApp conversation).
+   113→
+   114→const PatchSchema = z.object({
+   115→  to: z.enum(['requires_escalation', 'ready_for_complete', 'completed']),
+   116→  continuationUrl: z.string().url().optional(),
+   117→  intentMandateId: z.string().optional(),
+   118→  cartMandateId: z.string().optional(),
+   119→  paymentMandateId: z.string().optional(),
+   120→  customerId: z.string().optional(),
+   121→  paymentMode: z.enum(['advance', 'cod', 'hybrid', 'credit', 'installment']).optional(),
+   122→  conversationId: z.string().optional(),
+   123→  clickId: z.string().optional(),
+   124→  sourceAdId: z.string().optional(),
+   125→  sourceCampaign: z.string().optional(),
+   126→  sourcePlatform: z.string().optional(),
+   127→  // SPRINT-GOVERNANCE-001 — contexto para checkEscalationRules.
+   128→  // Estos flags alimentan las reglas de escalamiento a humano (pilar #2).
+   129→  isFirstPurchase: z.boolean().optional().default(false),
+   130→  paymentMethodChanged: z.boolean().optional().default(false),
+   131→  failedPaymentCount: z.number().int().nonnegative().optional().default(0),
+   132→})
+   133→
+   134→/**
+   135→ * UCP checkout session state-machine advance handler (PATCH).
+   136→ *
+   137→ * Avanza la máquina de estados UCP (Documento §10.1 + §11):
+   138→ *   `incomplete` → `requires_escalation` → `ready_for_complete` → `completed`
+   139→ *
+   140→ * Transiciones válidas:
+   141→ *   - `incomplete → requires_escalation`  (body: `{ continuationUrl }`)
+   142→ *   - `requires_escalation → ready_for_complete`  (verifica Intent + Cart
+   143→ *     Mandates: firmas válidas + encadenamiento `cart.parentMandateId === intent.id`)
+   144→ *   - `ready_for_complete → completed`  (crea Order, marca mandatos como
+   145→ *     `consumed`, retorna orderId)
+   146→ *   - `ready_for_complete → requires_escalation`  (governance / age gate /
+   147→ *     KYC pueden forzar re-escalamiento)
+   148→ *
+   149→ * Antes de avanzar a `ready_for_complete`:
+   150→ *   - **Governance pilar #1** (`enforceMandateBounds`): verifica topes del
+   151→ *     Intent Mandate (monto global + límites por categoría).
+   152→ *   - **Governance pilar #2** (`checkEscalationRules`): reglas de
+   153→ *     escalamiento a humano (`category_<cat>`, monto, isFirstPurchase,
+   154→ *     paymentMethodChanged, failedPaymentCount).
+   155→ *   - **FIX-LEGAL-P0-001 L-4** (age gate Ley 1098/2006 Art 17): si el
+   156→ *     customer es menor sin `parental_consent_minor` → fuerza `requires_escalation`.
+   157→ *   - **KYC Ley 2573**: si `paymentMode` es `credit` o `installment` →
+   158→ *     `requireIdentityVerification`; si falla, fuerza `requires_escalation`.
+   159→ *
+   160→ * En la transición `completed` (SPRINT-WHATSAPP-FUNCTIONAL-001):
+   161→ *   - Si se pasa `conversationId`, hereda `clickId` / `sourceAdId` /
+   162→ *     `sourceCampaign` de la conversación (CTWA closed-loop, estudio §14.4).
+   163→ *   - Crea Order + OrderItems (resuelve SKUs del catálogo del tenant) +
+   164→ *     OrderEvent(type='created').
+   165→ *   - Marca Cart + Intent (+ Payment si existe) como `consumed`.
+   166→ *   - Valida `intentCartHash` del Payment Mandate (defense-in-depth).
+   167→ *
+   168→ * @see docs/openapi.yaml `/api/ucp/v1/checkout/{sessionId}`
+   169→ * @security Sesión NextAuth + tenant scoping. Los mandatos se verifican con
+   170→ *           `verifyVC` (ed25519) usando la llave pública del tenant.
+   171→ * @returns 200 con `{ sessionId, state, ... }`;
+   172→ *          400 (JSON inválido, params inválidos, falta `customerId`) /
+   173→ *          401 / 403 (tenant mismatch, mandate bounds, governance block) /
+   174→ *          404 (sesión no encontrada) / 409 (transición inválida) /
+   175→ *          500 (error interno).
+   176→ */
+   177→export const PATCH = withErrorHandling(async (req: NextRequest,
+   178→  { params }: { params: Promise<{ sessionId: string }> },) => {
+   179→
+   180→  const { sessionId } = await params
+   181→  const { error } = await requireAuth()
+   182→  if (error) return error
+   183→
+   184→  let raw: unknown
+   185→  try {
+   186→    raw = await req.json()
+   187→  } catch {
+   188→    return NextResponse.json(
+   189→      { error: 'Cuerpo JSON inválido' },
+   190→      { status: 400 },
+   191→    )
+   192→  }
+   193→  const parsed = PatchSchema.safeParse(raw)
+   194→  if (!parsed.success) {
+   195→    return NextResponse.json(
+   196→      { error: 'Parámetros inválidos', details: parsed.error.flatten() },
+   197→      { status: 400 },
+   198→    )
+   199→  }
+   200→  const body = parsed.data
+   201→
+   202→    const session = await db.ucpCheckoutSession.findUnique({
+   203→      where: { sessionId },
+   204→    })
+   205→    if (!session) {
+   206→      return NextResponse.json(
+   207→        { error: 'Sesión de checkout no encontrada' },
+   208→        { status: 404 },
+   209→      )
+   210→    }
+   211→
+   212→    // Tenant guard.
+   213→    const { session: userSession, error: tErr } = await requireAuth()
+   214→    if (tErr) return tErr
+   215→    const userTenantId = userSession?.user?.tenantId ?? null
+   216→    if (userTenantId && userTenantId !== session.tenantId) {
+   217→      return NextResponse.json(
+   218→        { error: 'Forbidden: tenant mismatch' },
+   219→        { status: 403 },
+   220→      )
+   221→    }
+   222→
+   223→    // Validar transición legal.
+   224→    const VALID: Record<string, string[]> = {
+   225→      incomplete: ['requires_escalation', 'ready_for_complete'],
+   226→      requires_escalation: ['ready_for_complete'],
+   227→      ready_for_complete: ['completed', 'requires_escalation'],
+   228→      completed: [],
+   229→      failed: [],
+   230→    }
+   231→    if (!VALID[session.state]?.includes(body.to)) {
+   232→      return NextResponse.json(
+   233→        {
+   234→          error: `Transición inválida: ${session.state} → ${body.to}`,
+   235→        },
+   236→        { status: 409 },
+   237→      )
+   238→    }
+   239→
+   240→    // ── requires_escalation ────────────────────────────────────────────
+   241→    if (body.to === 'requires_escalation') {
+   242→      if (!body.continuationUrl) {
+   243→        return NextResponse.json(
+   244→          { error: 'continuationUrl requerida para requires_escalation' },
+   245→          { status: 400 },
+   246→        )
+   247→      }
+   248→      const updated = await db.ucpCheckoutSession.update({
+   249→        where: { sessionId },
+   250→        data: {
+   251→          state: 'requires_escalation',
+   252→          continuationUrl: body.continuationUrl,
+   253→        },
+   254→      })
+   255→      log.info({ sessionId, state: updated.state }, 'UCP state → requires_escalation')
+   256→      return NextResponse.json({
+   257→        sessionId,
+   258→        state: updated.state,
+   259→        continuationUrl: updated.continuationUrl,
+   260→      })
+   261→    }
+   262→
+   263→    // ── ready_for_complete ─────────────────────────────────────────────
+   264→    // Verifica Intent + Cart Mandates (firmas válidas + encadenamiento).
+   265→    if (body.to === 'ready_for_complete') {
+   266→      const intentId = body.intentMandateId ?? session.intentMandateId
+   267→      const cartId = body.cartMandateId ?? session.cartMandateId
+   268→      if (!intentId || !cartId) {
+   269→        return NextResponse.json(
+   270→          { error: 'Intent y Cart Mandate son requeridos para ready_for_complete' },
+   271→          { status: 400 },
+   272→        )
+   273→      }
+   274→      const intent = await db.aP2Mandate.findUnique({ where: { id: intentId } })
+   275→      const cart = await db.aP2Mandate.findUnique({
+   276→        where: { id: cartId },
+   277→        include: { parentMandate: true },
+   278→      })
+   279→      if (!intent || intent.type !== 'intent' || intent.status !== 'active') {
+   280→        return NextResponse.json(
+   281→          { error: 'Intent Mandate inválido o inactivo' },
+   282→          { status: 400 },
+   283→        )
+   284→      }
+   285→      if (!cart || cart.type !== 'cart' || cart.status !== 'active') {
+   286→        return NextResponse.json(
+   287→          { error: 'Cart Mandate inválido o inactivo' },
+   288→          { status: 400 },
+   289→        )
+   290→      }
+   291→      if (cart.parentMandateId !== intent.id) {
+   292→        return NextResponse.json(
+   293→          { error: 'Cart Mandate no está vinculado al Intent indicado' },
+   294→          { status: 400 },
+   295→        )
+   296→      }
+   297→
+   298→      // Verificar firmas.
+   299→      const pub = await getTenantPublicKey(session.tenantId)
+   300→      if (!pub) {
+   301→        return NextResponse.json(
+   302→          { error: 'No hay llave pública del tenant' },
+   303→          { status: 500 },
+   304→        )
+   305→      }
+   306→      const intentVc = JSON.parse(intent.vcPayload)
+   307→      const cartVc = JSON.parse(cart.vcPayload)
+   308→      if (!verifyVC(intentVc, pub) || !verifyVC(cartVc, pub)) {
+   309→        return NextResponse.json(
+   310→          { error: 'Firma del Intent o Cart Mandate inválida' },
+   311→          { status: 400 },
+   312→        )
+   313→      }
+   314→
+   315→      // ── SPRINT-GOVERNANCE-001 — Pilar #1: enforceMandateBounds ─────────
+   316→      // Antes de avanzar a `ready_for_complete`, verificar que el carrito
+   317→      // respeta los límites del Intent Mandate (monto total + límites por
+   318→      // categoría). El mandato se carga desde su `id` (ya validado arriba
+   319→      // como `intent`). El carrito viene en `session.cart` (JSON).
+   320→      const ucpCart = session.cart ? JSON.parse(session.cart) : { items: [] }
+   321→      const cartItems = normalizeUcpCartToItems(ucpCart)
+   322→      const enforcement = await enforceMandateBounds(intent.id, cartItems)
+   323→      if (!enforcement.allowed) {
+   324→        return NextResponse.json(
+   325→          {
+   326→            error: 'Carrito excede los límites del Intent Mandate',
+   327→            violations: enforcement.violations,
+   328→          },
+   329→          { status: 403 },
+   330→        )
+   331→      }
+   332→
+   333→      // ── SPRINT-GOVERNANCE-001 — Pilar #2: checkEscalationRules ────────
+   334→      // Reglas de escalamiento a humano. Si una regla dispara `block` →
+   335→      // 403. Si dispara `escalate` → forzar estado `requires_escalation`
+   336→      // con continuationUrl apuntando a la cola de aprobación humana.
+   337→      //
+   338→      // La categoría dominante del carrito (la de mayor valor total) se
+   339→      // usa para las reglas `category_<cat>`. Si el carrito está vacío,
+   340→      // pasamos `'uncategorized'` (no dispara ninguna regla específica).
+   341→      const totalsForEsc = ucpCart.totals ?? {}
+   342→      const orderValue: number =
+   343→        typeof totalsForEsc.total === 'number'
+   344→          ? totalsForEsc.total
+   345→          : cartItems.reduce((sum, it) => sum + it.total, 0)
+   346→      const perCat: Record<string, number> = {}
+   347→      for (const it of cartItems) {
+   348→        perCat[it.category] = (perCat[it.category] ?? 0) + it.total
+   349→      }
+   350→      const dominantCategory =
+   351→        Object.entries(perCat).sort((a, b) => b[1] - a[1])[0]?.[0] ??
+   352→        'uncategorized'
+   353→
+   354→      const escalation = checkEscalationRules({
+   355→        orderValue,
+   356→        category: dominantCategory,
+   357→        isFirstPurchase: body.isFirstPurchase ?? false,
+   358→        paymentMethodChanged: body.paymentMethodChanged ?? false,
+   359→        failedPaymentCount: body.failedPaymentCount ?? 0,
+   360→      })
+   361→      if (escalation.shouldBlock) {
+   362→        return NextResponse.json(
+   363→          {
+   364→            error: 'Carrito bloqueado por reglas de gobernanza',
+   365→            reasons: escalation.reasons,
+   366→          },
+   367→          { status: 403 },
+   368→        )
+   369→      }
+   370→      if (escalation.shouldEscalate) {
+   371→        const escalationUrl = `/governance/escalations?sessionId=${encodeURIComponent(sessionId)}`
+   372→        const escalated = await db.ucpCheckoutSession.update({
+   373→          where: { sessionId },
+   374→          data: {
+   375→            state: 'requires_escalation',
+   376→            continuationUrl: escalationUrl,
+   377→            intentMandateId: intent.id,
+   378→            cartMandateId: cart.id,
+   379→          },
+   380→        })
+   381→        log.info(
+   382→          { sessionId, state: escalated.state, reasons: escalation.reasons },
+   383→          'UCP state → requires_escalation (governance rules)',
+   384→        )
+   385→        return NextResponse.json({
+   386→          sessionId,
+   387→          state: escalated.state,
+   388→          continuationUrl: escalated.continuationUrl,
+   389→          escalated: true,
+   390→          reasons: escalation.reasons,
+   391→        })
+   392→      }
+   393→
+   394→      // ── FIX-LEGAL-P0-001 L-4 — Age gate (Ley 1098/2006 Art 17) ──────────
+   395→      // Before allowing the checkout to advance to `ready_for_complete`,
+   396→      // verify the customer is not a minor OR — if they are — that they
+   397→      // have an active `parental_consent_minor` ConsentRecord on file.
+   398→      // If the customer is a minor WITHOUT parental consent, force the
+   399→      // session into `requires_escalation` so the human-in-the-loop can
+   400→      // collect the parental consent via the `/compliance/parental-consent`
+   401→      // continuation URL.
+   402→      //
+   403→      // The check runs only when `body.customerId` is supplied. The
+   404→      // `completed` transition independently requires `customerId`, so a
+   405→      // checkout that reached `ready_for_complete` without a customerId
+   406→      // here will be caught at completion. Skipping the age gate here when
+   407→      // customerId is absent is safe (no PII is processed until the
+   408→      // `completed` transition).
+   409→      if (body.customerId) {
+   410→        const ageCheck = await checkAgeGate(body.customerId)
+   411→        if (!ageCheck.allowed) {
+   412→          if (ageCheck.isMinor) {
+   413→            const parentalConsent = await requireParentalConsent(
+   414→              body.customerId,
+   415→            )
+   416→            if (!parentalConsent.verified) {
+   417→              // Force escalation — parental consent must be collected.
+   418→              const continuationUrl = `/compliance/parental-consent?customerId=${encodeURIComponent(
+   419→                body.customerId,
+   420→              )}`
+   421→              const escalated = await db.ucpCheckoutSession.update({
+   422→                where: { sessionId },
+   423→                data: {
+   424→                  state: 'requires_escalation',
+   425→                  continuationUrl,
+   426→                },
+   427→              })
+   428→              log.info(
+   429→                {
+   430→                  sessionId,
+   431→                  state: escalated.state,
+   432→                  customerId: body.customerId,
+   433→                  reason: ageCheck.reason,
+   434→                },
+   435→                'UCP state → requires_escalation (age gate — Ley 1098/2006)',
+   436→              )
+   437→              return NextResponse.json({
+   438→                sessionId,
+   439→                state: escalated.state,
+   440→                continuationUrl: escalated.continuationUrl,
+   441→                escalated: true,
+   442→                reason: ageCheck.reason,
+   443→                legalBasis: 'Ley 1098 de 2006 Art 17',
+   444→              })
+   445→            }
+   446→            // Parental consent on file — allow the checkout through, but
+   447→            // log the minor status so downstream flows (marketing, retention)
+   448→            // can apply the enhanced-protection rules.
+   449→            log.info(
+   450→              { sessionId, customerId: body.customerId },
+   451→              'UCP age gate: minor with parental consent on file — proceeding',
+   452→            )
+   453→          } else {
+   454→            // Age check failed for a non-age reason (e.g. customer not found,
+   455→            // DB error). Block the checkout with 403.
+   456→            return NextResponse.json(
+   457→              { error: ageCheck.reason ?? 'Verificación de edad fallida' },
+   458→              { status: 403 },
+   459→            )
+   460→          }
+   461→        }
+   462→      }
+   463→
+   464→      // Si el pago es a crédito/cuotas, validar KYC (Ley 2573).
+   465→      if (body.paymentMode === 'credit' || body.paymentMode === 'installment') {
+   466→        if (!intent.userId) {
+   467→          return NextResponse.json(
+   468→            { error: 'Intent Mandate no tiene userId para validar KYC' },
+   469→            { status: 400 },
+   470→          )
+   471→        }
+   472→        const kyc = await requireIdentityVerification(
+   473→          session.tenantId,
+   474→          intent.userId,
+   475→          body.paymentMode === 'credit' ? 'credit_purchase' : 'installment_plan',
+   476→          sessionId,
+   477→        )
+   478→        if (!kyc.verified) {
+   479→          // Forzar escalamiento: el humano debe completar KYC.
+   480→          const updated = await db.ucpCheckoutSession.update({
+   481→            where: { sessionId },
+   482→            data: {
+   483→              state: 'requires_escalation',
+   484→              continuationUrl: `/compliance/kyc?verificationId=${kyc.verificationId}`,
+   485→            },
+   486→          })
+   487→          return NextResponse.json({
+   488→            sessionId,
+   489→            state: updated.state,
+   490→            continuationUrl: updated.continuationUrl,
+   491→            kycRequired: true,
+   492→            verificationId: kyc.verificationId,
+   493→            reason: kyc.reason,
+   494→          })
+   495→        }
+   496→      }
+   497→
+   498→      const updated = await db.ucpCheckoutSession.update({
+   499→        where: { sessionId },
+   500→        data: {
+   501→          state: 'ready_for_complete',
+   502→          intentMandateId: intent.id,
+   503→          cartMandateId: cart.id,
+   504→        },
+   505→      })
+   506→      log.info({ sessionId, state: updated.state }, 'UCP state → ready_for_complete')
+   507→      return NextResponse.json({
+   508→        sessionId,
+   509→        state: updated.state,
+   510→        intentMandateId: updated.intentMandateId,
+   511→        cartMandateId: updated.cartMandateId,
+   512→      })
+   513→    }
+   514→
+   515→    // ── completed ──────────────────────────────────────────────────────
+   516→    // Crea un Order a partir del carrito + marca los mandatos como consumed.
+   517→    if (body.to === 'completed') {
+   518→      if (!session.cartMandateId || !session.intentMandateId) {
+   519→        return NextResponse.json(
+   520→          { error: 'La sesión no está ready_for_complete' },
+   521→          { status: 409 },
+   522→        )
+   523→      }
+   524→      if (!body.customerId) {
+   525→        return NextResponse.json(
+   526→          { error: 'customerId requerido para completar' },
+   527→          { status: 400 },
+   528→        )
+   529→      }
+   530→      const cart = JSON.parse(session.cart ?? '{}')
+   531→      const totals = cart.totals ?? { total: 0, subtotal: 0, shipping: 0, tax: 0 }
+   532→
+   533→      // SPRINT-WHATSAPP-FUNCTIONAL-001 — CTWA attribution inheritance.
+   534→      // When the caller passes a `conversationId`, pull the conversation's
+   535→      // `clickId` / `sourceAdId` / `sourceCampaign` and stamp them on the
+   536→      // new Order. This closes the attribution loop: WA webhook captured
+   537→      // the CTWA click_id → conversation → order → CAPI Purchase event
+   538→      // (auto-fired when the order is marked paid).
+   539→      //
+   540→      // Explicit `body.clickId` / `body.sourceAdId` etc. take precedence
+   541→      // over the conversation's values — useful for web checkout flows
+   542→      // where the click_id was captured client-side.
+   543→      let attribution: {
+   544→        clickId?: string
+   545→        sourceAdId?: string
+   546→        sourceCampaign?: string
+   547→        sourcePlatform?: string
+   548→        conversationId?: string
+   549→      } = {}
+   550→      if (body.conversationId) {
+   551→        const conv = await db.conversation.findUnique({
+   552→          where: { id: body.conversationId },
+   553→          select: {
+   554→            id: true,
+   555→            tenantId: true,
+   556→            clickId: true,
+   557→            sourceAdId: true,
+   558→            sourceCampaign: true,
+   559→            customerPhone: true,
+   560→          },
+   561→        })
+   562→        // Defense-in-depth: only inherit from a conversation of the same tenant.
+   563→        if (conv && conv.tenantId === session.tenantId) {
+   564→          attribution = {
+   565→            clickId: body.clickId ?? conv.clickId ?? undefined,
+   566→            sourceAdId: body.sourceAdId ?? conv.sourceAdId ?? undefined,
+   567→            sourceCampaign: body.sourceCampaign ?? conv.sourceCampaign ?? undefined,
+   568→            sourcePlatform: body.sourcePlatform ?? undefined,
+   569→            conversationId: conv.id,
+   570→          }
+   571→        } else if (conv) {
+   572→          log.warn(
+   573→            { sessionId, conversationId: body.conversationId, tenantId: session.tenantId },
+   574→            'UCP checkout: conversation tenant mismatch — skipping attribution inheritance',
+   575→          )
+   576→        }
+   577→      } else if (body.clickId || body.sourceAdId) {
+   578→        attribution = {
+   579→          clickId: body.clickId,
+   580→          sourceAdId: body.sourceAdId,
+   581→          sourceCampaign: body.sourceCampaign,
+   582→          sourcePlatform: body.sourcePlatform,
+   583→        }
+   584→      }
+   585→
+   586→      // Crear el Order (espajo local del pedido UCP).
+   587→      const order = await db.order.create({
+   588→        data: {
+   589→          tenantId: session.tenantId,
+   590→          number: `UCP-${session.sessionId.slice(0, 8)}`,
+   591→          customerId: body.customerId,
+   592→          status: 'new',
+   593→          paymentMode: body.paymentMode ?? 'advance',
+   594→          paymentStatus: 'unpaid',
+   595→          subtotal: totals.subtotal ?? 0,
+   596→          shipping: totals.shipping ?? 0,
+   597→          discount: totals.discount ?? 0,
+   598→          total: totals.total ?? 0,
+   599→          currency: 'COP',
+   600→          origen: 'ucp_agent',
+   601→          // SPRINT-DIAN-RETRACTO-001 · P1-2 — Derecho al retracto (Ley 1480
+   602→          // Art 47): 5 calendar days from creation for online purchases.
+   603→          // Stamped at order creation so `processRetracto()` doesn't have
+   604→          // to recompute the deadline each call.
+   605→          retractoWindowUntil: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000),
+   606→          ...(attribution.conversationId ? { conversationId: attribution.conversationId } : {}),
+   607→          ...(attribution.clickId ? { clickId: attribution.clickId } : {}),
+   608→          ...(attribution.sourceAdId ? { sourceAdId: attribution.sourceAdId } : {}),
+   609→          ...(attribution.sourceCampaign ? { sourceCampaign: attribution.sourceCampaign } : {}),
+   610→          ...(attribution.sourcePlatform ? { sourcePlatform: attribution.sourcePlatform } : {}),
+   611→          attributedAt: attribution.clickId || attribution.sourceAdId ? new Date() : undefined,
+   612→        },
+   613→      })
+   614→
+   615→      // OrderItems (si hay productos con productId válido, omitimos el FK
+   616→      // y dejamos productId como string — OrderItem.productId no es FK
+   617→      // estricto en SQLite dev; es solo un campo String. Para no romper la
+   618→      // FK real (OrderItem.productId → Product.id), sólo creamos OrderItem
+   619→      // cuando el SKU existe en el catálogo del tenant).
+   620→      const items = (cart.items ?? []) as Array<{
+   621→        sku: string
+   622→        name: string
+   623→        quantity: number
+   624→        unitPrice: number
+   625→        tax?: number
+   626→      }>
+   627→      for (const it of items) {
+   628→        const product = await db.product.findFirst({
+   629→          where: { tenantId: session.tenantId, sku: it.sku },
+   630→          select: { id: true },
+   631→        })
+   632→        if (!product) continue // skip si no existe el SKU
+   633→        await db.orderItem.create({
+   634→          data: {
+   635→            orderId: order.id,
+   636→            productId: product.id,
+   637→            name: it.name,
+   638→            quantity: it.quantity,
+   639→            unitPrice: it.unitPrice,
+   640→            cost: 0,
+   641→          },
+   642→        })
+   643→      }
+   644→      await db.orderEvent.create({
+   645→        data: {
+   646→          orderId: order.id,
+   647→          type: 'created',
+   648→          note: `Pedido creado vía UCP (session ${session.sessionId})`,
+   649→        },
+   650→      })
+   651→
+   652→      // Marcar Cart + Intent como consumed.
+   653→      await db.aP2Mandate.updateMany({
+   654→        where: { id: { in: [session.intentMandateId, session.cartMandateId].filter(Boolean) as string[] } },
+   655→        data: { status: 'consumed', orderId: order.id },
+   656→      })
+   657→      if (session.paymentMandateId) {
+   658→        await db.aP2Mandate.update({
+   659→          where: { id: session.paymentMandateId },
+   660→          data: { status: 'consumed', orderId: order.id },
+   661→        })
+   662→      }
+   663→
+   664→      // Si hay Payment Mandate, validar encadenamiento con intentCartHash.
+   665→      if (session.paymentMandateId) {
+   666→        const pm = await db.aP2Mandate.findUnique({
+   667→          where: { id: session.paymentMandateId },
+   668→        })
+   669→        if (pm) {
+   670→          let pmSubject: Record<string, unknown> | null = null
+   671→          try {
+   672→            const pmVc = JSON.parse(pm.vcPayload)
+   673→            pmSubject = pmVc.credentialSubject
+   674→          } catch {
+   675→            pmSubject = null
+   676→          }
+   677→          const expectedHash = computeIntentCartHash(
+   678→            session.intentMandateId,
+   679→            session.cartMandateId,
+   680→          )
+   681→          if (pmSubject?.intentCartHash !== expectedHash) {
+   682→            log.warn(
+   683→              { sessionId, paymentMandateId: pm.id },
+   684→              'Payment Mandate intentCartHash mismatch',
+   685→            )
+   686→          }
+   687→        }
+   688→      }
+   689→
+   690→      const updated = await db.ucpCheckoutSession.update({
+   691→        where: { sessionId },
+   692→        data: { state: 'completed', orderId: order.id },
+   693→      })
+   694→
+   695→      log.info(
+   696→        { sessionId, orderId: order.id },
+   697→        'UCP state → completed (order created)',
+   698→      )
+   699→
+   700→      return NextResponse.json({
+   701→        sessionId,
+   702→        state: updated.state,
+   703→        orderId: order.id,
+   704→        orderNumber: order.number,
+   705→      })
+   706→    }
+   707→
+   708→    // Should not reach here.
+   709→    return NextResponse.json(
+   710→      { error: 'Transición no implementada' },
+   711→      { status: 400 },
+   712→    )
+   713→  
+   714→
+   715→})
+   716→

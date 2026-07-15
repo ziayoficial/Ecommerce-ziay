@@ -675,22 +675,40 @@ describe('WhatsApp webhook · error handling', () => {
     expect(captureErrorMock.captureError).toHaveBeenCalled()
   })
 
-  it('propagates the WA channel lookup error (outside try/catch) — Next.js wraps as 500', async () => {
-    // NOTE: the route deliberately keeps the `findWhatsAppChannelByPhoneNumberId`
-    // call OUTSIDE the try/catch — the catch block needs `tenantId`/`channelId`
-    // to be set, which they aren't yet. A DB error during channel resolution
-    // bubbles up to Next.js's `withErrorHandling` wrapper (which logs + returns
-    // 500). Meta would retry per its ~24h retry policy, which is acceptable
-    // because a DB-down state is transient.
+  it('returns 200 with status:error when WA channel lookup throws (outside try/catch) — withWebhookErrorHandling captures + ACKs 200 to stop Meta retries', async () => {
+    // SPRINT-WEBHOOK-ERRORHANDLER-001 — the route is now wrapped with
+    // `withWebhookErrorHandling` (NOT `withErrorHandling`). The wrapper
+    // catches ANY unhandled exception — including the
+    // `findWhatsAppChannelByPhoneNumberId` call that's deliberately OUTSIDE
+    // the inner try/catch (the catch block needs `tenantId`/`channelId`
+    // which aren't set yet during channel resolution).
+    //
+    // Behaviour change vs. pre-Sprint-8B:
+    //   OLD: DB error → unhandled → Next.js default 500 → Meta retries 24h
+    //   NEW: DB error → wrapper catches → Sentry + pino log → 200 with
+    //        `{ received: true, status: 'error', message: 'db down' }` →
+    //        Meta stops retrying, operator alerted via Sentry.
+    //
+    // The new behaviour is strictly better — a DB-down state is transient,
+    // and 24h of Meta retries (with duplicate processing once DB recovers)
+    // is worse than a single captured error + 200 ACK.
     waCloudMock.findWhatsAppChannelByPhoneNumberId.mockRejectedValue(new Error('db down'))
     vi.stubEnv('WHATSAPP_PHONE_NUMBER_ID', '')
 
     const req = buildPostReq(waTextBody())
-    await expect(POST(req)).rejects.toThrow('db down')
+    const res = await POST(req)
 
-    // The lookup was attempted before the error escaped.
+    // Always 200 — the wrapper NEVER returns 500 (would trigger Meta retries).
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.received).toBe(true)
+    expect(body.status).toBe('error')
+    expect(body.message).toContain('db down')
+
+    // The lookup was attempted before the error was caught.
     expect(waCloudMock.findWhatsAppChannelByPhoneNumberId).toHaveBeenCalled()
-    // No DB writes happened because the catch block didn't run.
+    // No DB writes happened because the inner catch block didn't run
+    // (the error escaped before reaching the try/catch).
     expect(dbMock.customer.create).not.toHaveBeenCalled()
     expect(dbMock.message.create).not.toHaveBeenCalled()
   })

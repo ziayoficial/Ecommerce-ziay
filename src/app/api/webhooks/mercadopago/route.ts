@@ -19,6 +19,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { MercadoPagoAdapter } from '@/lib/adapters/mercadopago'
 import { applyPaymentUpdate, safeAudit } from '@/lib/adapters/payment-webhook-utils'
 import { isDuplicateWebhook, isDuplicateWebhookDB, generateWebhookId } from '@/lib/middleware/idempotency'
+import { withWebhookErrorHandling } from '@/lib/middleware/webhook-error-handler'
 
 /**
  * MercadoPago webhook handler.
@@ -41,7 +42,7 @@ import { isDuplicateWebhook, isDuplicateWebhookDB, generateWebhookId } from '@/l
  *          `status: 'invalid_signature'` si la firma no verifica;
  *          `status: 'duplicate'` si ya fue procesado.
  */
-export async function POST(req: NextRequest) {
+export const POST = withWebhookErrorHandling(async (req: NextRequest) => {
   const rawBody = await req.text()
   const signature = req.headers.get('x-signature') ?? ''
   const adapter = new MercadoPagoAdapter()
@@ -121,4 +122,4 @@ export async function POST(req: NextRequest) {
 
   // Always ACK 200 to stop MercadoPago retries.
   return NextResponse.json({ received: true })
-}
+})

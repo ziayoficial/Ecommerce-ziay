@@ -25,6 +25,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { PayUAdapter } from '@/lib/adapters/payu'
 import { applyPaymentUpdate, safeAudit } from '@/lib/adapters/payment-webhook-utils'
 import { isDuplicateWebhook, isDuplicateWebhookDB, generateWebhookId } from '@/lib/middleware/idempotency'
+import { withWebhookErrorHandling } from '@/lib/middleware/webhook-error-handler'
 
 /** Map de códigos `state_pol` de PayU a strings canónicos. */
 const PAYU_STATE_POL_MAP: Record<string, string> = {
@@ -60,7 +61,7 @@ const PAYU_STATE_POL_MAP: Record<string, string> = {
  *          `status: 'invalid_signature'` si la firma no verifica;
  *          `status: 'duplicate'` si ya fue procesado.
  */
-export async function POST(req: NextRequest) {
+export const POST = withWebhookErrorHandling(async (req: NextRequest) => {
   const rawBody = await req.text()
   const headerSig = req.headers.get('x-payu-signature') ?? ''
   const adapter = new PayUAdapter()
@@ -141,4 +142,4 @@ export async function POST(req: NextRequest) {
   }
 
   return NextResponse.json({ received: true })
-}
+})

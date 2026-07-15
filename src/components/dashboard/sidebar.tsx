@@ -2,10 +2,10 @@
 import { cn } from '@/lib/utils'
 import {
   LayoutDashboard, MessagesSquare, ShoppingCart, Target, Settings, Zap, DollarSign, Plug, KanbanSquare, Workflow, Grid3x3,
-  Wallet, AlertTriangle, Truck, Store,
+  Wallet, AlertTriangle, Truck, Store, Shield,
 } from 'lucide-react'
 
-export type ViewId = 'overview' | 'messenger' | 'catalog' | 'orders' | 'kanban' | 'orchestrator' | 'ads' | 'monetization' | 'wallet' | 'logistics' | 'marketplace' | 'novedades' | 'integrations' | 'settings'
+export type ViewId = 'overview' | 'messenger' | 'catalog' | 'orders' | 'kanban' | 'orchestrator' | 'ads' | 'monetization' | 'wallet' | 'logistics' | 'marketplace' | 'novedades' | 'integrations' | 'settings' | 'llm-costs' | 'governance'
 
 export const NAV_ITEMS: { id: ViewId; label: string; icon: typeof LayoutDashboard; hint: string }[] = [
   { id: 'overview', label: 'Resumen', icon: LayoutDashboard, hint: 'KPIs · ROAS · CPA' },
@@ -14,12 +14,14 @@ export const NAV_ITEMS: { id: ViewId; label: string; icon: typeof LayoutDashboar
   { id: 'orders', label: 'Pedidos & Pagos', icon: ShoppingCart, hint: 'Anticipado · Contra entrega' },
   { id: 'kanban', label: 'Kanban operativo', icon: KanbanSquare, hint: 'NocoDB · §10' },
   { id: 'orchestrator', label: 'Orquestador', icon: Workflow, hint: '9 agentes · §12' },
+  { id: 'llm-costs', label: 'Costos de IA', icon: DollarSign, hint: 'Tokens · USD · Presupuesto' },
   { id: 'ads', label: 'Atribución de Pauta', icon: Target, hint: 'CPA · ROAS · ROI' },
   { id: 'monetization', label: 'Monetización', icon: DollarSign, hint: 'Comisión sobre GMV' },
   { id: 'wallet', label: 'Wallet', icon: Wallet, hint: 'Balance · Retiros · 2FA' },
   { id: 'logistics', label: 'Inteligencia Logística', icon: Truck, hint: 'Scores · Guías · Alertas' },
   { id: 'marketplace', label: 'Marketplace', icon: Store, hint: 'Cross-brand · Lead sharing' },
   { id: 'novedades', label: 'Novedades', icon: AlertTriangle, hint: 'Incidencias · Escalación' },
+  { id: 'governance', label: 'Gobernanza', icon: Shield, hint: 'Escalaciones · Trazabilidad §11' },
   { id: 'integrations', label: 'Catálogo e Integraciones', icon: Plug, hint: 'Shopify · Woo · Dropi' },
   { id: 'settings', label: 'Configuración', icon: Settings, hint: 'Estrategia de pago' },
 ]

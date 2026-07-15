@@ -10,6 +10,7 @@ import {
   safeAudit,
 } from '@/lib/adapters/payment-webhook-utils'
 import { getLogger } from '@/lib/logger'
+import { withWebhookErrorHandling } from '@/lib/middleware/webhook-error-handler'
 
 const log = getLogger('webhook/pix')
 
@@ -90,7 +91,7 @@ function mapPixStatus(status: string): { status: string; success: boolean } {
  *          `status: 'invalid_signature'` si la firma no verifica;
  *          `status: 'duplicate'` si ya fue procesado.
  */
-export async function POST(req: NextRequest) {
+export const POST = withWebhookErrorHandling(async (req: NextRequest) => {
   const rawBody = await req.text()
   const signature = req.headers.get('x-pix-signature') ?? ''
   const secret = process.env.PIX_HMAC_SECRET ?? process.env.PIX_WEBHOOK_SECRET ?? ''
@@ -197,4 +198,4 @@ export async function POST(req: NextRequest) {
 
   // Always ACK 200 — PIX retries on non-200.
   return NextResponse.json({ received: true })
-}
+})

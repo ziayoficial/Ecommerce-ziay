@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { verifyMetaSignature } from '@/lib/middleware/hmac'
 import { isDuplicateWebhook, isDuplicateWebhookDB, generateWebhookId } from '@/lib/middleware/idempotency'
+import { withWebhookErrorHandling } from '@/lib/middleware/webhook-error-handler'
 
 // Meta (Messenger + Instagram + WhatsApp) ad platform webhook + lead/attributions.
 
@@ -52,7 +53,7 @@ export async function GET(req: NextRequest) {
  *          403 si la firma no verifica;
  *          `status: 'duplicate'` si ya fue procesado.
  */
-export async function POST(req: NextRequest) {
+export const POST = withWebhookErrorHandling(async (req: NextRequest) => {
   // ── HMAC verification (Saramantha §10) ───────────────────────────────
   // Meta firma el body con HMAC-SHA256 usando el App Secret y lo envía en
   // el header `X-Hub-Signature-256`. Si la firma no verifica, devolvemos 403.
@@ -114,4 +115,4 @@ export async function POST(req: NextRequest) {
     },
   })
   return NextResponse.json({ received: true })
-}
+})

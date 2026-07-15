@@ -10,6 +10,7 @@ import {
   safeAudit,
 } from '@/lib/adapters/payment-webhook-utils'
 import { getLogger } from '@/lib/logger'
+import { withWebhookErrorHandling } from '@/lib/middleware/webhook-error-handler'
 
 const log = getLogger('webhook/pse')
 
@@ -75,7 +76,7 @@ function mapPseState(state: string): { status: string; success: boolean } {
  *          `status: 'invalid_signature'` si la firma no verifica;
  *          `status: 'duplicate'` si ya fue procesado.
  */
-export async function POST(req: NextRequest) {
+export const POST = withWebhookErrorHandling(async (req: NextRequest) => {
   const rawBody = await req.text()
   const signature = req.headers.get('x-pse-signature') ?? ''
   const secret = process.env.PSE_WEBHOOK_SECRET ?? ''
@@ -161,4 +162,4 @@ export async function POST(req: NextRequest) {
 
   // Always ACK 200 — PSE retries on non-200.
   return NextResponse.json({ received: true })
-}
+})

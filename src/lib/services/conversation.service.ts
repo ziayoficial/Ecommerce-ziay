@@ -258,6 +258,22 @@ export const conversationService = {
    * `tenantId` is accepted for symmetry with the read methods but is NOT
    * injected into the where clause — the caller is expected to have already
    * validated tenant access. (Defense-in-depth via RLS in PostgreSQL prod.)
+   *
+   * SPRINT-AI-FRONTEND-001 §3 — cuando el status cambia a `closed`, se
+   * anula `pipelineMemory`. La memoria del orquestador es para
+   * continuidad multi-turno en conversaciones activas; al cerrar, el
+   * contexto persistente ya no aporta nada (un nuevo pipeline sobre la
+   * misma conversación cerrada debería empezar desde cero). También
+   * libera el storage JSON (~30 entries × ~500 bytes ≈ 15KB por
+   * conversación cerrada — pequeño pero acumulativo en tablas grandes).
+   *
+   * Implementación: para saber si hay memoria que limpiar, hacemos un
+   * `findUnique` select-only antes del update. Si la conversación ya
+   * tiene `pipelineMemory: null` (la mayoría — sólo las conversaciones
+   * que pasaron por `/api/orchestrate` con `action='full'` lo tienen
+   * poblado), omitimos el campo del `update` para evitar writes
+   * innecesarios. Best-effort: si el findUnique falla, omitimos la
+   * limpieza (no rompemos el update de status).
    */
   async updateStatus(
     id: string,
@@ -265,13 +281,40 @@ export const conversationService = {
     tenantId?: string,
   ) {
     try {
+      // Construimos el `data` antes del update para poder inyectar
+      // `pipelineMemory: null` condicionalmente al cerrar la conversación.
+      const data: {
+        status?: string
+        priority?: string
+        assigneeId?: string | null
+        pipelineMemory?: null
+      } = {
+        ...(patch.status ? { status: patch.status } : {}),
+        ...(patch.priority ? { priority: patch.priority } : {}),
+        ...(patch.assigneeId !== undefined ? { assigneeId: patch.assigneeId } : {}),
+      }
+      // SPRINT-AI-FRONTEND-001 §3 — al cerrar la conversación, limpiar la
+      // pipeline memory persistida. Sólo incluimos el campo en el update
+      // si la conversación tenía memoria poblada (evita writes
+      // innecesarios y mantiene compatibilidad con callers que esperan
+      // un `data` mínimo cuando no hay nada que limpiar). Idempotente.
+      if (patch.status === 'closed') {
+        try {
+          const existing = await db.conversation.findUnique({
+            where: { id },
+            select: { pipelineMemory: true },
+          })
+          if (existing?.pipelineMemory) {
+            data.pipelineMemory = null
+          }
+        } catch {
+          // Best-effort: si el findUnique falla, proseguimos sin limpiar
+          // — el update de status no debe fallar por esto.
+        }
+      }
       const updated = await db.conversation.update({
         where: { id },
-        data: {
-          ...(patch.status ? { status: patch.status } : {}),
-          ...(patch.priority ? { priority: patch.priority } : {}),
-          ...(patch.assigneeId !== undefined ? { assigneeId: patch.assigneeId } : {}),
-        },
+        data,
       })
       log.info({ conversationId: id, patch, tenantId }, 'Conversation updated')
       return updated

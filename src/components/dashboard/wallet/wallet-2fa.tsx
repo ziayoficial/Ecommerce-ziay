@@ -81,12 +81,12 @@ export function Wallet2FADialog({
               <QRCodeSVG value={uri} size={180} />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="2fa-secret" className="text-xs text-muted-foreground">Secreto (cópialo si no puedes escanear)</Label>
+              <p className="text-sm font-medium">Secreto (cópialo si no puedes escanear)</p>
               <div id="2fa-secret" className="font-mono text-[11px] p-2 rounded bg-muted break-all">{secret}</div>
             </div>
             {backup.length > 0 && (
               <div className="space-y-1">
-                <Label htmlFor="2fa-backup-codes" className="text-xs text-muted-foreground">Códigos de respaldo (guárdalos en un lugar seguro)</Label>
+                <p className="text-sm font-medium">Códigos de respaldo (guárdalos en un lugar seguro)</p>
                 <div id="2fa-backup-codes" className="grid grid-cols-2 gap-1 p-2 rounded bg-muted">
                   {backup.map((c, i) => (
                     <div key={i} className="font-mono text-[11px] tabular-nums">{c}</div>

@@ -106,6 +106,18 @@ interface CallAgentResult {
 }
 
 /**
+ * SPRINT-AI-FRONTEND-001 §3 — entrada de `pipelineMemory` persistida.
+ *
+ * Antes de este sprint el array era `Message[]` puro (`{ role, content }`).
+ * Ahora cada entry lleva opcionalmente un `timestamp` ISO — usado por la
+ * evicción TTL de 24h al cargar la memoria desde `Conversation.pipelineMemory`.
+ * El campo es opcional para preservar compatibilidad con entries
+ * persistidas antes de este sprint (se les asigna un timestamp al
+ * persistir de nuevo).
+ */
+type PipelineMemoryEntry = Message & { timestamp?: string }
+
+/**
  * FIX-AI-AGENTS-001 §A-3 — auto-escalación a revisión humana.
  *
  * Si `confidence < 0.6`, persistimos un DecisionLog (con `humanReviewed:
@@ -456,7 +468,16 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     // pipeline anterior y este nuevo pipeline arranca con los outputs de
     // los 9 agentes previos como contexto (en vez de empezar desde cero).
     // Se mantiene sólo el último slice(-30) para no crecer indefinidamente.
-    let pipelineMemory: Message[] = []
+    //
+    // SPRINT-AI-FRONTEND-001 §3 — evicción TTL: al cargar, se descartan
+    // las entries con `timestamp` anterior a 24h. La memoria multi-turno
+    // pierde relevancia después de un día (el cliente rara vez retoma un
+    // pipeline de ayer), y la evicción TTL acota el crecimiento en
+    // conversaciones long-idle que de otro modo acumularían entries
+    // stale de hace días. Las entries sin `timestamp` (persistidas antes
+    // de este sprint) se conservan — se asumen recientes y se les
+    // asigna un timestamp al persistir de nuevo.
+    let pipelineMemory: PipelineMemoryEntry[] = []
     if (conversationId) {
       const conv = await db.conversation.findUnique({
         where: { id: conversationId },
@@ -469,13 +490,22 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
           // inyectarla al pipeline — un JSON corrupto o con formato
           // inesperado no debe romper el pipeline.
           if (Array.isArray(parsed)) {
-            pipelineMemory = parsed.filter(
-              (m): m is Message =>
+            const validated = parsed.filter(
+              (m): m is PipelineMemoryEntry =>
                 m !== null &&
                 typeof m === 'object' &&
                 typeof m.content === 'string' &&
-                (m.role === 'system' || m.role === 'user' || m.role === 'assistant'),
+                (m.role === 'system' || m.role === 'user' || m.role === 'assistant') &&
+                (m.timestamp === undefined || typeof m.timestamp === 'string'),
             )
+            // SPRINT-AI-FRONTEND-001 §3 — evicción TTL de 24h.
+            // Las entries sin timestamp se conservan (backward compat);
+            // las que tienen timestamp anterior al cutoff se descartan.
+            const cutoff = Date.now() - 24 * 60 * 60 * 1000
+            pipelineMemory = validated.filter((entry) => {
+              if (!entry.timestamp) return true
+              return new Date(entry.timestamp).getTime() > cutoff
+            })
           }
         } catch {
           // JSON inválido — arrancar con memoria vacía (comportamiento
@@ -523,9 +553,16 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
       // identifique de dónde viene cada output. Se empuja SIEMPRE, aún
       // en caso de error — el fallback también es información útil para
       // el siguiente agente (saber que el anterior no respondió bien).
+      //
+      // SPRINT-AI-FRONTEND-001 §3 — añadimos `timestamp` ISO para que la
+      // evicción TTL de 24h al cargar la memoria (próxima invocación)
+      // pueda descartar entries stale. El timestamp se asigna al momento
+      // del push (no al persistir) para que sea lo más cercano al
+      // momento real en que el agente generó el reply.
       pipelineMemory.push({
         role: 'assistant',
         content: `[${step.id}/${step.agent}] ${reply}`,
+        timestamp: new Date().toISOString(),
       })
 
       // Persist profile detection
@@ -573,12 +610,23 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     // ~3 invocaciones completas (suficiente para continuidad multi-turno).
     // Best-effort: si la persistencia falla, no se rompe el pipeline (el
     // response ya se construyó y se devuelve igual).
+    //
+    // SPRINT-AI-FRONTEND-001 §3 — antes de persistir, aseguramos que
+    // todas las entries tengan `timestamp` (las que se cargaron desde
+    // storage sin timestamp — entries previas a este sprint — se les
+    // asigna el timestamp actual). Así la próxima carga podrá aplicar
+    // la evicción TTL uniformemente.
     if (conversationId && pipelineMemory.length > 0) {
       try {
+        const nowIso = new Date().toISOString()
+        const toPersist = pipelineMemory.slice(-30).map((entry) => ({
+          ...entry,
+          timestamp: entry.timestamp || nowIso,
+        }))
         await db.conversation.update({
           where: { id: conversationId },
           data: {
-            pipelineMemory: JSON.stringify(pipelineMemory.slice(-30)),
+            pipelineMemory: JSON.stringify(toPersist),
           },
         })
       } catch (err) {

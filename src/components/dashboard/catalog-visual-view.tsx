@@ -201,7 +201,7 @@ export function CatalogVisualView() {
           <div className="flex flex-wrap gap-2 items-center">
             <div className="relative flex-1 min-w-48">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-              <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar producto, SKU, diseno..." className="pl-8 h-9" />
+              <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('search.placeholder_product')} className="pl-8 h-9" />
             </div>
             <Select value={filterDiseno} onValueChange={setFilterDiseno}>
               <SelectTrigger className="h-9 w-36"><Filter className="size-3.5 mr-1" /><SelectValue placeholder="Diseno" /></SelectTrigger>

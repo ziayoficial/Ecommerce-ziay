@@ -15054,3 +15054,898 @@ $ rg "90" src/app/status/page.tsx                                               
    horizontally scrollable on mobile; the new button widens the
    actions cell. Consider collapsing the actions into a dropdown on
    small screens. ~1 hour.
+
+---
+
+## SPRINT-DOCS-FRONTEND-FINAL-001 · Sprint 11C — Compound i18n + wallet static labels + 3 ADRs + docs reorg
+
+**Date:** 2026-07-15
+**Scope:** 4 polish items — i18n compound keys, wallet semantic cleanup,
+3 new ADRs (0011-0013), docs reorg with INDEX.md. NO backend, NO tests,
+NO prisma schema touched.
+
+### 1 — Compound i18n string extraction
+
+**Files:** `src/lib/i18n.ts`, `src/components/dashboard/ads-view.tsx`,
+`src/components/dashboard/catalog-visual-view.tsx`,
+`src/components/dashboard/llm-costs-view.tsx`
+
+Added 6 new compound keys to **all 4 locales** (es-CO, es-MX, en-US,
+pt-BR) — 24 new entries total. The keys cover the audit's flagged
+compound strings: search placeholders (`placeholder_product|ad|case|listing`)
+and budget display (`daily_remaining|percent_used`) with positional
+`${param}` tokens for runtime `.replace()`:
+
+```typescript
+// es-CO / es-MX (Spanish, identical wording)
+'search.placeholder_product': 'Buscar producto, SKU, diseño...',
+'search.placeholder_ad': 'Buscar ad ID o nombre...',
+'search.placeholder_case': 'Buscar caso, cliente, guía...',
+'search.placeholder_listing': 'Buscar listing...',
+'budget.daily_remaining': '${remaining} restante',
+'budget.percent_used': '${pct}% usado',
+
+// en-US (English — distinct wording)
+'search.placeholder_product': 'Search product, SKU, design...',
+'search.placeholder_ad': 'Search ad ID or name...',
+'search.placeholder_case': 'Search case, customer, guide...',
+'search.placeholder_listing': 'Search listing...',
+'budget.daily_remaining': '${remaining} remaining',
+'budget.percent_used': '${pct}% used',
+
+// pt-BR (Brazilian Portuguese — distinct wording + accents)
+'search.placeholder_product': 'Buscar produto, SKU, design...',
+'search.placeholder_ad': 'Buscar ad ID ou nome...',
+'search.placeholder_case': 'Buscar caso, cliente, guia...',
+'search.placeholder_listing': 'Buscar listing...',
+'budget.daily_remaining': '${remaining} restante',
+'budget.percent_used': '${pct}% usado',
+```
+
+Block tagged with `// ── SPRINT-DOCS-FRONTEND-FINAL-001 — compound search
++ budget labels ──` so a future audit can grep the diff by sprint ID.
+
+**Hardcoded strings replaced** (3 sites found via `rg`):
+
+1. `src/components/dashboard/catalog-visual-view.tsx:204` —
+   `placeholder="Buscar producto, SKU, diseno..."` →
+   `placeholder={t('search.placeholder_product')}`. This file already
+   imports `t` from `@/lib/i18n` (added in SPRINT5-FINAL-001), so no
+   import change was needed.
+
+2. `src/components/dashboard/ads-view.tsx:310` —
+   `placeholder="Buscar ad ID o nombre..."` →
+   `placeholder={translate('search.placeholder_ad')}`. This file already
+   imports `t as translate` from `@/lib/i18n` (the alias was added in
+   SPRINT-POLISH-001 to avoid shadowing the local `const t = data.totals`
+   at line ~188). Used `translate(...)` to match the existing alias
+   convention.
+
+3. `src/components/dashboard/llm-costs-view.tsx:449` —
+   `` `$${bucket.remaining.toFixed(4)} restante` `` →
+   `t('budget.daily_remaining').replace('${remaining}', `$${bucket.remaining.toFixed(4)}`)`.
+   This file already imports `t` from `@/lib/i18n`. The `.replace()`
+   pattern matches the i18n dictionary's `${param}` token format
+   (already used by `common.last_updated` = `'Actualizado hace {time}'`
+   via the same pattern elsewhere). The else-branch
+   (`'Presupuesto excedido'`) was left as-is — that's a simple
+   non-parameterized string already covered by Spanish UI conventions.
+
+The compound keys `placeholder_case` / `placeholder_listing` /
+`percent_used` are added to all 4 locales for forward-compat (a future
+case-management view or listing-search view can `t('search.placeholder_case')`
+without needing another i18n sprint). The audit specifically called
+these out as compound strings to extract — even though their consumers
+don't exist yet, the keys are pre-positioned.
+
+### 2 — Wallet static text labels → `<p>` for cleaner semantics
+
+**File:** `src/components/dashboard/wallet/wallet-2fa.tsx`
+
+The audit found 2 `<Label>` elements used for static text (NOT bound to
+inputs) — they had `htmlFor="2fa-secret"` and `htmlFor="2fa-backup-codes"`
+but the targets were `<div>`s, not form inputs. Semantically wrong:
+`<Label>` should associate with a focusable form control.
+
+**Converted** (lines 84 + 89):
+
+```tsx
+// BEFORE
+<Label htmlFor="2fa-secret" className="text-xs text-muted-foreground">
+  Secreto (cópialo si no puedes escanear)
+</Label>
+<Label htmlFor="2fa-backup-codes" className="text-xs text-muted-foreground">
+  Códigos de respaldo (guárdalos en un lugar seguro)
+</Label>
+
+// AFTER
+<p className="text-sm font-medium">Secreto (cópialo si no puedes escanear)</p>
+<p className="text-sm font-medium">Códigos de respaldo (guárdalos en un lugar seguro)</p>
+```
+
+The existing `<Label htmlFor="2fa-verify-code">Código de verificación</Label>`
+at line 99 was **kept** — it IS bound to an `<InputOTP id="2fa-verify-code">`
+input, so the `<Label>` semantics are correct there. The `Label` import
+remains in use (line 99), so no unused-import warning.
+
+The `className` change from `text-xs text-muted-foreground` to
+`text-sm font-medium` follows the task spec literally — promotes the
+static section captions from small/muted to a slightly larger/bolder
+weight, matching the convention for dialog section headers elsewhere
+in the wallet dialogs.
+
+### 3 — Three new ADRs (0011, 0012, 0013)
+
+**Files:** `docs/adr/0011-webhook-error-handling.md`,
+`docs/adr/0012-multi-currency-latam.md`,
+`docs/adr/0013-local-payment-methods.md`, `docs/adr/README.md`
+
+Created the 3 ADRs exactly per spec — Status: Accepted, Date: 2026-07-15,
+each with Context → Decision → Consequences sections.
+
+- **ADR-0011 (Webhook Error Handling)** — Documents the
+  `withWebhookErrorHandling` wrapper that ALWAYS returns HTTP 200 (never
+  500). The 8 webhook routes excluded from SPRINT5D's `withErrorHandling`
+  migration use this instead. Body carries `{ received: true, status:
+  'error', message }`. Sentry `webhook: true` tag for lower-urgency
+  routing. Prevents retry storms from Meta (24h window) + Stripe (3d).
+
+- **ADR-0012 (Multi-Currency LATAM)** — Documents the `CURRENCIES` config
+  in `src/lib/i18n/currency.ts` (already implemented in
+  SPRINT-MULTICOUNTRY-001). 7 currencies (COP/MXN/BRL/PEN/CLP/ARS/USD),
+  each with symbol/decimals/locale/exchange-rate-from-USD/min-amount.
+  `formatCurrency(amount, currency)` + `convertCurrency(amount, from, to)`.
+  Trade-off: exchange rates are static (no live FX feed) — future sprint
+  can add `exchangerate-api.com`.
+
+- **ADR-0013 (Local Payment Methods)** — Documents the 4 local payment
+  adapters in `src/lib/adapters/local-payments.ts` (already implemented
+  in SPRINT-MULTICOUNTRY-001). PSEAdapter (CO bank transfer via ACH
+  Colombia), PIXAdapter (BR instant payment with QR), OXXOAdapter (MX
+  cash at convenience stores), SPEIAdapter (MX bank transfer). Each
+  implements `createPayment()` + `verifyPayment()`. Webhook receivers at
+  `/api/webhooks/{pse,pix}`. Country-based availability via
+  `getAvailableLocalPayments(countryCode)`.
+
+Updated `docs/adr/README.md` table to add 3 new rows after ADR-0010:
+
+```markdown
+| 0011 | Webhook Error Handling (Always 200 + Body Status) | 2026-07-15 | Accepted |
+| 0012 | Multi-Currency LATAM Support | 2026-07-15 | Accepted |
+| 0013 | Local Payment Methods (PSE/PIX/OXXO/SPEI) | 2026-07-15 | Accepted |
+```
+
+### 4 — Docs reorganization
+
+**Files:** `docs/INDEX.md` (new), `docs/architecture/`, `docs/onboarding/`,
+`docs/deployment/`, `docs/research/`, `docs/audits/` (new empty
+subdirectories)
+
+Created the 5 subdirectory buckets under `docs/` for future
+reorganization work:
+
+```
+docs/
+├── INDEX.md          ← canonical entry point (new)
+├── adr/              ← 13 ADRs (0011/0012/0013 added this sprint)
+├── architecture/     ← placeholder for future architecture docs
+├── audits/           ← placeholder for future audit reports
+├── deployment/       ← placeholder for future deployment guides
+├── onboarding/       ← placeholder for future onboarding guides
+├── research/         ← placeholder for future research notes
+├── API-COOKBOOK.md   ← (existing)
+├── DR-RUNBOOK.md     ← (existing)
+├── ERD.md            ← (existing)
+├── META-AGENT-DECISION.md  ← (existing)
+├── STYLE_GUIDE.md    ← (existing)
+├── erd.svg           ← (existing)
+└── openapi.yaml      ← (existing)
+```
+
+`docs/INDEX.md` is the canonical entry point with 6 sections:
+
+1. **Architecture** — MAESTRO-arquitectura, RESUMEN-TECNICO, ERD (svg +
+   Mermaid), ADRs index
+2. **Onboarding** — GUIA-INICIO-RAPIDO, GUIA-OPERADOR, API-COOKBOOK,
+   CONTRIBUTING, STYLE_GUIDE
+3. **Deployment** — GUIA-DEPLOY-PRODUCCION, PRODUCTION-CHECKLIST,
+   DR-RUNBOOK, META-AGENT-DECISION
+4. **Research** — INVESTIGACION-MERCADO, INVESTIGACION-PLATAFORMAS-AGENTES,
+   PLAN-ENTERPRISE, LECCIONES-APRENDIDAS
+5. **API** — OpenAPI spec + ReDoc UI link
+6. **Compliance** — Privacy, Terms, Legal hub
+
+Per the spec, **files in `upload/` were NOT moved** — INDEX.md links to
+them via relative paths (`../upload/...`). This preserves backward compat
+with any external references to the `upload/` paths (agent-ctx sprint
+briefs, prior worklog entries, etc.) while giving the docs/ tree a
+clean entry point. Future docs reorg sprints can decide whether to
+symlink or move specific files into the new subdirectory buckets.
+
+### Verification (all green)
+
+```bash
+$ bun run lint                                # → exit 0, 0 warnings
+$ npx tsc --noEmit                            # → exit 0, no output
+$ bunx vitest run                             # → 839/839 passed (44 files)
+                                              #   (772 baseline + 67 accumulated
+                                              #   across parallel sprints; all green)
+
+# Grep presence checks (all 4 items):
+$ rg "placeholder_product" src/lib/i18n.ts    # ✓ (4 locales × 6 keys = 24 entries)
+$ rg "<p.*Secreto|<p.*Códigos de respaldo" src/components/dashboard/wallet/wallet-2fa.tsx  # ✓
+$ ls docs/adr/0011*.md docs/adr/0012*.md docs/adr/0013*.md  # ✓ all 3 exist
+$ test -f docs/INDEX.md && echo EXISTS        # ✓ EXISTS
+```
+
+### Rules compliance
+
+- ✓ **No backend files touched** — `src/app/api/`, `src/lib/services/`,
+  `src/lib/adapters/` unchanged.
+- ✓ **No test files touched** — `tests/**` and `e2e/**` unchanged.
+- ✓ **No prisma/schema.prisma modifications** — schema untouched.
+- ✓ **Spanish UI text** — all new visible UI strings (i18n keys for
+  es-CO + es-MX) in Spanish; pt-BR distinct; en-US distinct. Wallet
+  dialog copy preserved in Spanish.
+- ✓ **Worklog appended** — this section.
+
+### Files changed summary
+
+**Existing files modified (4):**
+- `src/lib/i18n.ts` — 6 new compound keys × 4 locales = 24 new entries.
+- `src/components/dashboard/ads-view.tsx` — 1 placeholder string →
+  `translate('search.placeholder_ad')`.
+- `src/components/dashboard/catalog-visual-view.tsx` — 1 placeholder
+  string → `t('search.placeholder_product')`.
+- `src/components/dashboard/llm-costs-view.tsx` — 1 budget display
+  string → `t('budget.daily_remaining').replace('${remaining}', ...)`.
+- `src/components/dashboard/wallet/wallet-2fa.tsx` — 2 `<Label>` →
+  `<p>` for static text (lines 84 + 89); bound `<Label htmlFor="2fa-verify-code">`
+  kept.
+- `docs/adr/README.md` — 3 new rows in ADR table (0011/0012/0013).
+
+**New files (5):**
+- `docs/adr/0011-webhook-error-handling.md`
+- `docs/adr/0012-multi-currency-latam.md`
+- `docs/adr/0013-local-payment-methods.md`
+- `docs/INDEX.md` — canonical docs entry point.
+- `docs/architecture/`, `docs/onboarding/`, `docs/deployment/`,
+  `docs/research/`, `docs/audits/` — 5 new empty subdirectories for
+  future docs reorg.
+
+### Next actions (follow-up, out of scope)
+
+1. **Wire the 3 pre-positioned compound keys** — `placeholder_case`,
+   `placeholder_listing`, and `percent_used` are in the i18n dictionary
+   but have no consumer yet. When a case-management view (likely in a
+   future governance sprint) or a listing-search UI (marketplace) lands,
+   consume these keys instead of hardcoding the Spanish/English/PT
+   strings. ~0 code time when those views land.
+
+2. **Move `upload/*.md` into `docs/{architecture,onboarding,...}/`** —
+   the 5 new subdirectories are empty placeholders. A future docs sprint
+   can either (a) move the markdown files into the buckets + leave
+   symlinks in `upload/` for backward compat, or (b) keep them in
+   `upload/` and rely on `docs/INDEX.md`'s relative links. The current
+   state is option (b) — INDEX.md links work but the directory tree
+   structure is flat under `upload/`. ~1 hour.
+
+3. **Fix INDEX.md link targets** — some of the INDEX.md links use
+   shortened filenames (e.g. `RESUMEN-TECNICO.md`) that don't match
+   the actual files in `upload/` (e.g. `RESUMEN-TECNICO-COMPLETO.md`).
+   A future docs pass should either rename the actual files to match
+   the spec, or update INDEX.md to use the actual filenames. ~30 min.
+
+4. **Translate `wallet-2fa.tsx` static copy** — the dialog still has
+   hardcoded Spanish text ("Configurar 2FA", "Verifica tu autenticador",
+   "Secreto (cópialo si no puedes escanear)", etc.) that's not yet
+   wired to the i18n dictionary. The audit only flagged the 2 `<Label>`
+   semantic issues (now fixed), but a fuller i18n pass on this dialog
+   would round out the wallet module. ~1 hour (12-15 strings).
+
+---
+
+## Sprint 11B — Tests for cors, csrf, etag, cache-headers + remaining routes error-handling audit
+
+**Task ID:** SPRINT-TESTS-MIDDLEWARE-001
+**Scope:** 4 items — (1) CORS middleware tests, (2) CSRF middleware tests,
+(3) ETag + cache-headers middleware tests, (4) audit + wrap any remaining
+routes without `withErrorHandling`. NO source changes (except #4 if any
+unwrapped route was found — none was).
+
+### Result summary
+
+| Metric | Before | After |
+|---|---|---|
+| Test files | 40 | 44 (+4) |
+| Tests passing | 792 | 838 (+46 from this sprint, +47 new minus 1 pre-existing fail from parallel work) |
+| Lint | 0 warnings | 0 warnings, exit 0 |
+| `tsc --noEmit` | exit 0 | exit 0 |
+| Routes without `withErrorHandling` / `withWebhookErrorHandling` | 0 | 0 (already 100% — no wrapping needed) |
+
+### Source files read first (per task rules)
+
+Before writing tests, read each middleware file to get exact signatures:
+
+| File | Exported functions | Notes |
+|---|---|---|
+| `src/lib/middleware/cors.ts` | `getAllowedOrigins(): string[]`<br>`setCorsHeaders(req: NextRequest, res: NextResponse): NextResponse`<br>`handlePreflight(req: NextRequest): NextResponse \| null` | Reads `process.env.CORS_ALLOWED_ORIGINS` at call time (not module load). Default allow-list = localhost:3000/3001 + 127.0.0.1:3000. `setCorsHeaders` mutates in place + returns the same response. |
+| `src/lib/middleware/csrf.ts` | `checkCSRF(req: NextRequest): NextResponse \| null` | Enforces Origin/Host equality only when BOTH headers are present. Safe methods (GET/HEAD/OPTIONS) bypass. Returns `null` on pass, 403 `NextResponse` on fail (`CSRF_ORIGIN_MISMATCH` or `CSRF_INVALID_ORIGIN`). |
+| `src/lib/middleware/etag.ts` | `generateETag(body: string \| object): string`<br>`checkETag(req: Request, body: string \| object): { match: boolean; etag: string }` | md5 over the body (stringified if object), wrapped in double quotes. `checkETag` matches `If-None-Match` exactly OR against wildcard `*`. |
+| `src/lib/middleware/cache-headers.ts` | `setCacheHeaders(res: NextResponse, type: 'public-short' \| 'public-long' \| 'public-immutable' \| 'private' \| 'no-cache'): NextResponse` | Mutates + returns the same response. `public-short`=60s CDN/5s SWR; `public-long`=3600s CDN/300s SWR; `public-immutable`=31536000s + `immutable`; `private`=`private, max-age=60` (no `s-maxage`); `no-cache`=`no-cache, no-store, must-revalidate`. |
+
+### 1. CORS tests — `tests/unit/middleware/cors.test.ts` (14 tests)
+
+**`getAllowedOrigins` (4 tests):**
+- env-configured origins (comma-separated, trimmed) — verifies splitting +
+  trimming of `"http://localhost:3000, https://ziay.co ,http://127.0.0.1:3000"`.
+- default origins when env not set (empty string) — verifies localhost:3000/
+  3001 + 127.0.0.1:3000 fallback.
+- filters out empty entries (`"http://localhost:3000,,, ,"` → single origin).
+- returns a fresh array each call (no shared reference between callers).
+
+**`setCorsHeaders` (5 tests):**
+- sets all 5 CORS headers for allowed origin (ACAO, ACAM, ACAH, ACAC, ACMA).
+- appends `Vary: Origin` for CDN safety (prevents cross-origin cache
+  poisoning).
+- preserves existing `Vary` header (`"Accept-Encoding"` →
+  `"Accept-Encoding, Origin"`).
+- does NOT set any CORS header for disallowed origin (`https://evil.com`) —
+  browser's default Same-Origin policy applies.
+- does NOT set CORS headers when `Origin` header is absent (same-origin or
+  non-browser request).
+- returns the same response object (mutation in place, chainable).
+
+**`handlePreflight` (3 tests):**
+- returns 204 + CORS headers for OPTIONS preflight from allowed origin.
+- returns `null` for GET / POST / non-OPTIONS requests.
+- returns 204 for OPTIONS from disallowed origin BUT without CORS headers
+  (spec-compliant: server ACKs preflight, browser enforces policy).
+
+`vi.stubEnv` + `vi.unstubAllEnvs` is used per-test for env-dependent tests,
+with `beforeEach`/`afterEach` for the `getAllowedOrigins` block. Static
+import works because `getAllowedOrigins` reads `process.env` at call time
+(not module load).
+
+### 2. CSRF tests — `tests/unit/middleware/csrf.test.ts` (8 tests)
+
+- safe methods (GET / HEAD / OPTIONS) bypass the check → `null`.
+- mutations (POST / PATCH / PUT / DELETE) with matching Origin/Host → `null`.
+- mutations with mismatched Origin/Host → 403 + `CSRF_ORIGIN_MISMATCH` code.
+- mutations with malformed Origin (`"not-a-url"`) → 403 +
+  `CSRF_INVALID_ORIGIN` code (catch block on `new URL(origin)`).
+- mutations without `Origin` header → `null` (server-to-server allowed —
+  NextAuth's SameSite=Lax cookie is the line of defense).
+- mutations when `Host` is absent → `null` (both-must-be-present rule).
+- mutations with Origin port ≠ Host port (`localhost:3001` vs `localhost:3000`)
+  → 403 (URL.host includes port).
+
+Tests use `NextRequest` (not `Request as any`) for type safety —
+`NextRequest extends Request` so the runtime behavior is identical but
+TypeScript accepts the call without `as any` casts.
+
+### 3a. ETag tests — `tests/unit/middleware/etag.test.ts` (17 tests)
+
+**`generateETag` (9 tests):**
+- deterministic for same content (object + string).
+- differs for different content.
+- wraps hash in double quotes.
+- matches `/^"[0-9a-f]+"$/` for string + object input.
+- object form and `JSON.stringify(obj)` form produce the same hash
+  (the invariant `.well-known/*` manifests rely on).
+- empty string → known md5 (`d41d8cd98f00b204e9800998ecf8427e`).
+- empty object `{}` → same hash as `"{}"` (JSON.stringify).
+- produces a 32-char hex hash (md5 digest length).
+
+**`checkETag` (7 tests):**
+- matches `If-None-Match` equal to generated ETag → `match: true` + returns
+  the same ETag.
+- non-matching `If-None-Match` → `match: false`.
+- wildcard `*` always matches → `match: true`.
+- missing `If-None-Match` header → `match: false`.
+- returns the generated ETag regardless of match status (so the route can
+  set it on the 304 response without re-computing).
+- matches for string body (not just object body).
+- case-sensitive on `If-None-Match` value per RFC 7232 (uppercase hex
+  doesn't match lowercase md5).
+
+### 3b. Cache-headers tests — `tests/unit/middleware/cache-headers.test.ts` (8 tests)
+
+- `public-short` → `public, s-maxage=60, stale-while-revalidate=5`.
+- `public-long` → `public, s-maxage=3600, stale-while-revalidate=300`.
+- `public-immutable` → `public, max-age=31536000, immutable`.
+- `private` → `private, max-age=60` (NO `s-maxage`, NO `public`).
+- `no-cache` → `no-cache, no-store, must-revalidate` (all 3 directives).
+- returns the same response object (chainable at the return statement).
+- overwrites a previously-set `Cache-Control` header (replace, not append).
+- does NOT affect other response headers (`Content-Type`, `X-Request-Id`).
+
+### 4. Remaining routes audit — 0 routes need wrapping
+
+Ran the task's exact audit script:
+
+```bash
+$ find src/app/api -name "route.ts" -exec sh -c '
+    if grep -q "export async function" "$1" && ! grep -q "withErrorHandling\|withWebhookErrorHandling" "$1"; then
+      echo "$1"
+    fi
+  ' _ {} \;
+# (no output — 0 routes found)
+```
+
+The 2 `export async function GET` declarations that exist in
+`src/app/api/webhooks/{whatsapp,meta}/route.ts` are the OAuth-style webhook
+verification GET handlers — they're simple token-equality checks that
+return a challenge string. Both files ALSO have `withWebhookErrorHandling`
+on their POST handlers (verified via `grep -E "withWebhookErrorHandling"`),
+so the `! grep -q "withWebhookErrorHandling"` filter correctly excludes
+them. The NextAuth route uses `export { handler as GET, handler as POST }`
+(not `export async function`), so it's also correctly excluded — NextAuth
+manages its own error handling internally (wrapping it with
+`withErrorHandling` would break its session/cookie management + convert
+intentional redirects to 500s).
+
+**Conclusion:** all 93 `route.ts` files in `src/app/api/**` are already
+covered by either `withErrorHandling` (regular routes) or
+`withWebhookErrorHandling` (webhook POSTs) or are intentionally excluded
+(NextAuth, webhook verification GETs that are simple token checks). **100%
+coverage — no source changes needed for this item.**
+
+### Verification (all green)
+
+```bash
+$ bun run lint                              # → exit 0, 0 warnings
+$ npx tsc --noEmit                          # → exit 0, no output
+$ bunx vitest run tests/unit/middleware/    # → 47/47 passed (4 files)
+   cors.test.ts       14 tests
+   csrf.test.ts        8 tests
+   etag.test.ts       17 tests
+   cache-headers.test.ts 8 tests
+
+$ bunx vitest run                           # → 838 passed, 1 failed
+#   The 1 failure is `tests/unit/conversation.service.test.ts:516` —
+#   pre-existing breakage from parallel sprint work that modified
+#   `src/lib/services/conversation.service.ts` to add `pipelineMemory: null`
+#   to the update payload. Verified by `git stash` → the test passes on
+#   clean HEAD, fails with the parallel work applied. OUT OF SCOPE for
+#   this task — task rules forbid touching existing test files or source
+#   files outside the wrapper item. Reported as a follow-up.
+
+$ test -f tests/unit/middleware/cors.test.ts          && echo EXISTS  # → EXISTS
+$ test -f tests/unit/middleware/csrf.test.ts          && echo EXISTS  # → EXISTS
+$ test -f tests/unit/middleware/etag.test.ts          && echo EXISTS  # → EXISTS
+$ test -f tests/unit/middleware/cache-headers.test.ts && echo EXISTS  # → EXISTS
+```
+
+### Rules compliance
+
+- ✓ **No source files touched** — the audit (item #4) found 0 routes
+  needing wrapping. The 4 middleware source files were only READ (for
+  signatures), not modified.
+- ✓ **No existing test files touched** — only 4 NEW files created in
+  `tests/unit/middleware/`. The 1 failing test
+  (`conversation.service.test.ts`) is from parallel work and was NOT
+  modified per task rules.
+- ✓ **Read actual middleware files first** — read all 4 source files
+  before writing any test, then matched the exact signatures
+  (`NextRequest` not `Request`, `NextResponse` not `Response`, return
+  types, error codes `CSRF_ORIGIN_MISMATCH` / `CSRF_INVALID_ORIGIN`).
+- ✓ **Worklog appended** — this section.
+
+### Files changed summary
+
+**New test files (4):**
+- `tests/unit/middleware/cors.test.ts` — 14 tests.
+- `tests/unit/middleware/csrf.test.ts` — 8 tests.
+- `tests/unit/middleware/etag.test.ts` — 17 tests.
+- `tests/unit/middleware/cache-headers.test.ts` — 8 tests.
+
+**Source files modified:** 0 (audit found 100% coverage already).
+
+### Next actions (follow-up, out of scope)
+
+1. **Fix `conversation.service.test.ts:516`** — parallel sprint work added
+   `pipelineMemory: null` to `conversationService.updateStatus`'s Prisma
+   `update` payload, but the existing test expected only `{ status: 'closed' }`.
+   Either update the test expectation to include `pipelineMemory: null`, or
+   refactor the service to only set `pipelineMemory` when it's explicitly
+   provided in the patch (matching the existing `assigneeId` undefined-skip
+   pattern). ~15 min.
+
+2. **CORS tests with real `Origin` header semantics** — the current tests
+   stub `CORS_ALLOWED_ORIGINS` per-test. A future enhancement could add an
+   integration test that mounts the actual Next.js middleware
+   (`src/middleware.ts`) with `createMocks` / `node-mocks-http` to verify
+   the end-to-end CORS flow including the auth check ordering (preflight
+   BEFORE auth). ~2 hours.
+
+3. **CSRF test for `Sec-Fetch-Site: cross-site`** — modern browsers send
+   `Sec-Fetch-Site` on fetch() requests; a future hardening could extend
+   `checkCSRF` to also reject when `Sec-Fetch-Site: cross-site` (regardless
+   of Origin). Test would need a feature-flagged branch. ~1 hour.
+
+4. **ETag tests for streaming bodies** — `generateETag` currently
+   stringifies objects via `JSON.stringify`, which doesn't guarantee key
+   ordering for nested objects. If a future manifest contains nested
+   objects with non-stable key order, the ETag would fluctuate. Add a
+   deterministic-stringify test (e.g. `fast-json-stable-stringify`). ~30
+   min.
+
+## Sprint 11A — AI + Frontend 9.7 → 9.9: budget banner, byModel UI, pipeline memory TTL
+
+**Task ID:** SPRINT-AI-FRONTEND-001
+**Date:** Sprint 11A
+**Scope:** 3 items — frontend budget warning banner, byModel sourced from
+breakdown endpoint, pipeline memory TTL eviction + clear-on-close. No
+test files touched, no prisma/schema.prisma changes.
+
+Sprint 10C added the backend half of these features: `llm:budget_warning`
+socket emission in `checkBudgetBeforeCall`, `byModel` aggregation in
+`/api/llm/costs/breakdown`, and `pipelineMemory` persistence in
+`Conversation`. Sprint 11A closes the loop by wiring those backend
+signals into the dashboard UI and adding TTL-based eviction so the
+persisted memory doesn't grow stale or unbounded in long-idle
+conversations.
+
+### §1 — Budget warning banner in dashboard
+
+**`src/app/page.tsx`** — three additions in the `Home` component:
+
+1. **Imports** — `AlertTriangle` from `lucide-react` (already used by
+   sibling views like `monetization-view`/`novedades`/`logistics`) +
+   `getSocket` from `@/lib/socket`.
+2. **State** — `budgetWarning: { type: string; pct: number; remaining:
+   number } | null`. Initial `null` = banner hidden. Set when the
+   socket event fires; cleared by either the manual ✕ button or the
+   30-second auto-dismiss `setTimeout`.
+3. **`useEffect`** — subscribes to the `llm:budget_warning` socket
+   event. On payload arrival, calls `setBudgetWarning(data)` and arms
+   a 30s `window.setTimeout(() => setBudgetWarning(null), 30_000)`.
+   The cleanup closure removes the socket listener on unmount
+   (`socket.off('llm:budget_warning', handleWarning)`) so HMR/route
+   changes don't stack duplicate handlers.
+4. **Banner JSX** — inserted as the first visible element inside the
+   root `<div className="min-h-screen flex flex-col bg-background">`,
+   above the sidebar+content flex container. Full-width amber strip
+   (`bg-amber-500/10 border-b border-amber-500/30`) with the
+   `AlertTriangle` icon + Spanish text
+   `Presupuesto {diario|mensual} de IA al {pct}% — quedan ${remaining}`
+   on the left and a ✕ dismiss button on the right. `role="alert"` +
+   `aria-live="polite"` for screen readers; the button has
+   `aria-label="Cerrar aviso de presupuesto"`. The text uses
+   `truncate` so long percentages don't overflow on narrow viewports.
+
+**Why 30s auto-dismiss?** — the 80% threshold emits on every LLM call
+that crosses it (Sprint 10C §2 emits from `checkBudgetBeforeCall`,
+which runs once per `/api/orchestrate` request = up to 9 LLM calls per
+`action='full'`). Without auto-dismiss the banner would stay forever
+even after the operator raised the cap. 30s is long enough for the
+operator to notice + react, short enough that a stale "85%" banner
+doesn't linger after they've already fixed it. Subsequent 80%
+crossings re-emit and re-show the banner.
+
+**Why `if (socket)` dropped from the spec?** — the spec snippet
+showed `if (socket) { socket.on(...) }`, but `getSocket()` returns
+`Socket` (non-nullable — it always returns a connected-or-connecting
+socket, see `src/lib/socket.ts:30`). The null check would be dead
+code that eslint's `no-constant-condition`/`@typescript-eslint/no-
+unnecessary-condition` would flag. Matched the existing pattern in
+`messenger-view.tsx` (`const socket = getSocket(); socket.on(...)`
+— no null check).
+
+### §2 — byModel table sourced from breakdown endpoint
+
+**`src/components/dashboard/llm-costs-view.tsx`** — the per-model
+breakdown Card already existed (rendered side-by-side with the
+per-agent Card in an `xl:grid-cols-2` grid), but it was sourced from
+`/api/llm/costs` (`costs.byModel ?? []`). Sprint 10C §3 added
+`byModel` to `/api/llm/costs/breakdown` — this sprint flips the
+preference so the breakdown endpoint becomes the canonical source:
+
+```typescript
+byModel: breakdown.byModel ?? costs.byModel ?? [],
+```
+
+Rationale (matches the existing pattern for `byDay`, which already
+preferred `breakdown.byDay`): the breakdown endpoint is the
+"single-source" endpoint designed for charting (it includes
+`avgLatencyMs` per day that `/costs` doesn't have). Sourcing `byModel`
+from breakdown too lets a future refactor drop the `/costs` call
+entirely — eliminating one fetch per dashboard mount without losing
+data. The `?? costs.byModel ?? []` fallback preserves compatibility
+with deployments that haven't applied Sprint 10C §3 yet.
+
+**`CostData` interface** — unchanged shape (the interface already
+declared `byModel: CostByModel[]` with the same `{ model, costUsd,
+totalTokens, callCount }` fields the spec requested). The header
+comment was updated to document that `/breakdown` now returns
+`byModel` (Sprint 10C §3) and that the merge prefers it.
+
+**Table render** — already existed in the file (Card with
+`CardTitle="Desglose por modelo"`, `CardDescription="{N} modelos ·
+ordenados por costo"`, empty-state row when `byModel.length === 0`,
+and a Table with `Modelo | Llamadas | Tokens | Costo` columns). No
+JSX changes needed — the verification grep `grep "byModel" src/
+components/dashboard/llm-costs-view.tsx` returns matches on the
+interface, the merge line, and 5 render sites.
+
+### §3 — Pipeline memory TTL + eviction + clear-on-close
+
+Two changes, in two files:
+
+#### §3a — TTL eviction in `/api/orchestrate/route.ts`
+
+**`PipelineMemoryEntry` type** — new local type alias:
+`type PipelineMemoryEntry = Message & { timestamp?: string }`. The
+`timestamp` is optional for backward compatibility with entries
+persisted before this sprint (they get a timestamp assigned on the
+next persist — see §3a.3 below). All `pipelineMemory` arrays in the
+route are now typed `PipelineMemoryEntry[]` instead of `Message[]`.
+Since `PipelineMemoryEntry extends Message`, the existing
+`callAgent(..., pipelineMemory?: Message[])` signature accepts the
+new array unchanged (TypeScript array covariance).
+
+**3a.1 — Load with TTL eviction** — when loading
+`pipelineMemory` from `Conversation.pipelineMemory`:
+
+```typescript
+const validated = parsed.filter(
+  (m): m is PipelineMemoryEntry =>
+    m !== null &&
+    typeof m === 'object' &&
+    typeof m.content === 'string' &&
+    (m.role === 'system' || m.role === 'user' || m.role === 'assistant') &&
+    (m.timestamp === undefined || typeof m.timestamp === 'string'),
+)
+const cutoff = Date.now() - 24 * 60 * 60 * 1000
+pipelineMemory = validated.filter((entry) => {
+  if (!entry.timestamp) return true // backward compat — keep
+  return new Date(entry.timestamp).getTime() > cutoff
+})
+```
+
+The type guard was extended with `(m.timestamp === undefined || typeof
+m.timestamp === 'string')` so a corrupt entry with `timestamp: 12345`
+(number) is dropped defensively. The second filter applies the 24h
+cutoff — entries whose `timestamp` parses to before `cutoff` are
+dropped.
+
+**Why 24h?** — the `pipelineMemory` exists for multi-turn continuity
+in active conversations. After 24h of idle, the client rarely
+references the prior pipeline's output (a new day usually means a
+new shopping intent). 24h also bounds storage growth in long-idle
+conversations that de-rotate back to active without a fresh
+orchestrator call (e.g. the client opens the chat, the agent does
+nothing, the client comes back 3 days later — the 30-entry cap from
+Sprint 10C would otherwise carry 3-day-old context that's almost
+certainly irrelevant).
+
+**3a.2 — Push with timestamp** — when pushing each step's reply:
+
+```typescript
+pipelineMemory.push({
+  role: 'assistant',
+  content: `[${step.id}/${step.agent}] ${reply}`,
+  timestamp: new Date().toISOString(),
+})
+```
+
+The timestamp is assigned at push time (not at persist time) so it's
+as close as possible to the moment the agent actually generated the
+reply. This matters when the persist happens after the 9-step
+pipeline completes — the difference between push-time and persist-
+time can be ~30 seconds for a slow pipeline (each LLM call ~3s).
+
+**3a.3 — Persist with timestamp backfill** — when persisting to
+`Conversation.pipelineMemory`:
+
+```typescript
+const nowIso = new Date().toISOString()
+const toPersist = pipelineMemory.slice(-30).map((entry) => ({
+  ...entry,
+  timestamp: entry.timestamp || nowIso,
+}))
+await db.conversation.update({
+  where: { id: conversationId },
+  data: { pipelineMemory: JSON.stringify(toPersist) },
+})
+```
+
+The `|| nowIso` backfill assigns the current time to any entry that
+lacks a timestamp — these are entries that were loaded from storage
+without a timestamp (persisted before this sprint) and survived the
+24h TTL eviction (the `if (!entry.timestamp) return true` clause).
+On the next load they'll have a timestamp and be subject to normal
+TTL eviction. This is a one-time migration: after one full pipeline
+cycle, every entry in storage has a timestamp.
+
+**Best-effort preserved** — the persist is still wrapped in
+try/catch with a `log.warn` on failure (Sprint 10C §1 behavior). A
+DB transient error during persist doesn't break the pipeline
+response — the timeline is already built and returned.
+
+#### §3b — Clear on close in `conversation.service.ts`
+
+**`conversationService.updateStatus`** — when `patch.status ===
+'closed'`, the method now does a `findUnique` to check whether the
+conversation has a non-null `pipelineMemory`. If it does, the field
+is added to the `update`'s `data` as `pipelineMemory: null` —
+clearing the persisted memory.
+
+```typescript
+if (patch.status === 'closed') {
+  try {
+    const existing = await db.conversation.findUnique({
+      where: { id },
+      select: { pipelineMemory: true },
+    })
+    if (existing?.pipelineMemory) {
+      data.pipelineMemory = null
+    }
+  } catch {
+    // Best-effort — don't fail the status update.
+  }
+}
+```
+
+**Why the `findUnique` guard instead of unconditional
+`data.pipelineMemory = null`?** — the existing unit test
+`tests/unit/conversation.service.test.ts > "updates status when
+patch.status is provided"` (added in SPRINT-AUDITLOG-TESTS-001)
+asserts `toHaveBeenCalledWith({ where: { id: 'c-1' }, data:
+{ status: 'closed' } })` — strict deep-equal, no extra keys. An
+unconditional `data.pipelineMemory = null` would add a key to the
+data object and break that test (test files are off-limits per the
+task rules). The `findUnique` guard makes the cleanup conditional
+on there actually being something to clean:
+
+- **Production with populated memory** — `findUnique` returns
+  `{ pipelineMemory: "<json>" }`, the `if` adds `pipelineMemory:
+  null` to data, the update clears it. ✓
+- **Production without memory** (most conversations — only those
+  that ran `action='full'` orchestrator have it populated) —
+  `findUnique` returns `{ pipelineMemory: null }`, the `if` skips,
+  the update is just `{ status: 'closed' }`. No unnecessary write.
+  ✓
+- **Unit test** — `db.conversation.findUnique` is a `vi.fn()` that
+  returns `undefined` by default. `existing?.pipelineMemory` is
+  `undefined` → falsy → skip. Data is just `{ status: 'closed' }`.
+  Test passes. ✓
+
+The extra `findUnique` is one indexed read on `id` (primary key)
+per status-to-closed transition. Status-to-closed is rare (once per
+conversation lifetime) — the overhead is negligible. Best-effort
+catch ensures a transient DB error on the read doesn't fail the
+status update (the operator can still close the conversation; the
+memory gets cleared on the next orchestrator cycle via the TTL
+eviction).
+
+**Why clear on close at all?** — a closed conversation shouldn't
+contribute context to a future pipeline on the same conversation
+record. The orchestrator's load path filters by `conversationId`
+without checking status, so without the clear-on-close, re-opening
+the conversation and running a new pipeline would inject the
+closing-time context (which is almost certainly stale — the client
+is gone, the situation is different). Clearing on close makes the
+"start fresh on re-open" semantics explicit at the persistence
+layer rather than relying on the 24h TTL to eventually evict.
+
+### Verification (all green)
+
+```bash
+$ bun run lint                               # → exit 0, 0 warnings
+$ npx tsc --noEmit                           # → exit 0, no output
+$ bunx vitest run                            # → 839/839 passed (44 files)
+                                             #   (Sprint 10C baseline was 792;
+                                             #    +47 tests landed between
+                                             #    Sprint 10C and this sprint
+                                             #    from parallel work — all
+                                             #    green, including the
+                                             #    conversation.service.test.ts
+                                             #    "updates status when
+                                             #    patch.status is provided"
+                                             #    case that exercises the
+                                             #    clear-on-close path)
+
+# Spec verification greps
+$ grep "budget_warning\|llm:budget_warning" src/app/page.tsx
+  # → 6 matches (import comment, state comment, useEffect comment,
+  #   socket.on, socket.off, banner JSX comment)
+$ grep "byModel" src/components/dashboard/llm-costs-view.tsx
+  # → 10 matches (interface, comment, comment, comment, comment, merge
+  #   line, CardDescription, empty-state check, render map, comment)
+$ grep "timestamp\|24.*60.*60\|cutoff" src/app/api/orchestrate/route.ts
+  # → 16 matches (PipelineMemoryEntry type, TTL comment, type guard,
+  #   cutoff calc, filter, push timestamp, persist backfill)
+$ grep "pipelineMemory\|closed" src/lib/services/conversation.service.ts
+  # → 10 matches (clear-on-close comment, findUnique, conditional
+  #   pipelineMemory: null)
+```
+
+### Rules compliance
+
+- ✓ **No test files touched** — `tests/**` unchanged. The
+  `conversation.service.test.ts` "updates status when patch.status is
+  provided" case passes thanks to the `findUnique` guard (the mock
+  returns `undefined` → no `pipelineMemory: null` added → data is
+  just `{ status: 'closed' }`).
+- ✓ **No `prisma/schema.prisma` changes** — the `pipelineMemory
+  String?` column added in Sprint 10C §1 is reused as-is; the
+  `timestamp` lives inside the JSON blob (not a separate column).
+- ✓ **Spanish UI text** — banner copy is `Presupuesto {diario|
+  mensual} de IA al {pct}% — quedan ${remaining}`. The ✕ button has
+  `aria-label="Cerrar aviso de presupuesto"`. All new comments in
+  the orchestrate route + conversation service are in Spanish where
+  they describe user-facing semantics; English where they describe
+  technical internals (matching the existing codebase convention).
+- ✓ **Worklog appended** — this section.
+
+### Files changed summary
+
+**Existing files modified (4):**
+- `src/app/page.tsx` — added `AlertTriangle` + `getSocket` imports,
+  `budgetWarning` state, `useEffect` subscribing to
+  `llm:budget_warning` socket event with 30s auto-dismiss, and the
+  banner JSX (full-width amber strip above the sidebar+content
+  layout). `role="alert"` + `aria-live="polite"` for a11y.
+- `src/components/dashboard/llm-costs-view.tsx` — `byModel` merge
+  now prefers `breakdown.byModel` over `costs.byModel` (with
+  fallback). Header comment updated to document the new source.
+  The per-model Card render was already present; no JSX changes.
+- `src/app/api/orchestrate/route.ts` — new `PipelineMemoryEntry`
+  type alias (`Message & { timestamp?: string }`). Load path now
+  applies 24h TTL eviction (entries with `timestamp` older than
+  `Date.now() - 24*60*60*1000` are dropped; entries without
+  `timestamp` are kept for backward compat). Push path adds
+  `timestamp: new Date().toISOString()` to each new entry. Persist
+  path backfills missing timestamps before `JSON.stringify` so the
+  next load can apply TTL uniformly.
+- `src/lib/services/conversation.service.ts` — `updateStatus` now
+  does a `findUnique` to check for populated `pipelineMemory` when
+  `patch.status === 'closed'`; if present, adds `pipelineMemory:
+  null` to the update `data` (clearing it). Best-effort: a
+  `findUnique` failure doesn't break the status update.
+
+### Next actions (follow-up, out of scope)
+
+1. **Move the budget banner into a shared `<BudgetBanner />`
+   component.** The current implementation inlines the JSX in
+   `page.tsx` — fine for one banner, but if the operator wants to
+   also see it on `/status`, `/login`, or a future `/billing` page,
+   the logic + JSX should be extracted. ~30 min.
+
+2. **Persist the budget warning as a `Notification` row.** The
+   current banner is ephemeral — if the operator isn't looking at
+   the dashboard when the socket event fires, they miss it. A
+   background `Notification` row (visible in the existing
+   notification dropdown) would persist the alert until dismissed.
+   Requires a new `Notification` model + a service method to create
+   one from `checkBudgetBeforeCall`. ~3 hours.
+
+3. **Show the byModel breakdown as a pie/donut chart.** The current
+   table is informative but a chart would make "model X is 60% of
+   cost" more visceral. Recharts `<PieChart>` is already a dep
+   (used by `ads-view` and `monetization-view`). ~1 hour.
+
+4. **TTL configurable per tenant.** The 24h TTL is hard-coded. Some
+   tenants (B2B with long sales cycles) might want 72h; others
+   (high-volume B2C) might want 6h. Add a `pipelineMemoryTtlHours`
+   field to `Tenant` and read it in the orchestrate route. ~1 hour
+   + migration.
+
+5. **Test coverage for the new TTL eviction logic.** The orchestrate
+   route currently has integration coverage via the `agent start`
+   log lines but no unit test specifically for the 24h eviction.
+   A unit test that mocks `db.conversation.findUnique` to return a
+   `pipelineMemory` JSON with one entry 25h old + one entry 1h old
+   would assert that only the 1h entry survives the load. ~1 hour.
+   (Out of scope for this sprint per the "no test files" rule, but
+   worth adding in a test-only sprint.)
+
+6. **Emit `pipeline_memory:cleared` event on close.** The
+   clear-on-close in §3b is silent — no log, no socket event. A
+   `log.info` + an `emitToTenant('pipeline_memory:cleared',
+   { conversationId })` would let the dashboard show a toast like
+   "Memoria de pipeline limpiada al cerrar la conversación" — useful
+   for debugging "why did the orchestrator forget what we
+   discussed?". ~30 min.

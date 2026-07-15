@@ -35,7 +35,9 @@ import { cn } from '@/lib/utils'
 //
 // Endpoints consumidos:
 //   - GET /api/llm/costs           → total + byAgent + byModel + byDay
-//   - GET /api/llm/costs/breakdown → byDay con avgLatencyMs por día
+//   - GET /api/llm/costs/breakdown → byDay con avgLatencyMs por día +
+//                                    byModel (desde Sprint 10C §3) +
+//                                    byAgent + total
 //   - GET /api/llm/budget          → presupuesto diario + mensual + spent
 //   - POST /api/llm/budget         → admin-only, actualiza uno o ambos caps
 //
@@ -44,6 +46,10 @@ import { cn } from '@/lib/utils'
 //     `/costs` ya trae byDay pero `/breakdown` incluye avgLatencyMs por
 //     día (útil para correlacionar picos de costo con latencia). El shape
 //     final mergea ambos.
+//   - SPRINT-AI-FRONTEND-001 §2 — `byModel` se prefiere del endpoint
+//     `/breakdown` (que lo añadió en Sprint 10C §3) y cae a `/costs`
+//     como fallback. Esto permite que un refactor futuro elimine la
+//     llamada a `/costs` por completo y obtenga todo desde `/breakdown`.
 //   - El form de presupuesto sólo se muestra a `admin` (rol del tenant).
 //     La API hace `requireRole(['admin'])` igualmente, así que el gateo
 //     en cliente es solo cosmético — la llamada fallará con 403 para
@@ -126,10 +132,15 @@ export function LLMCostsView() {
       ])
       // Merge: `/costs` trae byModel + avgLatencyMs total. `/breakdown`
       // trae byDay con avgLatencyMs por día (más rico para el chart).
+      // SPRINT-AI-FRONTEND-001 §2 — `byModel` se prefiere del endpoint
+      // `/breakdown` (que lo añadió en Sprint 10C §3); cae a `/costs`
+      // como fallback para compatibilidad con deployments que no hayan
+      // aplicado ese cambio. Misma lógica que `byDay` (que ya prefería
+      // `/breakdown`).
       setData({
         total: costs.total ?? { costUsd: 0, totalTokens: 0, callCount: 0 },
         byAgent: costs.byAgent ?? [],
-        byModel: costs.byModel ?? [],
+        byModel: breakdown.byModel ?? costs.byModel ?? [],
         byDay: breakdown.byDay ?? costs.byDay ?? [],
       })
       // `/budget` devuelve top-level (daily) + nested `monthly`. Lo
@@ -446,7 +457,7 @@ function BudgetCard({ title, bucket, resetLabel }: {
         <div className="flex items-center justify-between text-xs text-muted-foreground">
           <span>
             {bucket.remaining > 0
-              ? `$${bucket.remaining.toFixed(4)} restante`
+              ? t('budget.daily_remaining').replace('${remaining}', `$${bucket.remaining.toFixed(4)}`)
               : 'Presupuesto excedido'}
           </span>
           <span>{resetLabel}</span>

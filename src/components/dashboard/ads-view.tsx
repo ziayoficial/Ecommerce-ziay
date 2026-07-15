@@ -307,7 +307,7 @@ export function AdsView() {
             <div className="flex gap-2">
               <div className="relative">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-                <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar ad ID o nombre..." className="pl-8 h-9 w-52" />
+                <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder={translate('search.placeholder_ad')} className="pl-8 h-9 w-52" />
               </div>
               <Select value={platform} onValueChange={setPlatform}>
                 <SelectTrigger className="h-9 min-w-[180px] w-44"><SelectValue /></SelectTrigger>

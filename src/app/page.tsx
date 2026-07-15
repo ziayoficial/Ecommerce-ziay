@@ -12,7 +12,14 @@ import {
   CommandDialog, CommandInput, CommandList, CommandEmpty,
   CommandGroup, CommandItem, CommandSeparator, CommandShortcut,
 } from '@/components/ui/command'
-import { Zap, Github, BookOpen, LayoutDashboard, Search, Loader2 } from 'lucide-react'
+import { Zap, Github, BookOpen, LayoutDashboard, Search, Loader2, AlertTriangle } from 'lucide-react'
+// SPRINT-AI-FRONTEND-001 §1 — `getSocket` opens (or reuses) the singleton
+// socket.io client. Used here at the dashboard top level to subscribe to
+// `llm:budget_warning` events emitted by `checkBudgetBeforeCall` when the
+// daily or monthly spend crosses 80%. The event is fire-and-forget from
+// the backend (Sprint 10C); the dashboard shows a dismissible banner so
+// the operator can react before the hard 100% block starts returning 429s.
+import { getSocket } from '@/lib/socket'
 
 // Shared loading fallback for every lazy view — small, on-brand, no JS.
 const viewLoading = () => (
@@ -87,6 +94,11 @@ export default function Home() {
   const [view, setView] = useState<ViewId>('overview')
   const [country, setCountry] = useState('ALL')
   const [searchOpen, setSearchOpen] = useState(false)
+  // SPRINT-AI-FRONTEND-001 §1 — budget warning banner state. Populated by
+  // the `llm:budget_warning` socket event (Sprint 10C backend). `null` =
+  // no banner. Auto-dismissed after 30s via a setTimeout in the listener
+  // (cleared on unmount via the cleanup closure of the effect).
+  const [budgetWarning, setBudgetWarning] = useState<{ type: string; pct: number; remaining: number } | null>(null)
 
   const badges: Partial<Record<ViewId, number>> = {
     messenger: 3,
@@ -140,6 +152,38 @@ export default function Home() {
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
+  // ───────────────────────────────────────────────────────────────────────
+  // SPRINT-AI-FRONTEND-001 §1 — budget warning banner.
+  //
+  // Subscribes to the `llm:budget_warning` socket event emitted by
+  // `checkBudgetBeforeCall` (Sprint 10C backend) when the daily or
+  // monthly LLM spend crosses 80%. The event payload shape is
+  // `{ type: 'daily' | 'monthly', pct, spent, budget, remaining,
+  //   message }` — we only keep `{ type, pct, remaining }` in state
+  // because that's all the banner needs. The banner auto-dismisses
+  // after 30s (matches the typical TTL of a budget alert — by then
+  // either the operator reacted or the next call already moved the
+  // spend past 100% and the 429 path takes over).
+  //
+  // The socket is the singleton from `@/lib/socket` — it auto-reconnects
+  // on transient drops. The cleanup closure tears down the listener on
+  // unmount so a HMR or route change doesn't stack duplicate handlers.
+  // ───────────────────────────────────────────────────────────────────────
+  useEffect(() => {
+    const socket = getSocket()
+    const handleWarning = (data: { type: string; pct: number; remaining: number }) => {
+      setBudgetWarning(data)
+      // Auto-dismiss after 30 seconds — the operator has had time to
+      // react (raise cap, investigate, throttle). Subsequent 80%
+      // crossings will re-emit the event and re-show the banner.
+      window.setTimeout(() => setBudgetWarning(null), 30_000)
+    }
+    socket.on('llm:budget_warning', handleWarning)
+    return () => {
+      socket.off('llm:budget_warning', handleWarning)
+    }
+  }, [])
+
   const handleSelectView = useCallback((v: ViewId) => {
     setView(v)
     setSearchOpen(false)
@@ -153,6 +197,33 @@ export default function Home() {
       >
         Saltar al contenido principal
       </a>
+      {/* SPRINT-AI-FRONTEND-001 §1 — budget warning banner. Dismissible.
+          Triggered by the `llm:budget_warning` socket event when daily
+          or monthly LLM spend crosses 80% (Sprint 10C backend). The
+          banner spans full width above the sidebar+content so it's
+          visible regardless of which view is active. */}
+      {budgetWarning && (
+        <div
+          role="alert"
+          aria-live="polite"
+          className="bg-amber-500/10 border-b border-amber-500/30 px-4 py-2 text-sm text-amber-700 dark:text-amber-300 flex items-center justify-between gap-3"
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            <AlertTriangle className="size-4 shrink-0" />
+            <span className="truncate">
+              Presupuesto {budgetWarning.type === 'daily' ? 'diario' : 'mensual'} de IA al {budgetWarning.pct}% — quedan ${budgetWarning.remaining.toFixed(4)}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setBudgetWarning(null)}
+            aria-label="Cerrar aviso de presupuesto"
+            className="text-amber-700 dark:text-amber-300 hover:opacity-70 transition-opacity shrink-0"
+          >
+            ✕
+          </button>
+        </div>
+      )}
       <div className="flex flex-1 overflow-hidden">
         <Sidebar active={view} onChange={setView} badges={badges} />
         <div className="flex-1 flex flex-col min-w-0">

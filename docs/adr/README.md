@@ -12,6 +12,9 @@
 | 0008 | Automated Data Retention (Ley 1581) | 2026-07-14 | Accepted |
 | 0009 | BullMQ vs Cron for Background Jobs | 2026-07-14 | Accepted |
 | 0010 | CAPI Auto-fire on Payment (Fire-and-Forget) | 2026-07-14 | Accepted |
+| 0011 | Webhook Error Handling (Always 200 + Body Status) | 2026-07-15 | Accepted |
+| 0012 | Multi-Currency LATAM Support | 2026-07-15 | Accepted |
+| 0013 | Local Payment Methods (PSE/PIX/OXXO/SPEI) | 2026-07-15 | Accepted |
 
 ## How to create a new ADR
 

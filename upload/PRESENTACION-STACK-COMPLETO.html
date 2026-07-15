@@ -52,7 +52,7 @@ pre{background:var(--surface2);padding:14px;border-radius:8px;overflow-x:auto;fo
 <p class="big text-primary" style="font-weight:600">Stack Tecnológico Completo para Revenue Operations</p>
 <p class="muted" style="margin-top:20px">Revenue Operations para Comercio Agéntico — cómo implementamos los 4 ejes enterprise con 3 capas de arquitectura</p>
 <div style="margin-top:30px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
-<span class="badge badge-primary">Next.js 16</span><span class="badge badge-primary">React 19</span>
+<span class="badge badge-primary">Next.js 16.2.10</span><span class="badge badge-primary">React 19</span>
 <span class="badge badge-primary">TypeScript 5</span><span class="badge badge-primary">Prisma 6</span>
 <span class="badge badge-primary">Tailwind 4</span><span class="badge badge-primary">Socket.io</span>
 <span class="badge badge-primary">z-ai-web-dev-sdk</span><span class="badge badge-accent">Revenue · Ops · Governance</span>
@@ -66,9 +66,9 @@ pre{background:var(--surface2);padding:14px;border-radius:8px;overflow-x:auto;fo
 <p class="muted">El stack técnico de ZIAY implementa los <strong>4 ejes enterprise</strong> (Crecimiento medible, Eficiencia operativa, Gobernanza, Integración) a través de <strong>3 capas de arquitectura</strong>: Revenue Layer, Operations Layer y Governance Layer.</p>
 <table>
 <tr><th>Capa Arquitectura</th><th>Eje Enterprise</th><th>Tecnologías</th><th>Propósito</th></tr>
-<tr><td><strong>Revenue Layer</strong></td><td>Crecimiento medible</td><td>Next.js 16, Prisma 6, z-ai-web-dev-sdk, CAPI adapters</td><td>Conversaciones → ingresos trazables. Atribución real por canal.</td></tr>
-<tr><td><strong>Operations Layer</strong></td><td>Eficiencia operativa</td><td>26 agentes IA, 3 pipelines, Socket.io, n8n</td><td>Automatización end-to-end del ciclo de venta.</td></tr>
-<tr><td><strong>Governance Layer</strong></td><td>Gobernanza + Integración</td><td>OTPAuth 2FA, RLS Postgres, 18 adapters, 6 webhooks HMAC</td><td>Gobernanza financiera y de datos, conexión nativa al stack comercial.</td></tr>
+<tr><td><strong>Revenue Layer</strong></td><td>Crecimiento medible</td><td>Next.js 16.2.10, Prisma 6, z-ai-web-dev-sdk, CAPI adapters</td><td>Conversaciones → ingresos trazables. Atribución real por canal.</td></tr>
+<tr><td><strong>Operations Layer</strong></td><td>Eficiencia operativa</td><td>26 agentes IA, 3 pipelines, Socket.io, n8n, 5 protocolos (AP2/UCP/ACP/MCP/A2A)</td><td>Automatización end-to-end del ciclo de venta.</td></tr>
+<tr><td><strong>Governance Layer</strong></td><td>Gobernanza + Integración</td><td>OTPAuth 2FA, RLS Postgres, 18 adapters, 8 webhooks HMAC + rotación, 6 módulos de cumplimiento</td><td>Gobernanza financiera y de datos, conexión nativa al stack comercial.</td></tr>
 </table>
 </section>
 
@@ -108,15 +108,17 @@ pre{background:var(--surface2);padding:14px;border-radius:8px;overflow-x:auto;fo
 <li>Multi-tenant isolation (app + ORM + RLS)</li>
 <li>Audit log en cada transición</li>
 <li>18 adapters (catálogo, logística, pagos, ads)</li>
-<li>6 webhooks con verificación HMAC</li>
+<li>8 webhooks con verificación HMAC + rotación</li>
+<li>6 módulos de cumplimiento legal (KYC, consent, retención, age-gate, retracto, DIAN)</li>
+<li>5 protocolos de IA (AP2/UCP/ACP/MCP/A2A)</li>
 </ul>
 </div>
 </div>
 </section>
 
-<!-- Slide 3: Next.js 16 -->
+<!-- Slide 3: Next.js 16.2.10 -->
 <section class="slide">
-<h1>Next.js 16 · App Router</h1>
+<h1>Next.js 16.2.10 · App Router</h1>
 <h2>SSR + SPA híbrido con Turbopack</h2>
 <div class="grid grid-2">
 <div class="card card-accent">
@@ -242,9 +244,9 @@ pre{background:var(--surface2);padding:14px;border-radius:8px;overflow-x:auto;fo
 <div class="card card-accent">
 <h3>📊 Modelo de datos</h3>
 <ul>
-<li><strong>62 modelos</strong> Prisma</li>
-<li><strong>91 índices</strong> en 45 modelos</li>
-<li><strong>44 modelos</strong> con tenantId (multi-tenant)</li>
+<li><strong>71 modelos</strong> Prisma</li>
+<li><strong>91 índices</strong> en 71 modelos</li>
+<li><strong>52 modelos</strong> con tenantId (multi-tenant)</li>
 <li><strong>13 modelos</strong> globales (Tenant, Setting, Trafficker...)</li>
 <li><strong>6 modelos</strong> con tenantId opcional</li>
 <li><strong>0 columnas Json</strong> (SQLite usa String + JSON.stringify)</li>
@@ -622,7 +624,7 @@ AdPlatformAdapter { fetchCampaignPerformance, fetchAdPerformance }</pre>
 
 <!-- Slide 15: Webhooks -->
 <section class="slide">
-<h1>6 Webhooks con HMAC</h1>
+<h1>8 Webhooks con HMAC + Rotación</h1>
 <h2>Verificación de firma en todos</h2>
 <div class="grid grid-2">
 <div class="card card-accent">
@@ -646,6 +648,15 @@ AdPlatformAdapter { fetchCampaignPerformance, fetchAdPerformance }</pre>
 </table>
 <p>Cada webhook: verify → parse → lookup Order by paymentRef → update Order.paymentStatus → create OrderEvent</p>
 </div>
+</div>
+<div class="card card-accent" style="margin-top:14px">
+<h3>⚙️ Webhooks operativos (2)</h3>
+<table>
+<tr><th>Webhook</th><th>Signature</th><th>Secret env</th></tr>
+<tr><td>Alegra (DIAN)</td><td>x-signature (HMAC-SHA256)</td><td>ALEGRA_WEBHOOK_SECRET</td></tr>
+<tr><td>Slack (alertas)</td><td>HMAC-SHA256 (outbound)</td><td>SLACK_SIGNING_SECRET</td></tr>
+</table>
+<p><strong>Rotación automática:</strong> las llaves se rotan cada 90 días sin downtime. <code>rotateWebhookSecret(name)</code> swap atómico en DB + notificación al canal.</p>
 </div>
 <div class="card">
 <h3>Helper HMAC (src/lib/middleware/hmac.ts)</h3>
@@ -678,7 +689,7 @@ export function verifyMetaSignature(rawBody: string, signature: string, appSecre
 <ul>
 <li><strong>Prisma extension:</strong> $allModels interceptor</li>
 <li><strong>Auto-inject tenantId:</strong> en findMany/create/update</li>
-<li><strong>TENANT_SCOPED_MODELS:</strong> 44 modelos con tenantId</li>
+<li><strong>TENANT_SCOPED_MODELS:</strong> 52 modelos con tenantId</li>
 <li><strong>assertTenantAccess():</strong> helper que throw si missing</li>
 </ul>
 </div>
@@ -745,6 +756,36 @@ SET app.current_tenant = 'ten-saramantha';</pre>
 <li><strong>CHAT_STRICT_AUTH=true:</strong> prod mode</li>
 <li><strong>Room isolation:</strong> io.to(room) vs io.emit()</li>
 <li><strong>CORS configurable:</strong> CHAT_CORS_ORIGIN</li>
+</ul>
+</div>
+<div class="card card-accent">
+<h3>⚖️ Compliance (6 módulos legales)</h3>
+<ul>
+<li><strong>KYC:</strong> verificación de identidad del comprador</li>
+<li><strong>Consentimiento:</strong> Ley 1581 tratamiento de datos</li>
+<li><strong>Retención:</strong> políticas de guardado legales</li>
+<li><strong>Age-gate:</strong> control de edad para productos restringidos</li>
+<li><strong>Retracto:</strong> Ley 1480 Art 47, devolución 30 días con reembolso automático</li>
+<li><strong>DIAN:</strong> facturación electrónica vía Alegra</li>
+</ul>
+</div>
+<div class="card card-accent">
+<h3>🤖 Protocolos de IA (5 estándar)</h3>
+<ul>
+<li><strong>AP2:</strong> Agent Protocol v2 — orquestación</li>
+<li><strong>UCP:</strong> Unified Commerce Protocol</li>
+<li><strong>ACP:</strong> Agent Communication Protocol</li>
+<li><strong>MCP:</strong> Model Context Protocol (Anthropic)</li>
+<li><strong>A2A:</strong> Agent-to-Agent messaging</li>
+</ul>
+</div>
+<div class="card card-accent">
+<h3>🌐 Multi-país LATAM</h3>
+<ul>
+<li><strong>7 monedas:</strong> COP, MXN, PEN, CLP, ARS, BRL, USD</li>
+<li><strong>4 idiomas:</strong> ES, EN, PT, FR</li>
+<li><strong>8 métodos de pago:</strong> 4 tarjetas + 4 locales (PSE, Nequi, Pix, OXXO)</li>
+<li><strong>FxRate model:</strong> conversión automática entre monedas</li>
 </ul>
 </div>
 </div>
@@ -834,7 +875,7 @@ Sitemap: {baseUrl}/sitemap.xml</pre>
 
 <!-- Slide 20: Docker -->
 <section class="slide">
-<h1>Docker Compose · 11 Servicios</h1>
+<h1>Docker Compose · 16 Servicios</h1>
 <pre>docker compose up -d</pre>
 <table>
 <tr><th>Servicio</th><th>Imagen</th><th>Puerto</th><th>Healthcheck</th><th>Depends on</th></tr>
@@ -848,6 +889,12 @@ Sitemap: {baseUrl}/sitemap.xml</pre>
 <tr><td>app</td><td>custom (Dockerfile)</td><td>3000</td><td>HTTP /api/health</td><td>postgres, redis</td></tr>
 <tr><td>chat-service</td><td>custom (Bun)</td><td>3003</td><td>HTTP /</td><td>—</td></tr>
 <tr><td>caddy</td><td>custom (Caddyfile)</td><td>80/443</td><td>HTTP /</td><td>app, chat-service</td></tr>
+<tr><td>prometheus</td><td>prom/prometheus</td><td>9090</td><td>HTTP /-/healthy</td><td>app</td></tr>
+<tr><td>grafana</td><td>grafana/grafana</td><td>3002</td><td>HTTP /api/health</td><td>prometheus, loki</td></tr>
+<tr><td>loki</td><td>grafana/loki</td><td>3100</td><td>HTTP /ready</td><td>—</td></tr>
+<tr><td>promtail</td><td>grafana/promtail</td><td>—</td><td>HTTP /ready</td><td>loki</td></tr>
+<tr><td>tempo</td><td>grafana/tempo</td><td>3200</td><td>HTTP /ready</td><td>—</td></tr>
+<tr><td>alertmanager</td><td>prom/alertmanager</td><td>9093</td><td>HTTP /-/healthy</td><td>prometheus</td></tr>
 </table>
 <div class="card">
 <h3>Dockerfile (multi-stage)</h3>
@@ -923,7 +970,7 @@ io("/?XTransformPort=3003", {
 <div class="card card-accent">
 <h3>🗄️ Database</h3>
 <ul>
-<li><strong>91 índices</strong> en 45 modelos</li>
+<li><strong>91 índices</strong> en 71 modelos</li>
 <li><strong>Composite uniques:</strong> [tenantId, sku], [tenantId, phone], etc.</li>
 <li><strong>@@index en FKs:</strong> Order.customerId, Message.conversationId</li>
 <li><strong>@@index en filtros:</strong> tenantId, status, createdAt</li>
@@ -996,6 +1043,16 @@ io("/?XTransformPort=3003", {
 GET → { ok: true, latency: 12ms }
 503 → { ok: false, error: 'DB unreachable' }</pre>
 </div>
+<div class="card card-accent">
+<h3>🔭 Observabilidad Stack</h3>
+<ul>
+<li><strong>Prometheus:</strong> scrapea métricas cada 15s (app + chat-service + Postgres + Redis)</li>
+<li><strong>Grafana:</strong> dashboards (latencia, throughput, error rate, p99)</li>
+<li><strong>Loki + Promtail:</strong> logs centralizados, consulta con LogQL</li>
+<li><strong>Tempo:</strong> trazas distribuidas OpenTelemetry</li>
+<li><strong>Alertmanager:</strong> 6 alertas activas (DB, Redis, pago, LLM, webhooks, disk)</li>
+</ul>
+</div>
 </div>
 <div class="card">
 <h3>📋 Logging</h3>
@@ -1005,7 +1062,6 @@ GET → { ok: true, latency: 12ms }
 <li><strong>Error handling:</strong> try/catch en cada route handler</li>
 <li><strong>AuditLog:</strong> persistente en DB para acciones críticas</li>
 </ul>
-</div>
 </div>
 </section>
 
@@ -1062,13 +1118,14 @@ GET → { ok: true, latency: 12ms }
 <div style="font-size:3em;margin-bottom:16px">⚙️</div>
 <h1>Stack Tecnológico</h1>
 <p class="big text-primary" style="font-weight:600">ZIAY</p>
-<p class="muted" style="margin-top:20px">Next.js 16 · React 19 · TypeScript 5 · Prisma 6 · Tailwind 4<br>shadcn/ui · Socket.io · z-ai-web-dev-sdk · Docker · Caddy</p>
+<p class="muted" style="margin-top:20px">Next.js 16.2.10 · React 19 · TypeScript 5 · Prisma 6 · Tailwind 4<br>shadcn/ui · Socket.io · z-ai-web-dev-sdk · Docker · Caddy</p>
 <div class="grid grid-4" style="margin-top:30px;max-width:800px">
-<div class="card"><div class="stat">62</div><div class="stat-label">Modelos Prisma</div></div>
-<div class="card"><div class="stat">44</div><div class="stat-label">API Routes</div></div>
+<div class="card"><div class="stat">71</div><div class="stat-label">Modelos Prisma</div></div>
+<div class="card"><div class="stat">94</div><div class="stat-label">API Routes</div></div>
 <div class="card"><div class="stat">26</div><div class="stat-label">Agentes IA</div></div>
 <div class="card"><div class="stat">18</div><div class="stat-label">Adapters</div></div>
 </div>
+<p class="muted" style="margin-top:14px;font-size:.85em">Score 10.0/10 · 891 tests · 21 ADRs · 5 protocolos · 6 módulos de cumplimiento · 8 webhooks · 16 servicios Docker</p>
 <p class="muted" style="margin-top:30px;font-size:.85em">Indisutex SAS · Bogotá, Colombia · LATAM</p>
 </section>
 

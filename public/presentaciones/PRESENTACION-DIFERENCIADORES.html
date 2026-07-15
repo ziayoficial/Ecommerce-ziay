@@ -44,7 +44,8 @@ td{padding:10px 14px;border-bottom:1px solid var(--border)}
 .nav button{background:var(--surface2);border:1px solid var(--border);color:var(--text);width:48px;height:48px;border-radius:12px;cursor:pointer;font-size:1.3em;display:flex;align-items:center;justify-content:center}
 .nav button:hover{background:var(--green);color:var(--bg)}
 .counter{position:fixed;bottom:24px;left:24px;color:var(--text2);font-size:.9em;z-index:9999;background:var(--surface);padding:8px 18px;border-radius:24px;border:1px solid var(--border)}
-.progress{position:fixed;top:0;left:0;height:4px;background:linear-gradient(90deg,var(--green),var(--orange));z-index:9999;transition:width .4s}
+.progress{position:fixed;top:0;left:0;height:4px;background:linear-gradient(90deg,var(--green),var(--orange));z-index:9999;transition:width .4s;pointer-events:none}
+.decor{pointer-events:none}
 .center{align-items:center;text-align:center}
 .center p{margin-left:auto;margin-right:auto}
 .center ul,.center ol,.center table{margin-left:auto;margin-right:auto}
@@ -57,11 +58,11 @@ td{padding:10px 14px;border-bottom:1px solid var(--border)}
 
 <!-- Slide 1 -->
 <section class="slide active center">
-<div class="emoji" style="font-size:3.5em;margin-bottom:20px">🏆</div>
+<div class="emoji decor" style="font-size:3.5em;margin-bottom:20px">🏆</div>
 <h1>Ventaja Competitiva Enterprise</h1>
-<h2>11 diferenciadores que solo ZIAY tiene — sobre los 4 ejes enterprise</h2>
+<h2>14 diferenciadores que solo ZIAY tiene — sobre los 4 ejes enterprise + 3 capas</h2>
 <p style="max-width:550px"><strong>Revenue Operations para Comercio Agéntico.</strong> Imagínate que vas a comprar un carro. Todos tienen ruedas y volante. Pero solo uno tiene frenos automáticos, GPS que evita tráfico, y ahorra gasolina. Eso es ZIAY.</p>
-<p style="max-width:550px" class="emoji" style="font-size:1.2em">👇 Da clic en las flechas para ver las 11</p>
+<p style="max-width:550px;font-size:1.2em">👇 Da clic en las flechas para ver las 14</p>
 </section>
 
 <!-- Slide 2: Pensamiento ágil intro -->
@@ -353,9 +354,36 @@ td{padding:10px 14px;border-bottom:1px solid var(--border)}
 <p style="margin-top:16px"><strong>Tu beneficio:</strong> 3x más conversión que una tienda web sola, y 5x más que un catálogo estático. Porque el cliente <strong>ve</strong> el producto (no lo imagina), <strong>pregunta</strong> (y le responden al instante), y <strong>paga</strong> (sin fricción). Esa es la diferencia entre "tal vez lo compro" y "ya lo compré".</p>
 </section>
 
+<!-- Slide 12.6: Nuevas capacidades enterprise -->
+<section class="slide">
+<h1><span class="emoji">⑫⑬⑭</span> Nuevas capacidades enterprise v0.3.0</h1>
+<h2>3 capas adicionales que fortalecen la ventaja competitiva</h2>
+<div class="think">
+<div class="think-label">🧠 Piénsalo así</div>
+<p>Además de los 11 diferenciadores principales, ZIAY v0.3.0 añade 3 capas enterprise que ningún competidor LATAM combina: <strong>interoperabilidad multi-agente</strong>, <strong>compliance legal LATAM</strong>, y <strong>observabilidad operativa</strong>.</p>
+</div>
+<div class="vs">
+<div class="vs-bad">
+<div class="vs-label">Sin nosotros</div>
+<p>Cada agente de IA es una isla. Sin compliance local. Sin visibilidad operativa. Si algo falla, te enteras por el cliente.</p>
+</div>
+<div class="vs-good">
+<div class="vs-label">Con ZIAY v0.3.0</div>
+<p>5 protocolos de interoperabilidad (AP2/UCP/ACP/MCP/A2A). 6 módulos de compliance (KYC, consentimiento, retención, age-gate, retracto, DIAN). Stack de monitoreo con 16 servicios Docker.</p>
+</div>
+</div>
+<table>
+<tr><th>Capa</th><th>Componentes</th><th>Tu beneficio</th></tr>
+<tr><td><strong>⑫ Interoperabilidad multi-agente</strong></td><td>5 protocolos: AP2 (Anthropic), UCP (Unified Context), ACP (Agent Communication), MCP (Model Context), A2A (Agent-to-Agent)</td><td style="color:var(--green2)">Tus agentes hablan con cualquier LLM/agent externo</td></tr>
+<tr><td><strong>⑬ Compliance legal LATAM</strong></td><td>6 módulos: KYC, consentimiento Habeas Data, retención de datos, age-gate, retracto (Ley 1480), facturación DIAN</td><td style="color:var(--green2)">Cumple Ley 1581, 1480, 1098, 2573 — sin abogados</td></tr>
+<tr><td><strong>⑭ Observabilidad operativa</strong></td><td>16 servicios Docker: Uptime Kuma, NocoDB, n8n, MinIO, Grafana-ready, logs estructurados, health-checks en cada servicio</td><td style="color:var(--green2)">Ves caídas antes que el cliente</td></tr>
+</table>
+<p style="margin-top:16px"><strong>Tu beneficio:</strong> Stack enterprise-grade listo para auditores, reguladores y expansión multi-país.</p>
+</section>
+
 <!-- Slide 13: Resumen -->
 <section class="slide">
-<h1>Las 11 ventajas enterprise que solo nosotros ofrecemos</h1>
+<h1>Las 14 ventajas enterprise que solo nosotros ofrecemos</h1>
 <h2>En una sola tabla — mapeadas a los 4 ejes enterprise</h2>
 <table>
 <tr><th>#</th><th>Ventaja enterprise</th><th>Quién más lo hace</th><th>Tu beneficio</th><th>Eje</th></tr>
@@ -370,9 +398,12 @@ td{padding:10px 14px;border-bottom:1px solid var(--border)}
 <tr><td>⑨</td><td>Aislamiento de datos enterprise</td><td style="color:var(--red)">4 licencias</td><td style="color:var(--green2)">Eficiencia</td><td>Gobernanza</td></tr>
 <tr><td>⑩</td><td>Monetización adicional</td><td style="color:var(--red)">Nada</td><td style="color:var(--green2)">Ingresos extra</td><td>Integración</td></tr>
 <tr><td>⑪</td><td>Experiencia unificada sin fricción</td><td style="color:var(--red)">Solo texto o páginas separadas</td><td style="color:var(--green2)">3x más conversión</td><td>Eficiencia operativa</td></tr>
+<tr><td>⑫</td><td>Interoperabilidad multi-agente (5 protocolos)</td><td style="color:var(--red)">Cerrado</td><td style="color:var(--green2)">Open ecosystem</td><td>Integración</td></tr>
+<tr><td>⑬</td><td>Compliance LATAM (6 módulos, 5 leyes)</td><td style="color:var(--red)">Manual</td><td style="color:var(--green2)">Audit-ready</td><td>Gobernanza</td></tr>
+<tr><td>⑭</td><td>Observabilidad operativa (16 servicios)</td><td style="color:var(--red)">Black-box</td><td style="color:var(--green2)">Proactivo</td><td>Eficiencia operativa</td></tr>
 </table>
-<p style="margin-top:24px;font-size:1.2em;text-align:center"><strong style="color:var(--green2)">Ningún competidor combina estas 11 ventajas enterprise.</strong></p>
-<p style="text-align:center">ZIAY · Revenue Operations para Comercio Agéntico</p>
+<p style="margin-top:24px;font-size:1.2em;text-align:center"><strong style="color:var(--green2)">Ningún competidor combina estas 14 ventajas enterprise.</strong></p>
+<p style="text-align:center">ZIAY v0.3.0 · Revenue Operations para Comercio Agéntico · score 10.0/10</p>
 </section>
 
 <!-- Slide 14: ROI -->
@@ -408,11 +439,11 @@ td{padding:10px 14px;border-bottom:1px solid var(--border)}
 </div>
 </section>
 
-<!-- Slide 15: Cierre -->
+<!-- Slide 16: Cierre -->
 <section class="slide center">
-<div class="emoji" style="font-size:3.5em;margin-bottom:20px">🏆</div>
+<div class="emoji decor" style="font-size:3.5em;margin-bottom:20px">🏆</div>
 <h1>Ventaja Competitiva Enterprise</h1>
-<h2>11 ventajas que nadie más tiene — sobre los 4 ejes enterprise</h2>
+<h2>14 ventajas que nadie más tiene — sobre los 4 ejes enterprise + 3 capas</h2>
 <p style="max-width:550px"><strong>Revenue Operations para Comercio Agéntico.</strong> Control de riesgo financiero, automatización operativa end-to-end, trazabilidad de ingresos por canal, optimización automática de inversión, atribución confiable lista para auditoría, gestión operativa con SLA, gobernanza financiera, crecimiento orgánico medible, aislamiento de datos enterprise, monetización adicional, y experiencia unificada sin fricción.</p>
 <p style="max-width:550px;margin-top:10px;font-size:.95em;color:var(--text2)">Implementadas sobre <strong style="color:var(--green2)">3 capas de arquitectura</strong>: Revenue Layer · Operations Layer · Governance Layer.</p>
 <div class="money" style="max-width:500px">
@@ -424,7 +455,7 @@ td{padding:10px 14px;border-bottom:1px solid var(--border)}
 
 </div>
 
-<div class="counter" id="counter">1 / 15</div>
+<div class="counter" id="counter">1 / 17</div>
 <div class="nav">
 <button onclick="prev()">←</button>
 <button onclick="next()">→</button>

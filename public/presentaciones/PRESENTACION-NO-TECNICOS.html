@@ -47,7 +47,8 @@ td{padding:8px 12px;border-bottom:1px solid var(--border);color:var(--text)}
 .nav button{background:var(--surface2);border:1px solid var(--border);color:var(--text);width:44px;height:44px;border-radius:10px;cursor:pointer;font-size:1.2em;display:flex;align-items:center;justify-content:center;transition:all .2s}
 .nav button:hover{background:var(--primary);color:var(--bg);transform:scale(1.05)}
 .counter{position:fixed;bottom:20px;left:20px;color:var(--text2);font-size:.85em;z-index:1000;background:var(--surface);padding:6px 14px;border-radius:20px;border:1px solid var(--border)}
-.progress{position:fixed;top:0;left:0;height:4px;background:linear-gradient(90deg,var(--primary),var(--accent));z-index:1000;transition:width .4s}
+.progress{position:fixed;top:0;left:0;height:4px;background:linear-gradient(90deg,var(--primary),var(--accent));z-index:1000;transition:width .4s;pointer-events:none}
+.decor{pointer-events:none}
 .center{display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;height:100%}
 .muted{color:var(--text2)}
 .text-primary{color:var(--primary2)}
@@ -557,6 +558,75 @@ td{padding:8px 12px;border-bottom:1px solid var(--border);color:var(--text)}
 </div>
 </section>
 
+<!-- Slide 13.5: Compliance en palabras simples -->
+<section class="slide">
+<h1>Cumple la ley sin pensarlo</h1>
+<h2>Estás listo para auditores y reguladores</h2>
+<div class="thinking">
+<div class="thinking-title">🧠 Piénsalo así</div>
+<p>Vender online en Colombia ya no es solo "mandar el producto y cobrar". Hay leyes: proteger datos personales, no vender a menores, respetar el derecho a retracto, facturar electrónicamente ante DIAN. Si no las cumples, te multan o te cierran.</p>
+</div>
+<div class="grid grid-2">
+<div class="card card-accent">
+<h3>📋 6 reglas que cumplimos por ti</h3>
+<ul>
+<li><strong>KYC:</strong> verificamos identidad de affiliates y vendedores</li>
+<li><strong>Consentimiento de datos:</strong> cada cliente autoriza (Habeas Data)</li>
+<li><strong>Retención de datos:</strong> borramos lo que ya no se necesita</li>
+<li><strong>Age-gate:</strong> bloqueamos menores de edad</li>
+<li><strong>Retracto:</strong> el cliente puede devolver hasta 30 días (Ley 1480)</li>
+<li><strong>DIAN:</strong> facturación electrónica automática con Alegra</li>
+</ul>
+</div>
+<div class="card card-warm">
+<h3>📚 5 leyes que cubrimos</h3>
+<ul>
+<li><strong>Ley 1581:</strong> Protección de datos personales</li>
+<li><strong>Ley 1480:</strong> Estatuto del consumidor (retracto)</li>
+<li><strong>Ley 1098:</strong> Código de infancia (age-gate)</li>
+<li><strong>Ley 2573:</strong> Comercio electrónico colombiano</li>
+<li><strong>Resolución DIAN:</strong> Facturación electrónica obligatoria</li>
+</ul>
+<p class="text-primary" style="margin-top:10px">→ Si entra un auditor, ya tienes todo documentado.</p>
+</div>
+</div>
+</section>
+
+<!-- Slide 13.6: Multi-país en palabras simples -->
+<section class="slide">
+<h1>Vende en varios países</h1>
+<h2>Una sola plataforma, múltiples monedas e idiomas</h2>
+<div class="thinking">
+<div class="thinking-title">🧠 Piénsalo así</div>
+<p>Hoy vendes en Colombia. Mañana quieres vender en México, Perú, Ecuador. Normalmente necesitarías 3 sistemas distintos, 3 monedas, 3 idiomas. Con ZIAY, ya está listo.</p>
+</div>
+<div class="grid grid-2">
+<div class="card card-accent">
+<h3>💰 7 monedas activas</h3>
+<ul>
+<li>COP (Colombia) · MXN (México) · PEN (Perú)</li>
+<li>USD (internacional) · EUR (Europa)</li>
+<li>CLP (Chile) · ARS (Argentina)</li>
+</ul>
+<p>Conversión automática según el país del comprador.</p>
+</div>
+<div class="card card-accent">
+<h3>🌐 4 idiomas</h3>
+<ul>
+<li>Español (es-CO · es-MX · es-AR)</li>
+<li>Inglés (en-US)</li>
+<li>Portugués (pt-BR)</li>
+<li>+ configurable</li>
+</ul>
+<p>La IA responde en el idioma del cliente, no el tuyo.</p>
+</div>
+</div>
+<div class="card card-warm">
+<h3>🌍 ¿Por qué te importa?</h3>
+<p>Si hoy solo vendes en Colombia, pierdes clientes en México/Perú que ven tus productos por Instagram. ZIAY los atiende en su moneda, en su idioma, con su pasarela de pago local. <strong>Sin que tú contrates a nadie nuevo.</strong></p>
+</div>
+</section>
+
 <!-- Slide 14: Lo que NO hace -->
 <section class="slide">
 <h1>Somos honestos</h1>
@@ -695,7 +765,7 @@ td{padding:8px 12px;border-bottom:1px solid var(--border);color:var(--text)}
 
 </div>
 
-<div class="counter" id="counter">1 / 17</div>
+<div class="counter" id="counter">1 / 19</div>
 <div class="nav">
 <button onclick="prev()">←</button>
 <button onclick="next()">→</button>

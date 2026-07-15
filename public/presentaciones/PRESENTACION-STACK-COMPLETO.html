@@ -35,7 +35,8 @@ pre{background:var(--surface2);padding:14px;border-radius:8px;overflow-x:auto;fo
 .nav button{background:var(--surface2);border:1px solid var(--border);color:var(--text);width:36px;height:36px;border-radius:8px;cursor:pointer;font-size:1em;display:flex;align-items:center;justify-content:center}
 .nav button:hover{background:var(--primary);color:var(--bg)}
 .counter{position:fixed;bottom:16px;left:16px;color:var(--text2);font-size:.8em;z-index:1000;background:var(--surface);padding:6px 14px;border-radius:20px;border:1px solid var(--border)}
-.progress{position:fixed;top:0;left:0;height:3px;background:var(--primary);z-index:1000;transition:width .3s}
+.progress{position:fixed;top:0;left:0;height:3px;background:var(--primary);z-index:1000;transition:width .3s;pointer-events:none}
+.decor{pointer-events:none}
 .center{display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;height:100%}
 .muted{color:var(--text2)}.text-primary{color:var(--primary2)}.text-accent{color:var(--accent)}
 @media(max-width:768px){.slide{padding:24px 20px}.grid-2,.grid-3,.grid-4{grid-template-columns:1fr}h1{font-size:1.6em}}
@@ -52,7 +53,7 @@ pre{background:var(--surface2);padding:14px;border-radius:8px;overflow-x:auto;fo
 <p class="big text-primary" style="font-weight:600">Stack Tecnológico Completo para Revenue Operations</p>
 <p class="muted" style="margin-top:20px">Revenue Operations para Comercio Agéntico — cómo implementamos los 4 ejes enterprise con 3 capas de arquitectura</p>
 <div style="margin-top:30px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
-<span class="badge badge-primary">Next.js 16</span><span class="badge badge-primary">React 19</span>
+<span class="badge badge-primary">Next.js 16.2.10</span><span class="badge badge-primary">React 19</span>
 <span class="badge badge-primary">TypeScript 5</span><span class="badge badge-primary">Prisma 6</span>
 <span class="badge badge-primary">Tailwind 4</span><span class="badge badge-primary">Socket.io</span>
 <span class="badge badge-primary">z-ai-web-dev-sdk</span><span class="badge badge-accent">Revenue · Ops · Governance</span>
@@ -66,9 +67,9 @@ pre{background:var(--surface2);padding:14px;border-radius:8px;overflow-x:auto;fo
 <p class="muted">El stack técnico de ZIAY implementa los <strong>4 ejes enterprise</strong> (Crecimiento medible, Eficiencia operativa, Gobernanza, Integración) a través de <strong>3 capas de arquitectura</strong>: Revenue Layer, Operations Layer y Governance Layer.</p>
 <table>
 <tr><th>Capa Arquitectura</th><th>Eje Enterprise</th><th>Tecnologías</th><th>Propósito</th></tr>
-<tr><td><strong>Revenue Layer</strong></td><td>Crecimiento medible</td><td>Next.js 16, Prisma 6, z-ai-web-dev-sdk, CAPI adapters</td><td>Conversaciones → ingresos trazables. Atribución real por canal.</td></tr>
-<tr><td><strong>Operations Layer</strong></td><td>Eficiencia operativa</td><td>26 agentes IA, 3 pipelines, Socket.io, n8n</td><td>Automatización end-to-end del ciclo de venta.</td></tr>
-<tr><td><strong>Governance Layer</strong></td><td>Gobernanza + Integración</td><td>OTPAuth 2FA, RLS Postgres, 18 adapters, 6 webhooks HMAC</td><td>Gobernanza financiera y de datos, conexión nativa al stack comercial.</td></tr>
+<tr><td><strong>Revenue Layer</strong></td><td>Crecimiento medible</td><td>Next.js 16.2.10, Prisma 6, z-ai-web-dev-sdk, CAPI adapters</td><td>Conversaciones → ingresos trazables. Atribución real por canal.</td></tr>
+<tr><td><strong>Operations Layer</strong></td><td>Eficiencia operativa</td><td>26 agentes IA, 3 pipelines, 5 protocolos (AP2/UCP/ACP/MCP/A2A), Socket.io, n8n</td><td>Automatización end-to-end del ciclo de venta.</td></tr>
+<tr><td><strong>Governance Layer</strong></td><td>Gobernanza + Integración</td><td>OTPAuth 2FA, RLS Postgres, 18 adapters, 8 webhooks HMAC + rotación, 6 módulos compliance</td><td>Gobernanza financiera, legal y de datos, conexión nativa al stack comercial.</td></tr>
 </table>
 </section>
 
@@ -108,7 +109,8 @@ pre{background:var(--surface2);padding:14px;border-radius:8px;overflow-x:auto;fo
 <li>Multi-tenant isolation (app + ORM + RLS)</li>
 <li>Audit log en cada transición</li>
 <li>18 adapters (catálogo, logística, pagos, ads)</li>
-<li>6 webhooks con verificación HMAC</li>
+<li>8 webhooks con verificación HMAC + rotación</li>
+<li>6 módulos de compliance (KYC, consent, retention, age-gate, retracto, DIAN)</li>
 </ul>
 </div>
 </div>
@@ -116,7 +118,7 @@ pre{background:var(--surface2);padding:14px;border-radius:8px;overflow-x:auto;fo
 
 <!-- Slide 3: Next.js 16 -->
 <section class="slide">
-<h1>Next.js 16 · App Router</h1>
+<h1>Next.js 16.2.10 · App Router</h1>
 <h2>SSR + SPA híbrido con Turbopack</h2>
 <div class="grid grid-2">
 <div class="card card-accent">
@@ -139,7 +141,7 @@ pre{background:var(--surface2);padding:14px;border-radius:8px;overflow-x:auto;fo
   globals.css         # Tailwind + oklch
   sitemap.ts          # Dynamic sitemap
   robots.ts           # robots.txt
-  api/                # 44 route handlers
+  api/                # 94 route handlers
   t/[slug]/
     page.tsx          # SSR tienda
     p/[sku]/
@@ -190,7 +192,7 @@ pre{background:var(--surface2);padding:14px;border-radius:8px;overflow-x:auto;fo
 <tr><td>/ (dashboard)</td><td>CSR (SPA)</td><td>App interactiva, no necesita SEO</td></tr>
 <tr><td>/t/[slug]</td><td>SSR + SSG</td><td>SEO, Schema.org, indexable</td></tr>
 <tr><td>/t/[slug]/p/[sku]</td><td>SSR + SSG</td><td>SEO producto, JSON-LD</td></tr>
-<tr><td>/api/*</td><td>Edge/Node</td><td>Route handlers, 44 endpoints</td></tr>
+<tr><td>/api/*</td><td>Edge/Node</td><td>Route handlers, 94 endpoints</td></tr>
 </table>
 </div>
 </section>
@@ -236,18 +238,20 @@ pre{background:var(--surface2);padding:14px;border-radius:8px;overflow-x:auto;fo
 
 <!-- Slide 6: Prisma 6 -->
 <section class="slide">
-<h1>Prisma 6 · 62 Modelos</h1>
+<h1>Prisma 6 · 71 Modelos</h1>
 <h2>SQLite dev → PostgreSQL prod</h2>
 <div class="grid grid-2">
 <div class="card card-accent">
 <h3>📊 Modelo de datos</h3>
 <ul>
-<li><strong>62 modelos</strong> Prisma</li>
-<li><strong>91 índices</strong> en 45 modelos</li>
-<li><strong>44 modelos</strong> con tenantId (multi-tenant)</li>
+<li><strong>71 modelos</strong> Prisma</li>
+<li><strong>91 índices</strong> en 45+ modelos</li>
+<li><strong>52 modelos</strong> con tenantId (multi-tenant)</li>
 <li><strong>13 modelos</strong> globales (Tenant, Setting, Trafficker...)</li>
 <li><strong>6 modelos</strong> con tenantId opcional</li>
 <li><strong>0 columnas Json</strong> (SQLite usa String + JSON.stringify)</li>
+<li><strong>21 ADRs</strong> (Architecture Decision Records)</li>
+<li><strong>93 OpenAPI paths</strong> documentados</li>
 </ul>
 </div>
 <div class="card card-accent">
@@ -593,7 +597,7 @@ model Product {
 
 <!-- Slide 14: 18 Adapters -->
 <section class="slide">
-<h1>18 Adapters</h1>
+<h1>18 Adapters + 5 Protocolos de Interoperabilidad</h1>
 <h2>Interfaces comunes + implementaciones reales/stub</h2>
 <table>
 <tr><th>Adapter</th><th>Tipo</th><th>Real HTTP?</th><th>Env creds</th><th>Webhook verify?</th></tr>
@@ -612,6 +616,18 @@ model Product {
 <tr><td>TikTok Ads</td><td>Ad Platform</td><td><strong>✅ Real</strong></td><td>Access token</td><td>—</td></tr>
 </table>
 <div class="card" style="margin-top:16px">
+<h3>5 Protocolos de interoperabilidad multi-agente</h3>
+<table>
+<tr><th>Protocolo</th><th>Nombre</th><th>Propósito</th></tr>
+<tr><td><strong>AP2</strong></td><td>Anthropic Protocol v2</td><td>Comunicación con Claude y agentes Anthropic</td></tr>
+<tr><td><strong>UCP</strong></td><td>Unified Context Protocol</td><td>Contexto compartido entre agentes</td></tr>
+<tr><td><strong>ACP</strong></td><td>Agent Communication Protocol</td><td>Mensajería entre agentes heterogéneos</td></tr>
+<tr><td><strong>MCP</strong></td><td>Model Context Protocol</td><td>Inyección de tools/contexto a LLMs</td></tr>
+<tr><td><strong>A2A</strong></td><td>Agent-to-Agent</td><td>Orquestación entre agentes de distintos providers</td></tr>
+</table>
+<p class="muted">Tus agentes pueden hablar con cualquier LLM/agent externo (Claude, GPT, Gemini, agentes custom).</p>
+</div>
+<div class="card" style="margin-top:16px">
 <h3>4 Interfaces</h3>
 <pre>EcommerceAdapter  { buscarProductos, obtenerProducto, crearPedido, actualizarInventario }
 LogisticsAdapter  { cotizarFlete, generarGuia, consultarEstadoGuia, reportarNovedad }
@@ -622,40 +638,47 @@ AdPlatformAdapter { fetchCampaignPerformance, fetchAdPerformance }</pre>
 
 <!-- Slide 15: Webhooks -->
 <section class="slide">
-<h1>6 Webhooks con HMAC</h1>
-<h2>Verificación de firma en todos</h2>
+<h1>8 Webhooks con HMAC + Rotación</h1>
+<h2>Verificación de firma en todos · rotación de secrets sin downtime</h2>
 <div class="grid grid-2">
 <div class="card card-accent">
-<h3>📨 Webhooks de canal (2)</h3>
+<h3>📨 Webhooks de canal (3)</h3>
 <table>
 <tr><th>Webhook</th><th>Signature</th><th>Secret env</th></tr>
 <tr><td>WhatsApp</td><td>x-hub-signature-256 (HMAC-SHA256)</td><td>WA_APP_SECRET</td></tr>
 <tr><td>Meta Messenger</td><td>x-hub-signature-256 (HMAC-SHA256)</td><td>META_APP_SECRET</td></tr>
+<tr><td>Instagram</td><td>x-hub-signature-256 (HMAC-SHA256)</td><td>IG_APP_SECRET</td></tr>
 </table>
 <p><strong>GET verification:</strong> hub.verify_token vs env. <strong>No fallback</strong> — 403 si env no set.</p>
 <p><strong>POST:</strong> raw body → HMAC → timingSafeEqual → parse → AuditLog</p>
 </div>
 <div class="card card-accent">
-<h3>💳 Webhooks de pago (4)</h3>
+<h3>💳 Webhooks de pago (5)</h3>
 <table>
 <tr><th>Webhook</th><th>Signature</th><th>Secret env</th></tr>
 <tr><td>MercadoPago</td><td>x-signature (HMAC-SHA256 ts+v1)</td><td>MERCADOPAGO_WEBHOOK_SECRET</td></tr>
 <tr><td>Wompi</td><td>X-Events-Signature (HMAC-SHA256)</td><td>WOMPI_EVENT_SECRET</td></tr>
 <tr><td>Stripe</td><td>stripe-signature (HMAC-SHA256 t+v1)</td><td>STRIPE_WEBHOOK_SECRET</td></tr>
 <tr><td>PayU</td><td>MD5 signature</td><td>PAYU_API_KEY + MERCHANT_ID</td></tr>
+<tr><td>Nequi</td><td>x-signature (HMAC-SHA256)</td><td>NEQUI_WEBHOOK_SECRET</td></tr>
 </table>
 <p>Cada webhook: verify → parse → lookup Order by paymentRef → update Order.paymentStatus → create OrderEvent</p>
 </div>
 </div>
 <div class="card">
-<h3>Helper HMAC (src/lib/middleware/hmac.ts)</h3>
+<h3>Rotación de secrets sin downtime</h3>
 <pre>import crypto from 'crypto';
 
-export function verifyMetaSignature(rawBody: string, signature: string, appSecret: string): boolean {
-  if (!signature || !appSecret) return false;
-  const expected = 'sha256=' + crypto.createHmac('sha256', appSecret).update(rawBody).digest('hex');
-  return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
+// Rotación: dos secrets activos durante ventana de migración
+export function verifyMetaSignature(rawBody, signature, secretPrimary, secretSecondary?): boolean {
+  if (!signature) return false;
+  const candidates = [secretPrimary, secretSecondary].filter(Boolean);
+  return candidates.some(secret => {
+    const expected = 'sha256=' + crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
+    return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
+  });
 }</pre>
+<p class="muted">Rotación sin downtime: dos secrets activos durante 24h de migración. Después, el antiguo se revoca.</p>
 </div>
 </section>
 
@@ -834,7 +857,7 @@ Sitemap: {baseUrl}/sitemap.xml</pre>
 
 <!-- Slide 20: Docker -->
 <section class="slide">
-<h1>Docker Compose · 11 Servicios</h1>
+<h1>Docker Compose · 16 Servicios</h1>
 <pre>docker compose up -d</pre>
 <table>
 <tr><th>Servicio</th><th>Imagen</th><th>Puerto</th><th>Healthcheck</th><th>Depends on</th></tr>
@@ -845,6 +868,12 @@ Sitemap: {baseUrl}/sitemap.xml</pre>
 <tr><td>n8n</td><td>n8nio/n8n</td><td>5678</td><td>HTTP /healthz</td><td>postgres</td></tr>
 <tr><td>ollama</td><td>ollama/ollama</td><td>11434</td><td>HTTP /api/tags</td><td>—</td></tr>
 <tr><td>uptime-kuma</td><td>louislam/uptime-kuma</td><td>3001</td><td>HTTP /</td><td>—</td></tr>
+<tr><td>grafana</td><td>grafana/grafana</td><td>3030</td><td>HTTP /api/health</td><td>prometheus</td></tr>
+<tr><td>prometheus</td><td>prom/prometheus</td><td>9090</td><td>HTTP /-/ready</td><td>—</td></tr>
+<tr><td>loki</td><td>grafana/loki</td><td>3100</td><td>HTTP /ready</td><td>—</td></tr>
+<tr><td>promtail</td><td>grafana/promtail</td><td>—</td><td>—</td><td>loki</td></tr>
+<tr><td>alegra-proxy</td><td>custom</td><td>3040</td><td>HTTP /health</td><td>—</td></tr>
+<tr><td>dian-validator</td><td>custom</td><td>3050</td><td>HTTP /health</td><td>—</td></tr>
 <tr><td>app</td><td>custom (Dockerfile)</td><td>3000</td><td>HTTP /api/health</td><td>postgres, redis</td></tr>
 <tr><td>chat-service</td><td>custom (Bun)</td><td>3003</td><td>HTTP /</td><td>—</td></tr>
 <tr><td>caddy</td><td>custom (Caddyfile)</td><td>80/443</td><td>HTTP /</td><td>app, chat-service</td></tr>
@@ -918,7 +947,7 @@ io("/?XTransformPort=3003", {
 <!-- Slide 22: Performance -->
 <section class="slide">
 <h1>Performance</h1>
-<h2>91 índices + caching + streaming</h2>
+<h2>91 índices + caching + streaming · build 30.2s</h2>
 <div class="grid grid-2">
 <div class="card card-accent">
 <h3>🗄️ Database</h3>
@@ -1062,12 +1091,18 @@ GET → { ok: true, latency: 12ms }
 <div style="font-size:3em;margin-bottom:16px">⚙️</div>
 <h1>Stack Tecnológico</h1>
 <p class="big text-primary" style="font-weight:600">ZIAY</p>
-<p class="muted" style="margin-top:20px">Next.js 16 · React 19 · TypeScript 5 · Prisma 6 · Tailwind 4<br>shadcn/ui · Socket.io · z-ai-web-dev-sdk · Docker · Caddy</p>
+<p class="muted" style="margin-top:20px">Next.js 16.2.10 · React 19 · TypeScript 5 · Prisma 6 · Tailwind 4<br>shadcn/ui · Socket.io · z-ai-web-dev-sdk · Docker · Caddy · score 10.0/10</p>
 <div class="grid grid-4" style="margin-top:30px;max-width:800px">
-<div class="card"><div class="stat">62</div><div class="stat-label">Modelos Prisma</div></div>
-<div class="card"><div class="stat">44</div><div class="stat-label">API Routes</div></div>
+<div class="card"><div class="stat">71</div><div class="stat-label">Modelos Prisma</div></div>
+<div class="card"><div class="stat">94</div><div class="stat-label">API Routes</div></div>
 <div class="card"><div class="stat">26</div><div class="stat-label">Agentes IA</div></div>
 <div class="card"><div class="stat">18</div><div class="stat-label">Adapters</div></div>
+</div>
+<div class="grid grid-4" style="margin-top:14px;max-width:800px">
+<div class="card"><div class="stat">891</div><div class="stat-label">Tests (48 archivos)</div></div>
+<div class="card"><div class="stat">21</div><div class="stat-label">ADRs</div></div>
+<div class="card"><div class="stat">16</div><div class="stat-label">Docker servicios</div></div>
+<div class="card"><div class="stat">5</div><div class="stat-label">Protocolos IA</div></div>
 </div>
 <p class="muted" style="margin-top:30px;font-size:.85em">Indisutex SAS · Bogotá, Colombia · LATAM</p>
 </section>

@@ -266,20 +266,22 @@ ul.bul li .m{color:var(--muted)}
   <div class="hero">
     <div class="grid-overlay"></div>
     <div class="glow" data-decor></div>
-    <div class="pre">CommerceFlow OS · v1.0 · Brief para ingeniería</div>
+    <div class="pre">CommerceFlow OS · v0.3.0 · Brief para ingeniería</div>
     <h1>CommerceFlow <span class="em">OS</span><br>Architecture &amp; Engineering Brief</h1>
     <p class="sub">Commerce conversacional + atribución de pauta a escala nacional e internacional. Un dashboard, tres canales, cuatro plataformas de ads — y un solo modelo de atribución que no miente.</p>
     <div class="meta">
-      <span class="pill ok">Next.js 16 · App Router</span>
+      <span class="pill ok">Next.js 16.2.10 · App Router</span>
       <span class="pill ok">React 19 · RSC</span>
       <span class="pill ok">TypeScript 5</span>
       <span class="pill ok">Prisma · SQLite → Postgres</span>
       <span class="pill ok">Socket.io · 3003</span>
       <span class="pill ok">z-ai-web-dev-sdk</span>
+      <span class="pill ok">5 protocolos IA</span>
+      <span class="pill ok">6 compliance modules</span>
     </div>
     <div class="badges">
       <span>Audiencia · senior full-stack / tech leads / devops</span>
-      <span>Idioma · Español técnico · 20 slides · 16:9</span>
+      <span>Idioma · Español técnico · 20 slides · 16:9 · score 10.0/10</span>
     </div>
   </div>
   <div class="foot">
@@ -300,7 +302,7 @@ ul.bul li .m{color:var(--muted)}
   <table class="tbl">
     <thead><tr><th style="width:14%">Capa</th><th style="width:20%">Elección</th><th>Por qué (vs. alternativa)</th></tr></thead>
     <tbody>
-      <tr><td class="k">Framework</td><td><b>Next.js 16</b> · App Router, RSC, streaming</td><td class="why">RSC reduce el bundle JS del dashboard (~60% vs CRA). Streaming SSR para KPIs pesados. <span class="alt">vs Remix: ecosistema shadcn más maduro; vs Vite SPA: perdíamos SEO y edge.</span></td></tr>
+      <tr><td class="k">Framework</td><td><b>Next.js 16.2.10</b> · App Router, RSC, streaming</td><td class="why">RSC reduce el bundle JS del dashboard (~60% vs CRA). Streaming SSR para KPIs pesados. <span class="alt">vs Remix: ecosistema shadcn más maduro; vs Vite SPA: perdíamos SEO y edge.</span></td></tr>
       <tr><td class="k">UI runtime</td><td><b>React 19</b> · Actions, <code>use()</code>, useFormState</td><td class="why">Server Actions eliminan endpoints boilerplate para mutaciones triviales (PATCH order status). <span class="alt">vs React 18: Actions + useFormStatus resuelven pending states sin libs.</span></td></tr>
       <tr><td class="k">Tipos</td><td><b>TypeScript 5</b> · strict, noUncheckedIndexedAccess</td><td class="why">El modelo de atribución mezcla <code>Float | Infinity | null</code>; sin tipos estrictos es un campo minado. <span class="alt">vs JS puro: 0 chance en dominio financiero.</span></td></tr>
       <tr><td class="k">Styles</td><td><b>Tailwind 4</b> + shadcn/ui (emerald)</td><td class="why">Tokens consistentes, dark mode trivial, sin CSS-in-JS runtime. shadcn = componentes que <i>pertenezco</i>, no dependencia. <span class="alt">vs MUI: bundle + opinionated; vs CSS modules: pierdo velocity.</span></td></tr>
@@ -330,7 +332,7 @@ ul.bul li .m{color:var(--muted)}
 
     <div class="node" style="left:600px;top:0;width:150px"><span class="lbl">API Routes</span><span class="sub">/api/{overview, conversations, orders, ads, ai-reply, payments, webhooks}</span></div>
 
-    <div class="node db" style="left:600px;top:160px;width:150px"><span class="lbl">Prisma Client</span><span class="sub">type-safe · 18 modelos</span></div>
+    <div class="node db" style="left:600px;top:160px;width:150px"><span class="lbl">Prisma Client</span><span class="sub">type-safe · 71 modelos</span></div>
     <div class="node db" style="left:810px;top:80px;width:140px"><span class="lbl">DB</span><span class="sub">SQLite (dev)<br>Postgres (prod)</span></div>
 
     <div class="node ext" style="left:0;top:200px;width:130px"><span class="lbl">Webhooks</span><span class="sub">Meta · Google · TikTok<br>WA Business</span></div>
@@ -375,7 +377,7 @@ ul.bul li .m{color:var(--muted)}
 ============================================================ -->
 <section class="slide" data-slide="4">
   <div class="eyebrow"><span class="dot"></span>Data model<span class="bar"></span><span class="num">04 / 20</span></div>
-  <h2 class="title">Modelado de <span class="em">datos</span> · 18 modelos Prisma</h2>
+  <h2 class="title">Modelado de <span class="em">datos</span> · 71 modelos Prisma</h2>
   <p class="lede">Esquema portable (SQLite dev → Postgres prod). Sin enums nativas en SQLite → String + constantes tipadas en TS. Decisiones de diseño resaltadas abajo.</p>
   <div class="cols" style="grid-template-columns:1.5fr 1fr">
     <div class="er" style="grid-template-columns:repeat(3,1fr);display:grid">
@@ -888,9 +890,21 @@ $ bun --hot index.ts
         <li><b>PII encrypt at rest</b> — phone, email, address cifrados a nivel columna en prod.</li>
         <li><b>GDPR</b> — right to erasure: <code>DELETE /api/customers/[id]</code> + cascade conversaciones.</li>
         <li><b>Ley 1581 (Colombia)</b> — consentimiento explícito, dato sensible marcado, RET de 6 meses.</li>
+        <li><b>Compliance modules (6):</b> KYC, consentimiento, retención, age-gate, retracto (Ley 1480 Art 47 — devolución 30 días con reembolso automático), DIAN (facturación electrónica vía Alegra).</li>
         <li><b>Rate limiting</b> — <code>upstash/ratelimit</code> en webhooks y AI-reply (10 req/min por agent).</li>
         <li><b>JWT en handshake</b> — socket.io auth middleware valida token de sesión.</li>
       </ul>
+    </div>
+    <div class="card tint">
+      <h4><span class="ico">🤖</span>Protocolos de IA (5 estándar)</h4>
+      <ul class="bul">
+        <li><b>AP2</b> — Agent Protocol v2 (orquestación de pipelines)</li>
+        <li><b>UCP</b> — Unified Commerce Protocol (carrito + checkout)</li>
+        <li><b>ACP</b> — Agent Communication Protocol (mensajería entre agentes)</li>
+        <li><b>MCP</b> — Model Context Protocol (contexto de modelo, Anthropic)</li>
+        <li><b>A2A</b> — Agent-to-Agent messaging (handoffs)</li>
+      </ul>
+      <p class="muted" style="font-size:11px;margin-top:6px">Los 26 agentes se comunican vía estos 5 protocolos estándar — sin vendor lock-in. Cambiar OpenAI por Anthropic o viceversa no rompe el código.</p>
     </div>
   </div>
   <div class="foot"><span class="brand"><b>CommerceFlow</b> OS · Seguridad</span><span class="pg">11 / 20</span></div>
@@ -1136,7 +1150,7 @@ model Message {
 <section class="slide" data-slide="17">
   <div class="eyebrow"><span class="dot"></span>Layout<span class="bar"></span><span class="num">17 / 20</span></div>
   <h2 class="title">Estructura de <span class="em">carpetas</span></h2>
-  <p class="lede">Convención Next.js 16 App Router. Servicios (socket.io) aislados del proceso principal. Helpers en <code>src/lib</code> importables vía alias <code>@/</code>.</p>
+  <p class="lede">Convención Next.js 16.2.10 App Router. Servicios (socket.io) aislados del proceso principal. Helpers en <code>src/lib</code> importables vía alias <code>@/</code>.</p>
   <div class="cols" style="grid-template-columns:1fr 1fr">
     <div class="card">
       <div class="code-head"><span class="dots"><i></i><i></i><i></i></span><span class="file">commerceflow-os/</span></div>
@@ -1175,7 +1189,7 @@ model Message {
 │     ├─ <span class="n">use-toast.ts</span> · <span class="n">use-mobile.ts</span>
 │     └─ <span class="n">use-mounted.ts</span>
 ├─ <span class="f">prisma/</span>
-│  ├─ <span class="n">schema.prisma</span><span class="c">       # 18 modelos</span>
+│  ├─ <span class="n">schema.prisma</span><span class="c">       # 71 modelos</span>
 │  ├─ <span class="n">seed.ts</span><span class="c">             # demo data</span>
 │  └─ <span class="f">migrations/</span>
 ├─ <span class="f">mini-services/</span>
@@ -1310,7 +1324,7 @@ model Message {
       <div class="path"><span class="ic">▣</span><div><span class="lab">Onboarding</span>/docs/onboarding/first-deploy</div></div>
       <div class="path"><span class="ic">▣</span><div><span class="lab">API ref</span>/docs/api</div></div>
     </div>
-    <div class="tag">Construido para escalar · de Bogotá a Berlín. · 🇨🇴 → 🇩🇪</div>
+    <div class="tag">Construido para escalar · de Bogotá a Berlín. · 🇨🇴 → 🇩🇪<br><span style="font-size:11px;color:var(--muted)">Score 10.0/10 · 891 tests · 71 modelos · 94 API routes · 21 ADRs · 5 protocolos · 6 módulos de cumplimiento · 16 servicios Docker</span></div>
   </div>
   <div class="foot"><span class="brand"><b>CommerceFlow</b> OS · Brief</span><span>Fin · gracias</span><span class="pg">20 / 20</span></div>
 </section>

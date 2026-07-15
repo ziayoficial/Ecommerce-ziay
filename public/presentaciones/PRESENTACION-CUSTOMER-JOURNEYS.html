@@ -46,7 +46,7 @@ h2.title .em{color:var(--accent-3)}
 .lede{font:400 13px/1.5 'Inter',sans-serif;color:var(--muted);max-width:880px;margin-bottom:14px}
 
 .foot{position:absolute;left:56px;right:56px;bottom:16px;display:flex;justify-content:space-between;
-  align-items:center;font:500 11px 'JetBrains Mono',monospace;color:var(--dim);letter-spacing:.05em}
+  align-items:center;font:500 11px 'JetBrains Mono',monospace;color:var(--dim);letter-spacing:.05em;z-index:5;background:linear-gradient(transparent,rgba(7,17,13,.92) 60%);padding-top:8px}
 .foot .brand{color:var(--muted)}
 .foot .brand b{color:var(--accent-3)}
 .foot .pg{color:var(--muted)}
@@ -88,7 +88,7 @@ table.tbl td.mono-cell{font-family:'JetBrains Mono',monospace;font-size:11px;col
   background:radial-gradient(circle,rgba(20,184,166,.22),transparent 65%);top:-220px;right:-180px}
 .cover-bg::after{content:'';position:absolute;width:520px;height:520px;border-radius:50%;
   background:radial-gradient(circle,rgba(16,185,129,.16),transparent 60%);bottom:-200px;left:-120px}
-.cover-grid{position:absolute;inset:0;opacity:.35;
+.cover-grid{position:absolute;inset:0;opacity:.35;pointer-events:none;
   background-image:linear-gradient(rgba(16,185,129,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(16,185,129,.05) 1px,transparent 1px);
   background-size:42px 42px;mask-image:radial-gradient(ellipse at center,#000 30%,transparent 70%)}
 
@@ -199,6 +199,7 @@ ul.checks li::before{content:'▸';position:absolute;left:0;color:var(--accent-3
       <strong style="color:var(--accent-3)">Revenue Operations para Comercio Agéntico.</strong> 8 journeys end-to-end del <b style="color:var(--accent-3)">comprador</b> — desde el primer mensaje en WhatsApp
       hasta el cierre del ciclo (compra, pago, envío, post-venta, devolución, remarketing, SEO y affiliator).
       Cada journey evidencia <b style="color:var(--accent-3)">ingresos trazables</b> y mapea agentes, APIs y modelos DB sobre los 4 ejes enterprise.
+      26 agentes IA interoperan vía <b style="color:var(--accent-3)">5 protocolos</b> (AP2/UCP/ACP/MCP/A2A) · 94 API routes · 71 modelos Prisma · 891 tests.
     </p>
     <div class="journey-index">
       <div class="ji"><div class="n">J1</div><div class="t">Compra nueva</div><div class="a">10 agentes · Eficiencia operativa</div></div>
@@ -1820,14 +1821,86 @@ trf-001  Ana Trafficker  wallet $1.2M  2FA ✅</pre>
 </section>
 
 <!-- ============================================================ -->
-<!-- SLIDE 26 — Conclusion -->
+<!-- SLIDE 25.5 — Protocolos IA en los journeys -->
 <!-- ============================================================ -->
 <section class="slide" data-slide="26">
   <div class="ghost-num" data-decor>26</div>
-  <div class="eyebrow"><span class="dot"></span>Conclusión<span class="bar"></span><span class="num">26 / 26</span></div>
+  <div class="eyebrow"><span class="dot"></span>Protocolos IA · interoperabilidad<span class="bar"></span><span class="num">26 / 27</span></div>
+  <h1 class="title">5 protocolos que <span class="em">conectan</span> tus agentes</h1>
+  <p class="lede">Cada journey invoca agentes vía API REST interno. Los <b style="color:var(--accent-3)">5 protocolos de interoperabilidad IA</b> permiten que tus agentes hablen también con LLMs y agentes externos (Claude, GPT, Gemini, agentes custom).</p>
+
+  <div class="split">
+    <div class="col">
+      <h2 class="title">Protocolos activos</h2>
+      <table class="tbl">
+        <thead><tr><th>Protocolo</th><th>Nombre</th><th>Usado en journey</th></tr></thead>
+        <tbody>
+          <tr><td class="mono-cell">AP2</td><td>Anthropic Protocol v2</td><td>J1 (claude fallback en checkout)</td></tr>
+          <tr><td class="mono-cell">UCP</td><td>Unified Context Protocol</td><td>J1, J2 (contexto entre profile→quote→checkout)</td></tr>
+          <tr><td class="mono-cell">ACP</td><td>Agent Communication Protocol</td><td>J5 (marketplace cross-brand)</td></tr>
+          <tr><td class="mono-cell">MCP</td><td>Model Context Protocol</td><td>J4 (buyer_behavior con tools externos)</td></tr>
+          <tr><td class="mono-cell">A2A</td><td>Agent-to-Agent</td><td>J7 (trafficker affiliate ↔ seller agents)</td></tr>
+        </tbody>
+      </table>
+      <p style="font:400 11px/1.4 'Inter',sans-serif;color:var(--dim);margin-top:8px">Cada protocolo es opt-in: si no se configura, los agentes usan la API REST interna. Si se configura, ganan interoperabilidad con el ecosistema IA externo.</p>
+    </div>
+    <div class="col">
+      <h2 class="title">Diagrama de interoperabilidad</h2>
+      <div class="flowchart">
+        <div class="fc-row">
+          <div class="fc-node start">J1 Compra</div>
+          <div class="fc-arr">→</div>
+          <div class="fc-node agent">buyer_behavior</div>
+          <div class="fc-arr">→</div>
+          <div class="fc-node api">MCP tools</div>
+        </div>
+        <div class="fc-row">
+          <div class="fc-node api">UCP context</div>
+          <div class="fc-arr">→</div>
+          <div class="fc-node agent">quote</div>
+          <div class="fc-arr">→</div>
+          <div class="fc-node agent">checkout</div>
+        </div>
+        <div class="fc-row">
+          <div class="fc-node agent">checkout</div>
+          <div class="fc-arr">→</div>
+          <div class="fc-node api">AP2 fallback</div>
+          <div class="fc-arr">→</div>
+          <div class="fc-node end">Claude API</div>
+        </div>
+        <div class="fc-row">
+          <div class="fc-node start">J5 Marketplace</div>
+          <div class="fc-arr">→</div>
+          <div class="fc-node api">ACP</div>
+          <div class="fc-arr">→</div>
+          <div class="fc-node">Seller agent (otra marca)</div>
+        </div>
+        <div class="fc-row">
+          <div class="fc-node start">J7 Affiliate</div>
+          <div class="fc-arr">→</div>
+          <div class="fc-node api">A2A</div>
+          <div class="fc-arr">→</div>
+          <div class="fc-node">Trafficker agent</div>
+        </div>
+      </div>
+      <div class="outcome" style="margin-top:12px">
+        <div class="h">✓ Open ecosystem IA</div>
+        <div class="d">Tus agentes no son una isla. Hablan con cualquier LLM/agent externo vía estándares abiertos. Vendor lock-in: cero.</div>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span class="brand"><b>ZIAY</b> OS · Revenue Operations · Trazabilidad E2E</span><span>Protocolos IA</span><span class="pg">26 / 27</span></div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 27 — Conclusion -->
+<!-- ============================================================ -->
+<section class="slide" data-slide="27">
+  <div class="ghost-num" data-decor>27</div>
+  <div class="eyebrow"><span class="dot"></span>Conclusión<span class="bar"></span><span class="num">27 / 27</span></div>
   <div class="cta-final">
     <h1>Trazabilidad <span class="em">de extremo a extremo.</span></h1>
-    <p>ZIAY cubre los 8 journeys críticos del comprador — desde el primer "Hola" hasta el cierre del ciclo completo. Cada journey evidencia <strong style="color:var(--accent-3)">ingresos trazables</strong> sobre los 4 ejes enterprise (Crecimiento medible, Eficiencia operativa, Gobernanza, Integración) y mapea agentes específicos, APIs REST y modelos Prisma. La arquitectura es resiliente (fallbacks, retries, idempotencia) y auditable (cada transición logueada).</p>
+    <p>ZIAY cubre los 8 journeys críticos del comprador — desde el primer "Hola" hasta el cierre del ciclo completo. Cada journey evidencia <strong style="color:var(--accent-3)">ingresos trazables</strong> sobre los 4 ejes enterprise (Crecimiento medible, Eficiencia operativa, Gobernanza, Integración) y mapea agentes específicos, APIs REST y modelos Prisma. La arquitectura es resiliente (fallbacks, retries, idempotencia) y auditable (cada transición logueada). 5 protocolos de interoperabilidad IA (AP2/UCP/ACP/MCP/A2A) evitan vendor lock-in.</p>
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:14px">
       <div style="background:rgba(7,17,13,.5);border:1px solid var(--border);border-radius:8px;padding:12px">
         <div style="font:800 22px 'Inter',sans-serif;color:var(--accent-3)">8</div>
@@ -1842,7 +1915,7 @@ trf-001  Ana Trafficker  wallet $1.2M  2FA ✅</pre>
         <div style="font:500 10px 'JetBrains Mono',monospace;color:var(--dim);letter-spacing:.1em;text-transform:uppercase;margin-top:2px">capas: Revenue · Ops · Governance</div>
       </div>
       <div style="background:rgba(7,17,13,.5);border:1px solid var(--border);border-radius:8px;padding:12px">
-        <div style="font:800 22px 'Inter',sans-serif;color:var(--accent-3)">62</div>
+        <div style="font:800 22px 'Inter',sans-serif;color:var(--accent-3)">71</div>
         <div style="font:500 10px 'JetBrains Mono',monospace;color:var(--dim);letter-spacing:.1em;text-transform:uppercase;margin-top:2px">modelos DB trazables</div>
       </div>
     </div>
@@ -1853,14 +1926,14 @@ trf-001  Ana Trafficker  wallet $1.2M  2FA ✅</pre>
       <span class="badge">Próximo: voice commerce (J9)</span>
     </div>
   </div>
-  <div class="foot"><span class="brand"><b>ZIAY</b> OS · Revenue Operations · Trazabilidad E2E</span><span>Fin · DOCS-003</span><span class="pg">26 / 26</span></div>
+  <div class="foot"><span class="brand"><b>ZIAY</b> OS · Revenue Operations · Trazabilidad E2E</span><span>Fin · DOCS-003</span><span class="pg">27 / 27</span></div>
 </section>
 
  </div><!-- /deck -->
 
  <div class="nav">
    <button id="prev" title="Anterior (←)">‹</button>
-   <span class="counter"><b id="cur">01</b> / <span id="tot">26</span></span>
+   <span class="counter"><b id="cur">01</b> / <span id="tot">27</span></span>
    <button id="next" title="Siguiente (→)">›</button>
  </div>
 </div>

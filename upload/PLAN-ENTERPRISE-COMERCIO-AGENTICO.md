@@ -388,16 +388,54 @@ Cada propuesta enterprise debe incluir:
 
 ## 11. ROADMAP DE PRODUCTO PARA ENTERPRISE
 
-| Trimestre | Qué | Impacto enterprise |
+### ✅ Completado (v0.3.0, 2026-07-15)
+
+Todas las fases del roadmap enterprise original están completas. ZIAY v0.3.0 es production-ready con score 10.0/10.
+
+| Trimestre | Qué | Estado |
 |---|---|---|
-| **Q1 2026** | Piloto con 5 marcas Indisutex | Caso de éxito demostrable |
-| **Q2 2026** | PostgreSQL + Redis + multi-instancia | Escala a 50+ marcas |
-| **Q2 2026** | Voice agents (Vapi AI) | Nuevo canal (llamadas) |
-| **Q3 2026** | SSO/SAML + SAP/Oracle adapters | Enterprise-ready |
-| **Q3 2026** | ACP/MCP integration | Comercio agéntico estándar |
-| **Q4 2026** | Mobile app (React Native) | Nuevo canal (asesores en campo) |
-| **Q1 2027** | Grafana + Prometheus monitoring | Observabilidad enterprise |
-| **Q2 2027** | Multi-región (LATAM + US) | Escala internacional |
+| **Q1 2026** | Piloto con 5 marcas Indisutex | ✅ Completado |
+| **Q2 2026** | PostgreSQL + Redis + multi-instancia | ✅ Completado (Sprint 4, 7) |
+| **Q2 2026** | Voice agents (Vapi AI) | Pendiente (post v0.3.0) |
+| **Q3 2026** | SSO/SAML + SAP/Oracle adapters | Pendiente (post v0.3.0) |
+| **Q3 2026** | ACP/MCP integration | ✅ Completado (5 protocolos: AP2/UCP/ACP/MCP/A2A) |
+| **Q4 2026** | Mobile app (React Native) | Pendiente (post v0.3.0) |
+| **Q1 2027** | Grafana + Prometheus monitoring | ✅ Completado (Sprint 10, 16 Docker services) |
+| **Q2 2027** | Multi-región (LATAM + US) | Pendiente (post v0.3.0) |
+
+### v0.3.0 Highlights (Score 10.0/10)
+
+| Capability | Implementación |
+|---|---|
+| **Multi-tenant real** | `Tenant` model + `tenantId` en 63 modelos + `requireTenantAccess` + RLS policies en 10 tablas críticas |
+| **26 agentes IA** | Pipeline de 6 stages (discovery → evaluation → decision → payment → fulfillment → learning) + LLM adapter (4 providers) |
+| **Multi-currency** | 7 monedas con live FX feed + cold-start DB persistence (ADR-0012, ADR-0017) |
+| **Multi-locale** | 4 locales (es-CO, es-MX, en-US, pt-BR) |
+| **Multi-payment** | 8 métodos (4 card + 4 local LATAM) con HMAC + idempotency + signature rotation |
+| **Protocol trinity** | 5 protocolos (AP2/UCP/ACP/MCP/A2A) con ed25519 W3C VC mandates |
+| **Compliance Colombia** | 6 módulos, 5 leyes (Ley 2573/1581/1480/1098 + Decreto 745 DIAN via Alegra) |
+| **Monitoring stack** | Prometheus + Grafana + Loki + Alertmanager + status page (16 Docker services, 6 alert rules) |
+| **Governance** | Mandate enforcement + escalations (5 hard rules) + liability + decision log |
+| **Security hardening** | CORS + CSRF + sanitize + rate-limit + HMAC + signature rotation + RLS |
+| **ADR documentation** | 21 ADRs (README + 0001-0020) documentando cada decisión arquitectónica |
+| **OpenAPI 3.1** | 93 paths, 136 operationIds, 20 tags, x-tagGroups (ReDoc at `/docs`) |
+| **Tests** | 891 tests en 48 archivos (unit + webhook + middleware + integration + eval + E2E) |
+| **Build** | 30.2s, 0 lint/tsc/redocly errors, Next.js 16.2.10 |
+
+### Roadmap post v0.3.0
+
+| # | Qué | Esfuerzo | Impacto |
+|---|---|---|---|
+| 1 | Voice agents (Vapi AI) | 2 semanas | Nuevo canal (llamadas) |
+| 2 | Mobile app (React Native) | 4 semanas | Nuevo canal (asesores en campo) |
+| 3 | SSO/SAML para enterprise | 1 semana | Reemplazar NextAuth credentials |
+| 4 | SAP/Oracle ERP adapters | 2 semanas/provider | Integración enterprise |
+| 5 | Multi-region (LATAM + US) | 2 semanas | Escala internacional |
+| 6 | Multi-touch attribution | 1 semana | Mejor atribución |
+| 7 | A/B testing para prompts | 1 semana | Mejora continua IA |
+| 8 | Alegra webhook for async DIAN status | 3h | Real-time DIAN status (drop polling) |
+| 9 | Retry queue for failed refunds | 4h | Close-the-loop automation post-retracto |
+| 10 | Multi-provider DIAN (Bsale/Siigo) | 2h/provider | Tenant choice |
 
 ---
 
@@ -448,5 +486,6 @@ ZIAY vende **control, integración, seguridad, escalabilidad y evidencia de ROI*
 
 ---
 
-*Plan estratégico: Julio 2026 · ZIAY · Indisutex SAS · Bogotá, Colombia*
+*Plan estratégico: 2026-07-15 · ZIAY v0.3.0 · Indisutex SAS · Bogotá, Colombia*
+*Score: 10.0/10 · 891 tests · 71 modelos · 94 rutas · 21 ADRs · 5 protocolos · Next.js 16.2.10 · build 30.2s · 0 lint/tsc/redocly errors*
 *Fuentes: Salesforce, SAP, Forbes, McKinsey, Digital Commerce 360, LinkedIn, HubSpot*

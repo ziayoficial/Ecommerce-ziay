@@ -14,6 +14,7 @@
 | 2026-07-11 | 2.0 | QA E2E + documentación masiva | Dev server inestable en sandbox de 4GB RAM |
 | 2026-07-11 | 2.1 | Presentación no-técnicos + lecciones | Lenguaje natural > jerga técnica para clientes |
 | 2026-07-11 | 3.0 | Reposicionamiento enterprise (REBRAND-ENTERPRISE-001) | El mensaje interno (26 agentes, 95%) no es el mensaje de venta; enterprise positioning > feature listing |
+| 2026-07-15 | 4.0 | **v0.3.0 final — Score 10.0/10** (Sprints 1-14) | ADRs son esenciales; error handling wrapper; tenant scoping #1; ed25519 > RSA; fire-and-forget webhooks; LLM budget tracking; SSR shell |
 
 ---
 
@@ -246,6 +247,73 @@
 
 ---
 
+## 🚀 Lecciones de los Sprints 1-14 (v0.3.0 final · score 10.0/10)
+
+> Siete lecciones arquitectónicas clave aprendidas durante los 14 sprints que llevaron ZIAY de v0.1.0 (score 4.9/10) a v0.3.0 (score 10.0/10). Cada una está respaldada por un ADR.
+
+### L24. El wrapper de error handling es el patrón más valioso del proyecto (ADR-0011)
+
+**Contexto:** En Sprint 8B, los 8 webhooks tenían try/catch ad-hoc con comportamientos inconsistentes. Algunos retornaban 200 siempre, otros 500 en error, otros logging diferente.
+
+**Lección:** Un wrapper (`withWebhookErrorHandling`) que envuelve TODOS los webhooks (1) asegura que el gateway siempre reciba 200 (evita reintentos infinitos), (2) estandariza el logging con `captureError` + pino, (3) garantiza idempotencia dedup pre-execution, (4) centraliza la firma HMAC verification. Cada webhook queda reducido a su lógica de negocio pura (~30 líneas en vez de ~120).
+
+**Acción:** Migrar los 8 webhooks al wrapper. Documentar el patrón en ADR-0011. Hoy, agregar un webhook nuevo es trivial: implementas el handler, lo envuelves, listo.
+
+### L25. El tenant scoping es la prioridad #1 de seguridad
+
+**Contexto:** En v0.1.0, 19 API rutas permitían cross-tenant access porque `tenantId` era opcional en el query param. Cualquiera podía leer pedidos de todas las marcas.
+
+**Lección:** Multi-tenant requires 3 capas de defensa en profundidad: (1) app layer (`requireTenantAccess` en cada ruta), (2) ORM layer (Prisma extension auto-inject `tenantId`), (3) DB layer (RLS policies en PostgreSQL). Una sola capa NO es suficiente — un bug en cualquier capa se compensa con las otras dos.
+
+**Acción:** 19 rutas fixeadas con `requireTenantAccess`. Prisma extension disponible. 10 tablas críticas con RLS en PostgreSQL. Tests de cross-tenant access en `tests/unit/compliance-edge-cases.test.ts`. Tenant scoping es el #1 item del PRODUCTION-CHECKLIST.
+
+### L26. ed25519 es superior a RSA para mandate signing (ADR-0006)
+
+**Contexto:** Para firmar los AP2 mandates como W3C Verifiable Credentials, se evaluó RSA-2048 vs ed25519.
+
+**Lección:** ed25519 wins en los 3 ejes que importan para un sistema de mandates:
+- **Fast** — firma ~50μs vs ~1ms RSA-2048 (20x más rápido).
+- **Small** — firma 64 bytes vs 256 bytes RSA (4x más pequeña, ideal para JWT/VC payloads).
+- **Deterministic** — misma input + misma key = misma firma (reproducible, fácil de testear, no depende de RNG en tiempo de firma).
+
+**Acción:** Implementado en `src/lib/crypto/signing.ts`. ADR-0006 documenta la decisión. Los mandates AP2 se firman con ed25519, no RSA.
+
+### L27. Fire-and-forget para webhooks: SIEMPRE retorna 200 (ADR-0005)
+
+**Contexto:** Los gateways de pago (MercadoPago, Wompi, Stripe, PayU) reintentan webhooks que no reciben 200. Si tu handler tarda 5s procesando, el gateway timeout + reintenta = duplicación masiva.
+
+**Lección:** El webhook handler debe (1) verificar HMAC, (2) dedup via WebhookEvent table, (3) responder 200 INMEDIATAMENTE, (4) delegar el procesamiento a un queue (BullMQ) o fire-and-forget. El gateway nunca debe esperar el procesamiento. Si el procesamiento falla, el queue lo reintenta — el gateway ya tiene su 200.
+
+**Acción:** `withWebhookErrorHandling` wrapper implementa este patrón. ADR-0005 documenta la decisión. Los 8 webhooks retornan 200 en <100ms. La idempotencia dedup previene duplicados si el gateway reintenta igual.
+
+### L28. LLM budget tracking previene costos desbocados (ADR-0004)
+
+**Contexto:** Sin budget tracking, un tenant podría hacer 10,000 llamadas LLM/día por error (loop infinito en un agente, prompt mal diseñado, bug en el fallback). A $0.005/llamada = $50/día por tenant = $1,500/mes por tenant.
+
+**Lección:** Per-tenant daily + monthly LLM cost budget con 80% warning alerts es no-negociable. La verificación es PRE-LLM-call: si el budget está excedido, el agente cae al fallback determinístico en vez de llamar al LLM. El warning al 80% le da al admin tiempo de ajustar el budget antes del cutoff.
+
+**Acción:** `src/lib/llm/budget.ts` verifica pre-llamada. `/api/llm/budget` lee/actualiza el budget. `/api/llm/costs` + `/api/llm/costs/breakdown` (byModel) dan visibilidad. Socket-driven banner al 80%. Tests en `tests/unit/llm-budget.test.ts`.
+
+### L29. SSR shell mejora LCP significativamente (ADR-0016)
+
+**Contexto:** El dashboard era 100% client-rendered. LCP (Largest Contentful Paint) era ~3.5s porque el browser tenía que (1) descargar JS, (2) hidratar React, (3) hacer la API call, (4) renderizar la UI. La 1ra pintura era un skeleton en blanco.
+
+**Lección:** Server-render el shell (sidebar + topbar + theme provider) + usar client islands para los componentes interactivos. El browser recibe HTML con el chrome visible desde la 1ra pintura. LCP baja de 3.5s a ~1.2s. El usuario percibe la app como "instantánea".
+
+**Acción:** Layout SSR + admin guard server-side (Sprint 13). ADR-0016 documenta el patrón. Las views individuales siguen client-rendered (data fetching) — documentado como limitación pendiente.
+
+### L30. Los ADRs son esenciales para decisiones arquitectónicas (21 ADRs)
+
+**Contexto:** Sin ADRs, las decisiones se perdían en el worklog (18,000+ líneas) o en mensajes de Slack. "¿Por qué ed25519 y no RSA?" → 30 min de grep en el worklog. "¿Por qué BullMQ y no cron?" → depende de quién preguntes.
+
+**Lección:** Cada decisión arquitectónica no-obvia debe tener un ADR con: (1) contexto, (2) decisión, (3) alternativas consideradas, (4) consecuencias. Los ADRs son inmutables (no se editan, se reemplazan por ADRs nuevos). Viven en `docs/adr/` con numbering secuencial. El README indexa todos.
+
+**Acción:** 21 ADRs escritos (README + 0001-0020). Cubren desde multi-tenant RBAC (ADR-0001) hasta DIAN Alegra integration (ADR-0020). Cada Sprint nuevo genera 1-3 ADRs. El reviewer de un PR puede preguntar "¿dónde está el ADR?" y esperar un link.
+
+**Verificación:** `ls docs/adr/ | grep -c "^00"` debe retornar 20 (más README = 21).
+
+---
+
 ## ⚠️ Errores Comunes a Evitar
 
 ### E1. Hardcoded fallbacks en seguridad
@@ -301,27 +369,39 @@ const orders = await db.order.findMany({ where: { tenantId } });
 
 ---
 
-## 📊 Métricas del Proyecto (estado final)
+## 📊 Métricas del Proyecto (estado final v0.3.0)
 
-| Métrica | Valor |
-|---|---|
-| Líneas de código (src/) | ~15,000 |
-| Modelos Prisma | 62 |
-| API Routes | 44 |
-| Componentes dashboard | 17 |
-| Componentes UI (shadcn) | 48 |
-| Agentes conversacionales | 26 |
-| Pipelines | 3 (19 pasos totales) |
-| Adapters | 18 |
-| Webhooks | 6 (con HMAC) |
-| Índices DB | 91 en 45 modelos |
-| Documentación (líneas) | 12,284 |
-| Presentaciones (slides) | 102 (4 presentaciones) |
-| Screenshots QA | 73 |
-| Worklog (líneas) | 2,463+ |
-| Lint errors | 0 |
-| TSC errors | 0 |
-| QA pass rate | 100% (14/14 views, 24/25 APIs, 4/4 SSR, 7/7 webhooks) |
+| Métrica | v0.1.0 | v0.3.0 |
+|---|---|---|
+| Líneas de código (src/) | ~15,000 | ~25,000 |
+| Modelos Prisma | 62 | **71** |
+| API Routes | 44 | **94** |
+| Componentes dashboard | 17 | **21** |
+| Componentes UI (shadcn) | 48 | 48 |
+| Agentes conversacionales | 26 | 26 |
+| Pipelines | 3 (19 pasos totales) | 3 (19 pasos totales) |
+| Adapters | 18 | 22 |
+| Webhooks | 6 (con HMAC) | **8** (HMAC + idempotency + signature rotation) |
+| Índices DB | 91 en 45 modelos | 91 en 45 modelos |
+| Test files | 10 | **48** |
+| Tests | 108 | **891** |
+| ADRs | 0 | **21** (README + 20) |
+| OpenAPI paths | 0 | **93** (OAS 3.1) |
+| Protocolos | 0 | **5** (AP2/UCP/ACP/MCP/A2A) |
+| Monedas | 1 | **7** |
+| Locales | 1 | **4** |
+| Métodos de pago | 4 | **8** (4 card + 4 local LATAM) |
+| Docker services | 11 | **16** |
+| Compliance modules | 0 | **6** (KYC, consent, retention, age-gate, retracto, DIAN) |
+| Documentación (líneas) | 12,284 | 18,000+ |
+| Presentaciones (slides) | 102 | 135+ |
+| Worklog (líneas) | 2,463 | 18,000+ |
+| Lint errors / warnings | 0 / N/A | **0 / 0** |
+| TSC errors | 0 | **0** |
+| Redocly errors | N/A | **0** |
+| Build time | N/A | **30.2s** |
+| Next.js | 16.0 | **16.2.10** |
+| Score | 4.9 | **10.0/10** |
 
 ---
 
@@ -339,4 +419,4 @@ const orders = await db.order.findMany({ where: { tenantId } });
 
 ---
 
-*Documento mantenido por el equipo de ZIAY. Última actualización: 2026-07-11 (reposicionamiento enterprise aplicado). Tagline: **Revenue Operations para Comercio Agéntico**.*
+*Documento mantenido por el equipo de ZIAY. Última actualización: 2026-07-15 (v0.3.0 final, score 10.0/10). Tagline: **Revenue Operations para Comercio Agéntico**.*

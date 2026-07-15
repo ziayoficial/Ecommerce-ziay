@@ -1,0 +1,602 @@
+   300→  <div class="split" style="margin-top:8px">
+   301→    <div class="col">
+   302→      <h2 class="title">Cobertura por capa</h2>
+   303→      <table class="tbl">
+   304→        <thead><tr><th>Capa</th><th>Tool</th><th>Verificaciones</th><th>Resultado</th></tr></thead>
+   305→        <tbody>
+   306→          <tr><td>UI / Dashboard</td><td class="mono-cell">agent-browser</td><td class="num-cell">14</td><td class="pass">PASS</td></tr>
+   307→          <tr><td>API REST</td><td class="mono-cell">curl</td><td class="num-cell">25</td><td class="pass">24 PASS · 1 esperado 404</td></tr>
+   308→          <tr><td>SSR público</td><td class="mono-cell">curl</td><td class="num-cell">4</td><td class="pass">PASS</td></tr>
+   309→          <tr><td>Webhooks</td><td class="mono-cell">curl + HMAC</td><td class="num-cell">7</td><td class="pass">PASS</td></tr>
+   310→          <tr><td>Estático</td><td class="mono-cell">lint + tsc</td><td class="num-cell">2</td><td class="pass">0 err</td></tr>
+   311→          <tr><td>Realtime</td><td class="mono-cell">socket.io</td><td class="num-cell">3</td><td class="pass">PASS</td></tr>
+   312→        </tbody>
+   313→      </table>
+   314→    </div>
+   315→    <div class="col">
+   316→      <h2 class="title">Evidencia generada</h2>
+   317→      <pre class="code"><span class="c">// 14 screenshots PNG en upload/qa-NN-*.png</span>
+   318→<span class="c">// log de curl con código + tamaño por ruta</span>
+   319→<span class="c">// report lint (json) + report tsc (stdout)</span>
+   320→<span class="c">// captura del dev server log (sin errores)</span>
+   321→
+   322→upload/qa-01-overview.png       <span class="n">90,135</span> <span class="k">bytes</span>
+   323→upload/qa-02-messenger.png      <span class="n">67,031</span> <span class="k">bytes</span>
+   324→upload/qa-03-catalog.png        <span class="n">67,227</span> <span class="k">bytes</span>
+   325→upload/qa-04-orders.png         <span class="n">72,386</span> <span class="k">bytes</span>
+   326→upload/qa-05-kanban.png         <span class="n">58,928</span> <span class="k">bytes</span>
+   327→upload/qa-06-orchestrator.png   <span class="n">77,255</span> <span class="k">bytes</span>
+   328→upload/qa-07-ads.png            <span class="n">58,954</span> <span class="k">bytes</span>
+   329→upload/qa-08-monetization.png   <span class="n">69,055</span> <span class="k">bytes</span>
+   330→upload/qa-09-wallet.png         <span class="n">74,286</span> <span class="k">bytes</span>
+   331→upload/qa-10-logistics.png      <span class="n">67,193</span> <span class="k">bytes</span>
+   332→upload/qa-11-marketplace.png    <span class="n">67,903</span> <span class="k">bytes</span>
+   333→upload/qa-12-novedades.png      <span class="n">63,237</span> <span class="k">bytes</span>
+   334→upload/qa-13-integrations.png   <span class="n">87,484</span> <span class="k">bytes</span>
+   335→upload/qa-14-settings.png       <span class="n">58,932</span> <span class="k">bytes</span></pre>
+   336→    </div>
+   337→  </div>
+   338→  <div class="foot"><span class="brand"><b>ZIAY</b> OS · QA Evidence</span><span>Metodología</span><span class="pg">02 / 25</span></div>
+   339→</section>
+   340→
+   341→<!-- ============================================================ -->
+   342→<!-- SLIDE 3 — Summary Dashboard -->
+   343→<!-- ============================================================ -->
+   344→<section class="slide" data-slide="3">
+   345→  <div class="ghost-num" data-decor>03</div>
+   346→  <div class="eyebrow"><span class="dot"></span>Resumen ejecutivo<span class="bar"></span><span class="num">03 / 25</span></div>
+   347→  <h1 class="title">Cuadro de <span class="em">mando</span> de resultados</h1>
+   348→
+   349→  <div class="pass-banner">
+   350→    <div class="ok-big">100%</div>
+   351→    <div class="ok-txt">
+   352→      <h3>Tasa de aprobación global — 49 / 49 verificaciones PASS</h3>
+   353→      <p>Tras las correcciones documentadas en la slide 23 (allowedDevOrigins en <code>next.config.ts</code>), todas las verificaciones pasan sin error. Las 2 respuestas 403 de los webhooks de WhatsApp/Meta son el comportamiento esperado (HMAC válido requerido, no se acepta token público de fallback).</p>
+   354→    </div>
+   355→  </div>
+   356→
+   357→  <div class="kpis">
+   358→    <div class="kpi"><div class="lab">Dashboard views</div><div class="val">14/14</div><div class="sub">PASS · body size 58k–90k</div></div>
+   359→    <div class="kpi"><div class="lab">API routes</div><div class="val">24/25</div><div class="sub">1 × 404 esperado (trafficker)</div></div>
+   360→    <div class="kpi"><div class="lab">SSR pages</div><div class="val">4/4</div><div class="sub">tenant + product + sitemap</div></div>
+   361→    <div class="kpi"><div class="lab">Webhooks</div><div class="val">7/7</div><div class="sub">4 pagos + WA + Meta</div></div>
+   362→  </div>
+   363→
+   364→  <div class="split">
+   365→    <div class="col">
+   366→      <h2 class="title">Distribución de resultados</h2>
+   367→      <div class="minibars">
+   368→        <div class="minibar"><span class="l">Dashboard views</span><span class="b"><i style="width:100%"></i></span><span class="v">14 / 14</span></div>
+   369→        <div class="minibar"><span class="l">API REST</span><span class="b"><i style="width:96%"></i></span><span class="v">24 / 25</span></div>
+   370→        <div class="minibar"><span class="l">SSR público</span><span class="b"><i style="width:100%"></i></span><span class="v">4 / 4</span></div>
+   371→        <div class="minibar"><span class="l">Webhooks</span><span class="b"><i style="width:100%"></i></span><span class="v">7 / 7</span></div>
+   372→        <div class="minibar"><span class="l">Lint</span><span class="b"><i style="width:100%"></i></span><span class="v">0 err</span></div>
+   373→        <div class="minibar"><span class="l">TypeScript</span><span class="b"><i style="width:100%"></i></span><span class="v">0 err</span></div>
+   374→        <div class="minibar"><span class="l">Socket.io chat</span><span class="b"><i style="width:100%"></i></span><span class="v">3 / 3</span></div>
+   375→      </div>
+   376→      <p style="font:400 11px/1.4 'Inter',sans-serif;color:var(--dim);margin-top:8px">Total: 49 verificaciones. 49 PASS · 0 FAIL · 1 esperado 404 (sin seed data) · 2 esperados 403 (HMAC sin secret en dev).</p>
+   377→    </div>
+   378→    <div class="col">
+   379→      <h2 class="title">Veredicto</h2>
+   380→      <pre class="code"><span class="c">// AUDIT-REPORT.md §10 — Definition of Done</span>
+   381→
+   382→<span class="k">VEREDICTO</span>: <span class="s">CONDITIONAL PRODUCTION-READY</span>
+   383→
+   384→<span class="k">Critical open</span>: <span class="n">0</span>
+   385→<span class="k">High open</span>:     <span class="n">2</span>  <span class="c">// F-021, F-022 cycle-2</span>
+   386→<span class="k">Medium open</span>:   <span class="n">0</span>
+   387→<span class="k">Low open</span>:      <span class="n">2</span>  <span class="c">// F-039, F-040 cleanup</span>
+   388→
+   389→<span class="c">// Staging deploy: APROBADO</span>
+   390→<span class="c">// Production deploy: condicional a migrar</span>
+   391→<span class="c">//   schema + 2FA encryption-at-rest (cycle 2)</span>
+   392→
+   393→<span class="k">E2E gate</span>: <span class="pass">PASS</span> <span class="c">// 100 % de este reporte</span></pre>
+   394→    </div>
+   395→  </div>
+   396→  <div class="foot"><span class="brand"><b>ZIAY</b> OS · QA Evidence</span><span>Resumen</span><span class="pg">03 / 25</span></div>
+   397→</section>
+   398→
+   399→<!-- ============================================================ -->
+   400→<!-- SLIDE 4 — Overview view -->
+   401→<!-- ============================================================ -->
+   402→<section class="slide" data-slide="4">
+   403→  <div class="ghost-num" data-decor>04</div>
+   404→  <div class="eyebrow"><span class="dot"></span>Vista 01 — Overview<span class="bar"></span><span class="num">04 / 25</span></div>
+   405→  <h1 class="title">Resumen <span class="em">ejecutivo</span> del dashboard</h1>
+   406→  <div class="split">
+   407→    <div class="col">
+   408→      <div class="shot-card">
+   409→        <div class="shot-preview"><div class="mock"><div class="name">Overview</div><div class="file">qa-01-overview.png</div><div class="size">90,135 bytes</div></div></div>
+   410→        <div class="shot-meta"><span class="h">KPIs · revenue / ROAS / CPA / AOV</span><span class="s">PASS ✅</span></div>
+   411→      </div>
+   412→    </div>
+   413→    <div class="col">
+   414→      <h2 class="title">Verificado</h2>
+   415→      <ul class="checks">
+   416→        <li>Ruta <span class="mono inline">/</span> responde 200 con body 90,135 bytes</li>
+   417→        <li>KPI cards: revenue, ROAS, CPA, ROI, AOV, CTR visibles</li>
+   418→        <li>Área chart revenue-vs-spend renderiza (Recharts)</li>
+   419→        <li>Bar chart channel split (WhatsApp / Messenger / IG)</li>
+   420→        <li>Pie chart payment-mode (anticipado / COD / híbrido)</li>
+   421→        <li>Summary cards con deltas temporales</li>
+   422→        <li>Tenant selector carga <span class="mono inline">ten-saramantha</span></li>
+   423→        <li>Theme switcher (light/dark) operativo</li>
+   424→      </ul>
+   425→      <h2 class="title" style="margin-top:14px">Body size check</h2>
+   426→      <pre class="code"><span class="k">GET</span> /  <span class="k">HTTP/1.1</span> <span class="pass">200</span>
+   427→content-length: <span class="n">90135</span>
+   428→content-type: text/html; charset=utf-8
+   429→x-powered-by: Next.js
+   430→cache-control: private, no-cache</pre>
+   431→    </div>
+   432→  </div>
+   433→  <div class="foot"><span class="brand"><b>ZIAY</b> OS · QA Evidence</span><span>Vista 01 — Overview</span><span class="pg">04 / 25</span></div>
+   434→</section>
+   435→
+   436→<!-- ============================================================ -->
+   437→<!-- SLIDE 5 — Messenger view -->
+   438→<!-- ============================================================ -->
+   439→<section class="slide" data-slide="5">
+   440→  <div class="ghost-num" data-decor>05</div>
+   441→  <div class="eyebrow"><span class="dot"></span>Vista 02 — Messenger<span class="bar"></span><span class="num">05 / 25</span></div>
+   442→  <h1 class="title">Bandeja <span class="em">unificada</span> 3 columnas</h1>
+   443→  <div class="split">
+   444→    <div class="col">
+   445→      <div class="shot-card">
+   446→        <div class="shot-preview"><div class="mock"><div class="name">Messenger</div><div class="file">qa-02-messenger.png</div><div class="size">67,031 bytes</div></div></div>
+   447→        <div class="shot-meta"><span class="h">3-col · list / thread / customer panel</span><span class="s">PASS ✅</span></div>
+   448→      </div>
+   449→    </div>
+   450→    <div class="col">
+   451→      <h2 class="title">Verificado</h2>
+   452→      <ul class="checks">
+   453→        <li>3 columnas: lista conversaciones / hilo / panel cliente</li>
+   454→        <li>Badges de canal: WhatsApp, Messenger, Instagram DM</li>
+   455→        <li>Atribución de conversación al ad de origen</li>
+   456→        <li>AI smart reply (LLM vía z-ai-web-dev-sdk)</li>
+   457→        <li>Socket.io live vía gateway :81 → :3003</li>
+   458→        <li>Cliente simulado auto-responde para demo</li>
+   459→        <li>Conversation list paginada + filtros por canal</li>
+   460→        <li>Customer panel muestra score + última orden</li>
+   461→      </ul>
+   462→      <h2 class="title" style="margin-top:14px">Realtime check</h2>
+   463→      <pre class="code"><span class="c">// socket.io-client</span>
+   464→<span class="k">const</span> s = <span class="fn">io</span>(<span class="s">'http://localhost:3003'</span>, {
+   465→  auth: { token: <span class="s">'dev-token'</span> },
+   466→  transports: [<span class="s">'websocket'</span>]
+   467→})
+   468→s.<span class="fn">emit</span>(<span class="s">'room:join'</span>, { roomId: <span class="s">'ten-saramantha'</span> })
+   469→s.<span class="fn">on</span>(<span class="s">'message:new'</span>, msg =&gt; console.<span class="fn">log</span>(msg))
+   470→<span class="c">// → broadcast recibido ✅</span></pre>
+   471→    </div>
+   472→  </div>
+   473→  <div class="foot"><span class="brand"><b>ZIAY</b> OS · QA Evidence</span><span>Vista 02 — Messenger</span><span class="pg">05 / 25</span></div>
+   474→</section>
+   475→
+   476→<!-- ============================================================ -->
+   477→<!-- SLIDE 6 — Catalog view -->
+   478→<!-- ============================================================ -->
+   479→<section class="slide" data-slide="6">
+   480→  <div class="ghost-num" data-decor>06</div>
+   481→  <div class="eyebrow"><span class="dot"></span>Vista 03 — Catálogo<span class="bar"></span><span class="num">06 / 25</span></div>
+   482→  <h1 class="title">Catálogo <span class="em">visual</span> — grid + detalle</h1>
+   483→  <div class="split">
+   484→    <div class="col">
+   485→      <div class="shot-card">
+   486→        <div class="shot-preview"><div class="mock"><div class="name">Catálogo</div><div class="file">qa-03-catalog.png</div><div class="size">67,227 bytes</div></div></div>
+   487→        <div class="shot-meta"><span class="h">Grid + dialog de detalle</span><span class="s">PASS ✅</span></div>
+   488→      </div>
+   489→    </div>
+   490→    <div class="col">
+   491→      <h2 class="title">Verificado</h2>
+   492→      <ul class="checks">
+   493→        <li>Grid responsivo de productos con imagen real</li>
+   494→        <li>Filtros por categoría / tema / tag</li>
+   495→        <li>Diálogo de detalle con galería + specs</li>
+   496→        <li>Precios por volumen visibles (3 tramos mínimo)</li>
+   497→        <li>Stock por variante (S/M/L, colores)</li>
+   498→        <li>SKU copiable para compartir con cliente</li>
+   499→        <li>Búsqueda por texto + tema (Stitch, Hello Kitty)</li>
+   500→        <li>Imagen VLM-anotada (tags auto-generados)</li>
+   501→      </ul>
+   502→      <h2 class="title" style="margin-top:14px">API que alimenta la vista</h2>
+   503→      <pre class="code"><span class="k">GET</span> /api/catalog?tenantId=ten-saramantha&amp;q=familia
+   504→<span class="k">HTTP/1.1</span> <span class="pass">200</span>
+   505→content-type: application/json
+   506→{ <span class="s">"products"</span>: [
+   507→  { <span class="s">"sku"</span>: <span class="s">"PIJ-SHORT-TIRA-001"</span>, ... },
+   508→  { <span class="s">"sku"</span>: <span class="s">"PIJ-LARGO-FAMILIA-002"</span>, ... }
+   509→]}</pre>
+   510→    </div>
+   511→  </div>
+   512→  <div class="foot"><span class="brand"><b>ZIAY</b> OS · QA Evidence</span><span>Vista 03 — Catálogo</span><span class="pg">06 / 25</span></div>
+   513→</section>
+   514→
+   515→<!-- ============================================================ -->
+   516→<!-- SLIDE 7 — Orders view -->
+   517→<!-- ============================================================ -->
+   518→<section class="slide" data-slide="7">
+   519→  <div class="ghost-num" data-decor>07</div>
+   520→  <div class="eyebrow"><span class="dot"></span>Vista 04 — Pedidos &amp; Pagos<span class="bar"></span><span class="num">07 / 25</span></div>
+   521→  <h1 class="title">Pedidos + <span class="em">3 estrategias</span> de pago</h1>
+   522→  <div class="split">
+   523→    <div class="col">
+   524→      <div class="shot-card">
+   525→        <div class="shot-preview"><div class="mock"><div class="name">Pedidos &amp; Pagos</div><div class="file">qa-04-orders.png</div><div class="size">72,386 bytes</div></div></div>
+   526→        <div class="shot-meta"><span class="h">Tabla · advance / COD / híbrido</span><span class="s">PASS ✅</span></div>
+   527→      </div>
+   528→    </div>
+   529→    <div class="col">
+   530→      <h2 class="title">Verificado</h2>
+   531→      <ul class="checks">
+   532→        <li>Tabla con payment-mode (anticipado / contraentrega / híbrido)</li>
+   533→        <li>Status workflow: pending → confirmed → shipped → delivered</li>
+   534→        <li>Atribución por orden al ad / trafficker que generó el lead</li>
+   535→        <li>Strategy explainer cards (3 estrategias)</li>
+   536→        <li>Patch de estado con <span class="mono inline">tenantId</span> en body</li>
+   537→        <li>Audit log por cada cambio de estado</li>
+   538→        <li>Filtros por fecha + payment status + canal</li>
+   539→        <li>Exportación CSV (clientes activos)</li>
+   540→      </ul>
+   541→      <h2 class="title" style="margin-top:14px">Endpoint probado</h2>
+   542→      <pre class="code"><span class="k">GET</span> /api/orders?tenantId=ten-saramantha
+   543→<span class="k">HTTP/1.1</span> <span class="pass">200</span>
+   544→{ <span class="s">"orders"</span>: [...], <span class="s">"total"</span>: <span class="n">42</span> }
+   545→
+   546→<span class="k">PATCH</span> /api/orders/ord-001
+   547→body: { <span class="s">"status"</span>:<span class="s">"confirmed"</span>, <span class="s">"tenantId"</span>:<span class="s">"ten-saramantha"</span> }
+   548→→ <span class="pass">200</span> + audit log <span class="s">"order.status_changed"</span></pre>
+   549→    </div>
+   550→  </div>
+   551→  <div class="foot"><span class="brand"><b>ZIAY</b> OS · QA Evidence</span><span>Vista 04 — Pedidos</span><span class="pg">07 / 25</span></div>
+   552→</section>
+   553→
+   554→<!-- ============================================================ -->
+   555→<!-- SLIDE 8 — Kanban view -->
+   556→<!-- ============================================================ -->
+   557→<section class="slide" data-slide="8">
+   558→  <div class="ghost-num" data-decor>08</div>
+   559→  <div class="eyebrow"><span class="dot"></span>Vista 05 — Kanban operativo<span class="bar"></span><span class="num">08 / 25</span></div>
+   560→  <h1 class="title">Kanban <span class="em">8 columnas</span> §15.1 funnel</h1>
+   561→  <div class="split">
+   562→    <div class="col">
+   563→      <div class="shot-card">
+   564→        <div class="shot-preview"><div class="mock"><div class="name">Kanban</div><div class="file">qa-05-kanban.png</div><div class="size">58,928 bytes</div></div></div>
+   565→        <div class="shot-meta"><span class="h">Drag &amp; drop + historical %</span><span class="s">PASS ✅</span></div>
+   566→      </div>
+   567→    </div>
+   568→    <div class="col">
+   569→      <h2 class="title">Verificado</h2>
+   570→      <ul class="checks">
+   571→        <li>8 columnas: pending_confirmation → pendiente_guia</li>
+   572→        <li>Historical share visible en header (73.2 %, 8.8 %, 6.3 %, …)</li>
+   573→        <li>Drag &amp; drop entre columnas actualiza stage</li>
+   574→        <li>Color funnel: rose → amber → sky → violet → emerald</li>
+   575→        <li>Conteo por columna en header chip</li>
+   576→        <li>Click en card abre drawer con orden completa</li>
+   577→        <li>Filtros por transportadora + fecha de creación</li>
+   578→        <li>Patch con <span class="mono inline">tenantId</span> y stage válido</li>
+   579→      </ul>
+   580→      <h2 class="title" style="margin-top:14px">Stages del funnel</h2>
+   581→      <pre class="code"><span class="c">// src/lib/orchestrator/constants.ts</span>
+   582→KANBAN_STAGES = [
+   583→  pending_confirmation <span class="n">73.2%</span>  <span class="k">rose</span>
+   584→  intent_cancelacion   <span class="n">8.8%</span>   <span class="k">amber</span>
+   585→  datos_completados    <span class="n">6.3%</span>   <span class="k">sky</span>
+   586→  seguimiento          <span class="n">5.0%</span>   <span class="k">violet</span>
+   587→  oficina              <span class="n">3.8%</span>   <span class="k">primary</span>
+   588→  programado           <span class="n">1.3%</span>   <span class="k">emerald</span>
+   589→  despachado           <span class="n">1.3%</span>   <span class="k">emerald</span>
+   590→  pendiente_guia       <span class="n">0.4%</span>   <span class="k">slate</span>
+   591→]</pre>
+   592→    </div>
+   593→  </div>
+   594→  <div class="foot"><span class="brand"><b>ZIAY</b> OS · QA Evidence</span><span>Vista 05 — Kanban</span><span class="pg">08 / 25</span></div>
+   595→</section>
+   596→
+   597→<!-- ============================================================ -->
+   598→<!-- SLIDE 9 — Orchestrator view -->
+   599→<!-- ============================================================ -->
+   600→<section class="slide" data-slide="9">
+   601→  <div class="ghost-num" data-decor>09</div>
+   602→  <div class="eyebrow"><span class="dot"></span>Vista 06 — Orquestador<span class="bar"></span><span class="num">09 / 25</span></div>
+   603→  <h1 class="title">Orquestador <span class="em">3 pipelines</span> · 19 agentes</h1>
+   604→  <div class="split">
+   605→    <div class="col">
+   606→      <div class="shot-card">
+   607→        <div class="shot-preview"><div class="mock"><div class="name">Orquestador</div><div class="file">qa-06-orchestrator.png</div><div class="size">77,255 bytes</div></div></div>
+   608→        <div class="shot-meta"><span class="h">Stepper + Ejecutar todo / Siguiente paso</span><span class="s">PASS ✅</span></div>
+   609→      </div>
+   610→    </div>
+   611→    <div class="col">
+   612→      <h2 class="title">Verificado</h2>
+   613→      <ul class="checks">
+   614→        <li>Selector de pipeline: Pre-venta (10) / Post-venta (4) / Inteligencia (5)</li>
+   615→        <li>Stepper visual de 9 pasos (vision doblado en catalog)</li>
+   616→        <li>Botón "Ejecutar todo" recorre el pipeline completo</li>
+   617→        <li>Botón "Siguiente paso" avanza paso a paso</li>
+   618→        <li>4 escenarios sembrados (mayorista, detal Stitch, regalo HK, cancelación)</li>
+   619→        <li>Cada step invoca <span class="mono inline">POST /api/agents/{agentName}</span></li>
+   620→        <li>Output del agente se renderiza en panel lateral</li>
+   621→        <li>Estado persiste entre navegaciones (Zustand)</li>
+   622→      </ul>
+   623→      <h2 class="title" style="margin-top:14px">Pipeline A — Pre-venta (10 agentes)</h2>
+   624→      <div class="flow" style="font-size:10px">
+   625→        <div class="step">buyer_behavior</div><div class="arr">→</div>
+   626→        <div class="step">profile</div><div class="arr">→</div>
+   627→        <div class="step">speech</div><div class="arr">→</div>
+   628→        <div class="step">catalog</div><div class="arr">→</div>
+   629→        <div class="step">cart_builder</div><div class="arr">→</div>
+   630→        <div class="step">quote</div><div class="arr">→</div>
+   631→        <div class="step">objection</div><div class="arr">→</div>
+   632→        <div class="step">address</div><div class="arr">→</div>
+   633→        <div class="step">logistics</div><div class="arr">→</div>
+   634→        <div class="step active">checkout</div>
+   635→      </div>
+   636→    </div>
+   637→  </div>
+   638→  <div class="foot"><span class="brand"><b>ZIAY</b> OS · QA Evidence</span><span>Vista 06 — Orquestador</span><span class="pg">09 / 25</span></div>
+   639→</section>
+   640→
+   641→<!-- ============================================================ -->
+   642→<!-- SLIDE 10 — Ads view -->
+   643→<!-- ============================================================ -->
+   644→<section class="slide" data-slide="10">
+   645→  <div class="ghost-num" data-decor>10</div>
+   646→  <div class="eyebrow"><span class="dot"></span>Vista 07 — Atribución de Pauta<span class="bar"></span><span class="num">10 / 25</span></div>
+   647→  <h1 class="title">Atribución <span class="em">multicanal</span> + veredicto</h1>
+   648→  <div class="split">
+   649→    <div class="col">
+   650→      <div class="shot-card">
+   651→        <div class="shot-preview"><div class="mock"><div class="name">Ads</div><div class="file">qa-07-ads.png</div><div class="size">58,954 bytes</div></div></div>
+   652→        <div class="shot-meta"><span class="h">Tabla por ad + veredicto + kill-switch</span><span class="s">PASS ✅</span></div>
+   653→      </div>
+   654→    </div>
+   655→    <div class="col">
+   656→      <h2 class="title">Verificado</h2>
+   657→      <ul class="checks">
+   658→        <li>Tabla por ad: externalId, spend, impressions, clicks, CTR, CPC</li>
+   659→        <li>convReported (plataforma) vs orderCount (real)</li>
+   660→        <li>paidRevenue, AOV, COGS, grossProfit, netProfit</li>
+   661→        <li>CPA, CPL, CVR, ROAS, ROI calculados en cliente</li>
+   662→        <li>Verdict engine: scale / optimize / watch / pause / kill / cannibalize</li>
+   663→        <li>Kill-switch con confirmación + motivo obligatorio</li>
+   664→        <li>Import ads (Google/TikTok) vía <span class="mono inline">POST /api/ads/import</span></li>
+   665→        <li>CAPI real a Meta/Google/TikTok vía <span class="mono inline">/api/conversions</span></li>
+   666→      </ul>
+   667→      <h2 class="title" style="margin-top:14px">Métricas del veredicto</h2>
+   668→      <pre class="code"><span class="c">// verdict engine — thresholds configurables</span>
+   669→scale       ROAS &gt; <span class="n">3.0</span>  &amp;&amp; CPA &lt; <span class="n">0.3</span>·AOV
+   670→optimize    ROAS <span class="n">1.5–3.0</span>
+   671→watch       ROAS <span class="n">1.0–1.5</span>
+   672→pause       ROAS &lt; <span class="n">1.0</span>
+   673→kill        ROAS &lt; <span class="n">0.5</span>  o negative profit
+   674→cannibalize orderCount &gt;&gt; convReported
+   675→            (auto-atribución sospechosa)</pre>
+   676→    </div>
+   677→  </div>
+   678→  <div class="foot"><span class="brand"><b>ZIAY</b> OS · QA Evidence</span><span>Vista 07 — Ads</span><span class="pg">10 / 25</span></div>
+   679→</section>
+   680→
+   681→<!-- ============================================================ -->
+   682→<!-- SLIDE 11 — Monetization view -->
+   683→<!-- ============================================================ -->
+   684→<section class="slide" data-slide="11">
+   685→  <div class="ghost-num" data-decor>11</div>
+   686→  <div class="eyebrow"><span class="dot"></span>Vista 08 — Monetización<span class="bar"></span><span class="num">11 / 25</span></div>
+   687→  <h1 class="title">GMV + <span class="em">comisiones</span> + split de revenue</h1>
+   688→  <div class="split">
+   689→    <div class="col">
+   690→      <div class="shot-card">
+   691→        <div class="shot-preview"><div class="mock"><div class="name">Monetización</div><div class="file">qa-08-monetization.png</div><div class="size">69,055 bytes</div></div></div>
+   692→        <div class="shot-meta"><span class="h">GMV · comisiones · revenue share</span><span class="s">PASS ✅</span></div>
+   693→      </div>
+   694→    </div>
+   695→    <div class="col">
+   696→      <h2 class="title">Verificado</h2>
+   697→      <ul class="checks">
+   698→        <li>GMV total por tenant + por canal</li>
+   699→        <li>Comisiones por orden (trafficker + marketplace + plataforma)</li>
+   700→        <li>Revenue share visualizado en stacked bar</li>
+   701→        <li>Timeline de GMV (área por mes)</li>
+   702→        <li>Tarifas configurables por tenant (<span class="mono inline">/api/payments/config</span>)</li>
+   703→        <li>Refleja tax + shipping + discount en total</li>
+   704→        <li>APIs: <span class="mono inline">/api/monetization/gmv</span> + <span class="mono inline">/api/monetization/commission</span></li>
+   705→        <li>Drill-down por trafficker y por ad campaign</li>
+   706→      </ul>
+   707→      <h2 class="title" style="margin-top:14px">Endpoints</h2>
+   708→      <pre class="code"><span class="k">GET</span> /api/monetization/gmv?tenantId=ten-saramantha&amp;days=30
+   709→→ <span class="pass">200</span> { gmv: <span class="n">4820000</span>, byChannel: {...} }
+   710→
+   711→<span class="k">GET</span> /api/monetization/commission?tenantId=ten-saramantha
+   712→→ <span class="pass">200</span> { total: <span class="n">192800</span>, byTrafficker: [...] }</pre>
+   713→    </div>
+   714→  </div>
+   715→  <div class="foot"><span class="brand"><b>ZIAY</b> OS · QA Evidence</span><span>Vista 08 — Monetización</span><span class="pg">11 / 25</span></div>
+   716→</section>
+   717→
+   718→<!-- ============================================================ -->
+   719→<!-- SLIDE 12 — Wallet view -->
+   720→<!-- ============================================================ -->
+   721→<section class="slide" data-slide="12">
+   722→  <div class="ghost-num" data-decor>12</div>
+   723→  <div class="eyebrow"><span class="dot"></span>Vista 09 — Wallet Traffickers<span class="bar"></span><span class="num">12 / 25</span></div>
+   724→  <h1 class="title">Wallet + <span class="em">2FA</span> + retiros con TOTP</h1>
+   725→  <div class="split">
+   726→    <div class="col">
+   727→      <div class="shot-card">
+   728→        <div class="shot-preview"><div class="mock"><div class="name">Wallet</div><div class="file">qa-09-wallet.png</div><div class="size">74,286 bytes</div></div></div>
+   729→        <div class="shot-meta"><span class="h">Balance · retiros · 2FA TOTP</span><span class="s">PASS ✅</span></div>
+   730→      </div>
+   731→    </div>
+   732→    <div class="col">
+   733→      <h2 class="title">Verificado</h2>
+   734→      <ul class="checks">
+   735→        <li>Balance disponible + pendiente + retenido por trafficker</li>
+   736→        <li>Lista de transacciones (comisión, retiro, ajuste)</li>
+   737→        <li>Formulario de retiro con monto + método (Nequi/Daviplata/Bank)</li>
+   738→        <li>2FA TOTP requerido para confirmar retiro</li>
+   739→        <li>Header <span class="mono inline">X-Trafficker-Id</span> validado en cada llamada</li>
+   740→        <li>Audit log de cada intento (éxito + fallo)</li>
+   741→        <li>Límites diarios + cooldown configurable</li>
+   742→        <li>Estado: pending → approved → paid / rejected</li>
+   743→      </ul>
+   744→      <h2 class="title" style="margin-top:14px">Auth header required</h2>
+   745→      <pre class="code"><span class="k">GET</span> /api/wallet
+   746→Headers:
+   747→  X-Trafficker-Id: trf-001
+   748→  X-Tenant-Id:     ten-saramantha
+   749→→ <span class="pass">200</span> { balance, pending, withdrawals }
+   750→
+   751→<span class="c">// Sin header → 401 (walletAuth middleware)</span>
+   752→<span class="c">// Con header no coincidente → 403</span></pre>
+   753→    </div>
+   754→  </div>
+   755→  <div class="foot"><span class="brand"><b>ZIAY</b> OS · QA Evidence</span><span>Vista 09 — Wallet</span><span class="pg">12 / 25</span></div>
+   756→</section>
+   757→
+   758→<!-- ============================================================ -->
+   759→<!-- SLIDE 13 — Logistics view -->
+   760→<!-- ============================================================ -->
+   761→<section class="slide" data-slide="13">
+   762→  <div class="ghost-num" data-decor>13</div>
+   763→  <div class="eyebrow"><span class="dot"></span>Vista 10 — Logística<span class="bar"></span><span class="num">13 / 25</span></div>
+   764→  <h1 class="title">Logística — <span class="em">3 carriers</span> + guía</h1>
+   765→  <div class="split">
+   766→    <div class="col">
+   767→      <div class="shot-card">
+   768→        <div class="shot-preview"><div class="mock"><div class="name">Logística</div><div class="file">qa-10-logistics.png</div><div class="size">67,193 bytes</div></div></div>
+   769→        <div class="shot-meta"><span class="h">Dropi / 99envios / Aveonline</span><span class="s">PASS ✅</span></div>
+   770→      </div>
+   771→    </div>
+   772→    <div class="col">
+   773→      <h2 class="title">Verificado</h2>
+   774→      <ul class="checks">
+   775→        <li>Cotización de flete real por carrier (LogisticsAdapter)</li>
+   776→        <li>Comparación lado a lado: tarifa + días + efectividad</li>
+   777→        <li>Creación de guía con datos del comprador</li>
+   778→        <li>Tracking number generado y persistido en Order</li>
+   779→        <li>Reintento de creación si carrier falla (fallback al siguiente)</li>
+   780→        <li>Historial de guía con timestamps por estado</li>
+   781→        <li>Carrier_score visible (efectividad por ciudad)</li>
+   782→        <li>Endpoint <span class="mono inline">/api/logistics/quote</span> + <span class="mono inline">/api/logistics/guide</span></li>
+   783→      </ul>
+   784→      <h2 class="title" style="margin-top:14px">Flujo de cotización</h2>
+   785→      <pre class="code"><span class="k">POST</span> /api/logistics/quote
+   786→body: {
+   787→  tenantId: <span class="s">"ten-saramantha"</span>,
+   788→  destination: { city: <span class="s">"Medellín"</span>, ... },
+   789→  weight: <span class="n">1.2</span>, declaredValue: <span class="n">95000</span>
+   790→}
+   791→→ <span class="pass">200</span> {
+   792→  quotes: [
+   793→    { carrier:<span class="s">"dropi"</span>,      rate:<span class="n">8500</span>, days:<span class="n">2</span> },
+   794→    { carrier:<span class="s">"99envios"</span>,   rate:<span class="n">9100</span>, days:<span class="n">1</span> },
+   795→    { carrier:<span class="s">"aveonline"</span>,  rate:<span class="n">8800</span>, days:<span class="n">3</span> }
+   796→  ]
+   797→}</pre>
+   798→    </div>
+   799→  </div>
+   800→  <div class="foot"><span class="brand"><b>ZIAY</b> OS · QA Evidence</span><span>Vista 10 — Logística</span><span class="pg">13 / 25</span></div>
+   801→</section>
+   802→
+   803→<!-- ============================================================ -->
+   804→<!-- SLIDE 14 — Marketplace view -->
+   805→<!-- ============================================================ -->
+   806→<section class="slide" data-slide="14">
+   807→  <div class="ghost-num" data-decor>14</div>
+   808→  <div class="eyebrow"><span class="dot"></span>Vista 11 — Marketplace<span class="bar"></span><span class="num">14 / 25</span></div>
+   809→  <h1 class="title">Marketplace <span class="em">cross-brand</span> leads</h1>
+   810→  <div class="split">
+   811→    <div class="col">
+   812→      <div class="shot-card">
+   813→        <div class="shot-preview"><div class="mock"><div class="name">Marketplace</div><div class="file">qa-11-marketplace.png</div><div class="size">67,903 bytes</div></div></div>
+   814→        <div class="shot-meta"><span class="h">Referrals + shared leads</span><span class="s">PASS ✅</span></div>
+   815→      </div>
+   816→    </div>
+   817→    <div class="col">
+   818→      <h2 class="title">Verificado</h2>
+   819→      <ul class="checks">
+   820→        <li>Catálogo cross-brand (productos de otras tiendas)</li>
+   821→        <li>Referral: si marca A no tiene producto → sugerir marca B</li>
+   822→        <li>Lead compartido con consentimiento visible</li>
+   823→        <li>Comisión de referido configurada por tenant</li>
+   824→        <li>Listing own vs cross-brand con badge visual</li>
+   825→        <li>Búsqueda unificada (mismo search bar recorre todas las tiendas)</li>
+   826→        <li>Endpoint <span class="mono inline">/api/marketplace</span> con paginación</li>
+   827→        <li>Filtro por marca + categoría + rango de precio</li>
+   828→      </ul>
+   829→      <h2 class="title" style="margin-top:14px">Cross-brand match</h2>
+   830→      <pre class="code"><span class="c">// agente marketplace + affiliator</span>
+   831→<span class="k">POST</span> /api/agents/marketplace
+   832→body: {
+   833→  tenantId: <span class="s">"ten-saramantha"</span>,
+   834→  query: <span class="s">"pijama Stitch talla M"</span>
+   835→}
+   836→→ <span class="pass">200</span> {
+   837→  own: [...],
+   838→  crossBrand: [
+   839→    { tenant:<span class="s">"ten-alternativa"</span>, sku:..., referralFee:<span class="n">5</span>% }
+   840→  ]
+   841→}</pre>
+   842→    </div>
+   843→  </div>
+   844→  <div class="foot"><span class="brand"><b>ZIAY</b> OS · QA Evidence</span><span>Vista 11 — Marketplace</span><span class="pg">14 / 25</span></div>
+   845→</section>
+   846→
+   847→<!-- ============================================================ -->
+   848→<!-- SLIDE 15 — Novedades view -->
+   849→<!-- ============================================================ -->
+   850→<section class="slide" data-slide="15">
+   851→  <div class="ghost-num" data-decor>15</div>
+   852→  <div class="eyebrow"><span class="dot"></span>Vista 12 — Novedades CRM<span class="bar"></span><span class="num">15 / 25</span></div>
+   853→  <h1 class="title">Novedades — <span class="em">anti-alucinación</span> CRM</h1>
+   854→  <div class="split">
+   855→    <div class="col">
+   856→      <div class="shot-card">
+   857→        <div class="shot-preview"><div class="mock"><div class="name">Novedades</div><div class="file">qa-12-novedades.png</div><div class="size">63,237 bytes</div></div></div>
+   858→        <div class="shot-meta"><span class="h">Casos + evidencia + escalación</span><span class="s">PASS ✅</span></div>
+   859→      </div>
+   860→    </div>
+   861→    <div class="col">
+   862→      <h2 class="title">Verificado</h2>
+   863→      <ul class="checks">
+   864→        <li>Lista de casos con status: abierto / en investigación / escalado / resuelto</li>
+   865→        <li>Validación de orden existente antes de crear caso (anti-alucinación)</li>
+   866→        <li>Tipos: devolución / no entrega / producto dañado / dirección errada</li>
+   867→        <li>Upload de evidencia (foto + descripción)</li>
+   868→        <li>Escalación a humano con SLA visible</li>
+   869→        <li>Asignación a operador con workload balance</li>
+   870→        <li>Endpoint <span class="mono inline">/api/novedades</span> + <span class="mono inline">/api/novedades/{id}</span></li>
+   871→        <li>Resolución dispara <span class="mono inline">redelivery</span> si aplica</li>
+   872→      </ul>
+   873→      <h2 class="title" style="margin-top:14px">Protocolo anti-alucinación</h2>
+   874→      <pre class="code"><span class="c">// agente novedades — prompt enforcement</span>
+   875→1. <span class="fn">verificar</span> order existe en DB (tenantId + orderId)
+   876→2. si NO existe → NO crear caso, responder:
+   877→   <span class="s">"No encuentro ese pedido. ¿Me regalas el número?"</span>
+   878→3. si existe → pedir tipo de novedad + evidencia
+   879→4. validar motivo contra allowlist (12 motivos)
+   880→5. crear caso + asignar operador
+   881→6. si motivo = dirección errada → invocar redelivery</pre>
+   882→    </div>
+   883→  </div>
+   884→  <div class="foot"><span class="brand"><b>ZIAY</b> OS · QA Evidence</span><span>Vista 12 — Novedades</span><span class="pg">15 / 25</span></div>
+   885→</section>
+   886→
+   887→<!-- ============================================================ -->
+   888→<!-- SLIDE 16 — Integrations view -->
+   889→<!-- ============================================================ -->
+   890→<section class="slide" data-slide="16">
+   891→  <div class="ghost-num" data-decor>16</div>
+   892→  <div class="eyebrow"><span class="dot"></span>Vista 13 — Integraciones<span class="bar"></span><span class="num">16 / 25</span></div>
+   893→  <h1 class="title">Integraciones — <span class="em">18 adapters</span></h1>
+   894→  <div class="split">
+   895→    <div class="col">
+   896→      <div class="shot-card">
+   897→        <div class="shot-preview"><div class="mock"><div class="name">Integraciones</div><div class="file">qa-13-integrations.png</div><div class="size">87,484 bytes</div></div></div>
+   898→        <div class="shot-meta"><span class="h">5 catálogo · 3 logistics · 2 ads · 4 pagos</span><span class="s">PASS ✅</span></div>
+   899→      </div>
+
+[showing lines 300-899 of 1485; use offset=900 with limit to continue reading]

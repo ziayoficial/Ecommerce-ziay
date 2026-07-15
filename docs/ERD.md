@@ -1,6 +1,6 @@
 # Entity Relationship Diagram
 
-This document describes the core data model of ZIAY (Comercio Conversacional + Atribución Inteligente). The Prisma schema (`prisma/schema.prisma`) defines **68 models**, of which **60 are tenant-scoped** (carry a `tenantId` FK) and **8 are global** (`Setting`, `Tenant`, `AuditLog`, etc.).
+This document describes the core data model of ZIAY (Comercio Conversacional + Atribución Inteligente). The Prisma schema (`prisma/schema.prisma`) defines **71 models**, of which **63 are tenant-scoped** (carry a `tenantId` FK) and **8 are global** (`Setting`, `Tenant`, `AuditLog`, etc.).
 
 > **Auto-generated ERD:** `bunx prisma generate` now emits an SVG diagram at [`docs/erd.svg`](./erd.svg) via [`prisma-erd-generator`](https://github.com/kevinswiber/prisma-erd-generator) + [`@mermaid-js/mermaid-cli`](https://github.com/mermaid-js/mermaid-cli). The SVG is the canonical visual reference; the Mermaid block below is a hand-curated overview of the key models.
 
@@ -22,6 +22,9 @@ erDiagram
     Tenant ||--o{ ConsentRecord : has
     Tenant ||--o{ DecisionLog : has
     Tenant ||--o{ ChannelCost : has
+    Tenant ||--o{ FxRate : has
+    Tenant ||--o{ StatusIncident : has
+    Tenant ||--o{ StatusCheck : has
 
     Customer ||--o{ Order : places
     Customer ||--o{ Conversation : has
@@ -33,6 +36,7 @@ erDiagram
     Order ||--o| Shipment : has
     Order ||--o{ Attribution : has
     Order ||--o{ CommissionEntry : has
+    Order ||--o| Invoice : has
 
     Conversation ||--o{ Message : has
 
@@ -52,6 +56,9 @@ erDiagram
 
     AP2Mandate ||--o{ AP2Mandate : "parent of"
     UcpCheckoutSession }o--|| AP2Mandate : "links to"
+
+    FxRate ||--o{ Order : "converts"
+    StatusIncident ||--o{ StatusCheck : "covers"
 ```
 
 ## Multi-Tenancy
@@ -110,9 +117,15 @@ The `MCP` route (`/api/mcp`) exposes the 4 UCP capabilities as JSON-RPC 2.0 tool
 
 ## Model Count
 
-- **Total models:** 68
-- **Tenant-scoped:** 60
+- **Total models:** 71
+- **Tenant-scoped:** 63
 - **Global:** 8 (Setting, Tenant, AuditLog, WebhookEvent, ApiKey, McpSession, Migration, User)
+
+## New Models in v0.3.0 (Sprint 12-14)
+
+- **`FxRate`** (Sprint 12, ADR-0017) — Cold-start persistence of FX rates. One row per `(tenantId, fromCurrency, toCurrency, date)`. Lets the app boot with valid conversion factors even before the first external FX API call. Used by `/api/finance/refresh-rates` + `/api/finance/channel-contribution`.
+- **`StatusCheck`** (Sprint 12) — 30s ping history for the public status page uptime bars. One row per ping (`timestamp`, `status`, `latencyMs`, `service`). Drives the 90-day uptime bars on `/status`.
+- **`StatusIncident`** (Sprint 12) — Admin-published incidents linked to the status page. Fields: `severity` (degraded/outage/maintenance), `startDate`, `endDate`, `title`, `description`, `affectedServices` (JSON array), `resolvedAt`. Published via `/admin/incidents` UI, consumed by `/status`.
 
 ## Relationship Cardinality Cheat Sheet
 

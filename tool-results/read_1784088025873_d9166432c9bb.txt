@@ -1,0 +1,445 @@
+     1→<!DOCTYPE html>
+     2→<html lang="es">
+     3→<head>
+     4→<meta charset="UTF-8">
+     5→<meta name="viewport" content="width=device-width, initial-scale=1.0">
+     6→<title>ZIAY · Ventaja Competitiva Enterprise</title>
+     7→<style>
+     8→*{box-sizing:border-box;margin:0;padding:0}
+     9→:root{--bg:#0a0f0d;--surface:#111815;--surface2:#1a2420;--border:#2a3a34;--text:#e8f0ec;--text2:#9ab0a8;--green:#10b981;--green2:#34d399;--orange:#f59e0b;--red:#ef4444}
+    10→html{scroll-behavior:smooth}
+    11→body{font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;background:var(--bg);color:var(--text);line-height:1.7}
+    12→.deck{width:100%}
+    13→.slide{min-height:100vh;display:none;flex-direction:column;justify-content:center;padding:50px 8vw 120px 8vw;overflow-y:auto}
+    14→.slide.active{display:flex;animation:fade .5s ease}
+    15→@keyframes fade{from{opacity:0;transform:translateY(15px)}to{opacity:1;transform:translateY(0)}}
+    16→h1{font-size:clamp(1.8em,4vw,2.8em);font-weight:800;margin-bottom:16px;line-height:1.15;color:var(--green2)}
+    17→h2{font-size:clamp(1.2em,2.5vw,1.6em);font-weight:600;margin-bottom:24px;color:var(--text2)}
+    18→h3{font-size:1.15em;font-weight:600;margin:16px 0 8px;color:var(--green2)}
+    19→p{font-size:clamp(1em,1.8vw,1.1em);margin-bottom:14px;max-width:750px}
+    20→ul,ol{margin:10px 0 18px 24px;max-width:720px}
+    21→li{font-size:1em;line-height:1.8;margin-bottom:6px}
+    22→.emoji{font-size:1.4em}
+    23→.big-stat{font-size:clamp(2.5em,6vw,4em);font-weight:800;color:var(--green2);line-height:1;margin:8px 0}
+    24→.stat-label{font-size:1em;color:var(--text2);margin-bottom:20px}
+    25→.vs{display:grid;grid-template-columns:1fr 1fr;gap:0;margin:24px 0;border-radius:14px;overflow:hidden;border:1px solid var(--border);max-width:850px}
+    26→.vs-bad{background:rgba(239,68,68,.06);padding:28px 24px}
+    27→.vs-good{background:rgba(16,185,129,.06);padding:28px 24px}
+    28→.vs-label{font-size:.8em;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px}
+    29→.vs-bad .vs-label{color:var(--red)}
+    30→.vs-good .vs-label{color:var(--green2)}
+    31→.vs p{font-size:.98em;margin-bottom:10px;max-width:none}
+    32→.think{background:linear-gradient(135deg,rgba(16,185,129,.06),rgba(245,158,11,.04));border:1px solid rgba(16,185,129,.2);border-radius:14px;padding:24px;margin:20px 0;max-width:750px}
+    33→.think-label{font-size:.8em;font-weight:700;color:var(--green2);text-transform:uppercase;letter-spacing:1px;margin-bottom:12px}
+    34→.money{background:linear-gradient(135deg,rgba(16,185,129,.1),rgba(16,185,129,.02));border:2px solid var(--green);border-radius:16px;padding:28px;margin:24px 0;max-width:750px}
+    35→.money-label{font-size:.8em;font-weight:700;color:var(--green2);text-transform:uppercase;letter-spacing:1px;margin-bottom:12px}
+    36→table{width:100%;border-collapse:collapse;margin:16px 0;max-width:850px;font-size:.95em}
+    37→th{background:var(--surface2);padding:12px 14px;text-align:left;font-weight:600;border-bottom:2px solid var(--border);color:var(--green2)}
+    38→td{padding:10px 14px;border-bottom:1px solid var(--border)}
+    39→.badge{display:inline-block;padding:4px 12px;border-radius:20px;font-size:.75em;font-weight:600;margin:2px}
+    40→.b-green{background:rgba(16,185,129,.15);color:var(--green2);border:1px solid rgba(16,185,129,.3)}
+    41→.b-orange{background:rgba(245,158,11,.15);color:var(--orange);border:1px solid rgba(245,158,11,.3)}
+    42→.b-red{background:rgba(239,68,68,.15);color:var(--red);border:1px solid rgba(239,68,68,.3)}
+    43→.nav{position:fixed;bottom:24px;right:24px;display:flex;gap:10px;z-index:9999}
+    44→.nav button{background:var(--surface2);border:1px solid var(--border);color:var(--text);width:48px;height:48px;border-radius:12px;cursor:pointer;font-size:1.3em;display:flex;align-items:center;justify-content:center}
+    45→.nav button:hover{background:var(--green);color:var(--bg)}
+    46→.counter{position:fixed;bottom:24px;left:24px;color:var(--text2);font-size:.9em;z-index:9999;background:var(--surface);padding:8px 18px;border-radius:24px;border:1px solid var(--border)}
+    47→.progress{position:fixed;top:0;left:0;height:4px;background:linear-gradient(90deg,var(--green),var(--orange));z-index:9999;transition:width .4s}
+    48→.center{align-items:center;text-align:center}
+    49→.center p{margin-left:auto;margin-right:auto}
+    50→.center ul,.center ol,.center table{margin-left:auto;margin-right:auto}
+    51→@media(max-width:768px){.slide{padding:40px 20px 120px 20px}.vs{grid-template-columns:1fr}}
+    52→</style>
+    53→</head>
+    54→<body>
+    55→<div class="progress" id="progress" style="width:0%"></div>
+    56→<div class="deck" id="deck">
+    57→
+    58→<!-- Slide 1 -->
+    59→<section class="slide active center">
+    60→<div class="emoji" style="font-size:3.5em;margin-bottom:20px">🏆</div>
+    61→<h1>Ventaja Competitiva Enterprise</h1>
+    62→<h2>11 diferenciadores que solo ZIAY tiene — sobre los 4 ejes enterprise</h2>
+    63→<p style="max-width:550px"><strong>Revenue Operations para Comercio Agéntico.</strong> Imagínate que vas a comprar un carro. Todos tienen ruedas y volante. Pero solo uno tiene frenos automáticos, GPS que evita tráfico, y ahorra gasolina. Eso es ZIAY.</p>
+    64→<p style="max-width:550px" class="emoji" style="font-size:1.2em">👇 Da clic en las flechas para ver las 11</p>
+    65→</section>
+    66→
+    67→<!-- Slide 2: Pensamiento ágil intro -->
+    68→<section class="slide">
+    69→<h1>Pensemos un momento...</h1>
+    70→<h2>¿Te has preguntado algo?</h2>
+    71→<div class="think">
+    72→<div class="think-label">🧠 Ejercicio de pensamiento ágil</div>
+    73→<p>Imagínate que eres el dueño de Saramantha. Vendes pijamas por WhatsApp. Un día te preguntas:</p>
+    74→<p style="font-size:1.15em;color:var(--orange);font-style:italic;margin:16px 0">"¿Por qué pierdo tanto dinero si tengo clientes?"</p>
+    75→<p>Luego piensas: "¿Será que algunos clientes me hacen perder dinero?"</p>
+    76→<p>Y luego: "¿Y si supiera quiénes son esos clientes ANTES de venderles?"</p>
+    77→<p style="margin-top:16px"><strong>Ésa es la primera cosa que solo ZIAY hace.</strong> Y hay 9 más. Vamos a verlas una por una, en palabras simples.</p>
+    78→</div>
+    79→</section>
+    80→
+    81→<!-- Slide 3: Diferenciador 1 -->
+    82→<section class="slide">
+    83→<h1><span class="emoji">①</span> Control de riesgo financiero</h1>
+    84→<h2>Sabemos quién te va a devolver el pedido ANTES de venderte — antes de perder dinero</h2>
+    85→<div class="think">
+    86→<div class="think-label">🧠 Piénsalo así</div>
+    87→<p>Imagina que tienes una tienda física. En la puerta hay un guardia que conoce a TODOS los clientes del barrio. Cuando entra alguien, el guardia te susurra:</p>
+    88→<p style="font-style:italic;color:var(--orange)">"Ese de allá, cuidado. Compra y devuelve siempre. Pídele que pague primero."</p>
+    89→<p style="font-style:italic;color:var(--green2)">"Esa señora, tranquilo. Siempre paga y nunca devuelve."</p>
+    90→<p>¿Cuánto dinero ahorrarías? <strong>Un montón.</strong></p>
+    91→</div>
+    92→<div class="vs">
+    93→<div class="vs-bad">
+    94→<div class="vs-label">Sin nosotros</div>
+    95→<p>Vendes a todos por igual. El 20% te devuelve. Pierdes flete de ida, flete de vuelta, empaque, y tiempo.</p>
+    96→<p style="color:var(--red);font-weight:600">→ $600K perdidos cada mes</p>
+    97→</div>
+    98→<div class="vs-good">
+    99→<div class="vs-label">Con ZIAY</div>
+   100→<p>Antes de vender, el sistema revisa el historial. Si el cliente suele devolver, le pedimos que pague primero. Si es confiable, puede pagar al recibir.</p>
+   101→<p style="color:var(--green2);font-weight:600">→ $600K ahorrados cada mes</p>
+   102→</div>
+   103→</div>
+   104→<p style="margin-top:16px"><strong>Nadie más hace esto.</strong> Ningún CRM, ninguna herramienta de WhatsApp. Solo nosotros.</p>
+   105→</section>
+   106→
+   107→<!-- Slide 4: Diferenciador 2 -->
+   108→<section class="slide">
+   109→<h1><span class="emoji">②</span> Automatización operativa end-to-end</h1>
+   110→<h2>26 agentes en 3 pipelines: un equipo de ventas que nunca duerme</h2>
+   111→<div class="think">
+   112→<div class="think-label">🧠 Piénsalo así</div>
+   113→<p>Imagina que contratas 26 personas. Una es psicóloga (adivina qué tipo de cliente es). Otra es vendedora (sabe qué decirle). Otra muestra el catálogo. Otra arma el carrito. Otra cotiza el envío. Otra maneja objeciones. Otra confirma la dirección. Otra cobra. Otra sigue el paquete. Otra resuelve problemas...</p>
+   114→<p>Trabajan en equipo, una detrás de otra. Del "Hola" al "Pedido entregado". <strong>Sin que tú muevas un dedo.</strong></p>
+   115→</div>
+   116→<div class="vs">
+   117→<div class="vs-bad">
+   118→<div class="vs-label">Los bots normales</div>
+   119→<p>Responden: "Gracias por escribir, te contactaremos pronto".</p>
+   120→<p>No venden. No cotizan. No cierran. Solo dicen "espera".</p>
+   121→</div>
+   122→<div class="vs-good">
+   123→<div class="vs-label">Nuestros 26 agentes</div>
+   124→<p>Cada uno es experto en algo. Trabajan en secuencia. Responden en 3 segundos, a las 3am igual que a las 3pm.</p>
+   125→<p>El 95% del trabajo lo hacen solos.</p>
+   126→</div>
+   127→</div>
+   128→<p style="margin-top:16px"><strong>Tu beneficio:</strong> Atiendes 5x más conversaciones con el mismo equipo.</p>
+   129→</section>
+   130→
+   131→<!-- Slide 5: Diferenciador 3 -->
+   132→<section class="slide">
+   133→<h1><span class="emoji">③</span> Trazabilidad de ingresos por canal</h1>
+   134→<h2>Conectamos cada venta con el anuncio que la generó</h2>
+   135→<div class="think">
+   136→<div class="think-label">🧠 Piénsalo así</div>
+   137→<p>Imagina que gastas $3 millones en publicidad cada mes. Tienes 50 anuncios activos. Al final del mes, Meta te dice: "Tuviste 100 conversiones". Pero tú solo hiciste 30 ventas. ¿De dónde salieron los otros 70?</p>
+   138→<p>La verdad: Meta cuenta como "conversión" a alguien que llenó un formulario, no a alguien que compró. <strong>No sabes qué anuncio te trajo ventas reales.</strong></p>
+   139→</div>
+   140→<div class="vs">
+   141→<div class="vs-bad">
+   142→<div class="vs-label">Sin nosotros</div>
+   143→<p>Gastas a ciegas. No sabes qué anuncio funciona. Sigues pagando por anuncios que no venden.</p>
+   144→<p style="color:var(--red);font-weight:600">→ $900K mal gastados cada mes</p>
+   145→</div>
+   146→<div class="vs-good">
+   147→<div class="vs-label">Con ZIAY</div>
+   148→<p>Cada venta se conecta con el anuncio que la generó. Sabes: "El de Stitch me trajo $320K, el de Cowboy solo $40K".</p>
+   149→<p style="color:var(--green2);font-weight:600">→ $900K ahorrados cada mes</p>
+   150→</div>
+   151→</div>
+   152→</section>
+   153→
+   154→<!-- Slide 6: Diferenciador 4 -->
+   155→<section class="slide">
+   156→<h1><span class="emoji">④</span> Optimización automática de inversión</h1>
+   157→<h2>El sistema mata los anuncios malos solo. Tú no tienes que revisar nada.</h2>
+   158→<div class="think">
+   159→<div class="think-label">🧠 Piénsalo así</div>
+   160→<p>Imagina que tienes un contador que, cada noche, revisa todos tus anuncios. Si uno está perdiendo dinero, lo pausa. Si otro está funcionando bien, le sube el presupuesto. Todo automático, mientras tú duermes.</p>
+   161→<p>¿Cuánto tiempo ahorrarías? ¿Cuánto dinero no perderías?</p>
+   162→</div>
+   163→<div class="vs">
+   164→<div class="vs-bad">
+   165→<div class="vs-label">Las otras herramientas</div>
+   166→<p>Te muestran números. Tú decides qué hacer. Manual, lento.</p>
+   167→<p>Cuando por fin pausas un anuncio malo, ya perdiste $200K.</p>
+   168→</div>
+   169→<div class="vs-good">
+   170→<div class="vs-label">Con ZIAY</div>
+   171→<p>El sistema pausa solo los anuncios malos y escala los buenos. 24/7, sin que tú toques nada.</p>
+   172→<p>Configuras los umbrales una vez y listo.</p>
+   173→</div>
+   174→</div>
+   175→<p style="margin-top:16px"><strong>Tu beneficio:</strong> Nunca más pierdes dinero en anuncios malos. El sistema te protege mientras duermes.</p>
+   176→</section>
+   177→
+   178→<!-- Slide 7: Diferenciador 5 -->
+   179→<section class="slide">
+   180→<h1><span class="emoji">⑤</span> Atribución confiable lista para auditoría</h1>
+   181→<h2>Recuperamos el 30% de tracking que las cookies perdieron — listo para audit</h2>
+   182→<div class="think">
+   183→<div class="think-label">🧠 Piénsalo así</div>
+   184→<p>Imagina que tienes una cámara de seguridad. Pero el 30% del tiempo está apagada. No ves todo lo que pasa. Tomás decisiones con información incompleta.</p>
+   185→<p>Así funciona la publicidad hoy: con iOS y el bloqueo de cookies, Meta y Google pierden el 30% de tus ventas. No las ven. No las pueden optimizar.</p>
+   186→</div>
+   187→<div class="vs">
+   188→<div class="vs-bad">
+   189→<div class="vs-label">Sin nosotros</div>
+   190→<p>Solo usas el pixel del navegador. Pierdes 30% de las ventas que Meta debería ver.</p>
+   191→<p>Meta optimiza con data incompleta. Gasta mal.</p>
+   192→</div>
+   193→<div class="vs-good">
+   194→<div class="vs-label">Con ZIAY</div>
+   195→<p>Enviamos cada venta directamente desde nuestro servidor a Meta, Google y TikTok. Ven todo.</p>
+   196→<p>Optimizan con data completa. Gastan mejor.</p>
+   197→</div>
+   198→</div>
+   199→<p style="margin-top:16px"><strong>Tu beneficio:</strong> Mejor data = mejor optimización = más ventas por menos dinero.</p>
+   200→</section>
+   201→
+   202→<!-- Slide 8: Diferenciador 6 -->
+   203→<section class="slide">
+   204→<h1><span class="emoji">⑥</span> Gestión operativa con SLA</h1>
+   205→<h2>Cuando un paquete se pierde, todo queda en un solo lugar con SLA</h2>
+   206→<div class="think">
+   207→<div class="think-label">🧠 Piénsalo así</div>
+   208→<p>Imagínate que una transportadora pierde un paquete. Hoy haces: llamas por teléfono, mandas WhatsApp, abres un Excel, pides fotos por correo, anotas en un cuaderno... Todo disperso. Cuando quieres resolver, no encuentras nada.</p>
+   209→<p>Ahora imagínate que TODO está en un solo lugar: fotos, mensajes, historial, quién llamó, cuándo, qué dijo la transportadora. <strong>Y si el paquete se devuelve, el sistema agenda solo el reintento.</strong></p>
+   210→</div>
+   211→<div class="vs">
+   212→<div class="vs-bad">
+   213→<div class="vs-label">Sin nosotros</div>
+   214→<p>Problemas en WhatsApp, correo, Excel, cuaderno. Disperso. Se pierden casos.</p>
+   215→<p>Resolver un problema toma 2 horas de investigación.</p>
+   216→</div>
+   217→<div class="vs-good">
+   218→<div class="vs-label">Con ZIAY</div>
+   219→<p>Todo en un solo CRM: casos, evidencia, mensajes, reintentos automáticos.</p>
+   220→<p>Resolver un problema toma 15 minutos.</p>
+   221→</div>
+   222→</div>
+   223→<p style="margin-top:16px"><strong>Tu beneficio:</strong> 70% menos tiempo gestionando problemas.</p>
+   224→</section>
+   225→
+   226→<!-- Slide 9: Diferenciador 7 -->
+   227→<section class="slide">
+   228→<h1><span class="emoji">⑦</span> Gobernanza financiera</h1>
+   229→<h2>Billetera con doble candado — para que los affiliates confíen y inviertan en tu pauta</h2>
+   230→<div class="think">
+   231→<div class="think-label">🧠 Piénsalo así</div>
+   232→<p>Imagina que quieres que alguien invierta en tus anuncios. Él pone la plata, tú pones los productos. Por cada venta, él cobra comisión. Pero... ¿cómo sabe él que su plata está segura? ¿Cómo sabe que no le vas a robar?</p>
+   233→<p>Necesita confiar. Y la confianza viene de la seguridad.</p>
+   234→</div>
+   235→<div class="vs">
+   236→<div class="vs-bad">
+   237→<div class="vs-label">Sin nosotros</div>
+   238→<p>Los affiliates cobran por fuera, sin tracking, sin seguridad. No confían.</p>
+   239→<p>No atraes affiliates buenos. No consigues quien invierta en tu pauta.</p>
+   240→</div>
+   241→<div class="vs-good">
+   242→<div class="vs-label">Con ZIAY</div>
+   243→<p>Billetera integrada con doble candado (necesitas teléfono + código que cambia cada 30 segundos).</p>
+   244→<p>Y si el vendedor falla, el affiliate recibe compensación automáticamente.</p>
+   245→</div>
+   246→</div>
+   247→<p style="margin-top:16px"><strong>Tu beneficio:</strong> Atraes affiliates de calidad porque confían en el sistema. Ellos invierten, tú vendes más sin arriesgar tu plata.</p>
+   248→</section>
+   249→
+   250→<!-- Slide 10: Diferenciador 8 -->
+   251→<section class="slide">
+   252→<h1><span class="emoji">⑧</span> Crecimiento orgánico medible</h1>
+   253→<h2>Tu tienda en Google, gratis — con tráfico orgánico medible</h2>
+   254→<div class="think">
+   255→<div class="think-label">🧠 Piénsalo así</div>
+   256→<p>Imagina que alguien busca en Google "pijamas Stitch Colombia". Hoy, no te encuentra. Solo encuentra tiendas grandes que pagan SEO caro. Tú no apareces.</p>
+   257→<p>Ahora imagínate que cada producto tuyo tiene su propia página web. Google la encuentra. El cliente hace clic, ve el producto, y escribe por WhatsApp. <strong>Costo: $0.</strong></p>
+   258→</div>
+   259→<div class="vs">
+   260→<div class="vs-bad">
+   261→<div class="vs-label">Las otras herramientas</div>
+   262→<p>Solo WhatsApp. No web. No Google. No tráfico orgánico.</p>
+   263→<p>Pierdes clientes que buscan en Google.</p>
+   264→</div>
+   265→<div class="vs-good">
+   266→<div class="vs-label">Con ZIAY</div>
+   267→<p>Cada marca tiene su página web gratis. Cada producto tiene su URL. Google indexa todo.</p>
+   268→<p>Cuanto más vendes, más apareces. Cuanto más apareces, más vendes.</p>
+   269→</div>
+   270→</div>
+   271→<p style="margin-top:16px"><strong>Tu beneficio:</strong> Tráfico orgánico gratis para siempre. Cada producto nuevo = nueva puerta de entrada gratis.</p>
+   272→</section>
+   273→
+   274→<!-- Slide 11: Diferenciador 9 -->
+   275→<section class="slide">
+   276→<h1><span class="emoji">⑨</span> Aislamiento de datos enterprise</h1>
+   277→<h2>Varias marcas, un solo panel — como apartamentos: comparten el edificio, pero cada uno es privado</h2>
+   278→<div class="think">
+   279→<div class="think-label">🧠 Piénsalo así</div>
+   280→<p>Imagina que tienes 4 marcas (como Indisutex: Saramantha, Majestic, Lovely, Reina). Hoy saltas entre 4 WhatsApps, 4 Excel, 4 sistemas. Ineficiente.</p>
+   281→<p>Ahora imagínate un solo panel donde ves las 4 marcas, pero cada una es privada. Saramantha no puede ver los datos de Lovely. Como apartamentos en un edificio: comparten la dirección, pero cada puerta tiene su cerradura.</p>
+   282→</div>
+   283→<div class="vs">
+   284→<div class="vs-bad">
+   285→<div class="vs-label">Las otras herramientas</div>
+   286→<p>Te venden 4 licencias separadas (caro). O un sistema compartido donde una marca ve los datos de otra (peligroso).</p>
+   287→</div>
+   288→<div class="vs-good">
+   289→<div class="vs-label">Con ZIAY</div>
+   290→<p>Un solo panel. Las 4 marcas. Pero cada una aislada. Cambias entre marcas con un clic.</p>
+   291→<p>Protección a 3 niveles: app, base de datos, y permisos.</p>
+   292→</div>
+   293→</div>
+   294→<p style="margin-top:16px"><strong>Tu beneficio:</strong> Operas múltiples marcas eficientemente. Una marca NUNCA ve los datos de otra.</p>
+   295→</section>
+   296→
+   297→<!-- Slide 12: Diferenciador 10 -->
+   298→<section class="slide">
+   299→<h1><span class="emoji">⑩</span> Monetización adicional</h1>
+   300→<h2>Vendes lo que no tienes — si no lo tienes, lo conseguimos de otra marca</h2>
+   301→<div class="think">
+   302→<div class="think-label">🧠 Piénsalo así</div>
+   303→<p>Imagina que un cliente te pide un pijama de Stitch talla L. No lo tienes. Normalmente, pierdes la venta. El cliente se va a otra parte.</p>
+   304→<p>Ahora imagínate que el sistema, automáticamente, le dice: "No lo tengo, pero Lovely Pijamas sí lo tiene. ¿Quieres que te lo consiga?" El cliente dice que sí. Lovely despacha. Tú cobras 5% por la referencia. <strong>Ingresos sin inventario.</strong></p>
+   305→</div>
+   306→<div class="vs">
+   307→<div class="vs-bad">
+   308→<div class="vs-label">Sin nosotros</div>
+   309→<p>No tienes el producto → pierdes la venta. El cliente se va. Ingresos: $0.</p>
+   310→</div>
+   311→<div class="vs-good">
+   312→<div class="vs-label">Con ZIAY</div>
+   313→<p>No tienes el producto → el sistema lo consigue de otra marca → tú cobras 5% de comisión. Ingresos sin inventario.</p>
+   314→</div>
+   315→</div>
+   316→<p style="margin-top:16px"><strong>Tu beneficio:</strong> Ingresos por productos que ni siquiera tienes en inventario.</p>
+   317→</section>
+   318→
+   319→<!-- Slide 12.5: Diferenciador 11 - Catalogo + WhatsApp hibrido -->
+   320→<section class="slide">
+   321→<h1><span class="emoji">⑪</span> Experiencia unificada sin fricción</h1>
+   322→<h2>El cliente VE los productos, no solo lee — catálogo + chat en un solo flujo</h2>
+   323→<div class="think">
+   324→<div class="think-label">🧠 Piénsalo así</div>
+   325→<p>Imagina que entras a una tienda de pijamas. El vendedor NO te describe los productos de memoria. Te los MUESTRA. Te pone la batola de Stitch en la mano. Ves el color, el diseño, la tela. Tú preguntas: "¿Este en qué colores viene?". Él te muestra el azul. Le dices: "Lo quiero". Él lo anota.</p>
+   326→<p>Eso es lo que hacemos. Pero en WhatsApp. El cliente <strong>VE la foto del producto</strong>, no solo lee "Batola Stitch $25.000". Ve el diseño, los colores, los detalles. Como si tuviera el producto en la mano.</p>
+   327→</div>
+   328→<div class="vs">
+   329→<div class="vs-bad">
+   330→<div class="vs-label">Las otras formas de vender</div>
+   331→<p><strong>Tienda web (Shopify):</strong> El cliente ve fotos, pero está solo. Si duda, abandona. Nadie responde.</p>
+   332→<p><strong>Catálogo de WhatsApp:</strong> Fotos estáticas que mandas manual. Si pregunta, tienes que responder tú. No hay carrito, no hay pago.</p>
+   333→<p><strong>Bot de WhatsApp normal:</strong> Solo texto. "Tenemos batola Stitch en $25.000". El cliente no ve nada. Tiene que imaginarlo.</p>
+   334→<p><strong>PDF por correo:</strong> Obsoleto. No se puede hacer clic, no se puede comprar.</p>
+   335→</div>
+   336→<div class="vs-good">
+   337→<div class="vs-label">Con ZIAY</div>
+   338→<p>El cliente <strong>VE la imagen del producto</strong> dentro del chat, con calidad de foto de catálogo. Nombre, precio, diseño, descripción, todo junto en una tarjeta visual.</p>
+   339→<p>Si pregunta por otro color, la IA le muestra OTRA foto. Si pregunta por talla, le muestra las opciones. <strong>El cliente ve, no imagina.</strong></p>
+   340→</div>
+   341→</div>
+   342→<div class="money">
+   343→<div class="money-label">📸 Cómo es el proceso, paso a paso</div>
+   344→<p><strong>Paso 1:</strong> El cliente escribe: "Hola, ¿tienen pijamas de Stitch?"</p>
+   345→<p><strong>Paso 2:</strong> La IA busca en el catálogo (en milisegundos). Encuentra 3 productos: Batola Stitch, Short Tira Stitch, Pant Tira Stitch.</p>
+   346→<p><strong>Paso 3:</strong> La IA le muestra una TARJETA VISUAL por cada producto: <strong>foto en alta calidad + nombre + SKU + precio + diseño</strong>. El cliente VE los productos, no los imagina.</p>
+   347→<p><strong>Paso 4:</strong> El cliente pregunta: "¿La batola en qué colores viene?". La IA responde y le muestra MÁS fotos si tiene variantes.</p>
+   348→<p><strong>Paso 5:</strong> El cliente dice: "La quiero en azul, talla 2". La IA arma el carrito (visible en el chat). Le cotiza el envío automáticamente (Dropi/99envios/Aveonline).</p>
+   349→<p><strong>Paso 6:</strong> El cliente dice: "Acepto". La IA manda un LINK DE PAGO (MercadoPago/Wompi/Stripe/PayU) dentro del mismo chat. El cliente paga ahí mismo, sin salir de WhatsApp.</p>
+   350→<p><strong>Paso 7:</strong> El pedido queda confirmado. El cliente recibe el comprobante. La IA sigue el envío hasta que llega.</p>
+   351→<p style="margin-top:16px"><strong>Todo en una conversación. El cliente VE, pregunta, decide, paga, y recibe. Sin saltar a ninguna página. Sin esperar a un humano.</strong></p>
+   352→</div>
+   353→<p style="margin-top:16px"><strong>Tu beneficio:</strong> 3x más conversión que una tienda web sola, y 5x más que un catálogo estático. Porque el cliente <strong>ve</strong> el producto (no lo imagina), <strong>pregunta</strong> (y le responden al instante), y <strong>paga</strong> (sin fricción). Esa es la diferencia entre "tal vez lo compro" y "ya lo compré".</p>
+   354→</section>
+   355→
+   356→<!-- Slide 13: Resumen -->
+   357→<section class="slide">
+   358→<h1>Las 11 ventajas enterprise que solo nosotros ofrecemos</h1>
+   359→<h2>En una sola tabla — mapeadas a los 4 ejes enterprise</h2>
+   360→<table>
+   361→<tr><th>#</th><th>Ventaja enterprise</th><th>Quién más lo hace</th><th>Tu beneficio</th><th>Eje</th></tr>
+   362→<tr><td>①</td><td>Control de riesgo financiero</td><td style="color:var(--red)">Nadie</td><td style="color:var(--green2)">$600K/mes ahorrado</td><td>Gobernanza</td></tr>
+   363→<tr><td>②</td><td>Automatización operativa end-to-end</td><td style="color:var(--red)">Bots simples</td><td style="color:var(--green2)">5x más ventas</td><td>Eficiencia operativa</td></tr>
+   364→<tr><td>③</td><td>Trazabilidad de ingresos por canal</td><td style="color:var(--red)">Solo clics</td><td style="color:var(--green2)">$900K/mes ahorrado</td><td>Crecimiento medible</td></tr>
+   365→<tr><td>④</td><td>Optimización automática de inversión</td><td style="color:var(--red)">Manual</td><td style="color:var(--green2)">24/7 protegido</td><td>Crecimiento medible</td></tr>
+   366→<tr><td>⑤</td><td>Atribución confiable lista para auditoría</td><td style="color:var(--red)">Solo pixel</td><td style="color:var(--green2)">Mejor optimización</td><td>Crecimiento medible</td></tr>
+   367→<tr><td>⑥</td><td>Gestión operativa con SLA</td><td style="color:var(--red)">Excel</td><td style="color:var(--green2)">70% menos tiempo</td><td>Eficiencia operativa</td></tr>
+   368→<tr><td>⑦</td><td>Gobernanza financiera</td><td style="color:var(--red)">Por fuera</td><td style="color:var(--green2)">Atrae affiliates</td><td>Gobernanza</td></tr>
+   369→<tr><td>⑧</td><td>Crecimiento orgánico medible</td><td style="color:var(--red)">Nada</td><td style="color:var(--green2)">Tráfico orgánico</td><td>Crecimiento medible</td></tr>
+   370→<tr><td>⑨</td><td>Aislamiento de datos enterprise</td><td style="color:var(--red)">4 licencias</td><td style="color:var(--green2)">Eficiencia</td><td>Gobernanza</td></tr>
+   371→<tr><td>⑩</td><td>Monetización adicional</td><td style="color:var(--red)">Nada</td><td style="color:var(--green2)">Ingresos extra</td><td>Integración</td></tr>
+   372→<tr><td>⑪</td><td>Experiencia unificada sin fricción</td><td style="color:var(--red)">Solo texto o páginas separadas</td><td style="color:var(--green2)">3x más conversión</td><td>Eficiencia operativa</td></tr>
+   373→</table>
+   374→<p style="margin-top:24px;font-size:1.2em;text-align:center"><strong style="color:var(--green2)">Ningún competidor combina estas 11 ventajas enterprise.</strong></p>
+   375→<p style="text-align:center">ZIAY · Revenue Operations para Comercio Agéntico</p>
+   376→</section>
+   377→
+   378→<!-- Slide 14: ROI -->
+   379→<section class="slide">
+   380→<h1>¿Cuánto dinero es todo esto?</h1>
+   381→<h2>El cálculo total (con números reales)</h2>
+   382→<div class="think">
+   383→<div class="think-label">🧠 Calculemos juntos</div>
+   384→<p>Supongamos que vendes $10 millones al mes. Esto es lo que ZIAY te ahorra y te genera:</p>
+   385→</div>
+   386→<table>
+   387→<tr><th>Por qué ahorras</th><th>Cuánto</th></tr>
+   388→<tr><td>No pierdes con devolvedores</td><td style="color:var(--green2)">$600K/mes</td></tr>
+   389→<tr><td>No malgastas en pauta mala</td><td style="color:var(--green2)">$900K/mes</td></tr>
+   390→<tr><td>Menos personal gastando tiempo</td><td style="color:var(--green2)">$400K/mes</td></tr>
+   391→<tr><td>Tráfico gratis de Google</td><td style="color:var(--green2)">$500K/mes</td></tr>
+   392→<tr><td>Comisiones de otras marcas</td><td style="color:var(--green2)">$200K/mes</td></tr>
+   393→<tr style="font-weight:700;background:var(--surface2)"><td>Total ahorrado</td><td style="color:var(--green2)">$2.6M/mes</td></tr>
+   394→</table>
+   395→<table>
+   396→<tr><th>Por qué ganas más</th><th>Cuánto</th></tr>
+   397→<tr><td>26 agentes venden 5x más</td><td style="color:var(--green2)">$2.5M/mes</td></tr>
+   398→<tr><td>Catálogo + chat híbrido (3x más conversión)</td><td style="color:var(--green2)">$1.5M/mes</td></tr>
+   399→<tr><td>Affiliates invierten sin riesgo</td><td style="color:var(--green2)">$500K/mes</td></tr>
+   400→<tr style="font-weight:700;background:var(--surface2)"><td>Total ganado</td><td style="color:var(--green2)">$4.5M/mes</td></tr>
+   401→</table>
+   402→<div class="money">
+   403→<div class="money-label">💰 El resultado</div>
+   404→<p style="font-size:1.3em"><strong style="color:var(--green2)">Beneficio total: $7.1M/mes</strong></p>
+   405→<p>Si ZIAY cuesta $450K/mes (4.5% de $10M), tu retorno es:</p>
+   406→<p style="font-size:1.5em;color:var(--green2);font-weight:800">ROI demostrable con evidencia before/after</p>
+   407→<p>Por cada $1 que inviertes, recuperas $16 — medible con datos reales del CRM.</p>
+   408→</div>
+   409→</section>
+   410→
+   411→<!-- Slide 15: Cierre -->
+   412→<section class="slide center">
+   413→<div class="emoji" style="font-size:3.5em;margin-bottom:20px">🏆</div>
+   414→<h1>Ventaja Competitiva Enterprise</h1>
+   415→<h2>11 ventajas que nadie más tiene — sobre los 4 ejes enterprise</h2>
+   416→<p style="max-width:550px"><strong>Revenue Operations para Comercio Agéntico.</strong> Control de riesgo financiero, automatización operativa end-to-end, trazabilidad de ingresos por canal, optimización automática de inversión, atribución confiable lista para auditoría, gestión operativa con SLA, gobernanza financiera, crecimiento orgánico medible, aislamiento de datos enterprise, monetización adicional, y experiencia unificada sin fricción.</p>
+   417→<p style="max-width:550px;margin-top:10px;font-size:.95em;color:var(--text2)">Implementadas sobre <strong style="color:var(--green2)">3 capas de arquitectura</strong>: Revenue Layer · Operations Layer · Governance Layer.</p>
+   418→<div class="money" style="max-width:500px">
+   419→<p style="font-size:1.3em;text-align:center"><strong style="color:var(--green2)">ROI demostrable con evidencia before/after</strong></p>
+   420→<p style="text-align:center">Por cada $1 que inviertes, recuperas $16 — medible con datos reales del CRM</p>
+   421→</div>
+   422→<p style="margin-top:30px;font-size:.9em;color:var(--text2)">📧 ventas@ziay.co · Bogotá, Colombia · LATAM</p>
+   423→</section>
+   424→
+   425→</div>
+   426→
+   427→<div class="counter" id="counter">1 / 15</div>
+   428→<div class="nav">
+   429→<button onclick="prev()">←</button>
+   430→<button onclick="next()">→</button>
+   431→</div>
+   432→
+   433→<script>
+   434→let c=0;const s=document.querySelectorAll('.slide'),t=s.length;
+   435→function show(n){s[c].classList.remove('active');c=(n+t)%t;s[c].classList.add('active');up();}
+   436→function next(){show(c+1)}function prev(){show(c-1)}
+   437→function up(){document.getElementById('counter').textContent=(c+1)+' / '+t;document.getElementById('progress').style.width=((c+1)/t*100)+'%';}
+   438→document.addEventListener('keydown',e=>{if(e.key==='ArrowRight'||e.key===' ')next();if(e.key==='ArrowLeft')prev();if(e.key==='f')document.documentElement.requestFullscreen?.();});
+   439→let tx=0;document.addEventListener('touchstart',e=>tx=e.touches[0].clientX);
+   440→document.addEventListener('touchend',e=>{const d=e.changedTouches[0].clientX-tx;if(Math.abs(d)>50){if(d<0)next();else prev();}});
+   441→up();
+   442→</script>
+   443→</body>
+   444→</html>
+   445→

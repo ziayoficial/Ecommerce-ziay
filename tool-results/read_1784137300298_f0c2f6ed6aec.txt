@@ -1,0 +1,601 @@
+     1→// ZIAY — API /api/orchestrate
+     2→// Saramantha §12 — orchestrator that walks the 9-step agent pipeline.
+     3→//
+     4→// POST body: { tenantId, action: 'full' | 'step', scenarioId?, conversationId?, customerId?, currentStep? }
+     5→// - action='full'   → runs ALL 9 agents sequentially, returns the timeline of replies.
+     6→// - action='step'   → runs a SINGLE agent (currentStep), returns one reply + next step.
+     7→//
+     8→// SPRINT-BACKEND-FINAL-001 — DB side-effects (tenant findUnique, conversation
+     9→// update for profile detection + pipelineMemory load/persist, decisionLog
+    10→// create on escalation) migrated to `orchestrateService`. The route keeps the
+    11→// LLM calls, the 9-step pipeline walk, confidence scoring + escalation emit.
+    12→//
+    13→// Returns: {
+    14→//   ok: true,
+    15→//   action,
+    16→//   scenario?,                      // when scenarioId provided
+    17→//   currentStep?,                   // for action='step'
+    18→//   nextStep?,                      // for action='step' — next step id or null
+    19→//   timeline: [{ step, agent, label, emoji, reply, error? }],   // for action='full'
+    20→//   reply?,                         // for action='step'
+    21→// }
+    22→//
+    23→// FIX-SECURITY-AUTH-001 (#29) — requireTenantAccess(tenantId). Any authed
+    24→// user used to be able to run the orchestrator against any tenant
+    25→// (LLM cost + the profile-detection side-effect writes to
+    26→// `Conversation.perfilConversacion` on any tenant's conversation).
+    27→
+    28→import { NextRequest, NextResponse } from 'next/server'
+    29→import { z } from 'zod'
+    30→import { requireTenantAccess } from '@/lib/auth-helpers'
+    31→import { rateLimit } from '@/lib/middleware/rate-limit'
+    32→import { AGENT_LABELS, AgentName, buildAgentPrompt, FALLBACKS } from '@/lib/agents/prompts'
+    33→import {
+    34→  ORCHESTRATOR_STEPS, ORCHESTRATOR_SCENARIOS, OrchestratorStepId, OrchestratorScenario,
+    35→} from '@/lib/orchestrator/constants'
+    36→import { getLogger } from '@/lib/logger'
+    37→// SPRINT-AI-LLM-ADAPTER-001 — reemplazo de la llamada directa al SDK de ZAI por el
+    38→// adapter pluggable. El provider se resuelve desde `tenant.proveedorIa`
+    39→// (leído una vez en el POST handler y pasado a callAgent).
+    40→import { chat, type LLMChatResult } from '@/lib/llm/adapter'
+    41→import type { TokenUsage } from '@/lib/llm/costs'
+    42→// FIX-AI-AGENTS-001 — defensas y validación de salida para los 9 agentes
+    43→// del pipeline de orquestación.
+    44→import { parseAgentOutput, hasOutputSchema } from '@/lib/agents/schemas'
+    45→import { wrapUserInput, ANTI_INJECTION_PREFIX } from '@/lib/agents/sanitize'
+    46→// SPRINT-AI-AGENTS-003 §3 — check de presupuesto diario por tenant antes
+    47→// de la llamada LLM. Si el tenant excedió su budget, se rechaza con 429.
+    48→// Importante: el orchestrator dispara 9 llamadas LLM por request 'full',
+    49→// así que el budget se verifica una vez al inicio del handler (no por
+    50→// step) para no bloquear a mitad del pipeline.
+    51→import { checkBudgetBeforeCall } from '@/lib/llm/budget'
+    52→// SPRINT-AI-FINAL-001 §1 — resumen LLM para el pipeline memory del
+    53→// orchestrator. Cuando el pipelineMemory crece (>20 mensajes) se invoca
+    54→// `truncateWithSummary` para resumir los outputs de agentes previos antes
+    55→// de pasarlos al siguiente step — evita desbordar el context window y
+    56→// preserva el contexto crítico (perfil detectado, precios cotizados,
+    57→// objeciones levantadas). El threshold >20 coincide con MAX_MESSAGES de
+    58→// history.ts; con 9 steps por pipeline 'full' el path rara vez se activa,
+    59→// pero queda como defensa para pipelines extendidos o callers que reusen
+    60→// este handler con más steps.
+    61→import { truncateWithSummary } from '@/lib/agents/summarize'
+    62→import type { Message } from '@/lib/agents/history'
+    63→import { emitToTenant } from '@/lib/chat-emit'
+    64→// SPRINT-ADOPT-ERRORHANDLER-001 — wrapper funnels unhandled exceptions
+    65→// through Sentry + pino. The inner per-agent try/catches inside the
+    66→// `for` loops are preserved (they implement §A-3 fallback-reply logic
+    67→// per agent — business logic, not boilerplate).
+    68→import { withErrorHandling } from '@/lib/middleware/api-error-handler'
+    69→// SPRINT-BACKEND-FINAL-001 — DB side-effects migrated to `orchestrateService`.
+    70→import { orchestrateService } from '@/lib/services'
+    71→
+    72→const log = getLogger('api:orchestrate')
+    73→
+    74→// TD-2: Zod validation for the orchestrator request body. Replaces the
+    75→// inline `body as { ... }` cast + manual `if (!tenantId)` / `if (action !== ...)`
+    76→// checks with a single declarative schema. `.passthrough()` keeps unknown keys
+    77→// so the route stays tolerant of forward-compatible client payloads.
+    78→const OrchestrateSchema = z.object({
+    79→  tenantId: z.string().min(1),
+    80→  action: z.enum(['full', 'step']),
+    81→  scenarioId: z.string().optional(),
+    82→  conversationId: z.string().optional(),
+    83→  customerId: z.string().optional(),
+    84→  currentStep: z.string().optional(),
+    85→}).passthrough()
+    86→
+    87→/**
+    88→ * Resultado enriquecido de `callAgent` — además del reply, lleva el
+    89→ * confidence calculado por §A-3 y el reply crudo para diagnóstico.
+    90→ *
+    91→ * SPRINT-AI-LLM-ADAPTER-001 §A-6 — ahora también lleva el model/provider/
+    92→ * usage/latencyMs del LLM para persistirlos en el DecisionLog cuando
+    93→ * haya escalación (confidence < 0.6).
+    94→ */
+    95→interface CallAgentResult {
+    96→  reply: string
+    97→  confidence: number
+    98→  rawReply?: string
+    99→  error?: string
+   100→  model?: string
+   101→  provider?: string
+   102→  usage?: TokenUsage
+   103→  latencyMs?: number
+   104→}
+   105→
+   106→/**
+   107→ * SPRINT-AI-FRONTEND-001 §3 — entrada de `pipelineMemory` persistida.
+   108→ *
+   109→ * Antes de este sprint el array era `Message[]` puro (`{ role, content }`).
+   110→ * Ahora cada entry lleva opcionalmente un `timestamp` ISO — usado por la
+   111→ * evicción TTL de 24h al cargar la memoria desde `Conversation.pipelineMemory`.
+   112→ * El campo es opcional para preservar compatibilidad con entries
+   113→ * persistidas antes de este sprint (se les asigna un timestamp al
+   114→ * persistir de nuevo).
+   115→ */
+   116→type PipelineMemoryEntry = Message & { timestamp?: string }
+   117→
+   118→/**
+   119→ * FIX-AI-AGENTS-001 §A-3 — auto-escalación a revisión humana.
+   120→ *
+   121→ * Si `confidence < 0.6`, persistimos un DecisionLog (con `humanReviewed:
+   122→ * false` por default del schema Prisma) y emitimos `agent:low_confidence`
+   123→ * al room del tenant. Best-effort: si la persistencia falla, no se rompe
+   124→ * el pipeline.
+   125→ *
+   126→ * SPRINT-AI-LLM-ADAPTER-001 §A-6 — persiste también model/provider/tokens/
+   127→ * costo/latencia de la llamada LLM (cuando está disponible — la escalación
+   128→ * puede ocurrir con confidence 0.3 tras un LLM exitoso pero salida
+   129→ * invalidada, o con 0.1 tras timeout/error sin usage).
+   130→ */
+   131→async function escalateIfLowConfidence(params: {
+   132→  tenantId: string
+   133→  agentName: string
+   134→  conversationId?: string
+   135→  ctx: unknown
+   136→  result: CallAgentResult
+   137→}): Promise<void> {
+   138→  if (params.result.confidence >= 0.6) return
+   139→  // Persistir DecisionLog solo en casos de baja confianza — el pipeline
+   140→  // orquesta 9 agentes por request, persistir todos sería ruido.
+   141→  // SPRINT-BACKEND-FINAL-001 — DB write migrated to `orchestrateService.persistDecisionLog`.
+   142→  await orchestrateService.persistDecisionLog({
+   143→    tenantId: params.tenantId,
+   144→    agentName: params.agentName,
+   145→    conversationId: params.conversationId,
+   146→    ctx: params.ctx,
+   147→    result: params.result,
+   148→  })
+   149→  emitToTenant(params.tenantId, 'agent:low_confidence', {
+   150→    agentName: params.agentName,
+   151→    conversationId: params.conversationId ?? null,
+   152→    confidence: params.result.confidence,
+   153→    reply: params.result.reply,
+   154→    rawReply: params.result.rawReply,
+   155→    error: params.result.error,
+   156→    humanReviewed: false,
+   157→  })
+   158→}
+   159→
+   160→async function callAgent(
+   161→  agentName: AgentName,
+   162→  ctx: {
+   163→    tenantId: string
+   164→    conversationId?: string
+   165→    customerId?: string
+   166→    perfil?: string
+   167→    query?: string
+   168→    imageUrl?: string
+   169→    items?: { sku: string; cantidad: number }[]
+   170→    message?: string
+   171→    partialAddress?: Record<string, string>
+   172→  },
+   173→  // SPRINT-AI-LLM-ADAPTER-001 — provider resuelto desde el tenant en el
+   174→  // POST handler y pasado aquí para no volver a hacer fetch por cada step.
+   175→  providerName?: string,
+   176→  // SPRINT-AI-FINAL-001 §1 — memoria del pipeline: outputs de agentes
+   177→  // previos en `action='full'`. Se inyecta entre el system prompt y el
+   178→  // user message del step actual para dar contexto de qué decidieron los
+   179→  // agentes anteriores (perfil detectado, precios cotizados, objeciones).
+   180→  // Cuando el array supera 20 entradas se invoca `truncateWithSummary`
+   181→  // para resumir los mensajes antiguos antes de pasárselos al LLM —
+   182→  // evita desbordar el context window en pipelines largos.
+   183→  pipelineMemory?: Message[],
+   184→): Promise<CallAgentResult> {
+   185→  const { system, user } = await buildAgentPrompt(agentName, ctx)
+   186→  const startTime = Date.now()
+   187→  // FIX-AI-AGENTS-001 §A-1: system prompt con rol `system`
+   188→  // (antes iba con rol `assistant` — debilitaba guardrails y exponía a
+   189→  // prompt injection). §A-4: prefix anti-inyección + delimitador
+   190→  // <user_message> para el input del cliente.
+   191→  //
+   192→  // SPRINT-AI-FINAL-001 §1 — construir el array de mensajes con la
+   193→  // memoria del pipeline inyectada (si existe). Si pipelineMemory > 20,
+   194→  // pasamos por `truncateWithSummary` para resumir los outputs antiguos
+   195→  // y no desbordar el context window. Si pipelineMemory es undefined o
+   196→  // vacío (action='step' o primer step de 'full'), comportamiendo
+   197→  // idéntico al anterior: system + user.
+   198→  const systemContent = ANTI_INJECTION_PREFIX + system
+   199→  let messages: Message[]
+   200→  if (pipelineMemory && pipelineMemory.length > 0) {
+   201→    if (pipelineMemory.length > 20) {
+   202→      messages = await truncateWithSummary(systemContent, pipelineMemory)
+   203→    } else {
+   204→      messages = [
+   205→        { role: 'system', content: systemContent },
+   206→        ...pipelineMemory,
+   207→      ]
+   208→    }
+   209→    // El user message del step actual va SIEMPRE al final — es la
+   210→    // instrucción específica que este agente debe procesar.
+   211→    messages.push({ role: 'user', content: wrapUserInput(user) })
+   212→  } else {
+   213→    messages = [
+   214→      { role: 'system', content: systemContent },
+   215→      { role: 'user', content: wrapUserInput(user) },
+   216→    ]
+   217→  }
+   218→  // SPRINT-AI-LLM-ADAPTER-001 §A-3 (timeout): Promise.race con 15s — si
+   219→  // el LLM no responde, se rechaza y el caller cae al fallback.
+   220→  let llmResult: LLMChatResult
+   221→  try {
+   222→    llmResult = await Promise.race([
+   223→      chat(messages, {
+   224→        provider: providerName,
+   225→        thinking: 'disabled',
+   226→      }),
+   227→      new Promise<never>((_, reject) =>
+   228→        setTimeout(() => reject(new Error('LLM timeout (15s)')), 15_000),
+   229→      ),
+   230→    ])
+   231→  } catch (err) {
+   232→    // Propagar el error con el metadata del LLM (vacío — no hubo usage)
+   233→    // para que el caller pueda persistirlo en el DecisionLog.
+   234→    const message = err instanceof Error ? err.message : 'unknown error'
+   235→    return {
+   236→      reply: FALLBACKS[agentName],
+   237→      confidence: 0.1,
+   238→      error: message,
+   239→      latencyMs: Date.now() - startTime,
+   240→    }
+   241→  }
+   242→  const rawReply = llmResult.content.trim() || ''
+   243→
+   244→  // FIX-AI-AGENTS-001 §A-2: validar salida contra esquema Zod si existe.
+   245→  const parsed = parseAgentOutput<unknown>(agentName, rawReply)
+   246→  const schemaExists = hasOutputSchema(agentName)
+   247→
+   248→  // FIX-AI-AGENTS-001 §A-3: confidence real basada en validación.
+   249→  let confidence: number
+   250→  let reply = rawReply
+   251→  if (parsed) {
+   252→    confidence = 0.8
+   253→  } else if (schemaExists) {
+   254→    confidence = 0.3
+   255→    reply = FALLBACKS[agentName]
+   256→  } else {
+   257→    confidence = 0.6
+   258→  }
+   259→
+   260→  return {
+   261→    reply,
+   262→    confidence,
+   263→    rawReply,
+   264→    model: llmResult.model,
+   265→    provider: llmResult.provider,
+   266→    usage: llmResult.usage,
+   267→    latencyMs: Date.now() - startTime,
+   268→  }
+   269→}
+   270→
+   271→// SPRINT-ADOPT-ERRORHANDLER-001 — POST wrapped with `withErrorHandling`.
+   272→// The outer `try/catch` (captureError + 500 boilerplate) was removed —
+   273→// now the wrapper handles it. The inner per-step try/catches inside
+   274→// callAgent + the `for` loop are preserved (they implement §A-3 fallback
+   275→// logic per agent — business logic, not boilerplate).
+   276→export const POST = withErrorHandling(async (req: NextRequest) => {
+   277→  // FIX-REALTIME-WEBHOOKS-001 · P2 — per-route rate limit (5 req/min/IP).
+   278→  // action='full' runs 9 LLM calls per request — a single user could burn
+   279→  // the LLM budget fast. The global 60/min/IP middleware is too generous.
+   280→  const limited = rateLimit(req, { max: 5, windowMs: 60_000, namespace: 'api:orchestrate' })
+   281→  if (limited) return limited
+   282→
+   283→  const raw = await req.json()
+   284→    const parseResult = OrchestrateSchema.safeParse(raw)
+   285→    if (!parseResult.success) {
+   286→      return NextResponse.json(
+   287→        { ok: false, error: 'Validación fallida', details: parseResult.error.flatten() },
+   288→        { status: 400 },
+   289→      )
+   290→    }
+   291→    const { tenantId, action, scenarioId, conversationId, customerId, currentStep } = parseResult.data as {
+   292→      tenantId: string
+   293→      action: 'full' | 'step'
+   294→      scenarioId?: string
+   295→      conversationId?: string
+   296→      customerId?: string
+   297→      currentStep?: OrchestratorStepId
+   298→    }
+   299→
+   300→    // FIX-SECURITY-AUTH-001 (#29) — tenant gate before any LLM call.
+   301→    const { error } = await requireTenantAccess(tenantId)
+   302→    if (error) return error
+   303→
+   304→    // SPRINT-AI-AGENTS-003 §3 — verificar el presupuesto diario del tenant
+   305→    // antes de empezar el pipeline. El orchestrator dispara 9 llamadas LLM
+   306→    // por request 'full' — verificar una vez al inicio evita gastar tokens
+   307→    // a mitad del pipeline si el budget ya está agotado. (Cada step todavía
+   308→    // se loguea en DecisionLog, así que el spent real se contabiliza para
+   309→    // el siguiente check.)
+   310→    const budgetCheck = await checkBudgetBeforeCall(tenantId)
+   311→    if (!budgetCheck.allowed) {
+   312→      return NextResponse.json(
+   313→        { ok: false, error: budgetCheck.message, code: 'BUDGET_EXCEEDED' },
+   314→        { status: 429 },
+   315→      )
+   316→    }
+   317→
+   318→    const tenant = await orchestrateService.getTenantForOrchestration(tenantId)
+   319→    if (!tenant) return NextResponse.json({ ok: false, error: `Tenant not found: ${tenantId}` }, { status: 404 })
+   320→    // Provider resuelto una sola vez por request — se pasa a todas las
+   321→    // llamadas callAgent del pipeline (9 para action='full').
+   322→    const providerName = tenant.proveedorIa
+   323→
+   324→    const scenario: OrchestratorScenario | undefined = scenarioId
+   325→      ? ORCHESTRATOR_SCENARIOS.find(s => s.id === scenarioId)
+   326→      : undefined
+   327→
+   328→    // Shared context built from scenario (if any)
+   329→    const buildCtx = (stepId: OrchestratorStepId) => ({
+   330→      tenantId,
+   331→      conversationId,
+   332→      customerId,
+   333→      perfil: scenario?.perfil,
+   334→      query: stepId === 'catalog' ? scenario?.catalogQuery : undefined,
+   335→      items: stepId === 'quote'
+   336→        ? [{ sku: 'SHORT-TIRA', cantidad: 12 }] // demo quote
+   337→        : undefined,
+   338→      message: stepId === 'objection' ? scenario?.objectionMessage : undefined,
+   339→      partialAddress: stepId === 'address' ? { ciudad: 'Bogotá' } : undefined,
+   340→    })
+   341→
+   342→    // ── action='step' — single agent ────────────────────────────────────
+   343→    if (action === 'step') {
+   344→      const step = currentStep
+   345→        ? ORCHESTRATOR_STEPS.find(s => s.id === currentStep)
+   346→        : ORCHESTRATOR_STEPS[0]
+   347→      if (!step) return NextResponse.json({ ok: false, error: 'Invalid currentStep' }, { status: 400 })
+   348→
+   349→      const idx = step.index // 1-based
+   350→      const nextStep = idx < ORCHESTRATOR_STEPS.length
+   351→        ? ORCHESTRATOR_STEPS[idx].id // index-th element (0-based) is the next step
+   352→        : null
+   353→
+   354→      log.info({ tenantId, action, stepId: step.id, agent: step.agent }, 'agent start')
+   355→      let reply = ''
+   356→      let errorMsg: string | undefined
+   357→      let confidence = 0.6 // default para agentes de texto libre
+   358→      let rawReply: string | undefined
+   359→      // SPRINT-AI-LLM-ADAPTER-001 — capturamos el result completo para
+   360→      // pasar model/provider/usage/latencyMs a la escalación.
+   361→      let llmMeta: {
+   362→        model?: string
+   363→        provider?: string
+   364→        usage?: TokenUsage
+   365→        latencyMs?: number
+   366→      } = {}
+   367→      try {
+   368→        const result = await callAgent(step.agent as AgentName, buildCtx(step.id), providerName)
+   369→        reply = result.reply
+   370→        confidence = result.confidence
+   371→        rawReply = result.rawReply
+   372→        llmMeta = {
+   373→          model: result.model,
+   374→          provider: result.provider,
+   375→          usage: result.usage,
+   376→          latencyMs: result.latencyMs,
+   377→        }
+   378→        log.info({ tenantId, stepId: step.id, agent: step.agent, replyLen: reply.length, confidence }, 'agent complete')
+   379→      } catch (err) {
+   380→        errorMsg = err instanceof Error ? err.message : 'unknown error'
+   381→        reply = FALLBACKS[step.agent as AgentName]
+   382→        confidence = 0.1 // §A-3: la llamada LLM falló completamente
+   383→        log.error({ tenantId, stepId: step.id, agent: step.agent, err: errorMsg }, 'agent error — fallback used')
+   384→      }
+   385→
+   386→      // Persist profile detection (mirror of /api/agents/[agentName]/route.ts)
+   387→      // SPRINT-BACKEND-FINAL-001 — DB write migrated to `orchestrateService`.
+   388→      if (step.id === 'profile' && conversationId) {
+   389→        const detected = ['mayorista', 'emprendedor', 'detal', 'regalo'].find(p => reply.toLowerCase().includes(p))
+   390→        if (detected) {
+   391→          await orchestrateService.persistDetectedProfile(conversationId, detected)
+   392→        }
+   393→      }
+   394→
+   395→      // FIX-AI-AGENTS-001 §A-3 — auto-escalación a revisión humana.
+   396→      await escalateIfLowConfidence({
+   397→        tenantId,
+   398→        agentName: step.agent as AgentName,
+   399→        conversationId,
+   400→        ctx: buildCtx(step.id),
+   401→        result: { reply, confidence, rawReply, error: errorMsg, ...llmMeta },
+   402→      })
+   403→
+   404→      return NextResponse.json({
+   405→        ok: true,
+   406→        action: 'step',
+   407→        scenario: scenario ? { id: scenario.id, label: scenario.label } : undefined,
+   408→        currentStep: { id: step.id, index: step.index, label: step.label, emoji: step.emoji, agent: step.agent },
+   409→        nextStep,
+   410→        reply,
+   411→        confidence,
+   412→        error: errorMsg,
+   413→      })
+   414→    }
+   415→
+   416→    // ── action='full' — run all 9 steps sequentially ────────────────────
+   417→    const timeline: Array<{
+   418→      step: OrchestratorStepId; index: number; label: string; emoji: string;
+   419→      agent: string; agentLabel: string; reply: string; confidence: number; error?: string
+   420→    }> = []
+   421→    // SPRINT-AI-FINAL-001 §1 — memoria del pipeline: cada step ve los
+   422→    // outputs de los steps anteriores como mensajes `assistant` en su
+   423→    // context window. Esto le da a cada agente visibilidad de lo que los
+   424→    // agentes previos decidieron (perfil detectado, productos sugeridos,
+   425→    // precios cotizados, objeciones levantadas) — mejorando la coherencia
+   426→    // del pipeline. Cuando el array crece >20, callAgent invoca
+   427→    // `truncateWithSummary` para resumir antes de pasarlo al LLM.
+   428→    //
+   429→    // SPRINT-AI-FINAL-002 §1 — la memoria se persiste en
+   430→    // `Conversation.pipelineMemory` al final del pipeline anterior y se
+   431→    // carga aquí al inicio del nuevo. Da continuidad entre turnos de
+   432→    // conversaciones multi-turno: el cliente responde al resultado del
+   433→    // pipeline anterior y este nuevo pipeline arranca con los outputs de
+   434→    // los 9 agentes previos como contexto (en vez de empezar desde cero).
+   435→    // Se mantiene sólo el último slice(-30) para no crecer indefinidamente.
+   436→    //
+   437→    // SPRINT-AI-FRONTEND-001 §3 — evicción TTL: al cargar, se descartan
+   438→    // las entries con `timestamp` anterior a 24h. La memoria multi-turno
+   439→    // pierde relevancia después de un día (el cliente rara vez retoma un
+   440→    // pipeline de ayer), y la evicción TTL acota el crecimiento en
+   441→    // conversaciones long-idle que de otro modo acumularían entries
+   442→    // stale de hace días. Las entries sin `timestamp` (persistidas antes
+   443→    // de este sprint) se conservan — se asumen recientes y se les
+   444→    // asigna un timestamp al persistir de nuevo.
+   445→    let pipelineMemory: PipelineMemoryEntry[] = []
+   446→    if (conversationId) {
+   447→      const memoryJson = await orchestrateService.getPipelineMemory(conversationId)
+   448→      if (memoryJson) {
+   449→        try {
+   450→          const parsed = JSON.parse(memoryJson)
+   451→          // Validar que cada entrada tenga shape de Message antes de
+   452→          // inyectarla al pipeline — un JSON corrupto o con formato
+   453→          // inesperado no debe romper el pipeline.
+   454→          if (Array.isArray(parsed)) {
+   455→            const validated = parsed.filter(
+   456→              (m): m is PipelineMemoryEntry =>
+   457→                m !== null &&
+   458→                typeof m === 'object' &&
+   459→                typeof m.content === 'string' &&
+   460→                (m.role === 'system' || m.role === 'user' || m.role === 'assistant') &&
+   461→                (m.timestamp === undefined || typeof m.timestamp === 'string'),
+   462→            )
+   463→            // SPRINT-AI-FRONTEND-001 §3 — evicción TTL de 24h.
+   464→            // Las entries sin timestamp se conservan (backward compat);
+   465→            // las que tienen timestamp anterior al cutoff se descartan.
+   466→            const cutoff = Date.now() - 24 * 60 * 60 * 1000
+   467→            pipelineMemory = validated.filter((entry) => {
+   468→              if (!entry.timestamp) return true
+   469→              return new Date(entry.timestamp).getTime() > cutoff
+   470→            })
+   471→          }
+   472→        } catch {
+   473→          // JSON inválido — arrancar con memoria vacía (comportamiento
+   474→          // idéntico al anterior a SPRINT-AI-FINAL-002).
+   475→          pipelineMemory = []
+   476→        }
+   477→      }
+   478→    }
+   479→    for (const step of ORCHESTRATOR_STEPS) {
+   480→      log.info({ tenantId, action: 'full', stepId: step.id, agent: step.agent, index: step.index, memSize: pipelineMemory.length }, 'agent start')
+   481→      let reply = ''
+   482→      let errorMsg: string | undefined
+   483→      let confidence = 0.6
+   484→      let rawReply: string | undefined
+   485→      // SPRINT-AI-LLM-ADAPTER-001 — capturamos el result completo para
+   486→      // pasar model/provider/usage/latencyMs a la escalación.
+   487→      let llmMeta: {
+   488→        model?: string
+   489→        provider?: string
+   490→        usage?: TokenUsage
+   491→        latencyMs?: number
+   492→      } = {}
+   493→      try {
+   494→        const result = await callAgent(step.agent as AgentName, buildCtx(step.id), providerName, pipelineMemory)
+   495→        reply = result.reply
+   496→        confidence = result.confidence
+   497→        rawReply = result.rawReply
+   498→        llmMeta = {
+   499→          model: result.model,
+   500→          provider: result.provider,
+   501→          usage: result.usage,
+   502→          latencyMs: result.latencyMs,
+   503→        }
+   504→        log.info({ tenantId, stepId: step.id, agent: step.agent, replyLen: reply.length, confidence }, 'agent complete')
+   505→      } catch (err) {
+   506→        errorMsg = err instanceof Error ? err.message : 'unknown error'
+   507→        reply = FALLBACKS[step.agent as AgentName]
+   508→        confidence = 0.1 // §A-3: llamada LLM fallida
+   509→        log.error({ tenantId, stepId: step.id, agent: step.agent, err: errorMsg }, 'agent error — fallback used')
+   510→      }
+   511→
+   512→      // SPRINT-AI-FINAL-001 §1 — añadir el reply (real o fallback) al
+   513→      // pipelineMemory para que el siguiente step lo vea como contexto.
+   514→      // Se etiqueta con el step+agente para que el siguiente agente
+   515→      // identifique de dónde viene cada output. Se empuja SIEMPRE, aún
+   516→      // en caso de error — el fallback también es información útil para
+   517→      // el siguiente agente (saber que el anterior no respondió bien).
+   518→      //
+   519→      // SPRINT-AI-FRONTEND-001 §3 — añadimos `timestamp` ISO para que la
+   520→      // evicción TTL de 24h al cargar la memoria (próxima invocación)
+   521→      // pueda descartar entries stale. El timestamp se asigna al momento
+   522→      // del push (no al persistir) para que sea lo más cercano al
+   523→      // momento real en que el agente generó el reply.
+   524→      pipelineMemory.push({
+   525→        role: 'assistant',
+   526→        content: `[${step.id}/${step.agent}] ${reply}`,
+   527→        timestamp: new Date().toISOString(),
+   528→      })
+   529→
+   530→      // Persist profile detection
+   531→      // SPRINT-BACKEND-FINAL-001 — DB write migrated to `orchestrateService`.
+   532→      if (step.id === 'profile' && conversationId) {
+   533→        const detected = ['mayorista', 'emprendedor', 'detal', 'regalo'].find(p => reply.toLowerCase().includes(p))
+   534→        if (detected) {
+   535→          await orchestrateService.persistDetectedProfile(conversationId, detected)
+   536→        }
+   537→      }
+   538→
+   539→      // FIX-AI-AGENTS-001 §A-3 — auto-escalación a revisión humana.
+   540→      await escalateIfLowConfidence({
+   541→        tenantId,
+   542→        agentName: step.agent as AgentName,
+   543→        conversationId,
+   544→        ctx: buildCtx(step.id),
+   545→        result: { reply, confidence, rawReply, error: errorMsg, ...llmMeta },
+   546→      })
+   547→
+   548→      timeline.push({
+   549→        step: step.id,
+   550→        index: step.index,
+   551→        label: step.label,
+   552→        emoji: step.emoji,
+   553→        agent: step.agent,
+   554→        agentLabel: AGENT_LABELS[step.agent as AgentName],
+   555→        reply,
+   556→        confidence,
+   557→        error: errorMsg,
+   558→      })
+   559→    }
+   560→
+   561→    log.info(
+   562→      { tenantId, scenarioId: scenario?.id, steps: timeline.length, errors: timeline.filter(t => t.error).length },
+   563→      'pipeline complete',
+   564→    )
+   565→
+   566→    // SPRINT-AI-FINAL-002 §1 — persistir la pipeline memory en la
+   567→    // Conversation para que la próxima invocación del orchestrator sobre
+   568→    // la misma conversación arranque con este contexto. Se guardan sólo
+   569→    // las últimas 30 entradas (slice(-30)) para evitar crecimiento
+   570→    // indefinido — con 9 steps por pipeline 'full', 30 entradas cubren
+   571→    // ~3 invocaciones completas (suficiente para continuidad multi-turno).
+   572→    // Best-effort: si la persistencia falla, no se rompe el pipeline (el
+   573→    // response ya se construyó y se devuelve igual).
+   574→    //
+   575→    // SPRINT-AI-FRONTEND-001 §3 — antes de persistir, aseguramos que
+   576→    // todas las entries tengan `timestamp` (las que se cargaron desde
+   577→    // storage sin timestamp — entries previas a este sprint — se les
+   578→    // asigna el timestamp actual). Así la próxima carga podrá aplicar
+   579→    // la evicción TTL uniformemente.
+   580→    //
+   581→    // SPRINT-BACKEND-FINAL-001 — DB write migrated to `orchestrateService.persistPipelineMemory`.
+   582→    if (conversationId && pipelineMemory.length > 0) {
+   583→      const nowIso = new Date().toISOString()
+   584→      const toPersist = pipelineMemory.slice(-30).map((entry) => ({
+   585→        ...entry,
+   586→        timestamp: entry.timestamp || nowIso,
+   587→      }))
+   588→      await orchestrateService.persistPipelineMemory(
+   589→        conversationId,
+   590→        JSON.stringify(toPersist),
+   591→      )
+   592→    }
+   593→
+   594→    return NextResponse.json({
+   595→      ok: true,
+   596→      action: 'full',
+   597→      scenario: scenario ? { id: scenario.id, label: scenario.label } : undefined,
+   598→      timeline,
+   599→    })
+   600→})
+   601→

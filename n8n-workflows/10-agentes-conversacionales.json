@@ -1,5 +1,5 @@
 {
-  "name": "CommerceFlow OS — 10 Agentes Conversacionales (§6 Saramantha)",
+  "name": "ZIAY OS — 10 Agentes Conversacionales (§6 Saramantha)",
   "nodes": [
     {
       "parameters": {
@@ -11,7 +11,10 @@
       "name": "WhatsApp Webhook",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 1,
-      "position": [0, 0]
+      "position": [
+        0,
+        0
+      ]
     },
     {
       "parameters": {
@@ -21,7 +24,10 @@
       "name": "Resolve Tenant",
       "type": "n8n-nodes-base.function",
       "typeVersion": 1,
-      "position": [220, 0]
+      "position": [
+        220,
+        0
+      ]
     },
     {
       "parameters": {
@@ -30,8 +36,14 @@
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
-            { "name": "tenantId", "value": "={{ $json.tenantId }}" },
-            { "name": "message", "value": "={{ $json.message.entry[0].changes[0].value.messages[0].text.body }}" }
+            {
+              "name": "tenantId",
+              "value": "={{ $json.tenantId }}"
+            },
+            {
+              "name": "message",
+              "value": "={{ $json.message.entry[0].changes[0].value.messages[0].text.body }}"
+            }
           ]
         }
       },
@@ -39,7 +51,10 @@
       "name": "6.1 Agente Perfilamiento",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [440, 0]
+      "position": [
+        440,
+        0
+      ]
     },
     {
       "parameters": {
@@ -48,8 +63,14 @@
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
-            { "name": "tenantId", "value": "={{ $('Resolve Tenant').item.json.tenantId }}" },
-            { "name": "perfil", "value": "={{ $json.reply }}" }
+            {
+              "name": "tenantId",
+              "value": "={{ $('Resolve Tenant').item.json.tenantId }}"
+            },
+            {
+              "name": "perfil",
+              "value": "={{ $json.reply }}"
+            }
           ]
         }
       },
@@ -57,7 +78,10 @@
       "name": "6.2 Agente Discurso",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [660, 0]
+      "position": [
+        660,
+        0
+      ]
     },
     {
       "parameters": {
@@ -66,8 +90,14 @@
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
-            { "name": "tenantId", "value": "={{ $('Resolve Tenant').item.json.tenantId }}" },
-            { "name": "query", "value": "familia" }
+            {
+              "name": "tenantId",
+              "value": "={{ $('Resolve Tenant').item.json.tenantId }}"
+            },
+            {
+              "name": "query",
+              "value": "familia"
+            }
           ]
         }
       },
@@ -75,7 +105,10 @@
       "name": "6.3 Agente Catálogo",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [880, 0]
+      "position": [
+        880,
+        0
+      ]
     },
     {
       "parameters": {
@@ -84,8 +117,14 @@
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
-            { "name": "tenantId", "value": "={{ $('Resolve Tenant').item.json.tenantId }}" },
-            { "name": "items", "value": "=[{ \"sku\": \"PIJ-SHORT-TIRA-001\", \"cantidad\": 6 }]" }
+            {
+              "name": "tenantId",
+              "value": "={{ $('Resolve Tenant').item.json.tenantId }}"
+            },
+            {
+              "name": "items",
+              "value": "=[{ \"sku\": \"PIJ-SHORT-TIRA-001\", \"cantidad\": 6 }]"
+            }
           ]
         }
       },
@@ -93,7 +132,10 @@
       "name": "6.4 Agente Cotización",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [1100, 0]
+      "position": [
+        1100,
+        0
+      ]
     },
     {
       "parameters": {
@@ -102,8 +144,14 @@
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
-            { "name": "tenantId", "value": "={{ $('Resolve Tenant').item.json.tenantId }}" },
-            { "name": "items", "value": "=[{ \"sku\": \"PIJ-SHORT-TIRA-001\", \"cantidad\": 6 }]" }
+            {
+              "name": "tenantId",
+              "value": "={{ $('Resolve Tenant').item.json.tenantId }}"
+            },
+            {
+              "name": "items",
+              "value": "=[{ \"sku\": \"PIJ-SHORT-TIRA-001\", \"cantidad\": 6 }]"
+            }
           ]
         }
       },
@@ -111,7 +159,10 @@
       "name": "6.10 Agente Checkout",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [1320, 0]
+      "position": [
+        1320,
+        0
+      ]
     },
     {
       "parameters": {
@@ -122,25 +173,108 @@
       "name": "Respond to WhatsApp",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
-      "position": [1540, 0]
+      "position": [
+        1540,
+        0
+      ]
     }
   ],
   "connections": {
-    "WhatsApp Webhook": { "main": [[{ "node": "Resolve Tenant", "type": "main", "index": 0 }]] },
-    "Resolve Tenant": { "main": [[{ "node": "6.1 Agente Perfilamiento", "type": "main", "index": 0 }]] },
-    "6.1 Agente Perfilamiento": { "main": [[{ "node": "6.2 Agente Discurso", "type": "main", "index": 0 }]] },
-    "6.2 Agente Discurso": { "main": [[{ "node": "6.3 Agente Catálogo", "type": "main", "index": 0 }]] },
-    "6.3 Agente Catálogo": { "main": [[{ "node": "6.4 Agente Cotización", "type": "main", "index": 0 }]] },
-    "6.4 Agente Cotización": { "main": [[{ "node": "6.10 Agente Checkout", "type": "main", "index": 0 }]] },
-    "6.10 Agente Checkout": { "main": [[{ "node": "Respond to WhatsApp", "type": "main", "index": 0 }]] }
+    "WhatsApp Webhook": {
+      "main": [
+        [
+          {
+            "node": "Resolve Tenant",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolve Tenant": {
+      "main": [
+        [
+          {
+            "node": "6.1 Agente Perfilamiento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "6.1 Agente Perfilamiento": {
+      "main": [
+        [
+          {
+            "node": "6.2 Agente Discurso",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "6.2 Agente Discurso": {
+      "main": [
+        [
+          {
+            "node": "6.3 Agente Catálogo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "6.3 Agente Catálogo": {
+      "main": [
+        [
+          {
+            "node": "6.4 Agente Cotización",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "6.4 Agente Cotización": {
+      "main": [
+        [
+          {
+            "node": "6.10 Agente Checkout",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "6.10 Agente Checkout": {
+      "main": [
+        [
+          {
+            "node": "Respond to WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
   "active": false,
-  "settings": { "executionOrder": "v1" },
+  "settings": {
+    "executionOrder": "v1"
+  },
   "_notes": [
-    "Este workflow replica en n8n la orquestación de los 10 agentes de Saramantha §6.",
-    "Cada nodo HTTP llama al endpoint /api/agents/[agentName] del CommerceFlow App.",
+    "WORKFLOW LEGACY — mantiene el encadenamiento original de los 10 agentes conversacionales de Saramantha §6 como referencia histórica.",
+    "Cada nodo HTTP llama al endpoint POST http://app:3000/api/agents/[agentName] del ZIAY App.",
     "El flujo completo: webhook WA → resolve tenant → profile → speech → catalog → quote → checkout → respond.",
     "Los agentes 6.5-6.9 (theme, objection, address, logistics, vision) se invocan condicionalmente según el contexto.",
+    "",
+    "ESTADO ACTUAL (SPRINT-FIXES-N8N-DEPLOY-001):",
+    "- El proyecto ahora tiene 26 agentes (10 originales + 16 nuevos agregados en BUILD-AGENTS-LIB-001).",
+    "- El pipeline canónico actual es de 9 pasos (NO 10) — ver master-orchestrator.json y src/lib/orchestrator/constants.ts.",
+    "- El agente 'vision' se invoca como variante visual-primero dentro del paso 'catalog' (no como paso separado).",
+    "- Los 16 agentes nuevos (buyer_behavior, cart_builder, guide_tracking, novedades, redelivery, remarketing, guide_alert, sales_retainer, logistics_notifier, customer_score, carrier_score, product_enrichment, marketplace, affiliator, traffic_orchestrator, address_analysis) se invocan individualmente vía POST /api/agents/{agentName} — ver los workflows agent-*.json individuales.",
+    "- Para la orquestación canónica de 9 pasos, usa master-orchestrator.json en lugar de este workflow.",
+    "",
     "Importar: abrir n8n en http://localhost:5678 → Workflows → Import from File → seleccionar este JSON."
   ]
 }

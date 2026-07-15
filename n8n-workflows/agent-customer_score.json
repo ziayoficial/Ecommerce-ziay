@@ -1,13 +1,13 @@
 {
-  "name": "ZIAY — Agente 6.9 Visión (identificación por imagen)",
+  "name": "ZIAY — Agente Scoring de clientes (LTV/churn)",
   "nodes": [
     {
       "parameters": {
         "httpMethod": "POST",
-        "path": "agent-vision",
+        "path": "agent-customer_score",
         "responseMode": "responseNode"
       },
-      "id": "webhook-vision",
+      "id": "webhook-customer_score",
       "name": "Webhook Entrada",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 1,
@@ -19,7 +19,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://app:3000/api/agents/vision",
+        "url": "http://app:3000/api/agents/customer_score",
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
@@ -62,8 +62,8 @@
           ]
         }
       },
-      "id": "call-agent-vision",
-      "name": "Llamar Agente vision",
+      "id": "call-agent-customer_score",
+      "name": "Llamar Agente customer_score",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
       "position": [
@@ -76,7 +76,7 @@
         "respondWith": "json",
         "responseBody": "={{ $json }}"
       },
-      "id": "respond-vision",
+      "id": "respond-customer_score",
       "name": "Responder",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
@@ -91,14 +91,14 @@
       "main": [
         [
           {
-            "node": "Llamar Agente vision",
+            "node": "Llamar Agente customer_score",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Llamar Agente vision": {
+    "Llamar Agente customer_score": {
       "main": [
         [
           {
@@ -115,9 +115,10 @@
     "executionOrder": "v1"
   },
   "_notes": [
-    "Agente 6.9 Visión (identificación por imagen) — OCR + CLIP + LLM fallback",
-    "Endpoint: POST http://app:3000/api/agents/vision",
-    "Importar: n8n → Workflows → Import from File → seleccionar este JSON",
+    "ZIAY Agente customer_score — Scoring de clientes (LTV/churn)",
+    "Endpoint: POST http://app:3000/api/agents/customer_score",
+    "Agregado en BUILD-AGENTS-LIB-001 (16 agentes adicionales sobre los 10 originales = 26 total).",
+    "Importar: n8n → Workflows → Import from File → seleccionar este JSON.",
     "Activar workflow después de importar."
   ]
 }

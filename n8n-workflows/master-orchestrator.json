@@ -1,5 +1,5 @@
 {
-  "name": "CommerceFlow — Master Orchestrator (§12 — 4 escenarios)",
+  "name": "ZIAY — Master Orchestrator (9-step pipeline, §12)",
   "nodes": [
     {
       "parameters": {
@@ -32,8 +32,8 @@
               "value": "={{ $json.body.tenantId }}"
             },
             {
-              "name": "scenario",
-              "value": "={{ $json.body.scenario || \"indisutex_wa_catalog\" }}"
+              "name": "scenarioId",
+              "value": "={{ $json.body.scenarioId || \"mayorista_familia\" }}"
             },
             {
               "name": "customerId",
@@ -42,6 +42,10 @@
             {
               "name": "conversationId",
               "value": "={{ $json.body.conversationId }}"
+            },
+            {
+              "name": "currentStep",
+              "value": "={{ $json.body.currentStep }}"
             }
           ]
         }
@@ -99,9 +103,24 @@
     "executionOrder": "v1"
   },
   "_notes": [
-    "Master Orchestrator — ejecuta los 10 agentes en secuencia (§12.1 narrative).",
-    "Endpoint: POST http://app:3000/api/orchestrate con action=full",
-    "4 escenarios: indisutex_wa_catalog | client_woocommerce | client_shopify | client_supabase_nuestro",
-    "Importar: n8n → Workflows → Import from File → seleccionar este JSON"
+    "ZIAY Master Orchestrator — ejecuta el pipeline conversacional de 9 pasos (§12).",
+    "Endpoint: POST http://app:3000/api/orchestrate con action=full (corre los 9 agentes en secuencia) o action=step (corre un solo agente, identificado por currentStep).",
+    "Pipeline de 9 pasos (constants.ts → ORCHESTRATOR_STEPS):",
+    "  1. profile    — Perfilamiento (mayorista/emprendedor/detal/regalo)",
+    "  2. speech     — Discurso de ventas por perfil",
+    "  3. catalog    — Catálogo visual-primero (incluye variante vision)",
+    "  4. theme      — Búsqueda por tema/personaje",
+    "  5. quote      — Cotización cruzada + precio por volumen",
+    "  6. objection  — Manejo de objeciones",
+    "  7. address    — Confirmación de datos (10 campos)",
+    "  8. logistics  — Logística de fletes (LogisticsAdapter)",
+    "  9. checkout   — Checkout + sync ecommerce + guía",
+    "4 escenarios (constants.ts → ORCHESTRATOR_SCENARIOS):",
+    "  - mayorista_familia       — Lead mayorista pide 'familia'",
+    "  - detal_stitch            — Cliente final pregunta por Stitch",
+    "  - regalo_hello_kitty      — Regalo, sensibilidad a precio",
+    "  - cancelacion_inventario  — Cliente quiere cancelar",
+    "Nota: el pipeline orquesta los 9 agentes 'principales'. Los 16 agentes adicionales (buyer_behavior, cart_builder, guide_tracking, novedades, redelivery, remarketing, guide_alert, sales_retainer, logistics_notifier, customer_score, carrier_score, product_enrichment, marketplace, affiliator, traffic_orchestrator, address_analysis) se invocan por separado vía POST /api/agents/{agentName} — ver los workflows agent-*.json.",
+    "Importar: n8n → Workflows → Import from File → seleccionar este JSON."
   ]
 }

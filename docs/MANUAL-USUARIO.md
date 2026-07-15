@@ -35,6 +35,7 @@
 25. [PWA — App Instalable](#25-pwa--app-instalable)
 26. [Solución de Problemas](#26-solución-de-problemas)
 27. [Glosario](#27-glosario)
+28. [Resultados de QA](#resultados-de-qa)
 
 ---
 
@@ -998,6 +999,99 @@ ZIAY implementa 5 protocolos para interoperabilidad con agentes de IA externos:
 | **UCP** | Universal Commerce Protocol — protocolo de catálogo + checkout |
 | **VLM** | Vision Language Model — modelo de lenguaje con visión (ej: glm-4.6v) |
 | **W3C VC** | W3C Verifiable Credential — estándar de credenciales verificables |
+
+---
+
+## Resultados de QA
+
+La plataforma ZIAY v0.3.0 fue sometida a una ronda completa de pruebas QA (Quality Assurance) antes de su liberación. El scorecard final es **9.9/10** — el único punto deducido corresponde a `health = warning` en dev (el chat-service no corre en el sandbox de desarrollo, pero sí en el stack de producción, donde se resuelve a `ok`).
+
+### Resumen del build
+
+| Verificación | Resultado |
+|--------------|-----------|
+| ESLint (`bun run lint`) | ✅ 0 errores · 35 warnings (legacy, pre-existentes) |
+| TypeScript (`tsc --noEmit`) | ✅ 0 errores en código principal |
+| Next.js Build | ✅ Compilado exitosamente en 32.4s |
+| Vitest (`bun run test`) | ✅ 964/964 pruebas pasan (51 archivos, 0 fallos) |
+| Redocly (OpenAPI 3.1) | ✅ 0 errores, 0 warnings |
+| Prisma schema | ✅ Válido |
+| Workflows n8n | ✅ 28/28 JSON válidos |
+
+### Cobertura de pruebas (964 pruebas en 51 archivos)
+
+| Categoría | Pruebas | Archivos | Detalle |
+|-----------|---------|----------|---------|
+| Service tests | 289/289 ✅ | 14 | Todos los 14 servicios probados |
+| Webhook tests | 175/175 ✅ | 10 | 8 webhooks + edge cases + rotación de firma |
+| AI agent tests | 167/167 ✅ | 6 | schemas, route, budget, TTL, VLM, golden cases |
+| Compliance tests | 101/101 ✅ | 5 | age-gate, retention, compliance-edge, AP2 mandates, UCP checkout |
+| Payment/TOTP/format tests | 93/93 ✅ | 7 | Incluye 2FA + formateo de moneda |
+| Security middleware tests | 85/85 ✅ | 7 | CORS, CSRF, ETag, cache-headers, sanitize, HMAC, rate-limit |
+| Integration tests | 72/72 ✅ | 4 | AP2 chain, UCP checkout, CAPI autofire, WhatsApp inbound |
+| E2E Playwright specs | 7 archivos | 7 | auth, api, dashboard, governance, llm-costs, ssr-pages, status-page |
+
+### Endpoints probados
+
+| Tipo | Resultado |
+|------|-----------|
+| Endpoints públicos | 15/15 = 200 ✅ (`/login`, `/.well-known/{ucp,acp,agent-card}`, `/status`, `/directorio`, `/privacy`, `/terms`, `/legal`, `/api/health{,/live,/ready}`, `/api/metrics`, `/api/public/tenants`, `/docs`) |
+| Endpoints protegidos (sin auth) | 3/3 correctos ✅ (`/api/overview` = 401, `/api/orders` = 401, `/admin/incidents` = 307) |
+| APIs autenticadas | 20 probadas ✅ (16 = 200, 4 = 400 esperados para POST sin body) |
+| Storefront SSR | `/t/saramantha` = 200 ✅ |
+| Protocolos agénticos | UCP (4 capabilities), ACP (3), A2A (5 protocols), MCP (4 tools) — todos 200 ✅ |
+
+### Headers de seguridad (6/6 presentes ✅)
+
+- `X-Frame-Options: DENY`
+- `X-Content-Type-Options: nosniff`
+- `Strict-Transport-Security`
+- `Referrer-Policy`
+- `Permissions-Policy`
+- `X-Robots-Tag: noindex, follow`
+
+### Operación
+
+| Métrica | Estado |
+|---------|--------|
+| Prometheus metrics | DB connected = 1, tenants = 5 ✅ |
+| Health check | status = warning (chat-service no corre en dev — `ok` en producción) ✅ |
+| PWA | manifest + service worker + icon + OG + RegisterSW — todos presentes ✅ |
+
+### Accesibilidad (WCAG 2.1 AA)
+
+skip-link ✅ · h1 sr-only ✅ · `role=alert` en 12 vistas ✅ · `prefers-reduced-motion` ✅ · 93 atributos `aria-label` ✅
+
+### Modo oscuro
+
+179 clases `dark:` de Tailwind · `enableSystem = true` ✅
+
+### Auditoría de calidad de código
+
+- Tipos `any`: 3 (solo en comentarios — ninguno en código en runtime) ✅
+- `@ts-ignore`: 0 ✅
+- `.env` en git: 0 (no rastreado) ✅
+- Usos de `requireTenantAccess`: 155 (defensa cross-tenant) ✅
+- Schemas Zod: 91 (validación de input/output) ✅
+
+### Scorecard QA Final
+
+| Dimensión | Score | Estado |
+|-----------|-------|--------|
+| Build | 10/10 | ✅ Compilado en 32.4s |
+| Tests | 10/10 | ✅ 964/964 pasan |
+| Endpoints públicos | 10/10 | ✅ 15/15 = 200 |
+| Endpoints protegidos | 10/10 | ✅ 401/307 correctos |
+| Endpoints autenticados | 10/10 | ✅ 16/16 = 200 (+ 4 esperados 400) |
+| Storefront SSR | 10/10 | ✅ 200 |
+| Protocolos | 10/10 | ✅ 4/4 activos (UCP, ACP, A2A, MCP) |
+| Security headers | 10/10 | ✅ 6/6 presentes |
+| Health | 9/10 | ✅ (chat-service en dev — `ok` en prod) |
+| Metrics | 10/10 | ✅ Formato Prometheus |
+| Documentación | 10/10 | ✅ 7 docs + 21 ADRs + 28 n8n workflows |
+| **OVERALL** | **9.9/10** | ✅ |
+
+> El detalle completo del reporte de QA está en `worklog.md` (sección "QA REPORT — ZIAY v0.3.0"), `RELEASE-NOTES.md` (sección "QA Testing") y `docs/FINAL-REPORT.md` (sección "QA Results").
 
 ---
 

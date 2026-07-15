@@ -945,6 +945,89 @@ code{font-family:var(--mono);font-size:12px;background:var(--bg3);padding:2px 8p
   </div>
 </section>
 
+<!-- ═══ SLIDE 21: RESULTADOS DE QA ═══ -->
+<section class="slide no-overlap" id="s20qa">
+  <span class="slide-num">21 / 30</span>
+  <div class="content-layer">
+    <div class="slide-eyebrow"><span class="dot"></span> Resultados de QA</div>
+    <h1>QA Scorecard 9.9/10 · 964/964 pruebas pasan</h1>
+    <p class="lead">Ronda completa de QA ejecutada sobre ZIAY v0.3.0 antes de liberación. La única décima perdida: <code>health = warning</code> en dev (chat-service no corre — se resuelve a <code>ok</code> en producción).</p>
+    <div class="grid grid-4 mt-6" style="margin-bottom:24px">
+      <div class="card" style="text-align:center;border-color:rgba(16,185,129,0.25)">
+        <div style="font-size:32px;font-weight:900;color:var(--green-l)">964</div>
+        <div style="font-size:11px;color:var(--dim);margin-top:4px">Tests pasan</div>
+        <div style="font-size:10px;color:var(--dimmer);margin-top:2px">51 archivos · 0 fallos</div>
+      </div>
+      <div class="card" style="text-align:center;border-color:rgba(16,185,129,0.25)">
+        <div style="font-size:32px;font-weight:900;color:var(--green-l)">9.9/10</div>
+        <div style="font-size:11px;color:var(--dim);margin-top:4px">QA Scorecard</div>
+        <div style="font-size:10px;color:var(--dimmer);margin-top:2px">11 dimensiones</div>
+      </div>
+      <div class="card" style="text-align:center;border-color:rgba(16,185,129,0.25)">
+        <div style="font-size:32px;font-weight:900;color:var(--green-l)">15/15</div>
+        <div style="font-size:11px;color:var(--dim);margin-top:4px">Endpoints públicos</div>
+        <div style="font-size:10px;color:var(--dimmer);margin-top:2px">todos = 200 ✅</div>
+      </div>
+      <div class="card" style="text-align:center;border-color:rgba(16,185,129,0.25)">
+        <div style="font-size:32px;font-weight:900;color:var(--green-l)">6/6</div>
+        <div style="font-size:11px;color:var(--dim);margin-top:4px">Security headers</div>
+        <div style="font-size:10px;color:var(--dimmer);margin-top:2px">X-Frame · HSTS · etc.</div>
+      </div>
+    </div>
+    <div class="grid grid-2 mt-6">
+      <div>
+        <h2 style="font-size:20px;font-weight:700;color:var(--green);margin-bottom:12px">Cobertura por categoría</h2>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Categoría</th><th>Tests</th><th>Archivos</th></tr></thead>
+            <tbody>
+              <tr><td>Service tests</td><td style="color:var(--green-l)">289/289</td><td>14</td></tr>
+              <tr><td>Webhook tests</td><td style="color:var(--green-l)">175/175</td><td>10</td></tr>
+              <tr><td>AI agent tests</td><td style="color:var(--green-l)">167/167</td><td>6</td></tr>
+              <tr><td>Compliance tests</td><td style="color:var(--green-l)">101/101</td><td>5</td></tr>
+              <tr><td>Payment/TOTP/format</td><td style="color:var(--green-l)">93/93</td><td>7</td></tr>
+              <tr><td>Security middleware</td><td style="color:var(--green-l)">85/85</td><td>7</td></tr>
+              <tr><td>Integration tests</td><td style="color:var(--green-l)">72/72</td><td>4</td></tr>
+              <tr><td>E2E Playwright</td><td style="color:var(--green-l)">7 files</td><td>7</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div>
+        <h2 style="font-size:20px;font-weight:700;color:var(--green);margin-bottom:12px">Scorecard por dimensión</h2>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Dimensión</th><th>Score</th><th>Estado</th></tr></thead>
+            <tbody>
+              <tr><td>Build</td><td>10/10</td><td><span class="badge badge-green">✅ 32.4s</span></td></tr>
+              <tr><td>Tests</td><td>10/10</td><td><span class="badge badge-green">✅ 964/964</span></td></tr>
+              <tr><td>Endpoints públicos</td><td>10/10</td><td><span class="badge badge-green">✅ 15/15</span></td></tr>
+              <tr><td>Endpoints protegidos</td><td>10/10</td><td><span class="badge badge-green">✅ 401/307</span></td></tr>
+              <tr><td>Endpoints autenticados</td><td>10/10</td><td><span class="badge badge-green">✅ 20/20</span></td></tr>
+              <tr><td>Storefront SSR</td><td>10/10</td><td><span class="badge badge-green">✅ 200</span></td></tr>
+              <tr><td>Protocolos</td><td>10/10</td><td><span class="badge badge-green">✅ UCP/ACP/A2A/MCP</span></td></tr>
+              <tr><td>Security headers</td><td>10/10</td><td><span class="badge badge-green">✅ 6/6</span></td></tr>
+              <tr><td>Health</td><td>9/10</td><td><span class="badge badge-amber">⚠️ chat-service dev</span></td></tr>
+              <tr><td>Metrics</td><td>10/10</td><td><span class="badge badge-green">✅ Prometheus</span></td></tr>
+              <tr><td>Documentación</td><td>10/10</td><td><span class="badge badge-green">✅ 7+21+28</span></td></tr>
+              <tr style="background:rgba(16,185,129,0.08)"><td><strong>OVERALL</strong></td><td><strong style="color:var(--green-l)">9.9/10</strong></td><td><span class="badge badge-green">✅ Ready</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div style="margin-top:20px;padding:14px 18px;background:var(--bg-card);border:1px solid rgba(16,185,129,0.2);border-radius:8px">
+      <div style="font-size:13px;color:var(--dim);line-height:1.6">
+        <strong style="color:var(--green-l)">Build:</strong> Lint 0 err/35 warnings (legacy) · TSC 0 err · Redocly 0 err · Prisma schema válido · 28/28 n8n workflows válidos ·
+        <strong style="color:var(--green-l)">Operación:</strong> Prometheus DB=1 tenants=5 · PWA completo (manifest+SW+icon+OG) ·
+        <strong style="color:var(--green-l)">A11y:</strong> skip-link + h1 sr-only + role=alert (12 vistas) + 93 aria-labels ·
+        <strong style="color:var(--green-l)">Dark mode:</strong> 179 clases dark: · enableSystem=true ·
+        <strong style="color:var(--green-l)">Code quality:</strong> 3 any (comentarios) · 0 @ts-ignore · .env no en git · 155 requireTenantAccess · 91 Zod schemas
+      </div>
+    </div>
+  </div>
+</section>
+
 <!-- ═══ SLIDE 21: MÉTRICAS + CIERRE ═══ -->
 <section class="slide cover no-overlap" id="s21">
   <div class="content-layer" style="display:flex;flex-direction:column;align-items:center">

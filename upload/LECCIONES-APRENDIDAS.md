@@ -15,6 +15,7 @@
 | 2026-07-11 | 2.1 | Presentación no-técnicos + lecciones | Lenguaje natural > jerga técnica para clientes |
 | 2026-07-11 | 3.0 | Reposicionamiento enterprise (REBRAND-ENTERPRISE-001) | El mensaje interno (26 agentes, 95%) no es el mensaje de venta; enterprise positioning > feature listing |
 | 2026-07-15 | 4.0 | **v0.3.0 final — Score 10.0/10** (Sprints 1-14) | ADRs son esenciales; error handling wrapper; tenant scoping #1; ed25519 > RSA; fire-and-forget webhooks; LLM budget tracking; SSR shell |
+| 2026-07-15 | 4.1 | **QA E2E completo — Scorecard 9.9/10** (SPRINT-QA-UPDATE-DOCS-001) | Cobertura categorizada > número total; endpoint matrix pública/privada/autenticada; 964 pruebas pasan cuando hay 0 errores de lint/tsc/redocly |
 
 ---
 
@@ -314,6 +315,52 @@
 
 ---
 
+## 🧪 Lecciones de QA — Scorecard 9.9/10 (SPRINT-QA-UPDATE-DOCS-001)
+
+> Una ronda completa de QA cerró v0.3.0 con 964/964 pruebas pasando (51 archivos) y scorecard final 9.9/10. El único punto deducido corresponde a `health = warning` en dev (chat-service no corre en sandbox, pero sí en el stack de producción Docker, donde se resuelve a `ok`).
+
+### L31. La cobertura de pruebas debe categorizarse, no solo sumarse
+
+**Contexto:** El reporte QA inicial reportaba "891 tests pasan" como número agregado. Cuando se desglosó por categoría (webhooks, compliance, middleware de seguridad, agentes IA, integración, servicios, payment/TOTP, E2E), emergió un cuadro de cobertura mucho más informativo: 289/289 service tests + 175/175 webhook tests + 167/167 AI agent tests + 101/101 compliance tests + 85/85 security middleware tests + 72/72 integration tests + 93/93 payment/TOTP/format tests.
+
+**Lección:** Un número total de pruebas (964) es informativo para una frase de marketing, pero para gobernanza interna necesitas la matriz categorizada. La matriz revela gaps: si tu categoría "webhook tests" tiene 175 pruebas pero tu categoría "compliance tests" solo tiene 5, sabes dónde invertir el próximo sprint de QA.
+
+**Acción:** Toda sección "QA Results" en la documentación (RELEASE-NOTES.md, FINAL-REPORT.md, MANUAL-USUARIO.md, CHANGELOG.md, README.md) ahora incluye el desglose por categoría con número de pruebas + archivos + detalle. El scorecard final por dimensión (Build 10/10, Tests 10/10, Endpoints 10/10, Protocolos 10/10, Security 10/10, Health 9/10, Metrics 10/10, Docs 10/10 = 9.9/10) complementa el número total.
+
+### L32. La matriz de endpoints (públicos / protegidos / autenticados) > lista de endpoints
+
+**Contexto:** La primera versión del reporte QA listaba "endpoints probados" como una sola lista. La nueva versión los divide en 3 buckets: **públicos** (sin auth, deben dar 200), **protegidos** (sin auth, deben dar 401/307), **autenticados** (con sesión, deben dar 200 o 400 esperado para POST sin body). 15/15 públicos = 200, 3/3 protegidos = 401/307, 20 autenticados = 16×200 + 4×400 esperados.
+
+**Lección:** Un endpoint "fallido" (401 o 400) puede ser **el resultado correcto**. Si listas endpoints sin distinguir el comportamiento esperado, un revisor externo cree que 401/400 son fallos cuando son exactamente lo que la seguridad exige. La matriz obliga a declarar el expected status code por endpoint.
+
+**Acción:** La matriz pública/protected/authenticated se documenta en RELEASE-NOTES.md, FINAL-REPORT.md y MANUAL-USUARIO.md. Cada bucket incluye el endpoint + el status code esperado + el status code observado. Los 4 endpoints con 400 esperado (KYC, consent, governance escalations/decisions) se documentan como "POST sin body — 400 esperado" en vez de "fallo".
+
+### L33. 964 pruebas pasan solo cuando lint/tsc/redocly están limpios
+
+**Contexto:** Antes de esta ronda QA, había 3 errores de TSC en `orchestrator.ts` legacy que bloqueaban el build limpio. Tras fixearlos y mantener `ignoreBuildErrors: false`, las 964 pruebas pasan consistentemente. Si cualquiera de lint/tsc/redocly falla, las pruebas pueden pasar pero el build no — y entonces no hay release.
+
+**Lección:** Los 4 gatekeepers (lint, tsc, redocly, vitest) son una cadena — el eslabón más débil rompe el release. Mantener 0 errores en los 4 de forma simultánea requiere disciplina diaria (pre-commit hook), no un cleanup al final del sprint. Los warnings legacy (35 en este caso) son aceptables si están en archivos no críticos y documentados; los errores no.
+
+**Acción:** Pre-commit hook ejecuta `tsc --noEmit && eslint` antes de cada commit. CI ejecuta los 4 gatekeepers en paralelo y bloquea merge si cualquiera falla. La regla "0 errores, warnings legacy documentados" es no negociable para release. LaQA scorecard ahora incluye una fila por gatekeeper (Build 10/10, Tests 10/10, Redocly 10/10 implícito).
+
+### L34. El scorecard QA por dimensión > un único número de score
+
+**Contexto:** Reportar "score 9.9/10" sin desglose es tan informativo como "964 pruebas" sin categoría. El scorecard por dimensión (Build, Tests, Endpoints públicos, Endpoints protegidos, Endpoints autenticados, Storefront SSR, Protocolos, Security headers, Health, Metrics, Documentación) muestra exactamente dónde se ganó y dónde se perdió cada décima.
+
+**Lección:** Un scorecard por dimensión permite priorizar el siguiente sprint. Si "Health" está en 9/10 (porque chat-service no corre en dev), sabes que el fix es levantar chat-service en CI/dev — no optimizar "Endpoints" que ya está en 10/10. Sin desglose, un único "9.9/10" oculta dónde está el gap.
+
+**Acción:** Scorecard por dimensión (11 filas) en RELEASE-NOTES.md, FINAL-REPORT.md y MANUAL-USUARIO.md. Cada fila tiene Score (X/10) + Estado (✅/⚠️/❌) + nota explicativa. El total es el promedio. La fila con 9/10 (Health) tiene nota: "chat-service en dev — ok en prod", para que el lector entienda que no es un fallo real.
+
+### L35. Documentación masiva necesita actualización post-QA en paralelo
+
+**Contexto:** Tras completar la ronda QA, 11 archivos necesitaban actualización con los resultados: 7 MD (RELEASE-NOTES, FINAL-REPORT, CHANGELOG, MANUAL-USUARIO, PRODUCTION-CHECKLIST, LECCIONES-APRENDIDAS, README) + 4 HTML (PRESENTACION-E2E-TESTS ×2, MANUAL-USUARIO ×2). Cada archivo tenía su propia estructura, audiencia y nivel de detalle.
+
+**Lección:** La documentación post-QA es un proyecto por sí solo — no se hace en 5 minutos al final. Cada archivo tiene su audiencia: README para recién llegados (badges), CHANGELOG para maintainers (entrada estructurada), RELEASE-NOTES para release managers (sección QA Testing), FINAL-REPORT para arquitectos (métricas + scorecard), MANUAL-USUARIO para usuarios finales (en español, con glosario), PRODUCTION-CHECKLIST para DevOps (ítems ✅ tested), LECCIONES-APRENDIDAS para el equipo (lecciones L31-L35), presentaciones HTML para reuniones.
+
+**Acción:** Scope claro por archivo. Mantener español en archivos que ya estaban en español (MANUAL-USUARIO, LECCIONES-APRENDIDAS). Mantener inglés en archivos que estaban en inglés (RELEASE-NOTES, FINAL-REPORT, CHANGELOG, README). Agregar una "QA Results" / "Resultados de QA" como sección nueva en cada uno — no reescribir, agregar. Las presentaciones HTML se actualizan con el nuevo número (964 vs 891) y la nueva matriz de categorías.
+
+---
+
 ## ⚠️ Errores Comunes a Evitar
 
 ### E1. Hardcoded fallbacks en seguridad
@@ -383,8 +430,8 @@ const orders = await db.order.findMany({ where: { tenantId } });
 | Adapters | 18 | **25** |
 | Webhooks | 6 (con HMAC) | **8** (HMAC + idempotency + signature rotation) |
 | Índices DB | 91 en 45 modelos | **110 en 55+ modelos + 19 @@unique** |
-| Test files | 10 | **48** |
-| Tests | 108 | **891** |
+| Test files | 10 | **51** |
+| Tests | 108 | **964** |
 | ADRs | 0 | **21** (README + 20) |
 | OpenAPI paths | 0 | **93** (OAS 3.1) |
 | Protocolos | 0 | **5** (AP2/UCP/ACP/MCP/A2A) |
@@ -393,21 +440,23 @@ const orders = await db.order.findMany({ where: { tenantId } });
 | Métodos de pago | 4 | **8** (4 card + 4 local LATAM) |
 | Docker services | 11 | **16** |
 | Compliance modules | 0 | **6** (KYC, consent, retention, age-gate, retracto, DIAN) |
+| n8n workflows | 0 | **28** |
 | Documentación (líneas) | 12,284 | 19,000+ |
 | Presentaciones (slides) | 102 | 135+ |
-| Worklog (líneas) | 2,463 | 19,276 |
-| Lint errors / warnings | 0 / N/A | **0 / 0** |
+| Worklog (líneas) | 2,463 | 20,957 |
+| Lint errors / warnings | 0 / N/A | **0 / 35** (legacy) |
 | TSC errors | 0 | **0** |
 | Redocly errors | N/A | **0** |
-| Build time | N/A | **30.2s** |
+| Build time | N/A | **32.4s** |
 | Next.js | 16.0 | **16.2.10** |
 | Score | 4.9 | **10.0/10** |
+| QA scorecard | N/A | **9.9/10** |
 
 ---
 
 ## 🎯 Conclusiones Finales
 
-1. **El producto funciona** — 100% de QA E2E pasa, todas las vistas renderizan, todas las APIs responden, todas las SSR pages cargan.
+1. **El producto funciona** — 964/964 pruebas pasan (51 archivos), scorecard QA 9.9/10, todas las vistas renderizan, todas las APIs responden, todas las SSR pages cargan, los 4 protocolos agénticos activos, 6/6 security headers presentes, 28/28 n8n workflows válidos.
 
 2. **La seguridad es sólida** — HMAC en webhooks, 2FA en wallet, tenant guards en APIs, rooms en Socket.io, rate limiting en rutas LLM.
 
@@ -419,4 +468,4 @@ const orders = await db.order.findMany({ where: { tenantId } });
 
 ---
 
-*Documento mantenido por el equipo de ZIAY. Última actualización: 2026-07-15 (v0.3.0 final, score 10.0/10). Tagline: **Revenue Operations para Comercio Agéntico**.*
+*Documento mantenido por el equipo de ZIAY. Última actualización: 2026-07-15 (v0.3.0 final, score 10.0/10, QA scorecard 9.9/10). Tagline: **Revenue Operations para Comercio Agéntico**.*

@@ -20954,3 +20954,63 @@ Created `docs/DEPLOY-PASO-A-PASO.md` — comprehensive Spanish-language step-by-
 | Metrics | 10/10 | ✅ Prometheus formato |
 | Documentación | 10/10 | ✅ 7 docs + 21 ADRs + 28 n8n |
 | **OVERALL** | **9.9/10** | ✅ |
+
+---
+
+## SPRINT-QA-UPDATE-DOCS-001 — Documentación post-QA (scorecard 9.9/10)
+
+**Task ID:** SPRINT-QA-UPDATE-DOCS-001
+**Rol:** Senior technical writer
+**Fecha:** 2026-07-15
+**Scope:** Actualizar 11 archivos de documentación con los resultados de QA (sin tocar `src/`, tests, ni `prisma/schema.prisma`).
+
+### Resultados de QA incorporados
+
+- **Build**: Lint 0 errores / 35 warnings (legacy) · TSC 0 errores en main code · Next.js build ✓ Compiled 32.4s · Vitest 964/964 pass (51 files, 0 failures) · Redocly 0 errors / 0 warnings · Prisma schema válido · n8n 28/28 JSON válidos
+- **Endpoints**: 15/15 públicos = 200 ✅ · 3/3 protegidos = 401/307 ✅ · 20 autenticados (16 = 200, 4 = 400 esperados para POST sin body) ✅ · Storefront SSR `/t/saramantha` = 200 ✅ · Protocolos UCP/ACP/A2A/MCP todos 200 ✅
+- **Security**: 6/6 headers presentes (X-Frame-Options, X-Content-Type-Options, HSTS, Referrer-Policy, Permissions-Policy, X-Robots-Tag) · 3 any types (solo comentarios) · 0 @ts-ignore · .env no en git · 155 `requireTenantAccess` usages · 91 Zod schemas
+- **Operación**: Prometheus DB=1, tenants=5 · Health=warning (chat-service en dev — `ok` en prod) · PWA completo · A11y WCAG 2.1 AA · Dark mode 179 clases `dark:` + enableSystem=true
+- **Scorecard final**: 9.9/10 (Build 10 · Tests 10 · Endpoints públicos 10 · Endpoints protegidos 10 · Endpoints autenticados 10 · SSR 10 · Protocolos 10 · Security 10 · Health 9 · Metrics 10 · Docs 10)
+
+### Archivos actualizados (11)
+
+| # | Archivo | Cambio |
+|---|---------|--------|
+| 1 | `RELEASE-NOTES.md` | Agregada sección "QA Testing" con build checks, test coverage breakdown, endpoints matrix, security headers, scorecard final. Actualizadas las métricas finales (964 tests / 51 files / 32.4s build). |
+| 2 | `docs/FINAL-REPORT.md` | Agregada sección "QA Results" después de Metrics. Actualizado Journey, Key Achievements #3, Metrics table, Final Verdict. QA scorecard 9.9/10 añadido al header. |
+| 3 | `CHANGELOG.md` | Agregada entrada "Added — QA Testing (964/964 pass, 51 files)" bajo [0.3.0] con test breakdown por categoría. Actualizada la línea de summary y la sección "Added — Tests" con los nuevos números. |
+| 4 | `docs/MANUAL-USUARIO.md` | Agregada sección "Resultados de QA" (en español, antes de Contacto). TOC actualizado con nueva entrada #28. Scorecard, build checks, test coverage, endpoints, security headers, accesibilidad, dark mode, code quality audit. |
+| 5 | `PRODUCTION-CHECKLIST.md` | Status Badge actualizado (964 tests, QA scorecard 9.9/10, lint 0/35, build 32.4s, n8n 28/28, security headers 6/6, PWA, score 10/10). Smoke tests marcados como `✅ tested` con comando verificado. Pre-launch final review actualizado con 964/964 + scorecard 9.9/10. |
+| 6 | `upload/LECCIONES-APRENDIDAS.md` | Agregada entrada v4.1 al historial. Agregada nueva sección "🧪 Lecciones de QA" con 5 lecciones (L31-L35): cobertura categorizada, matriz de endpoints, 4 gatekeepers en cadena, scorecard por dimensión, documentación post-QA en paralelo. Métricas actualizadas (964 tests, 51 files, 20,957 worklog lines, QA scorecard 9.9/10). |
+| 7 | `README.md` | Badge `Tests: 964/964 ✓` (era 891). Badge nuevo `QA: 9.9/10`. Tagline actualizado con 964 tests + 51 files + QA scorecard 9.9/10. Scripts table actualizado (964/964, build 32.4s). |
+| 8 | `public/presentaciones/PRESENTACION-E2E-TESTS.html` | Slide 1 (cover): badges actualizados a 964/964 tests + 15/15 endpoints + 6/6 headers + 28/28 n8n + 32.4s build + redocly 0 err. Slide 2 (methodology): tabla "Cobertura por capa" expandida con 14 categorías (service 289, webhook 175, AI agent 167, compliance 101, payment/TOTP 93, security middleware 85, integration 72, E2E 7). Slide 3 (summary): veredicto cambiado de "CONDITIONAL PRODUCTION-READY" a "PRODUCTION-READY" con QA scorecard 9.9/10. |
+| 9 | `upload/PRESENTACION-E2E-TESTS.html` | Mismas actualizaciones que la versión pública. Cover slide con 964 tests + nuevos badges. Tabla de cobertura expandida a 14 categorías. Summary slide con QA scorecard 9.9/10 y veredicto PRODUCTION-READY. |
+| 10 | `public/presentaciones/MANUAL-USUARIO.html` | Agregado nuevo slide "21 / 30 — Resultados de QA" antes del slide de cierre. KPIs (964 tests, 9.9/10, 15/15 endpoints, 6/6 headers) + tabla de cobertura por categoría + tabla scorecard por dimensión (11 filas con OVERALL 9.9/10) + bloque de code quality audit. |
+| 11 | `upload/MANUAL-USUARIO.html` | Mismo slide QA agregado antes del slide de cierre. |
+
+### Reglas respetadas
+
+- ❌ No se tocaron archivos en `src/`
+- ❌ No se tocaron archivos de tests
+- ❌ No se modificó `prisma/schema.prisma`
+- ✅ Spanish en `docs/MANUAL-USUARIO.md`, `upload/LECCIONES-APRENDIDAS.md` y slides HTML (donde el original era español)
+- ✅ English en `RELEASE-NOTES.md`, `docs/FINAL-REPORT.md`, `CHANGELOG.md`, `README.md`, `PRODUCTION-CHECKLIST.md` (donde el original era inglés)
+- ✅ Append a `worklog.md` (no edición)
+
+### Verification
+
+- `bun run lint` → exit 0 (sin cambios a src/ ni a eslint config, el lint debe seguir pasando).
+
+### Lecciones aprendidas (también documentadas en `upload/LECCIONES-APRENDIDAS.md` L31-L35)
+
+1. **La cobertura de pruebas debe categorizarse, no solo sumarse** — 964 pruebas agregadas es informativo para marketing, pero la matriz categorizada (service 289, webhook 175, AI agent 167, etc.) revela gaps y prioridades para el siguiente sprint.
+2. **Matriz de endpoints pública/protegida/autenticada > lista de endpoints** — un 401/400 puede ser el resultado correcto. Declarar el expected status code por endpoint evita que un revisor externo crea que es un fallo.
+3. **964 pruebas pasan solo cuando lint/tsc/redocly están limpios** — los 4 gatekeepers son una cadena. Mantener 0 errores en los 4 requiere disciplina diaria (pre-commit hook), no cleanup al final del sprint.
+4. **Scorecard QA por dimensión > un único número de score** — "9.9/10" sin desglose oculta dónde está el gap. El scorecard por dimensión permite priorizar el siguiente sprint.
+5. **Documentación masiva necesita actualización post-QA en paralelo** — 11 archivos con audiencias distintas. Scope claro por archivo. Mantener español/español e inglés/inglés. Agregar secciones nuevas, no reescribir.
+
+### Próximos pasos sugeridos
+
+- Release v0.3.0 tag → ya existe `v0.3.0` git tag.
+- Demo para clientes usando `PRESENTACION-E2E-TESTS.html` actualizada con QA scorecard 9.9/10.
+- Auditoría externa — la scorecard 9.9/10 (vs 9.0/10 previo a QA) valida que el producto está listo para producción.

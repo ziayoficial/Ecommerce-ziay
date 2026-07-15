@@ -2,7 +2,8 @@
 
 [![Status: v0.3.0](https://img.shields.io/badge/status-v0.3.0-22c55e.svg)](RELEASE-NOTES.md)
 [![Score: 10.0/10](https://img.shields.io/badge/score-10.0%2F10-brightgreen.svg)](docs/FINAL-REPORT.md)
-[![Tests: 891](https://img.shields.io/badge/tests-891%20%E2%9C%93-blue.svg)](CHANGELOG.md)
+[![Tests: 964/964 ✓](https://img.shields.io/badge/tests-964%2F964%20%E2%9C%93-blue.svg)](CHANGELOG.md)
+[![QA: 9.9/10](https://img.shields.io/badge/QA-9.9%2F10-brightgreen.svg)](RELEASE-NOTES.md)
 [![Lint: 0](https://img.shields.io/badge/lint-0%20warnings-success.svg)](PRODUCTION-CHECKLIST.md)
 
 Plataforma de comercio agéntico para LATAM. WhatsApp, Messenger, Instagram con atribución de pauta, agentes IA y compliance regulatorio Colombia.
@@ -32,7 +33,7 @@ Open http://localhost:3000/login and use the demo credentials:
 - **Agent:** camila@saramantha.co / demo123
 - **Trafficker:** sebastian@trafficker.co / demo123
 
-> v0.3.0 ships 71 Prisma models, 94 API routes, 891 tests (48 files), 21 ADRs, 5 agentic commerce protocols (AP2/UCP/ACP/MCP/A2A), 7 currencies, 4 locales, 8 payment methods, 16 Docker services, 21 dashboard views, 26 AI agents. Build 30.2s, 0 lint/tsc/redocly errors.
+> v0.3.0 ships 71 Prisma models, 94 API routes, 964 tests (51 files), 21 ADRs, 5 agentic commerce protocols (AP2/UCP/ACP/MCP/A2A), 7 currencies, 4 locales, 8 payment methods, 16 Docker services, 21 dashboard views, 26 AI agents. Build 32.4s, 0 lint/tsc/redocly errors. QA scorecard: 9.9/10 (964/964 tests pass · 15/15 public endpoints 200 · 6/6 security headers · 28/28 n8n workflows valid · 91 Zod schemas).
 
 ## Prerequisites
 
@@ -81,10 +82,10 @@ Open http://localhost:3000/login and use the demo credentials:
 | Command | Description |
 |---------|-------------|
 | `bun run dev` | Start dev server (port 3000) |
-| `bun run build` | Production build (30.2s, standalone) |
+| `bun run build` | Production build (32.4s, standalone) |
 | `bun run start` | Start production server |
 | `bun run lint` | ESLint check (0 warnings) |
-| `bun run test` | Run unit + integration tests (891/891 ✓) |
+| `bun run test` | Run unit + integration tests (964/964 ✓) |
 | `bun run test:e2e` | Run E2E tests (Playwright) |
 | `bun run db:push` | Push schema to database |
 | `bun run db:seed` | Seed demo data |

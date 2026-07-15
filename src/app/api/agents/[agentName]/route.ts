@@ -9,6 +9,9 @@ import { chat, type LLMChatResult } from '@/lib/llm/adapter'
 // FIX-AI-AGENTS-001 — defensas y validación de salida para los 26 agentes.
 import { parseAgentOutput, hasOutputSchema } from '@/lib/agents/schemas'
 import { wrapUserInput, ANTI_INJECTION_PREFIX } from '@/lib/agents/sanitize'
+// SPRINT-GUIA-COMPORTAMIENTO-001 — validación de reglas NUNCA en el output.
+// Si el LLM viola una regla, se registra en DecisionLog y se baja la confidence.
+import { validateOutput } from '@/lib/agents/rules'
 // SPRINT-AI-AGENTS-003 §3 — check de presupuesto diario por tenant antes
 // de la llamada LLM. Si el tenant excedió su budget, se rechaza con 429.
 import { checkBudgetBeforeCall } from '@/lib/llm/budget'
@@ -29,6 +32,7 @@ import { sanitizeParsed } from '@/lib/middleware/sanitize'
 // (tenant findUnique, conversation update, imageIdentification create,
 // decisionLog create) live in the service.
 import { agentsService } from '@/lib/services'
+import { logger } from '@/lib/logger'
 
 // FIX-AI-AGENTS-001 §A-3 — tabla de fallbacks movida a module-scope para
 // que sea accesible tanto del bloque try (cuando la validación de salida
@@ -244,6 +248,18 @@ export const POST = withErrorHandling(
     } else {
       // Agente de texto libre — no hay esquema, se entrega el reply tal cual.
       confidence = 0.6
+    }
+
+    // SPRINT-GUIA-COMPORTAMIENTO-001 — validar que el output cumple las
+    // reglas NUNCA. Si hay violaciones, bajar confidence y registrar.
+    const ruleViolations = validateOutput(finalReply)
+    if (ruleViolations.length > 0) {
+      // El LLM violó al menos una regla NUNCA — penalizar confidence
+      confidence = Math.min(confidence, 0.4)
+      logger.warn(
+        { agentName, violations: ruleViolations.map(v => v.id), tenantId: ctx.tenantId },
+        'Agent output violated NUNCA rules'
+      )
     }
 
     // Side-effects per agent (preservados del comportamiento existente).

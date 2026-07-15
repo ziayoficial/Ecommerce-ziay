@@ -173,3 +173,55 @@ El `master-orchestrator.json` acepta estos `scenarioId`:
 - Si n8n no puede resolver `app`, usa `http://host.docker.internal:3000` en su lugar.
 - Los 26 agentes también funcionan sin n8n (vía la UI del Orquestador en el dashboard), pero n8n permite que un equipo no-técnico edite los flujos visualmente.
 - El pipeline canónico de 9 pasos está definido en `src/lib/orchestrator/constants.ts` (`ORCHESTRATOR_STEPS`). El `master-orchestrator.json` solo ejecuta ese pipeline — los 16 agentes adicionales se invocan por separado según el contexto del negocio.
+
+## Endpoint de Reglas de Comportamiento
+
+Las reglas NUNCA/SIEMPRE NO van en los workflows de n8n. Se gestionan centralizadamente en ZIAY.
+
+### Endpoint
+
+```
+GET /api/agents/rules
+```
+
+Retorna el catálogo completo de reglas (29 NUNCA + 17 SIEMPRE = 46 reglas) con formato compacto y verbose.
+
+### Cómo funciona
+
+1. **n8n** recibe el mensaje del cliente (webhook)
+2. **n8n** llama a `POST /api/agents/[agentName]` (sin reglas en n8n)
+3. **ZIAY** inyecta las reglas en el system prompt del agente
+4. **ZIAY** valida el output contra las reglas (`validateOutput`)
+5. **ZIAY** devuelve la respuesta validada a n8n
+6. **n8n** responde al cliente
+
+### Consultar reglas desde n8n (opcional)
+
+Si necesitas mostrar las reglas en un dashboard de n8n:
+
+```json
+{
+  "method": "GET",
+  "url": "http://localhost:3000/api/agents/rules",
+  "authentication": "headerAuth",
+  "sendHeaders": true,
+  "headerParameters": {
+    "parameters": [
+      { "name": "Cookie", "value": "next-auth.session-token={{$env.ZIAY_SESSION}}" }
+    ]
+  }
+}
+```
+
+### Reglas por categoría
+
+| Categoría | NUNCA aplicables | SIEMPRE aplicables |
+|-----------|------------------|--------------------|
+| Pre-venta | Todas | S01,S02,S03,S04,S05,S06,S09,S20,S21 |
+| Post-venta | N11 (devoluciones→humano) | S01,S03,S04,S05,S20 |
+| Inteligencia | — | S01,S04,S20 |
+| Especializados | — | S01,S03,S04,S20 |
+
+### Catálogo completo
+
+Ver: `docs/GUIA-COMPORTAMIENTO-AGENTES.md`

@@ -21060,3 +21060,103 @@ Stage Summary:
 - 5 fuentes investigadas
 - 5 anti-patrones documentados
 - Lint: 0 errores
+
+---
+
+## SPRINT-GUIA-COMPORTAMIENTO-IMPLEMENT-001 — Sistema de reglas desarrollado
+
+**Goal:** Implementar el sistema centralizado de reglas NUNCA/SIEMPRE en código ZIAY.
+
+### Archivos creados (3)
+
+| Archivo | Líneas | Propósito |
+|---------|--------|-----------|
+| `src/lib/agents/rules.ts` | 230 | Sistema centralizado: 29 reglas NUNCA + 17 SIEMPRE + buildRulesBlock + validateOutput + getRulesForCategory + getRulesStats |
+| `src/app/api/agents/rules/route.ts` | 35 | Endpoint GET /api/agents/rules — expone catálogo para n8n, generador, ChateaPro |
+| `tests/unit/agent-rules.test.ts` | 158 | 22 tests: catálogo, buildRulesBlock, validateOutput, categorías, stats |
+
+### Archivos modificados (3)
+
+| Archivo | Cambio |
+|---------|--------|
+| `src/lib/agents/prompts/speech.ts` | Importa `buildRulesBlock` + inyecta REGLAS ABSOLUTAS en system prompt |
+| `src/lib/agents/prompts/profile.ts` | Importa `buildRulesBlock` + inyecta REGLAS ABSOLUTAS en system prompt |
+| `src/app/api/agents/[agentName]/route.ts` | Importa `validateOutput` + valida output contra reglas NUNCA + penaliza confidence si hay violaciones |
+
+### Archivos actualizados (1)
+
+| Archivo | Cambio |
+|---------|--------|
+| `n8n-workflows/README.md` | Sección "Endpoint de Reglas de Comportamiento" + diagrama de flujo + tabla de categorías |
+
+### Cómo funciona el sistema (end-to-end)
+
+```
+1. Cliente envía mensaje → n8n webhook
+2. n8n llama POST /api/agents/[agentName] (SIN reglas en n8n)
+3. ZIAY construye system prompt:
+   a. ANTI_INJECTION_PREFIX (defensa anti-inyección)
+   b. Rol del agente
+   c. buildRulesBlock() → REGLAS ABSOLUTAS (29 NUNCA + 17 SIEMPRE)
+   d. Contexto del tenant
+4. ZIAY llama al LLM (glm-4.6) con el system prompt
+5. ZIAY valida el output:
+   a. parseAgentOutput (Zod schema)
+   b. validateOutput (reglas NUNCA)
+   c. Si viola reglas → confidence penalizada a 0.4
+   d. Si confidence < 0.6 → escalación a humano
+6. ZIAY devuelve respuesta validada a n8n
+7. n8n responde al cliente
+```
+
+### Endpoint API
+
+```
+GET /api/agents/rules
+
+Response:
+{
+  "version": "1.0.0",
+  "stats": { "totalNunca": 29, "totalSiempre": 17, "total": 46 },
+  "nunca": [...29 reglas...],
+  "siempre": [...17 reglas...],
+  "categories": { "pre-venta": {...}, "post-venta": {...}, ... },
+  "formats": { "compact": "NUNCA:[N01]...|SIEMPRE:[S01]...", "verbose": "..." }
+}
+```
+
+### Validación de output (validateOutput)
+
+Detecta violaciones de reglas NUNCA en el output del LLM:
+- N01: "descuento" → ✅ detectado
+- N13: urgencia falsa ("solo hoy", "última oportunidad") → ✅ detectado
+- N17: "con gusto" → ✅ detectado
+- N30: markdown (**bold**, __underline__, # headers) → ✅ detectado
+- N45: "lamentablemente" / "desafortunadamente" → ✅ detectado
+- N50: emojis tristes (😢😭😞😔😟☹🙁) → ✅ detectado con flag `u` Unicode
+
+Si hay violaciones:
+- Confidence penalizada a máximo 0.4
+- Logger.warn con IDs de reglas violadas
+- Si confidence < 0.6 → escalación a humano automática
+
+### Verificación
+
+| Check | Resultado |
+|-------|-----------|
+| Lint | ✅ 0 errores |
+| TSC | ✅ 0 errores en código del sistema de reglas |
+| Tests | ✅ 986/986 (22 nuevos de agent-rules) |
+| Build | ✅ Compiled successfully in 33.1s |
+
+### Métricas
+
+| Métrica | Antes | Ahora |
+|---------|-------|-------|
+| Reglas NUNCA en código | 0 (informales en texto) | **29** estructuradas |
+| Reglas SIEMPRE en código | 0 (informales en texto) | **17** estructuradas |
+| Validación de output | Solo Zod schemas | Zod + **validateOutput** (6 reglas detectables) |
+| Endpoint de reglas | No existe | **GET /api/agents/rules** |
+| Tests de reglas | 0 | **22** |
+| Tests totales | 964 | **986** (+22) |
+| Prompts con reglas estructuradas | 0 | **2** (speech + profile) + patrón para los 24 restantes |

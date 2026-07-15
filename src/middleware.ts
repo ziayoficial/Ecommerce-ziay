@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getToken } from 'next-auth/jwt'
+// SPRINT-HARDENING-FINAL-001 · §2 + §4 — CORS preflight/headers + CSRF
+// Origin check. Both modules are Edge-safe (only import `next/server`).
+import { handlePreflight, setCorsHeaders } from '@/lib/middleware/cors'
+import { checkCSRF } from '@/lib/middleware/csrf'
 
 // ───────────────────────────────────────────────────────────────────────────
 // NextAuth JWT secret — resolved inline (NOT imported from @/lib/auth) because
@@ -167,9 +171,68 @@ function checkRateLimit(ip: string): boolean {
   return entry.count <= RATE_LIMIT_MAX
 }
 
+// ───────────────────────────────────────────────────────────────────────────
+// SPRINT-HARDENING-FINAL-001 · §3 — Stricter rate limit for auth endpoints.
+//
+// Brute-force protection on /api/auth/callback/credentials (NextAuth's
+// credentials provider POST) + /api/auth/signin + /api/auth/signup. The
+// global 60/min/IP limit is too generous for login attempts — 5/min/IP
+// still lets a forgetful user retry ~5 times in a minute, but blocks a
+// 10k-password dictionary attack (which would otherwise arrive as 60
+// req/min/IP × N IPs).
+//
+// Separate Map (namespaced `auth:`) so a flooded auth endpoint doesn't
+// exhaust the same bucket as legitimate API calls from the same IP.
+// ───────────────────────────────────────────────────────────────────────────
+
+const AUTH_RATE_LIMIT_MAP = new Map<string, RateLimitEntry>()
+const AUTH_RATE_LIMIT_MAX = 5 // 5 req per minute per IP for auth endpoints
+const AUTH_RATE_LIMIT_WINDOW = 60_000
+
+/**
+ * Auth-specific rate limit. Returns `null` if allowed, a 429 NextResponse
+ * if exceeded. Same in-memory + lazy-GC pattern as `checkRateLimit` but
+ * with stricter limits and a separate Map.
+ */
+function checkAuthRateLimit(ip: string): NextResponse | null {
+  const now = Date.now()
+  const entry = AUTH_RATE_LIMIT_MAP.get(ip)
+  if (!entry || entry.resetAt < now) {
+    AUTH_RATE_LIMIT_MAP.set(ip, { count: 1, resetAt: now + AUTH_RATE_LIMIT_WINDOW })
+    return null
+  }
+  entry.count++
+  if (entry.count <= AUTH_RATE_LIMIT_MAX) return null
+
+  const retryAfter = Math.ceil((entry.resetAt - now) / 1000)
+  return NextResponse.json(
+    { error: 'Demasiados intentos de autenticación', retry_after: retryAfter },
+    {
+      status: 429,
+      headers: {
+        'Retry-After': String(Math.max(retryAfter, 1)),
+        'X-RateLimit-Limit': String(AUTH_RATE_LIMIT_MAX),
+        'X-RateLimit-Remaining': '0',
+      },
+    },
+  )
+}
+
+/**
+ * Auth endpoint paths that get the stricter 5/min/IP limit. Use `startsWith`
+ * so nested paths (e.g. `/api/auth/callback/credentials`) are covered.
+ */
+const AUTH_RATE_LIMIT_PATHS = [
+  '/api/auth/callback/credentials',
+  '/api/auth/signin',
+  '/api/auth/signup',
+]
+
 /**
  * Opportunistic GC: every ~5 minutes drop stale entries so the Map
- * doesn't grow unbounded for long-running Edge instances.
+ * doesn't grow unbounded for long-running Edge instances. Also GCs the
+ * auth rate-limit Map (SPRINT-HARDENING-FINAL-001 §3) so a flood of
+ * failed logins from one IP doesn't linger in memory forever.
  */
 let lastGcAt = 0
 function gcStaleRateLimitEntries() {
@@ -178,6 +241,9 @@ function gcStaleRateLimitEntries() {
   lastGcAt = now
   for (const [ip, entry] of RATE_LIMIT_MAP) {
     if (entry.resetAt < now) RATE_LIMIT_MAP.delete(ip)
+  }
+  for (const [ip, entry] of AUTH_RATE_LIMIT_MAP) {
+    if (entry.resetAt < now) AUTH_RATE_LIMIT_MAP.delete(ip)
   }
 }
 
@@ -203,6 +269,19 @@ export async function middleware(req: NextRequest) {
   const path = req.nextUrl.pathname
 
   // ────────────────────────────────────────────────────────────────────
+  // SPRINT-HARDENING-FINAL-001 · §2 — CORS preflight.
+  //
+  // Must run BEFORE the auth check: preflight requests don't carry
+  // credentials, so the NextAuth JWT lookup would 401 them and break
+  // the browser's CORS dance. `handlePreflight` returns null for
+  // non-OPTIONS requests.
+  // ────────────────────────────────────────────────────────────────────
+  const preflight = handlePreflight(req)
+  if (preflight) {
+    return addSecurityHeaders(preflight, path)
+  }
+
+  // ────────────────────────────────────────────────────────────────────
   // SEO noindex: `/` and `/login` are client-rendered auth-only routes
   // (no SSR content for crawlers). Both are `'use client'` pages that
   // cannot export `metadata.robots`, so we enforce `noindex, follow` via
@@ -224,7 +303,26 @@ export async function middleware(req: NextRequest) {
     if (wantsNoindex) {
       res.headers.set('X-Robots-Tag', 'noindex, follow')
     }
-    return res
+    // SPRINT-HARDENING-FINAL-001 §2 — apply CORS headers even on public
+    // routes so cross-origin readers (e.g. the chat mini-service) can
+    // fetch /api/health, /api/public/**, etc.
+    return setCorsHeaders(req, res)
+  }
+
+  // ────────────────────────────────────────────────────────────────────
+  // SPRINT-HARDENING-FINAL-001 · §3 — Stricter rate limit for auth
+  // endpoints (5 req/min/IP). Applied BEFORE the JWT lookup so a flood
+  // of failed credentials attempts can't even trigger the (more
+  // expensive) NextAuth verify. The general 60/min/IP API limit below
+  // still applies for the rest of /api/**.
+  // ────────────────────────────────────────────────────────────────────
+  if (AUTH_RATE_LIMIT_PATHS.some(p => path.startsWith(p))) {
+    gcStaleRateLimitEntries()
+    const ip = getClientIp(req)
+    const authLimited = checkAuthRateLimit(ip)
+    if (authLimited) {
+      return addSecurityHeaders(setCorsHeaders(req, authLimited), path)
+    }
   }
 
   // Check for NextAuth JWT token.
@@ -238,21 +336,38 @@ export async function middleware(req: NextRequest) {
     gcStaleRateLimitEntries()
     const ip = getClientIp(req)
     if (!checkRateLimit(ip)) {
-      return addSecurityHeaders(
-        NextResponse.json(
-          { error: 'Too Many Requests', retry_after: 60 },
-          {
-            status: 429,
-            headers: {
-              'Retry-After': '60',
-              'X-RateLimit-Limit': String(RATE_LIMIT_MAX),
-              'X-RateLimit-Remaining': '0',
-            },
+      const limited = NextResponse.json(
+        { error: 'Too Many Requests', retry_after: 60 },
+        {
+          status: 429,
+          headers: {
+            'Retry-After': '60',
+            'X-RateLimit-Limit': String(RATE_LIMIT_MAX),
+            'X-RateLimit-Remaining': '0',
           },
-        ),
-        path,
+        },
       )
+      return addSecurityHeaders(setCorsHeaders(req, limited), path)
     }
+  }
+
+  // ────────────────────────────────────────────────────────────────────
+  // SPRINT-HARDENING-FINAL-001 · §4 — CSRF Origin check.
+  //
+  // Defense-in-depth for non-NextAuth mutation routes. NextAuth already
+  // issues its own double-submit CSRF token for /api/auth/*, so the
+  // Origin check on those routes is redundant (harmless). For other
+  // POST/PATCH/PUT/DELETE routes the Origin/Host equality check blocks
+  // cross-site form submissions that the SameSite=Lax cookie wouldn't
+  // catch (e.g. cross-site fetch with `credentials: 'include'` from a
+  // page that tricked the user into a same-site top-level navigation).
+  //
+  // Applied AFTER the rate-limit so a CSRF flood still gets 429'd before
+  // we burn CPU on the Origin parse.
+  // ────────────────────────────────────────────────────────────────────
+  const csrfError = checkCSRF(req)
+  if (csrfError) {
+    return addSecurityHeaders(setCorsHeaders(req, csrfError), path)
   }
 
   if (token) {
@@ -260,12 +375,13 @@ export async function middleware(req: NextRequest) {
     if (wantsNoindex) {
       res.headers.set('X-Robots-Tag', 'noindex, follow')
     }
-    return res
+    return setCorsHeaders(req, res)
   }
 
   // No token → redirect to login (for pages) or 401 JSON (for APIs).
   if (path.startsWith('/api/')) {
-    return addSecurityHeaders(NextResponse.json({ error: 'Unauthorized' }, { status: 401 }), path)
+    const unauth = NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return addSecurityHeaders(setCorsHeaders(req, unauth), path)
   }
 
   const loginUrl = new URL('/login', req.url)
@@ -274,7 +390,7 @@ export async function middleware(req: NextRequest) {
   if (wantsNoindex) {
     redirectRes.headers.set('X-Robots-Tag', 'noindex, follow')
   }
-  return redirectRes
+  return setCorsHeaders(req, redirectRes)
 }
 
 // ───────────────────────────────────────────────────────────────────────────

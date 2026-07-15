@@ -5,6 +5,9 @@ import { resolveTenantId, requireTenantAccess } from '@/lib/auth-helpers'
 import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 import { conversationService } from '@/lib/services'
 import { emitToTenant } from '@/lib/chat-emit'
+// SPRINT-HARDENING-FINAL-001 · §1 — sanitize user-supplied message body
+// before it reaches the DB / WhatsApp adapter / socket broadcast.
+import { sanitizeParsed } from '@/lib/middleware/sanitize'
 
 // TD-2: Zod schema for conversations POST.
 const SendMessageSchema = z.object({
@@ -123,7 +126,9 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
       { status: 400 },
     )
   }
-  const { conversationId, body: text, direction = 'outbound' } = parseResult.data as {
+  // SPRINT-HARDENING-FINAL-001 §1 — strip null bytes + trim + cap length
+  // AFTER Zod passes (so Zod's `.min(1)` still sees the raw input).
+  const { conversationId, body: text, direction = 'outbound' } = sanitizeParsed(parseResult.data) as {
     conversationId: string
     body: string
     direction?: 'inbound' | 'outbound'

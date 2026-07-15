@@ -25,6 +25,10 @@ import { emitToTenant } from '@/lib/chat-emit'
 // preserved (it implements the §A-3 fallback-reply + DecisionLog
 // persistence + low_confidence emit — business logic, not boilerplate).
 import { withErrorHandling } from '@/lib/middleware/api-error-handler'
+// SPRINT-HARDENING-FINAL-001 · §1 — sanitize conversationId + tone
+// before they reach the DB lookup + the LLM system prompt. Strips
+// null bytes (log-injection) + trims whitespace (DB lookup miss).
+import { sanitizeParsed } from '@/lib/middleware/sanitize'
 
 // TD-2: Zod schema for ai-reply POST.
 const AiReplySchema = z.object({
@@ -81,7 +85,12 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
       { status: 400 },
     )
   }
-  const { conversationId, tone = 'friendly' } = parseResult.data as {
+  // SPRINT-HARDENING-FINAL-001 §1 — strip null bytes + trim AFTER Zod.
+  // The conversationId is used in the db.conversation.findUnique lookup
+  // (whitespace / null bytes would 404 the request); the tone is
+  // interpolated into the LLM system prompt (null bytes would break
+  // pino's JSON log formatter when the prompt is logged for tracing).
+  const { conversationId, tone = 'friendly' } = sanitizeParsed(parseResult.data) as {
     conversationId: string
     tone?: string
   }

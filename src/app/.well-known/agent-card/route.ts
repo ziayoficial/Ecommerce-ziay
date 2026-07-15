@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server'
+import { checkETag } from '@/lib/middleware/etag'
+import { setCacheHeaders } from '@/lib/middleware/cache-headers'
 
 // A2A agent-card — `/.well-known/agent-card.json`
 // Documento §10.1: A2A (Agent-to-Agent) — permite que otros agentes
@@ -11,9 +13,13 @@ import { NextResponse } from 'next/server'
 // idéntico a cualquier agente que lo solicite. Los endpoints referenciados
 // (`/api/ucp/v1/*`, `/api/ap2/mandates`) aplican su propia auth (Bearer o
 // sesión NextAuth).
+//
+// SPRINT-PERFORMANCE-FINAL-001 — added ETag (conditional GET → 304) +
+// `public-long` CDN cache header. See `/.well-known/ucp` for the same
+// treatment + rationale.
 export const dynamic = 'force-static'
 
-export async function GET() {
+export async function GET(req: Request) {
   const card = {
     name: 'ZIAY Commerce Agent',
     description:
@@ -63,11 +69,24 @@ export async function GET() {
       transport: 'http-jsonrpc',
     },
   }
-  return NextResponse.json(card, {
+
+  const { match, etag } = checkETag(req, card)
+  if (match) {
+    return new NextResponse(null, {
+      status: 304,
+      headers: {
+        ETag: etag,
+        'Access-Control-Allow-Origin': '*',
+      },
+    })
+  }
+
+  const response = NextResponse.json(card, {
     headers: {
       'Content-Type': 'application/json',
-      'Cache-Control': 'public, max-age=3600',
       'Access-Control-Allow-Origin': '*',
     },
   })
+  response.headers.set('ETag', etag)
+  return setCacheHeaders(response, 'public-long')
 }

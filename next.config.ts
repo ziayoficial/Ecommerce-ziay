@@ -37,6 +37,32 @@ const nextConfig: NextConfig = {
   experimental: {
     optimizePackageImports: ['lucide-react', '@radix-ui/react-icons', 'recharts'],
   },
+
+  // SPRINT-PERFORMANCE-FINAL-001 — enable next/image optimization for the
+  // external CDNs we actually serve images from. Once this is in place the
+  // `<Image unoptimized />` flags scattered across the storefront + dashboard
+  // can be removed: Next.js will proxy + resize + cache those URLs server-side
+  // and serve them as WebP/AVIF to capable clients. The list below is the
+  // exhaustive set of hostnames the storefront + dashboard <Image> tags ever
+  // point at:
+  //   - images.unsplash.com — placeholder/demo imagery in seed data.
+  //   - **.amazonaws.com — S3-hosted product imagery (most tenants use S3).
+  //   - **.cloudfront.net — CloudFront fronts for the same S3 buckets.
+  //   - **.fbcdn.com / **.scontent.fbcdn.net — user-uploaded WhatsApp media
+  //     (messenger-view + novedades evidencia).
+  //   - graph.facebook.com — Meta CAPI / WhatsApp Business profile pictures.
+  // Adding a hostname here enables sharp-based resizing for it; nothing else
+  // needs to change at the call sites.
+  images: {
+    remotePatterns: [
+      { protocol: 'https', hostname: 'images.unsplash.com' },
+      { protocol: 'https', hostname: '**.amazonaws.com' },
+      { protocol: 'https', hostname: '**.cloudfront.net' },
+      { protocol: 'https', hostname: '**.fbcdn.com' },
+      { protocol: 'https', hostname: '**.scontent.fbcdn.net' },
+      { protocol: 'https', hostname: 'graph.facebook.com' },
+    ],
+  },
 };
 
 // ───────────────────────────────────────────────────────────────────────────

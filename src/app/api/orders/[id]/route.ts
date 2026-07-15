@@ -3,6 +3,9 @@ import { z } from 'zod'
 import { requireAuth } from '@/lib/auth-helpers'
 import { orderService } from '@/lib/services'
 import { withErrorHandling } from '@/lib/middleware/api-error-handler'
+// SPRINT-HARDENING-FINAL-001 · §1 — sanitize the order `note` field
+// (audit-trail string) + free-text status fields before persistence.
+import { sanitizeParsed } from '@/lib/middleware/sanitize'
 
 // TD-2: Zod schema for order PATCH. All fields optional (only those present
 // are applied). `.passthrough()` so unknown keys (e.g. future `note` variants)
@@ -74,7 +77,11 @@ export const PATCH = withErrorHandling(
         { status: 400 },
       )
     }
-    const body = parseResult.data as Record<string, unknown>
+    // SPRINT-HARDENING-FINAL-001 §1 — strip null bytes + trim the `note`
+    // + free-text fields AFTER Zod passes. The `note` lands in the
+    // OrderEvent audit trail (persisted + shown in the dashboard), so
+    // log-injection / XSS sanitization matters here.
+    const body = sanitizeParsed(parseResult.data) as Record<string, unknown>
     const data: Record<string, unknown> = {}
     if (body.status) data.status = body.status
     if (body.paymentStatus) data.paymentStatus = body.paymentStatus

@@ -224,7 +224,6 @@ export default async function ProductDetailPage({ params }: PageProps) {
                   width={400}
                   height={400}
                   className="h-full w-full object-cover"
-                  unoptimized
                 />
               ) : (
                 <div className="flex h-full w-full items-center justify-center text-muted-foreground">

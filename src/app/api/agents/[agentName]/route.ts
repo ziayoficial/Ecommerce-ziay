@@ -21,6 +21,11 @@ import { emitToTenant } from '@/lib/chat-emit'
 // preserved (it implements §A-3 fallback-reply + DecisionLog persistence
 // + low_confidence emit — business logic, not boilerplate).
 import { withErrorHandling } from '@/lib/middleware/api-error-handler'
+// SPRINT-HARDENING-FINAL-001 · §1 — sanitize the agent input context
+// (tenantId, conversationId, message text, query string, etc.) before
+// it reaches the LLM prompt + DB lookups. Strips null bytes that would
+// break pino's JSON log formatter when `ctx` is logged for tracing.
+import { sanitizeParsed } from '@/lib/middleware/sanitize'
 
 const log = getLogger('api/agents/[agentName]')
 
@@ -193,7 +198,16 @@ export const POST = withErrorHandling(
   if (!AGENT_NAMES.includes(agentName as AgentName)) {
     return NextResponse.json({ error: `Unknown agent. Valid: ${AGENT_NAMES.join(', ')}` }, { status: 400 })
   }
-  const ctx = await req.json()
+  // SPRINT-HARDENING-FINAL-001 §1 — sanitize the agent context BEFORE
+  // the tenantId lookup + LLM call. The agent route doesn't use Zod
+  // (the ctx shape varies per agent — see src/lib/agents/prompts/*), so
+  // we sanitize the raw JSON instead. Strips null bytes + trims every
+  // string field; caps arrays at 100 entries; drops __proto__ /
+  // constructor / prototype keys (prototype-pollution defense).
+  // Type stays `any` (matching the pre-sanitize behavior) so the
+  // per-agent property accesses below (`ctx.tenantId`, `ctx.imageUrl`,
+  // etc.) don't need casts at every usage site.
+  const ctx = sanitizeParsed(await req.json())
   if (!ctx.tenantId) return NextResponse.json({ error: 'tenantId required' }, { status: 400 })
 
   // FIX-SECURITY-AUTH-001 (#30) — tenant gate before the LLM call.

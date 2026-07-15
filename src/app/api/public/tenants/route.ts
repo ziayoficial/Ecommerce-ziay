@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { rateLimit } from '@/lib/middleware/rate-limit'
 import { NextRequest } from 'next/server'
 import { withErrorHandling } from '@/lib/middleware/api-error-handler'
+import { setCacheHeaders } from '@/lib/middleware/cache-headers'
 
 // GET /api/public/tenants — directorio público de tiendas activas.
 // NO requiere auth. Devuelve solo { slug, nombreNegocio, marca } para SSR
@@ -36,14 +37,22 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
     orderBy: { nombreNegocio: 'asc' },
   })
 
-  return NextResponse.json({
-    tenants: tenants.map((t) => ({
-      id: t.id,
-      slug: t.slug,
-      nombreNegocio: t.nombreNegocio,
-      marca: t.marca,
-      plataformaCatalogo: t.plataformaCatalogo,
-    })),
-  })
+  return setCacheHeaders(
+    NextResponse.json({
+      tenants: tenants.map((t) => ({
+        id: t.id,
+        slug: t.slug,
+        nombreNegocio: t.nombreNegocio,
+        marca: t.marca,
+        plataformaCatalogo: t.plataformaCatalogo,
+      })),
+    }),
+    // SPRINT-PERFORMANCE-FINAL-001 — `public-short`: 60s CDN cache. The
+    // tenant directory powers the login-screen tenant picker and the
+    // storefront index; tenant activations/deactivations are rare but
+    // 60s is short enough that a newly-activated tenant is visible to
+    // the next request after the SWR window.
+    'public-short',
+  )
 
 })

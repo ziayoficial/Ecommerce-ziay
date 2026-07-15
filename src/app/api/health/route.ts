@@ -5,6 +5,7 @@ import { db } from '@/lib/db'
 import { withCache } from '@/lib/cache'
 import { isRedisAvailable } from '@/lib/redis'
 import { withErrorHandling } from '@/lib/middleware/api-error-handler'
+import { setCacheHeaders } from '@/lib/middleware/cache-headers'
 
 // GET /api/health — reports status of all integrations + runtime metrics.
 // SPRINT5-FINAL-001 · Part 3 (enhanced with latency / runtime / disk / socket)
@@ -49,7 +50,15 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
   // outages. `warning` (slow DB, low disk) still returns 200 — the app is
   // serving traffic, just degraded.
   const httpStatus = status === 'error' ? 503 : 200
-  return NextResponse.json({ status, summary, checks, runtime, timestamp }, { status: httpStatus })
+  // SPRINT-PERFORMANCE-FINAL-001 — `no-cache` so uptime monitors + LBs
+  // always see the freshest status (a CDN-cached 200 here would mask an
+  // outage for the full s-maxage window). The internal `withCache` 30s TTL
+  // still smooths origin load — that's an app-layer cache, not a transport
+  // cache, so it doesn't affect what the LB sees.
+  return setCacheHeaders(
+    NextResponse.json({ status, summary, checks, runtime, timestamp }, { status: httpStatus }),
+    'no-cache',
+  )
 
 })
 

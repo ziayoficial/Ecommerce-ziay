@@ -35,6 +35,9 @@ import { requireTenantAccess } from '@/lib/auth-helpers'
 import { getLogger } from '@/lib/logger'
 import { novedadesService } from '@/lib/services'
 import { withErrorHandling } from '@/lib/middleware/api-error-handler'
+// SPRINT-HARDENING-FINAL-001 · §1 — sanitize case description + customer
+// PII fields (phone, customerName) before persistence + audit trail.
+import { sanitizeParsed } from '@/lib/middleware/sanitize'
 
 const log = getLogger('api:novedades')
 
@@ -225,7 +228,11 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
       { status: 400 },
     )
   }
-  const body = parseResult.data
+  // SPRINT-HARDENING-FINAL-001 §1 — strip null bytes + trim customer
+  // PII + description AFTER Zod passes. The description lands in the
+  // NovedadCase row + the system-message audit trail (visible in the
+  // dashboard novedades detail view).
+  const body = sanitizeParsed(parseResult.data)
   const { phone, customerName, guideNumber, carrierName, type, priority, description, orderId } = body
 
   // Validate that orderId (if provided) belongs to this tenant.

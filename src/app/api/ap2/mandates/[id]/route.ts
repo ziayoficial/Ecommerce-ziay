@@ -4,10 +4,6 @@ import { requireTenantAccess } from '@/lib/auth-helpers'
 import { getLogger } from '@/lib/logger'
 import { db } from '@/lib/db'
 import {
-  createW3CVC,
-  getOrCreateTenantKeypair,
-  signVC,
-  computeHash,
   getTenantPublicKey,
   verifyVC,
   type W3CVerifiableCredential,
@@ -170,6 +166,3 @@ export const PATCH = withErrorHandling(async (req: NextRequest,
   
 
 })
-
-// Re-export para que el endpoint /revoke pueda reutilizar helpers.
-export const _internal = { computeHash, getOrCreateTenantKeypair, createW3CVC, signVC }

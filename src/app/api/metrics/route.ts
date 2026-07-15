@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { withErrorHandling } from '@/lib/middleware/api-error-handler'
+import { setCacheHeaders } from '@/lib/middleware/cache-headers'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -109,11 +110,18 @@ export const GET = withErrorHandling(async () => {
   metrics.push('# TYPE ziay_node_uptime_seconds gauge')
   metrics.push(`ziay_node_uptime_seconds ${process.uptime()}`)
 
-  return new NextResponse(metrics.join('\n') + '\n', {
+  // SPRINT-PERFORMANCE-FINAL-001 — `public-short` (60s CDN, 5s SWR):
+  // Prometheus scrapes every 15–30s; without a CDN cache, every scrape
+  // hits the origin + runs 4 DB count queries. With s-maxage=60 the CDN
+  // serves the cached scrape for up to 60s and SWRs in the background,
+  // cutting origin load by ~75% on a 15s scrape interval. The 5s SWR
+  // window keeps the data fresh enough for alerting (a 60s-stale gauge
+  // is fine; alerts threshold on sustained values, not single samples).
+  const response = new NextResponse(metrics.join('\n') + '\n', {
     headers: {
       'Content-Type': 'text/plain; version=0.0.4',
-      'Cache-Control': 'no-cache, no-store',
     },
   })
+  return setCacheHeaders(response, 'public-short')
 
 })

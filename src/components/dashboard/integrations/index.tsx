@@ -334,7 +334,7 @@ export function IntegrationsView() {
                       <div className="rounded-lg border overflow-hidden hover:shadow-md hover:border-primary/30 transition-all cursor-default bg-card">
                         <div className="aspect-square bg-muted relative overflow-hidden">
                           {p.imageUrl ? (
-                            <Image src={p.imageUrl} alt={p.name} fill unoptimized sizes="200px" className="size-full object-cover" />
+                            <Image src={p.imageUrl} alt={p.name} fill sizes="200px" className="size-full object-cover" />
                           ) : (
                             <div className="size-full flex items-center justify-center text-muted-foreground/60">
                               <Package className="size-8" />

@@ -7,7 +7,6 @@ import {
   createW3CVC,
   getOrCreateTenantKeypair,
   signVC,
-  computeHash,
   type W3CVerifiableCredential,
 } from '@/lib/crypto/signing'
 import { withErrorHandling } from '@/lib/middleware/api-error-handler'
@@ -181,6 +180,3 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
 
 // Helper export para que otras rutas puedan reusar el tipo.
 export type { W3CVerifiableCredential }
-
-// Re-export para facilitar pruebas internas.
-export const _internal = { computeHash }

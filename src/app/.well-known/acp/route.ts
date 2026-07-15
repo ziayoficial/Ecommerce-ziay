@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server'
+import { checkETag } from '@/lib/middleware/etag'
+import { setCacheHeaders } from '@/lib/middleware/cache-headers'
 
 // ACP merchant manifest — `/.well-known/acp`
 // Documento §9.1: ACP (Agentic Commerce Protocol) — OpenAI/Stripe.
@@ -13,9 +15,13 @@ import { NextResponse } from 'next/server'
 // La ruta es `force-static` — el manifiesto no depende del tenant ni de la
 // sesión; se sirve idéntico a todos los agentes ACP. Las credenciales reales
 // (Bearer = AP2 Intent Mandate ID) se validan dentro de cada ruta /api/acp/v1/*.
+//
+// SPRINT-PERFORMANCE-FINAL-001 — added ETag (conditional GET → 304) +
+// `public-long` CDN cache header. See `/.well-known/ucp` for the same
+// treatment + rationale.
 export const dynamic = 'force-static'
 
-export async function GET() {
+export async function GET(req: Request) {
   const manifest = {
     acp: {
       version: '2026-03-01',
@@ -45,11 +51,24 @@ export async function GET() {
       supported_currencies: ['COP', 'MXN', 'USD'],
     },
   }
-  return NextResponse.json(manifest, {
+
+  const { match, etag } = checkETag(req, manifest)
+  if (match) {
+    return new NextResponse(null, {
+      status: 304,
+      headers: {
+        ETag: etag,
+        'Access-Control-Allow-Origin': '*',
+      },
+    })
+  }
+
+  const response = NextResponse.json(manifest, {
     headers: {
       'Content-Type': 'application/json',
-      'Cache-Control': 'public, max-age=3600',
       'Access-Control-Allow-Origin': '*',
     },
   })
+  response.headers.set('ETag', etag)
+  return setCacheHeaders(response, 'public-long')
 }

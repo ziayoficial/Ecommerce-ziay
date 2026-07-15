@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { rateLimit } from '@/lib/middleware/rate-limit'
 import { withErrorHandling } from '@/lib/middleware/api-error-handler'
+import { setCacheHeaders } from '@/lib/middleware/cache-headers'
 
 // GET /api/public/catalog?slug=X — catálogo público de un tenant para SSR del
 // storefront /t/[slug]. NO requiere auth.
@@ -67,15 +68,22 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
     orderBy: [{ categoria: 'asc' }, { name: 'asc' }],
   })
 
-  return NextResponse.json({
-    tenant: {
-      id: tenant.id,
-      slug: tenant.slug,
-      nombreNegocio: tenant.nombreNegocio,
-      marca: tenant.marca,
-      plataformaCatalogo: tenant.plataformaCatalogo,
-    },
-    products,
-  })
+  return setCacheHeaders(
+    NextResponse.json({
+      tenant: {
+        id: tenant.id,
+        slug: tenant.slug,
+        nombreNegocio: tenant.nombreNegocio,
+        marca: tenant.marca,
+        plataformaCatalogo: tenant.plataformaCatalogo,
+      },
+      products,
+    }),
+    // SPRINT-PERFORMANCE-FINAL-001 — `public-short`: 60s CDN cache. Catalog
+    // products are read-heavy and change rarely (sync runs on a cron), so
+    // a 60s edge cache is safe. The storefront SSR hits this on every
+    // /t/[slug] page load + every AI agent catalog discovery probe.
+    'public-short',
+  )
 
 })

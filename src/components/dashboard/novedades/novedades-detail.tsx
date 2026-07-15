@@ -228,7 +228,7 @@ export function CaseDetailPanel({
                     className="group relative aspect-square rounded-lg border overflow-hidden bg-muted hover:ring-2 ring-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     {ev.type === 'image' ? (
-                      <Image src={ev.url} alt={`Evidencia del caso ${c.caseNumber}`} fill unoptimized sizes="128px" className="size-full object-cover" />
+                      <Image src={ev.url} alt={`Evidencia del caso ${c.caseNumber}`} fill sizes="128px" className="size-full object-cover" />
                     ) : (
                       <div className="size-full flex flex-col items-center justify-center gap-1 p-2">
                         <Icon className="size-8 text-muted-foreground" aria-hidden />

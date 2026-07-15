@@ -249,7 +249,7 @@ export function CatalogVisualView() {
               onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openProduct(p) } }}
             >
               <div className="aspect-square bg-muted relative overflow-hidden">
-                {p.imageUrl ? <Image src={p.imageUrl} alt={p.name} fill unoptimized sizes="256px" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" /> : <div className="w-full h-full flex items-center justify-center text-muted-foreground"><Package className="size-8" /></div>}
+                {p.imageUrl ? <Image src={p.imageUrl} alt={p.name} fill sizes="256px" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" /> : <div className="w-full h-full flex items-center justify-center text-muted-foreground"><Package className="size-8" /></div>}
                 <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100" aria-hidden>
                   <div className="flex gap-1.5">
                     <Button size="sm" variant="secondary" className="h-8 w-8 p-0 rounded-full pointer-events-none" aria-label="Ver producto" tabIndex={-1}><Eye className="size-3.5" /></Button>
@@ -283,7 +283,7 @@ export function CatalogVisualView() {
               onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openProduct(p) } }}
             >
               <div className="size-14 rounded-lg overflow-hidden bg-muted shrink-0 relative">
-                {p.imageUrl ? <Image src={p.imageUrl} alt={p.name} fill unoptimized sizes="56px" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><Package className="size-5 text-muted-foreground" /></div>}
+                {p.imageUrl ? <Image src={p.imageUrl} alt={p.name} fill sizes="56px" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><Package className="size-5 text-muted-foreground" /></div>}
               </div>
               <div className="flex-1 min-w-0"><div className="font-medium text-sm truncate">{p.name}</div><div className="text-xs text-muted-foreground font-mono">{p.sku}</div></div>
               <Badge variant="outline" className="text-[10px]">{p.diseno || 'liso'}</Badge>
@@ -303,7 +303,7 @@ export function CatalogVisualView() {
               {/* Left: Product */}
               <div className="flex flex-col overflow-y-auto scroll-thin">
                 <div className="aspect-square bg-muted relative">
-                  {selectedProduct.imageUrl ? <Image src={selectedProduct.imageUrl} alt={selectedProduct.name} fill unoptimized sizes="512px" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-muted-foreground"><Package className="size-12" /></div>}
+                  {selectedProduct.imageUrl ? <Image src={selectedProduct.imageUrl} alt={selectedProduct.name} fill sizes="512px" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-muted-foreground"><Package className="size-12" /></div>}
                   {selectedProduct.imagenMetadataVisible && <Badge variant="secondary" className="absolute top-2 right-2 gap-0.5"><Sparkles className="size-3" /> Franja metadata</Badge>}
                 </div>
                 <div className="p-4 space-y-3">

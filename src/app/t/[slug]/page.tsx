@@ -278,7 +278,6 @@ export default async function TenantStorefrontPage({ params }: PageProps) {
                       width={400}
                       height={400}
                       className="h-full w-full object-cover transition-transform group-hover:scale-105"
-                      unoptimized
                     />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center text-muted-foreground">

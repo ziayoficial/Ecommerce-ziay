@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server'
+import { checkETag } from '@/lib/middleware/etag'
+import { setCacheHeaders } from '@/lib/middleware/cache-headers'
 
 // UCP manifest — `/.well-known/ucp`
 // Documento §10.1: el comercio publica un JSON público (sin auth) declarando
@@ -9,9 +11,14 @@ import { NextResponse } from 'next/server'
 // MCP / A2A / embedded) se pueden añadir después sin romper este contrato.
 //
 // SPRINT-AGENTIC-PROTOCOLS-001 — resuelve gap #1 del AUDIT-AGENTIC-PROTOCOLS-001.
+//
+// SPRINT-PERFORMANCE-FINAL-001 — added ETag (conditional GET → 304) +
+// `public-long` CDN cache header via `setCacheHeaders`. Agents that poll
+// discovery on every conversation (ChatGPT, Copilot) now get a 304 with no
+// body once they've seen the manifest once, served from the CDN edge.
 export const dynamic = 'force-static'
 
-export async function GET() {
+export async function GET(req: Request) {
   const manifest = {
     ucp: {
       version: '2026-04-08',
@@ -55,11 +62,29 @@ export async function GET() {
       },
     },
   }
-  return NextResponse.json(manifest, {
+
+  // SPRINT-PERFORMANCE-FINAL-001 · §3 — conditional GET via ETag. If the
+  // agent already has this manifest (sent the matching `If-None-Match`),
+  // return 304 with no body — the CDN serves the 304 from the edge.
+  const { match, etag } = checkETag(req, manifest)
+  if (match) {
+    return new NextResponse(null, {
+      status: 304,
+      headers: {
+        ETag: etag,
+        'Access-Control-Allow-Origin': '*',
+      },
+    })
+  }
+
+  const response = NextResponse.json(manifest, {
     headers: {
       'Content-Type': 'application/json',
-      'Cache-Control': 'public, max-age=3600',
       'Access-Control-Allow-Origin': '*',
     },
   })
+  response.headers.set('ETag', etag)
+  // public-long: 1h CDN cache, 5min browser SWR. Manifest changes only on
+  // protocol-version bumps (rare).
+  return setCacheHeaders(response, 'public-long')
 }

@@ -396,7 +396,6 @@ export function MessengerView() {
                             width={240}
                             height={240}
                             className="w-full h-auto object-cover"
-                            unoptimized
                             onError={(e: React.SyntheticEvent<HTMLImageElement>) => {
                               e.currentTarget.style.display = 'none'
                             }}

@@ -16,13 +16,13 @@
 body{font-family:'Inter',sans-serif;background:#0f172a;color:var(--slate);overflow:hidden}
 
 /* ── Deck ── */
-#deck{position:relative;width:100vw;height:100vh;overflow:hidden}
+#deck{position:relative;width:100vw;height:100vh;overflow:hidden;z-index:1}
 .slide{
   position:absolute;inset:0;display:none;flex-direction:column;
   align-items:center;justify-content:center;padding:40px 60px;
-  background:var(--bg);
+  background:var(--bg);z-index:2;
 }
-.slide.active{display:flex}
+.slide.active{display:flex;z-index:3}
 
 /* ── Typography ── */
 h1{font-family:'Manrope',sans-serif;font-weight:800;font-size:42px;line-height:1.15;letter-spacing:-0.02em;color:var(--slate)}
@@ -481,7 +481,7 @@ p{font-size:18px;line-height:1.65;color:var(--slate-2);max-width:920px}
 <!-- ═══════════════════════════════════════════════════════════════ -->
 <!-- SLIDE 17 — CTA Final -->
 <!-- ═══════════════════════════════════════════════════════════════ -->
-<section class="slide active gradient-bg center">
+<section class="slide gradient-bg center">
   <h1 style="font-size:48px">Deja de adivinar.<br>Empieza a medir.</h1>
   <div class="spacer"></div>
   <p style="font-size:20px;opacity:0.95;max-width:680px">

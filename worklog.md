@@ -21449,3 +21449,41 @@ Stage Summary:
 - Sistema de diseño unificado (paleta, tipografía, componentes, navegación) — experiencia consistente entre todas.
 - Cada presentación adaptada a su audiencia: merchants (storytelling), dev team (cajas conceptuales), canvas (1 bloque por slide), elevator (máximo impacto), investors (pitch deck con tesis y financials).
 - Total: 82 slides de contenido original en español LATAM, todo en paleta emerald/teal, navegación robusta.
+
+---
+
+Task ID: SPRINT-BUSINESS-CANVAS-AGIL-001
+Agent: Main
+Task: Crear presentación Business Canvas ágil + E2E + Customer Journey, menos técnica, con pensamiento ágil, sin overlaps, sin desbordamiento.
+
+Work Log:
+- Creé `public/presentaciones/BUSINESS-CANVAS-AGIL.html` — 17 slides, standalone HTML
+- Diseño: emerald/teal palette, Manrope + Inter fonts, 16:9 auto-scaling
+- Navegación: keyboard (arrows, space, PageUp/Down, Home/End) + touch swipe + buttons
+- Sin overlaps: cada slide cubre un tema único
+- Sin desbordamiento: contenido que excede usa scroll vertical (clase .scrollable con scrollbar estilizada)
+- Estructura:
+  * Slide 1: Title — "ZIAY · Comercio Conversacional + Inteligencia de Negocio"
+  * Slide 2: ¿Qué es ZIAY? — explicación simple y amplia con 5 iconos
+  * Slide 3: El problema — 4 cards con dolores del merchant
+  * Slide 4: La solución — 6 cards con TODO lo que ofrece (IA, aprendizaje, routing, bundles, cross-border, anti-ban)
+  * Slide 5: Los 4 actores — merchant, trafficker, agentes IA, cliente
+  * Slide 6: Business Canvas parte 1 (Segmentos, Propuesta, Canales, Relación, Ingresos, Actividades)
+  * Slide 7: Business Canvas parte 2 (Recursos, Partners, Costos) — 3 columnas con scroll
+  * Slide 8: Customer Journey — los 9 pasos en flow visual horizontal
+  * Slide 9: Journey detalle 1-5 (del clic al interés) — escenario narrativo con timestamps
+  * Slide 10: Journey detalle 6-9 + post-venta (del interés a la entrega)
+  * Slide 11: Caso E2E — "Un día en la vida con ZIAY" — 7 escenarios con timestamps (9am a 6pm)
+  * Slide 12: TODO lo que ofrece — grid 3x2 con 6 categorías (Agentes, Mensajería, Pagos, Logística, Analytics, Cross-Border) cada una con scroll
+  * Slide 13: Integraciones — Shopify, WooCommerce, Embed SDK, Instagram/TikTok
+  * Slide 14: Compliance y Seguridad — 4 capas defense-in-depth, anti-ban, legal, audit
+  * Slide 15: Métricas — 8 KPI cards (27 agentes, 147 APIs, 78 modelos, 986 tests, 17 vistas, 40 servicios, 7 monedas, 8 pagos)
+  * Slide 16: Planes — Starter $99, Business $299, Enterprise $999
+  * Slide 17: CTA — "Deja de adivinar. Empieza a medir."
+
+Stage Summary:
+- 1 archivo nuevo: BUSINESS-CANVAS-AGIL.html (17 slides, ~25KB)
+- Sin overlaps: cada slide cubre un tema único (problema → solución → actores → canvas → journey → E2E → features → integraciones → compliance → métricas → planes → CTA)
+- Sin desbordamiento: contenido largo usa scroll vertical con scrollbar estilizada
+- Pensamiento ágil: storytelling progresivo, cada slide construye sobre la anterior
+- Verificado: HTTP 200, 17 slides detectadas, navegación funcional

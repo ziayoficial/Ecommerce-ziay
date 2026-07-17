@@ -1,0 +1,1030 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=1280, initial-scale=1" />
+<title>ZIAY · Guía del Negocio para Equipos de Desarrollo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#06100c; --bg-2:#0a1813; --panel:#0f1c17; --panel-2:#122620;
+  --border:#1f3a30; --border-soft:#18302a;
+  --text:#e6f5ed; --muted:#8aa899; --dim:#5f7a6d;
+  --accent:#10b981; --accent-2:#14b8a6; --accent-3:#34d399; --accent-deep:#047857;
+  --accent-glow:rgba(16,185,129,.35);
+  --warn:#f59e0b; --danger:#ef4444; --ok:#22c55e;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:#000;color:var(--text);font-family:'Inter',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+body{min-height:100vh;display:flex;align-items:center;justify-content:center;overflow:hidden}
+#scaler{transform-origin:center center}
+.stage{position:relative;width:1280px;height:720px;overflow:hidden;background:var(--bg);
+  border-radius:14px;box-shadow:0 30px 80px rgba(0,0,0,.6),0 0 0 1px var(--border)}
+.deck{position:absolute;inset:0}
+.slide{position:absolute;inset:0;padding:44px 64px 76px;display:flex;flex-direction:column;overflow:hidden;
+  opacity:0;visibility:hidden;transform:translateX(24px);transition:opacity .4s,transform .4s,visibility 0s .4s;
+  background:
+    radial-gradient(1100px 560px at 88% -12%, rgba(20,184,166,.12), transparent 60%),
+    radial-gradient(820px 460px at -8% 112%, rgba(16,185,129,.09), transparent 60%),
+    var(--bg);
+}
+.slide.active{opacity:1;visibility:visible;transform:none;transition:opacity .4s,transform .4s,visibility 0s;z-index:2}
+.slide.center{align-items:center;justify-content:center;text-align:center}
+.eyebrow{display:flex;align-items:center;gap:14px;font:600 11px/1 'JetBrains Mono',monospace;letter-spacing:.18em;text-transform:uppercase;color:var(--accent-3);margin-bottom:12px}
+.eyebrow .dot{width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 12px var(--accent-glow)}
+.eyebrow .bar{flex:1;height:1px;background:linear-gradient(90deg,var(--border),transparent)}
+.eyebrow .num{color:var(--muted);font-weight:500}
+h1.title{font:800 36px/1.1 'Manrope',sans-serif;color:var(--text);letter-spacing:-.02em;margin-bottom:8px}
+h1.title .em{color:var(--accent-3)}
+h2.title{font:700 22px/1.2 'Manrope',sans-serif;color:var(--text);letter-spacing:-.01em;margin-bottom:14px}
+.lede{font:400 14px/1.6 'Inter',sans-serif;color:var(--muted);max-width:980px;margin-bottom:14px}
+h3{font:700 13.5px/1.3 'Manrope',sans-serif;color:var(--accent-3);margin-bottom:6px}
+p{font:400 13px/1.6 'Inter',sans-serif;color:var(--text);margin-bottom:8px}
+p.muted{color:var(--muted)}
+.foot{position:absolute;left:64px;right:64px;bottom:18px;display:flex;justify-content:space-between;align-items:center;
+  font:500 10.5px 'JetBrains Mono',monospace;color:var(--dim);letter-spacing:.06em;z-index:5;
+  background:linear-gradient(transparent,rgba(6,16,12,.95) 70%);padding-top:10px}
+.foot .brand b{color:var(--accent-3)}
+.foot .sep{color:var(--border)}
+.foot .pg{color:var(--muted)}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:13px 15px}
+.card.accent{border-left:4px solid var(--accent)}
+.card.warm{border-left:4px solid var(--warn)}
+.card.teal{border-left:4px solid var(--accent-2)}
+.card.glow{background:linear-gradient(135deg,rgba(16,185,129,.10),rgba(20,184,166,.04));border:1px solid rgba(16,185,129,.35)}
+.grid{display:grid;gap:12px}
+.g2{grid-template-columns:1fr 1fr}
+.g3{grid-template-columns:1fr 1fr 1fr}
+.g4{grid-template-columns:1fr 1fr 1fr 1fr}
+.g5{grid-template-columns:repeat(5,1fr)}
+.stat{font:800 30px/1 'Manrope',sans-serif;color:var(--accent-3);letter-spacing:-.02em}
+.stat .u{font-size:.55em;color:var(--muted);font-weight:600;margin-left:4px}
+.stat-l{font:500 10.5px/1.3 'JetBrains Mono',monospace;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-top:6px}
+.badge{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font:600 10px 'JetBrains Mono',monospace;letter-spacing:.06em;text-transform:uppercase;border:1px solid var(--border);background:var(--panel);color:var(--accent-3)}
+.badge.warn{color:var(--warn);border-color:rgba(245,158,11,.35);background:rgba(245,158,11,.08)}
+.badge.danger{color:var(--danger);border-color:rgba(239,68,68,.35);background:rgba(239,68,68,.08)}
+.badge.ok{color:var(--ok);border-color:rgba(34,197,94,.35);background:rgba(34,197,94,.08)}
+table.tbl{width:100%;border-collapse:separate;border-spacing:0;font:400 11.5px/1.4 'Inter';
+  background:var(--panel);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+table.tbl th{background:var(--panel-2);color:var(--accent-3);font:600 10px 'JetBrains Mono',monospace;letter-spacing:.08em;text-transform:uppercase;text-align:left;padding:8px 11px;border-bottom:1px solid var(--border)}
+table.tbl td{padding:7px 11px;color:var(--text);border-bottom:1px solid var(--border-soft);vertical-align:top}
+table.tbl tr:last-child td{border-bottom:none}
+table.tbl td.num{font-family:'JetBrains Mono',monospace;color:var(--accent-3)}
+.callout{border-radius:10px;padding:11px 15px;margin:8px 0}
+.callout.think{background:linear-gradient(135deg,rgba(16,185,129,.08),rgba(20,184,166,.04));border:1px solid rgba(16,185,129,.25)}
+.callout.warn{background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.3)}
+.callout.money{background:linear-gradient(135deg,rgba(16,185,129,.12),rgba(16,185,129,.04));border:2px solid var(--accent)}
+.callout-title{font:700 10px 'JetBrains Mono',monospace;letter-spacing:.12em;text-transform:uppercase;margin-bottom:6px;color:var(--accent-3)}
+.callout.warn .callout-title{color:var(--warn)}
+.callout.money .callout-title{color:var(--accent-3)}
+.step-num{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--accent);color:#06100c;font:800 12px 'Manrope';flex-shrink:0}
+.step-row{display:flex;align-items:flex-start;gap:10px;margin-bottom:6px}
+.step-row .body h3{margin-bottom:2px}
+.step-row .body p{font-size:12px;margin:0}
+.ghost{position:absolute;font:800 300px/1 'Manrope';color:rgba(16,185,129,.04);pointer-events:none;user-select:none;z-index:1}
+.flow{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.flow-step{background:var(--panel-2);border:1px solid var(--accent);padding:7px 12px;border-radius:10px;font:600 11.5px 'Inter';color:var(--text);white-space:nowrap}
+.flow-step.alt{border-color:var(--accent-2)}
+.flow-arrow{color:var(--accent-3);font-size:15px;font-weight:700}
+.box-arch{background:var(--panel);border:1.5px solid var(--border);border-radius:10px;padding:10px 12px;text-align:center}
+.box-arch .lbl{font:600 9.5px 'JetBrains Mono';color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:4px}
+.box-arch .nm{font:700 13px 'Manrope';color:var(--accent-3)}
+.box-arch .desc{font:400 10.5px 'Inter';color:var(--text);margin-top:3px;line-height:1.4}
+.nav{position:absolute;bottom:18px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:8px;z-index:50}
+.nav button{background:var(--panel-2);border:1px solid var(--border);color:var(--text);width:38px;height:38px;border-radius:10px;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;transition:all .2s;font-family:'Manrope'}
+.nav button:hover{background:var(--accent);color:#06100c;border-color:var(--accent)}
+.nav .counter{background:var(--panel);border:1px solid var(--border);color:var(--text);padding:8px 14px;border-radius:10px;font:600 12px 'JetBrains Mono';min-width:80px;text-align:center}
+.nav .counter b{color:var(--accent-3)}
+.progress{position:absolute;top:0;left:0;height:3px;background:linear-gradient(90deg,var(--accent),var(--accent-2));z-index:60;transition:width .4s;pointer-events:none;border-radius:0 3px 3px 0}
+.hero-mark{font:800 16px 'JetBrains Mono';letter-spacing:.3em;color:var(--accent-3);margin-bottom:18px;text-transform:uppercase}
+.hero-title{font:800 50px/1.05 'Manrope';color:var(--text);letter-spacing:-.025em;margin-bottom:14px}
+.hero-title .em{background:linear-gradient(135deg,var(--accent-3),var(--accent-2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.hero-sub{font:500 17px/1.5 'Inter';color:var(--muted);max-width:780px;margin:0 auto 26px}
+.hero-badges{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:24px}
+.kpi-pill{background:var(--panel);border:1px solid var(--border);border-radius:30px;padding:7px 16px;display:inline-flex;align-items:center;gap:10px}
+.kpi-pill .v{font:800 18px 'Manrope';color:var(--accent-3)}
+.kpi-pill .l{font:500 10.5px 'JetBrains Mono';color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.tag-list{display:flex;flex-wrap:wrap;gap:5px}
+.tag{font:500 10.5px 'JetBrains Mono';color:var(--muted);background:var(--panel-2);border:1px solid var(--border);padding:2px 8px;border-radius:6px}
+.tag.on{color:var(--accent-3);border-color:rgba(16,185,129,.4)}
+.agent-card{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:8px 10px;border-left:3px solid var(--accent)}
+.agent-card .nm{font:700 11px 'Manrope';color:var(--accent-3);margin-bottom:2px}
+.agent-card .fn{font:400 10.5px 'Inter';color:var(--text);line-height:1.35}
+.agent-card .wh{font:500 9.5px 'JetBrains Mono';color:var(--muted);margin-top:3px;letter-spacing:.04em}
+</style>
+</head>
+<body>
+<div id="scaler">
+<div class="stage">
+<div class="progress" id="progress" style="width:0%"></div>
+<div class="deck" id="deck">
+
+<!-- ============ SLIDE 1: TITLE ============ -->
+<section class="slide center active" data-title="Portada">
+  <div class="ghost" style="top:-50px;right:-30px">Z</div>
+  <div class="hero-mark">◆ ZIAY · Para equipos de desarrollo</div>
+  <h1 class="hero-title">Guía del <span class="em">Negocio</span><br>para Equipos de Desarrollo</h1>
+  <p class="hero-sub">Qué hace ZIAY, cómo funciona el negocio, quiénes son los actores y qué datos fluyen — explicado sin tecnicismos, para que cualquier persona del equipo entienda el producto que estamos construyendo.</p>
+  <div class="hero-badges">
+    <span class="badge">Negocio, no código</span>
+    <span class="badge">Visión de producto</span>
+    <span class="badge ok">27 agentes · 9 pasos</span>
+    <span class="badge">Multi-tenant</span>
+  </div>
+  <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
+    <div class="kpi-pill"><span class="v">147</span><span class="l">APIs</span></div>
+    <div class="kpi-pill"><span class="v">986</span><span class="l">tests</span></div>
+    <div class="kpi-pill"><span class="v">7</span><span class="l">monedas</span></div>
+    <div class="kpi-pill"><span class="v">8</span><span class="l">pagos</span></div>
+  </div>
+  <p class="muted" style="margin-top:30px;font:500 11px 'JetBrains Mono';letter-spacing:.1em;text-transform:uppercase;color:var(--dim)">Indisutex SAS · LATAM · 2025</p>
+  <div class="foot"><span class="brand"><b>ZIAY</b> · Guía del Negocio</span><span>Portada</span><span class="pg">01 / 22</span></div>
+</section>
+
+<!-- ============ SLIDE 2: Qué es ZIAY ============ -->
+<section class="slide" data-title="Qué es ZIAY">
+  <div class="eyebrow"><span class="dot"></span><span>Definición</span><span class="bar"></span><span class="num">02 / 22</span></div>
+  <h1 class="title">¿Qué es ZIAY?<br>Una <span class="em">plataforma de comercio conversacional multi-tenant</span></h1>
+  <p class="lede">En una frase: es un sistema que permite a muchas tiendas vender por WhatsApp (y otros canales) usando un equipo de agentes de IA que atienden, cotizan, cobran y despachan — cada tienda con sus datos aislados, su catálogo y su marca.</p>
+  <div class="grid g3" style="margin-top:14px">
+    <div class="card accent">
+      <h3>💬 Conversacional</h3>
+      <p style="font-size:12.5px;margin:0">El cliente no llena formularios. Habla por WhatsApp como hablaría con un vendedor humano. La IA lleva la conversación.</p>
+    </div>
+    <div class="card accent">
+      <h3>🤖 Agentes IA</h3>
+      <p style="font-size:12.5px;margin:0">27 agentes especializados (perfilador, cotizador, cobrador, despachador…) coordinados por un Governor supervisor.</p>
+    </div>
+    <div class="card accent">
+      <h3>🏢 Multi-tenant</h3>
+      <p style="font-size:12.5px;margin:0">Cada tienda (tenant) tiene su catálogo, sus clientes, sus pagos y sus configuraciones. Aislados, sin filtraciones.</p>
+    </div>
+  </div>
+  <div class="callout think" style="margin-top:14px">
+    <div class="callout-title">🧠 La analogía</div>
+    <p style="margin:0;font-size:13.5px">Imagina un centro comercial con 500 tiendas. En cada una hay un vendedor experto disponible 24/7 que nunca se enferma, conoce el catálogo de memoria, calcula precios al instante y aprende qué argumentos venden más. <strong>ZIAY es ese centro comercial, en una sola plataforma</strong>.</p>
+  </div>
+  <div class="grid g4" style="margin-top:14px">
+    <div class="card"><div class="stat">Multi</div><div class="stat-l">tenant</div></div>
+    <div class="card"><div class="stat">27</div><div class="stat-l">agentes IA</div></div>
+    <div class="card"><div class="stat">9</div><div class="stat-l">pasos de venta</div></div>
+    <div class="card"><div class="stat">24/7</div><div class="stat-l">disponibilidad</div></div>
+  </div>
+  <div class="foot"><span class="brand"><b>ZIAY</b> · Qué es</span><span>Comercio conversacional multi-tenant</span><span class="pg">02 / 22</span></div>
+</section>
+
+<!-- ============ SLIDE 3: Modelo de negocio ============ -->
+<section class="slide" data-title="Modelo de negocio">
+  <div class="eyebrow"><span class="dot"></span><span>Modelo de negocio</span><span class="bar"></span><span class="num">03 / 22</span></div>
+  <h1 class="title">SaaS multi-tenant<br>con <span class="em">comisión sobre GMV</span></h1>
+  <p class="lede">No cobramos por mensaje ni por agente. Cobramos una suscripción mensual + un porcentaje sobre las ventas que la IA cierra. El incentivo está alineado: si la IA no vende, no ganamos.</p>
+  <div class="grid g3" style="margin-top:14px">
+    <div class="card accent">
+      <h3>📦 SaaS subscription</h3>
+      <p style="font-size:12.5px;margin:0">Plan mensual según tamaño del merchant: Starter $99, Business $299, Enterprise $999. Incluye todo lo necesario para operar.</p>
+      <div class="badge ok" style="margin-top:8px">Ingreso recurrente</div>
+    </div>
+    <div class="card accent">
+      <h3>💰 Comisión sobre GMV</h3>
+      <p style="font-size:12.5px;margin:0">4.5% sobre las ventas que la IA cierra. Solo se cobra cuando la IA vende — alineación total de incentivos.</p>
+      <div class="badge ok" style="margin-top:8px">Variable, escala con éxito</div>
+    </div>
+    <div class="card accent">
+      <h3>🏪 Marketplace commission</h3>
+      <p style="font-size:12.5px;margin:0">5% sobre ventas cruzadas entre tiendas del marketplace. El que refiere y el que vende comparten comisión.</p>
+      <div class="badge ok" style="margin-top:8px">Network effect</div>
+    </div>
+  </div>
+  <div class="card glow" style="margin-top:14px">
+    <h3>📊 Unit economics (merchant Business plan)</h3>
+    <table class="tbl" style="margin-top:8px">
+      <tr><th>Concepto</th><th class="num">Mes 1</th><th class="num">Mes 6</th><th class="num">Mes 12</th></tr>
+      <tr><td>Suscripción</td><td class="num">$299</td><td class="num">$299</td><td class="num">$299</td></tr>
+      <tr><td>GMV (ventas IA)</td><td class="num">$8.000</td><td class="num">$45.000</td><td class="num">$120.000</td></tr>
+      <tr><td>Comisión (4.5%)</td><td class="num">$360</td><td class="num">$2.025</td><td class="num">$5.400</td></tr>
+      <tr><td>Marketplace (refiere)</td><td class="num">$0</td><td class="num">$180</td><td class="num">$600</td></tr>
+      <tr><td><strong>Revenue ZIAY/merchant</strong></td><td class="num"><strong>$659</strong></td><td class="num"><strong>$2.504</strong></td><td class="num"><strong>$6.299</strong></td></tr>
+    </table>
+  </div>
+  <div class="foot"><span class="brand"><b>ZIAY</b> · Modelo</span><span>SaaS + comisión + marketplace</span><span class="pg">03 / 22</span></div>
+</section>
+
+<!-- ============ SLIDE 4: Los 4 actores ============ -->
+<section class="slide" data-title="4 actores">
+  <div class="eyebrow"><span class="dot"></span><span>Los 4 actores</span><span class="bar"></span><span class="num">04 / 22</span></div>
+  <h1 class="title">Cuatro actores, una <span class="em">conversación</span></h1>
+  <p class="lede">Para entender ZIAY hay que entender quién hace qué. Cuatro roles interactúan en cada venta: el que vende, el que trae clientes, el que atiende y el que compra.</p>
+  <div class="grid g4" style="margin-top:14px">
+    <div class="card accent">
+      <div style="font-size:32px;text-align:center;margin-bottom:6px">🏪</div>
+      <h3 style="text-align:center">Merchant</h3>
+      <p style="font-size:12px;margin:0">Dueño de la tienda. Tiene el catálogo, configura la estrategia de pago, recibe el dinero. Es el cliente de ZIAY.</p>
+      <div class="badge" style="margin-top:6px">Tenant owner</div>
+    </div>
+    <div class="card accent">
+      <div style="font-size:32px;text-align:center;margin-bottom:6px">📢</div>
+      <h3 style="text-align:center">Trafficker</h3>
+      <p style="font-size:12px;margin:0">Genera tráfico con anuncios (Meta, Google, TikTok). Puede ser interno del merchant o externo que cobra por lead/venta.</p>
+      <div class="badge" style="margin-top:6px">Tráfico → leads</div>
+    </div>
+    <div class="card accent">
+      <div style="font-size:32px;text-align:center;margin-bottom:6px">🤖</div>
+      <h3 style="text-align:center">Agente IA</h3>
+      <p style="font-size:12px;margin:0">Equipo de 27 agentes ZIAY que atiende al cliente, cotiza, cobra y despacha. Trabaja 24/7, aprende y escala.</p>
+      <div class="badge" style="margin-top:6px">El vendedor</div>
+    </div>
+    <div class="card accent">
+      <div style="font-size:32px;text-align:center;margin-bottom:6px">🛒</div>
+      <h3 style="text-align:center">Cliente</h3>
+      <p style="font-size:12px;margin:0">Persona que escribe por WhatsApp (o web) buscando un producto. Quiere respuesta rápida, precio claro y pago fácil.</p>
+      <div class="badge" style="margin-top:6px">Comprador final</div>
+    </div>
+  </div>
+  <div class="card glow" style="margin-top:14px">
+    <h3>🔀 Cómo interactúan</h3>
+    <div class="flow" style="margin-top:8px">
+      <span class="flow-step">Trafficker paga anuncio</span>
+      <span class="flow-arrow">→</span>
+      <span class="flow-step alt">Cliente hace clic</span>
+      <span class="flow-arrow">→</span>
+      <span class="flow-step">Cliente escribe a WhatsApp del Merchant</span>
+      <span class="flow-arrow">→</span>
+      <span class="flow-step alt">Agente IA atiende</span>
+      <span class="flow-arrow">→</span>
+      <span class="flow-step">Cliente paga</span>
+      <span class="flow-arrow">→</span>
+      <span class="flow-step alt">Merchant recibe dinero − comisión ZIAY</span>
+    </div>
+    <p class="muted" style="font-size:12px;margin-top:8px">Cada flecha es un punto donde se mide, se registra y se puede optimizar. ZIAY es la capa que conecta a los cuatro con trazabilidad total.</p>
+  </div>
+  <div class="foot"><span class="brand"><b>ZIAY</b> · 4 actores</span><span>Merchant · Trafficker · IA · Cliente</span><span class="pg">04 / 22</span></div>
+</section>
+
+<!-- ============ SLIDE 5: Flujo principal ============ -->
+<section class="slide" data-title="Flujo principal">
+  <div class="eyebrow"><span class="dot"></span><span>Flujo principal</span><span class="bar"></span><span class="num">05 / 22</span></div>
+  <h1 class="title">Del anuncio a la entrega: <span class="em">el flujo completo</span></h1>
+  <p class="lede">Una venta en ZIAY pasa por 6 etapas. Cada una tiene dueño, métrica y punto de control. Si algo falla, el sistema lo detecta y lo escalona.</p>
+  <div class="grid g3" style="margin-top:14px;gap:10px">
+    <div class="card accent"><div class="step-row"><div class="step-num">1</div><div class="body"><h3>Ad</h3><p class="muted" style="font-size:11.5px">El trafficker lanza un anuncio en Meta/Google/TikTok con un parámetro click_id. El cliente hace clic y llega al WhatsApp del merchant.</p></div></div></div>
+    <div class="card accent"><div class="step-row"><div class="step-num">2</div><div class="body"><h3>WhatsApp</h3><p class="muted" style="font-size:11.5px">El cliente escribe. El webhook de WhatsApp Cloud API recibe el mensaje y lo pasa a ZIAY con el click_id (asociación al anuncio).</p></div></div></div>
+    <div class="card accent"><div class="step-row"><div class="step-num">3</div><div class="body"><h3>9 agentes</h3><p class="muted" style="font-size:11.5px">El pipeline de 9 pasos se ejecuta: saludo → perfil → necesidad → catálogo → cotiza → objeciones → checkout → logística → post-venta.</p></div></div></div>
+    <div class="card accent"><div class="step-row"><div class="step-num">4</div><div class="body"><h3>Venta</h3><p class="muted" style="font-size:11.5px">El cliente paga con su método nativo (PSE, PIX, OXXO, tarjeta…). El dinero entra al merchant y la orden se confirma.</p></div></div></div>
+    <div class="card accent"><div class="step-row"><div class="step-num">5</div><div class="body"><h3>Logística</h3><p class="muted" style="font-size:11.5px">Se genera guía con el carrier elegido (Dropi, 99envios, Aveonline). El paquete se despacha y se trackea.</p></div></div></div>
+    <div class="card accent"><div class="step-row"><div class="step-num">6</div><div class="body"><h3>Post-venta</h3><p class="muted" style="font-size:11.5px">Tracking, novedades, re-entrega, reseña. La IA cuida al cliente hasta que recibe y queda feliz.</p></div></div></div>
+  </div>
+  <div class="callout think" style="margin-top:14px">
+    <div class="callout-title">🧠 Lo importante</div>
+    <p style="margin:0;font-size:13px">Cada etapa deja <strong>datos trazables</strong>. Podemos decir exactamente qué anuncio trajo qué conversación, qué paso del pipeline falló, qué carrier se demoró, qué método de pago abandonó el cliente. <strong>Sin trazabilidad no hay optimización</strong> — y ZIAY traza todo.</p>
+  </div>
+  <div class="foot"><span class="brand"><b>ZIAY</b> · Flujo</span><span>Ad → WhatsApp → 9 agentes → venta → logística → post-venta</span><span class="pg">05 / 22</span></div>
+</section>
+
+<!-- ============ SLIDE 6: Multi-tenancy ============ -->
+<section class="slide" data-title="Multi-tenancy">
+  <div class="eyebrow"><span class="dot"></span><span>Multi-tenancy</span><span class="bar"></span><span class="num">06 / 22</span></div>
+  <h1 class="title">Cada tienda es un <span class="em">tenant aislado</span><br>con sus propios datos</h1>
+  <p class="lede">En ZIAY conviven cientos de tiendas, pero cada una opera como si estuviera sola. Catálogos, clientes, conversaciones y configuraciones no se cruzan nunca — aislamiento lógico garantizado a nivel de dato y de infraestructura.</p>
+  <div class="grid g2" style="margin-top:14px">
+    <div class="card accent">
+      <h3>🔒 Qué se aísla por tenant</h3>
+      <table class="tbl" style="margin-top:8px">
+        <tr><th>Recurso</th><th>Aislamiento</th></tr>
+        <tr><td>Catálogo de productos</td><td>Por tenant</td></tr>
+        <tr><td>Conversaciones / mensajes</td><td>Por tenant</td></tr>
+        <tr><td>Clientes / PII</td><td>Por tenant</td></tr>
+        <tr><td>Órdenes y pagos</td><td>Por tenant</td></tr>
+        <tr><td>Configuración de agentes</td><td>Por tenant</td></tr>
+        <tr><td>Cuentas de WhatsApp Business</td><td>Por tenant</td></tr>
+        <tr><td>Integraciones (Shopify, etc.)</td><td>Por tenant</td></tr>
+        <tr><td>Analytics y métricas</td><td>Por tenant</td></tr>
+      </table>
+    </div>
+    <div class="card accent">
+      <h3>⚙ Cómo se logra</h3>
+      <div class="step-row"><div class="step-num">1</div><div class="body"><p style="font-size:12px;margin:0">Cada tabla tiene <code style="background:var(--panel-2);padding:1px 5px;border-radius:4px;font:600 11px 'JetBrains Mono';color:var(--accent-3)">tenantId</code> como columna obligatoria.</p></div></div>
+      <div class="step-row"><div class="step-num">2</div><div class="body"><p style="font-size:12px;margin:0">Todas las queries se filtran por tenantId en el ORM (Prisma).</p></div></div>
+      <div class="step-row"><div class="step-num">3</div><div class="body"><p style="font-size:12px;margin:0">El JWT del merchant incluye el tenantId — no se puede suplantar.</p></div></div>
+      <div class="step-row"><div class="step-num">4</div><div class="body"><p style="font-size:12px;margin:0">Variables de entorno (tokens de WhatsApp, API keys de pagos) por tenant, cifradas en reposo.</p></div></div>
+      <div class="step-row"><div class="step-num">5</div><div class="body"><p style="font-size:12px;margin:0">Logs y observabilidad etiquetados por tenant — sin cruzar datos en dashboards.</p></div></div>
+      <div class="step-row"><div class="step-num">6</div><div class="body"><p style="font-size:12px;margin:0">Rate limiting por tenant — un pico en una tienda no afecta a las demás.</p></div></div>
+    </div>
+  </div>
+  <div class="callout warn" style="margin-top:12px">
+    <div class="callout-title">⚠ Regla de oro</div>
+    <p style="margin:0;font-size:13px">Nunca, bajo ninguna circunstancia, una query debe ejecutarse sin filtro de tenantId. Un solo query sin filtro puede exponer datos de otra tienda — y eso es <strong>causa inmediata de terminación de contrato y demanda</strong>. Es la regla más vigilada del sistema.</p>
+  </div>
+  <div class="foot"><span class="brand"><b>ZIAY</b> · Multi-tenancy</span><span>Aislamiento garantizado</span><span class="pg">06 / 22</span></div>
+</section>
+
+<!-- ============ SLIDE 7: Los 27 agentes ============ -->
+<section class="slide" data-title="27 agentes">
+  <div class="eyebrow"><span class="dot"></span><span>Los 27 agentes · quién hace qué</span><span class="bar"></span><span class="num">07 / 22</span></div>
+  <h1 class="title">27 agentes especializados,<br><span class="em">cada uno con su rol</span></h1>
+  <p class="lede">No es un chatbot grande. Es un equipo de 27 agentes pequeños, cada uno experto en una tarea, que se pasan el cliente entre ellos. El Governor decide quién entra y cuándo.</p>
+  <div class="grid g4" style="margin-top:12px;gap:8px">
+    <div class="agent-card"><div class="nm">Governor</div><div class="fn">Supervisor general</div><div class="wh">Siempre activo</div></div>
+    <div class="agent-card"><div class="nm">Recepcionista</div><div class="fn">Saluda, abre chat</div><div class="wh">Inicio conversación</div></div>
+    <div class="agent-card"><div class="nm">Perfilador</div><div class="fn">Detecta tipo cliente</div><div class="wh">3er mensaje</div></div>
+    <div class="agent-card"><div class="nm">Detector necesidad</div><div class="fn">Qué busca, para quién</div><div class="wh">Tras perfil</div></div>
+    <div class="agent-card"><div class="nm">Catalogador</div><div class="fn">Muestra productos</div><div class="wh">Tras necesidad</div></div>
+    <div class="agent-card"><div class="nm">Cotizador</div><div class="fn">Precio + volumen</div><div class="wh">Cuando pide precio</div></div>
+    <div class="agent-card"><div class="nm">Fletista</div><div class="fn">Cotiza envío</div><div class="wh">Tras cotizar</div></div>
+    <div class="agent-card"><div class="nm">Objeciones</div><div class="fn">Precio, confianza</div><div class="wh">Cuando objeta</div></div>
+    <div class="agent-card"><div class="nm">Bundleador</div><div class="fn">Sugiere complemento</div><div class="wh">Post "sí"</div></div>
+    <div class="agent-card"><div class="nm">Cobrador</div><div class="fn">Genera link pago</div><div class="wh">Confirmada</div></div>
+    <div class="agent-card"><div class="nm">Despachador</div><div class="fn">Genera guía</div><div class="wh">Pago confirmado</div></div>
+    <div class="agent-card"><div class="nm">Tracker</div><div class="fn">Rastrea paquete</div><div class="wh">Post despacho</div></div>
+    <div class="agent-card"><div class="nm">Novedades</div><div class="fn">Gestiona incidencias</div><div class="wh">Si hay falla</div></div>
+    <div class="agent-card"><div class="nm">Reseñas</div><div class="fn">Pide rating</div><div class="wh">Post entrega</div></div>
+    <div class="agent-card"><div class="nm">Funnel Analyst</div><div class="fn">Detecta fugas</div><div class="wh">Batch diario</div></div>
+    <div class="agent-card"><div class="nm">Anomaly Detector</div><div class="fn">Alertas caídas</div><div class="wh">Tiempo real</div></div>
+    <div class="agent-card"><div class="nm">Trend Sensor</div><div class="fn">Detecta tendencias</div><div class="wh">Batch semanal</div></div>
+    <div class="agent-card"><div class="nm">Lead Router</div><div class="fn">Marketplace</div><div class="wh">Si no hay stock</div></div>
+    <div class="agent-card"><div class="nm">Compliance</div><div class="fn">Legal y anti-ban</div><div class="wh">Cada mensaje</div></div>
+    <div class="agent-card"><div class="nm">VLM Identifier</div><div class="fn">Identifica por foto</div><div class="wh">Si manda foto</div></div>
+    <div class="agent-card"><div class="nm">Prompt Optimizer</div><div class="fn">Aprende mejores</div><div class="wh">Batch semanal</div></div>
+    <div class="agent-card"><div class="nm">Traductor</div><div class="fn">Cross-border</div><div class="wh">Si otro idioma</div></div>
+    <div class="agent-card"><div class="nm">Conciliador</div><div class="fn">Verifica pagos</div><div class="wh">Cada pago</div></div>
+    <div class="agent-card"><div class="nm">Stock Watcher</div><div class="fn">Avisa stock bajo</div><div class="wh">Continuo</div></div>
+    <div class="agent-card"><div class="nm">Escalador Humano</div><div class="fn">Pasa a persona</div><div class="wh">Si confianza&lt;0.6</div></div>
+    <div class="agent-card"><div class="nm">Reportes</div><div class="fn">Genera reportes</div><div class="wh">Diario/semanal</div></div>
+    <div class="agent-card"><div class="nm">Onboarding</div><div class="fn">Configura tenant nuevo</div><div class="wh">Alta merchant</div></div>
+  </div>
+  <div class="foot"><span class="brand"><b>ZIAY</b> · 27 agentes</span><span>Quién hace qué, cuándo</span><span class="pg">07 / 22</span></div>
+</section>
+
+<!-- ============ SLIDE 8: El Governor ============ -->
+<section class="slide" data-title="El Governor">
+  <div class="eyebrow"><span class="dot"></span><span>El Governor · supervisor</span><span class="bar"></span><span class="num">08 / 22</span></div>
+  <h1 class="title">El Governor: <span class="em">valida todo</span></h1>
+  <p class="lede">Cada agente puede equivocarse. El Governor no los deja llegar al cliente con el error. Es la capa de gobernanza que asegura calidad, cumplimiento legal y experiencia consistente — en cada mensaje, en cada tienda.</p>
+  <div class="grid g2" style="margin-top:14px">
+    <div class="card accent">
+      <h3>🛡 Qué valida el Governor</h3>
+      <table class="tbl" style="margin-top:8px">
+        <tr><th>Check</th><th>Qué hace si falla</th></tr>
+        <tr><td>9 pasos en orden</td><td>Re-dirige al agente correcto</td></tr>
+        <tr><td>Precio en catálogo</td><td>Bloquea mensaje + corrige</td></tr>
+        <tr><td>No cobra sin confirmar</td><td>Pausa + pide confirmación</td></tr>
+        <tr><td>No inventa info</td><td>Re-genera con contexto</td></tr>
+        <tr><td>Reglas NUNCA (29)</td><td>Penaliza confianza a 0.4</td></tr>
+        <tr><td>Reglas SIEMPRE (17)</td><td>Sustituye por versión correcta</td></tr>
+        <tr><td>Anti-ban WhatsApp</td><td>Corta mensaje si viola</td></tr>
+        <tr><td>Ley 1581 / GDPR</td><td>Borra PII y notifica</td></tr>
+        <tr><td>Confianza &lt; 0.6</td><td>Escalado a humano</td></tr>
+        <tr><td>Cliente molesto</td><td>Prioriza + alerta humano</td></tr>
+      </table>
+    </div>
+    <div class="card glow">
+      <h3>🧠 El modelo de confianza</h3>
+      <p style="font-size:12.5px">Cada respuesta de cada agente tiene un <strong>score de confianza (0-1)</strong>. Si es &lt;0.6, no se envía sola — se escala a humano con todo el contexto. Esto evita alucinaciones en producción.</p>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-top:10px">
+        <div><div style="display:flex;justify-content:space-between;font:600 11px 'Inter'"><span>Confianza 0.95 — envía directo</span><span style="color:var(--accent-3)">95%</span></div><div style="height:8px;background:var(--panel-2);border-radius:4px;margin-top:4px"><div style="height:100%;background:linear-gradient(90deg,var(--accent),var(--accent-2));border-radius:4px;width:95%"></div></div></div>
+        <div><div style="display:flex;justify-content:space-between;font:600 11px 'Inter'"><span>Confianza 0.75 — envía + log</span><span style="color:var(--warn)">75%</span></div><div style="height:8px;background:var(--panel-2);border-radius:4px;margin-top:4px"><div style="height:100%;background:linear-gradient(90deg,var(--warn),#fbbf24);border-radius:4px;width:75%"></div></div></div>
+        <div><div style="display:flex;justify-content:space-between;font:600 11px 'Inter'"><span>Confianza 0.55 — escala humano</span><span style="color:var(--danger)">55%</span></div><div style="height:8px;background:var(--panel-2);border-radius:4px;margin-top:4px"><div style="height:100%;background:linear-gradient(90deg,var(--danger),#f87171);border-radius:4px;width:55%"></div></div></div>
+      </div>
+      <p class="muted" style="font-size:11.5px;margin-top:10px">El sistema <strong>prefiere escalar a humano antes que inventar</strong>. Una venta perdida por escalado es recuperable; una venta con info incorrecta daña la reputación del merchant para siempre.</p>
+    </div>
+  </div>
+  <div class="foot"><span class="brand"><b>ZIAY</b> · Governor</span><span>Gobernanza en cada mensaje</span><span class="pg">08 / 22</span></div>
+</section>
+
+<!-- ============ SLIDE 9: 9 pasos pipeline ============ -->
+<section class="slide" data-title="9 pasos">
+  <div class="eyebrow"><span class="dot"></span><span>Pipeline · 9 pasos</span><span class="bar"></span><span class="num">09 / 22</span></div>
+  <h1 class="title">El pipeline: <span class="em">9 pasos</span> de la venta conversacional</h1>
+  <p class="lede">La metodología que orquesta a los 27 agentes. Cada paso es medible, optimizable y tiene un agente dueño. Si un paso se cae, el funnel analytics lo detecta.</p>
+  <div class="grid g3" style="margin-top:14px;gap:10px">
+    <div class="card accent"><div class="step-row"><div class="step-num">1</div><div class="body"><h3>Saludo & rapport</h3><p class="muted" style="font-size:11.5px">Recepcionista · 1er mensaje</p></div></div></div>
+    <div class="card accent"><div class="step-row"><div class="step-num">2</div><div class="body"><h3>Perfilamiento</h3><p class="muted" style="font-size:11.5px">Perfilador · msg 2-4</p></div></div></div>
+    <div class="card accent"><div class="step-row"><div class="step-num">3</div><div class="body"><h3>Detección necesidad</h3><p class="muted" style="font-size:11.5px">Detector · tras perfil</p></div></div></div>
+    <div class="card accent"><div class="step-row"><div class="step-num">4</div><div class="body"><h3>Catálogo visual</h3><p class="muted" style="font-size:11.5px">Catalogador · tras necesidad</p></div></div></div>
+    <div class="card accent"><div class="step-row"><div class="step-num">5</div><div class="body"><h3>Cotización dinámica</h3><p class="muted" style="font-size:11.5px">Cotizador + Fletista</p></div></div></div>
+    <div class="card accent"><div class="step-row"><div class="step-num">6</div><div class="body"><h3>Manejo objeciones</h3><p class="muted" style="font-size:11.5px">Objeciones · si resiste</p></div></div></div>
+    <div class="card accent"><div class="step-row"><div class="step-num">7</div><div class="body"><h3>Checkout</h3><p class="muted" style="font-size:11.5px">Cobrador · confirmada</p></div></div></div>
+    <div class="card accent"><div class="step-row"><div class="step-num">8</div><div class="body"><h3>Logística</h3><p class="muted" style="font-size:11.5px">Despachador · post pago</p></div></div></div>
+    <div class="card accent"><div class="step-row"><div class="step-num">9</div><div class="body"><h3>Post-venta</h3><p class="muted" style="font-size:11.5px">Tracker + Reseñas</p></div></div></div>
+  </div>
+  <div class="callout think" style="margin-top:12px">
+    <div class="callout-title">🧠 Por qué 9 pasos y no 3</div>
+    <p style="margin:0;font-size:13px">Tres pasos es un chatbot. Nueve pasos es venta consultiva profesional. Cada paso tiene objetivo medible, agente dueño y métrica de conversión. Si saltas pasos, pierdes ventas — pero no lo sabes hasta que miras el funnel.</p>
+  </div>
+  <div class="card glow" style="margin-top:12px">
+    <h3>📊 Conversión típica por paso</h3>
+    <div style="display:flex;flex-direction:column;gap:4px;margin-top:8px">
+      <div style="display:flex;align-items:center;gap:8px"><span style="width:120px;font:600 10px 'JetBrains Mono';color:var(--muted)">1. Saludo</span><div style="height:14px;background:linear-gradient(90deg,var(--accent),var(--accent-2));border-radius:3px;width:95%;display:flex;align-items:center;padding:0 6px;color:#06100c;font:700 9px 'Manrope'">95%</div></div>
+      <div style="display:flex;align-items:center;gap:8px"><span style="width:120px;font:600 10px 'JetBrains Mono';color:var(--muted)">2. Perfil</span><div style="height:14px;background:linear-gradient(90deg,var(--accent),var(--accent-2));border-radius:3px;width:82%;display:flex;align-items:center;padding:0 6px;color:#06100c;font:700 9px 'Manrope'">82%</div></div>
+      <div style="display:flex;align-items:center;gap:8px"><span style="width:120px;font:600 10px 'JetBrains Mono';color:var(--muted)">3. Necesidad</span><div style="height:14px;background:linear-gradient(90deg,var(--accent),var(--accent-2));border-radius:3px;width:68%;display:flex;align-items:center;padding:0 6px;color:#06100c;font:700 9px 'Manrope'">68%</div></div>
+      <div style="display:flex;align-items:center;gap:8px"><span style="width:120px;font:600 10px 'JetBrains Mono';color:var(--muted)">4. Catálogo</span><div style="height:14px;background:linear-gradient(90deg,var(--warn),#fbbf24);border-radius:3px;width:42%;display:flex;align-items:center;padding:0 6px;color:#06100c;font:700 9px 'Manrope'">42% ⚠</div></div>
+      <div style="display:flex;align-items:center;gap:8px"><span style="width:120px;font:600 10px 'JetBrains Mono';color:var(--muted)">5. Cotiza</span><div style="height:14px;background:linear-gradient(90deg,var(--accent),var(--accent-2));border-radius:3px;width:38%;display:flex;align-items:center;padding:0 6px;color:#06100c;font:700 9px 'Manrope'">38%</div></div>
+      <div style="display:flex;align-items:center;gap:8px"><span style="width:120px;font:600 10px 'JetBrains Mono';color:var(--muted)">6. Objeciones</span><div style="height:14px;background:linear-gradient(90deg,var(--warn),#fbbf24);border-radius:3px;width:21%;display:flex;align-items:center;padding:0 6px;color:#06100c;font:700 9px 'Manrope'">21% ⚠</div></div>
+      <div style="display:flex;align-items:center;gap:8px"><span style="width:120px;font:600 10px 'JetBrains Mono';color:var(--muted)">7. Checkout</span><div style="height:14px;background:linear-gradient(90deg,var(--accent),var(--accent-2));border-radius:3px;width:18%;display:flex;align-items:center;padding:0 6px;color:#06100c;font:700 9px 'Manrope'">18%</div></div>
+      <div style="display:flex;align-items:center;gap:8px"><span style="width:120px;font:600 10px 'JetBrains Mono';color:var(--muted)">8. Logística</span><div style="height:14px;background:linear-gradient(90deg,var(--accent),var(--accent-2));border-radius:3px;width:16%;display:flex;align-items:center;padding:0 6px;color:#06100c;font:700 9px 'Manrope'">16%</div></div>
+      <div style="display:flex;align-items:center;gap:8px"><span style="width:120px;font:600 10px 'JetBrains Mono';color:var(--muted)">9. Post-venta</span><div style="height:14px;background:linear-gradient(90deg,var(--accent-3),var(--accent));border-radius:3px;width:15%;display:flex;align-items:center;padding:0 6px;color:#06100c;font:700 9px 'Manrope'">15% ✓</div></div>
+    </div>
+  </div>
+  <div class="foot"><span class="brand"><b>ZIAY</b> · 9 pasos</span><span>Pipeline medible</span><span class="pg">09 / 22</span></div>
+</section>
+
+<!-- ============ SLIDE 10: Pagos ============ -->
+<section class="slide" data-title="Pagos">
+  <div class="eyebrow"><span class="dot"></span><span>Pagos · 8 métodos</span><span class="bar"></span><span class="num">10 / 22</span></div>
+  <h1 class="title">8 métodos de pago,<br><span class="em">7 monedas</span>, 1 checkout</h1>
+  <p class="lede">El cliente paga con lo que conoce en su país. ZIAY ofrece el método nativo de cada mercado — y gestiona la conciliación, los reembolsos y el reporte contable.</p>
+  <div class="grid g4" style="margin-top:14px">
+    <div class="card accent"><h3>MercadoPago</h3><p style="font-size:11.5px;margin:0">LATAM · tarjeta, PIX, OXXO, PSE, efectivo.</p><div class="tag-list" style="margin-top:5px"><span class="tag on">CO/MX/PE/CL/AR/BR</span></div></div>
+    <div class="card accent"><h3>Wompi</h3><p style="font-size:11.5px;margin:0">Colombia · tarjeta, PSE, Nequi, Daviplata.</p><div class="tag-list" style="margin-top:5px"><span class="tag on">CO</span></div></div>
+    <div class="card accent"><h3>Stripe</h3><p style="font-size:11.5px;margin:0">USA/EU · tarjeta, Apple Pay, Google Pay.</p><div class="tag-list" style="margin-top:5px"><span class="tag on">US/EU</span></div></div>
+    <div class="card accent"><h3>PayU</h3><p style="font-size:11.5px;margin:0">LATAM · tarjeta, PSE, efectivo, SPEI.</p><div class="tag-list" style="margin-top:5px"><span class="tag on">CO/MX/PE/CL/BR</span></div></div>
+    <div class="card accent"><h3>PSE</h3><p style="font-size:11.5px;margin:0">Colombia · débito desde banco en tiempo real.</p><div class="tag-list" style="margin-top:5px"><span class="tag on">CO</span></div></div>
+    <div class="card accent"><h3>PIX</h3><p style="font-size:11.5px;margin:0">Brasil · instantáneo, 80% lo usa.</p><div class="tag-list" style="margin-top:5px"><span class="tag on">BR</span></div></div>
+    <div class="card accent"><h3>OXXO</h3><p style="font-size:11.5px;margin:0">México · efectivo en 7-Eleven y afines.</p><div class="tag-list" style="margin-top:5px"><span class="tag on">MX</span></div></div>
+    <div class="card accent"><h3>SPEI</h3><p style="font-size:11.5px;margin:0">México · transferencia interbancaria.</p><div class="tag-list" style="margin-top:5px"><span class="tag on">MX</span></div></div>
+  </div>
+  <div class="grid g3" style="margin-top:14px">
+    <div class="card accent">
+      <h3>💸 Estrategias de pago</h3>
+      <table class="tbl" style="margin-top:6px">
+        <tr><th>Modo</th><th>Cuándo</th></tr>
+        <tr><td>Anticipado</td><td>Cliente conocido, ticket bajo</td></tr>
+        <tr><td>Contra entrega</td><td>Cliente nuevo, ticket bajo</td></tr>
+        <tr><td>Híbrido</td><td>Ticket alto, cliente nuevo</td></tr>
+      </table>
+    </div>
+    <div class="card accent">
+      <h3>🤝 Cobro híbrido inteligente</h3>
+      <p style="font-size:12px;margin:0">La IA ofrece mixto (50% anticipo + 50% contra entrega) si el ticket supera el umbral y el cliente es nuevo. Reduce riesgo sin perder la venta.</p>
+      <div class="badge ok" style="margin-top:6px">Configurable por tenant</div>
+    </div>
+    <div class="card accent">
+      <h3>🔄 Conciliación automática</h3>
+      <p style="font-size:12px;margin:0">Cada pago se verifica contra el gateway (webhook + polling). Si no concilia, el Conciliador lo reporta y no se libera la orden.</p>
+      <div class="badge ok" style="margin-top:6px">Cero órdenes falsas</div>
+    </div>
+  </div>
+  <div class="foot"><span class="brand"><b>ZIAY</b> · Pagos</span><span>8 métodos · 7 monedas</span><span class="pg">10 / 22</span></div>
+</section>
+
+<!-- ============ SLIDE 11: Logística ============ -->
+<section class="slide" data-title="Logística">
+  <div class="eyebrow"><span class="dot"></span><span>Logística</span><span class="bar"></span><span class="num">11 / 22</span></div>
+  <h1 class="title">3 carriers nacionales + internacional +<br><span class="em">tracking + novedades + RMA</span></h1>
+  <p class="lede">El paquete no termina cuando se cobra. ZIAY gestiona el envío hasta que el cliente lo recibe y queda feliz — incluyendo devoluciones y re-entregas.</p>
+  <div class="grid g2" style="margin-top:14px">
+    <div class="card accent">
+      <h3>🚚 Carriers integrados</h3>
+      <table class="tbl" style="margin-top:8px">
+        <tr><th>Carrier</th><th>Cobertura</th><th>Tipo</th><th>SLA</th></tr>
+        <tr><td>Dropi</td><td>CO nacional</td><td>Económico</td><td>2-3 días</td></tr>
+        <tr><td>99envios</td><td>CO + frontera</td><td>Express</td><td>1-2 días</td></tr>
+        <tr><td>Aveonline</td><td>LATAM</td><td>Cross-border</td><td>5-9 días</td></tr>
+        <tr><td>DHL</td><td>USA + EU</td><td>Internacional</td><td>5-10 días</td></tr>
+        <tr><td>FedEx</td><td>USA + EU</td><td>Internacional</td><td>4-8 días</td></tr>
+      </table>
+      <p class="muted" style="font-size:11.5px;margin-top:8px">La IA compara precio, tiempo y confiabilidad. Si un carrier falla en una ruta, cambia automáticamente al siguiente mejor.</p>
+    </div>
+    <div class="card accent">
+      <h3>📦 Capacidades</h3>
+      <div class="step-row"><div class="step-num">1</div><div class="body"><p style="font-size:11.5px;margin:0"><strong>Cotización en tiempo real:</strong> 2s, 3 carriers comparados.</p></div></div>
+      <div class="step-row"><div class="step-num">2</div><div class="body"><p style="font-size:11.5px;margin:0"><strong>Guía automática:</strong> PDF generado, número de rastreo al cliente.</p></div></div>
+      <div class="step-row"><div class="step-num">3</div><div class="body"><p style="font-size:11.5px;margin:0"><strong>Tracking bidireccional:</strong> cliente pregunta, IA responde con ubicación.</p></div></div>
+      <div class="step-row"><div class="step-num">4</div><div class="body"><p style="font-size:11.5px;margin:0"><strong>Novedades:</strong> detección automática, reprogramación, re-entrega sin costo.</p></div></div>
+      <div class="step-row"><div class="step-num">5</div><div class="body"><p style="font-size:11.5px;margin:0"><strong>RMA:</strong> devoluciones con workflow, reembolso, reposición, nota crédito.</p></div></div>
+      <div class="step-row"><div class="step-num">6</div><div class="body"><p style="font-size:11.5px;margin:0"><strong>Proof of delivery:</strong> foto, firma, geolocalización al entregar.</p></div></div>
+    </div>
+  </div>
+  <div class="grid g4" style="margin-top:14px">
+    <div class="card"><div class="stat">3+2</div><div class="stat-l">carriers nacional + intl</div></div>
+    <div class="card"><div class="stat">2s</div><div class="stat-l">cotización</div></div>
+    <div class="card"><div class="stat">−65%</div><div class="stat-l">tiempo en novedades</div></div>
+    <div class="card"><div class="stat">100%</div><div class="stat-l">guías con tracking</div></div>
+  </div>
+  <div class="foot"><span class="brand"><b>ZIAY</b> · Logística</span><span>3 carriers + intl + RMA</span><span class="pg">11 / 22</span></div>
+</section>
+
+<!-- ============ SLIDE 12: Analytics ============ -->
+<section class="slide" data-title="Analytics">
+  <div class="eyebrow"><span class="dot"></span><span>Analytics</span><span class="bar"></span><span class="num">12 / 22</span></div>
+  <h1 class="title">Funnel · cohort · anomaly · trend ·<br><span class="em">forecasting · insights</span></h1>
+  <p class="lede">No basta con vender. Hay que entender por qué se vende. ZIAY transforma cada conversación en dato analizable, y cada dato en una acción concreta.</p>
+  <div class="grid g3" style="margin-top:14px">
+    <div class="card accent">
+      <h3>📊 Funnel analytics</h3>
+      <p style="font-size:12px;margin:0">Conversión paso a paso en los 9 pasos. Detecta exactamente dónde se pierden los clientes, con qué perfil, en qué horario, con qué producto.</p>
+      <div class="badge" style="margin-top:6px">Optimización continua</div>
+    </div>
+    <div class="card accent">
+      <h3>👥 Cohort analysis</h3>
+      <p style="font-size:12px;margin:0">Comportamiento de grupos de clientes en el tiempo. Cuándo recompran, cuándo se olvidan, cuánto vale un cliente a 90/180/365 días.</p>
+      <div class="badge" style="margin-top:6px">LTV por cohort</div>
+    </div>
+    <div class="card accent">
+      <h3>🚨 Anomaly detection</h3>
+      <p style="font-size:12px;margin:0">Detecta patrones fuera de lo normal en tiempo real: caída de ventas, pico de devoluciones, carrier con demoras, agente alucinando.</p>
+      <div class="badge danger" style="margin-top:6px">Alertas en tiempo real</div>
+    </div>
+    <div class="card accent">
+      <h3>📈 Trend sensor</h3>
+      <p style="font-size:12px;margin:0">Identifica productos en tendencia emergente (búsquedas, fotos VLM, menciones en redes) antes que la competencia.</p>
+      <div class="badge" style="margin-top:6px">2 semanas de ventaja</div>
+    </div>
+    <div class="card accent">
+      <h3>🔮 Forecasting</h3>
+      <p style="font-size:12px;margin:0">Predice ventas, stock necesario y demanda por producto para las próximas 4-12 semanas. Basado en estacionalidad + tendencia.</p>
+      <div class="badge" style="margin-top:6px">Planificación de stock</div>
+    </div>
+    <div class="card accent">
+      <h3>💡 Insights automáticos</h3>
+      <p style="font-size:12px;margin:0">La IA lee los datos y propone acciones: "sube el precio del producto X", "compra más stock de Y", "pausa el anuncio Z".</p>
+      <div class="badge ok" style="margin-top:6px">Recomendaciones accionables</div>
+    </div>
+  </div>
+  <div class="callout think" style="margin-top:14px">
+    <div class="callout-title">🧠 La diferencia</div>
+    <p style="margin:0;font-size:13px">Un dashboard muestra números. ZIAY muestra <strong>números + interpretación + acción recomendada</strong>. El merchant no tiene que ser analista de datos — el sistema ya lo es.</p>
+  </div>
+  <div class="foot"><span class="brand"><b>ZIAY</b> · Analytics</span><span>Dato → acción</span><span class="pg">12 / 22</span></div>
+</section>
+
+<!-- ============ SLIDE 13: Marketplace ============ -->
+<section class="slide" data-title="Marketplace">
+  <div class="eyebrow"><span class="dot"></span><span>Marketplace</span><span class="bar"></span><span class="num">13 / 22</span></div>
+  <h1 class="title">Cross-tenant lead sharing<br>con <span class="em">commission split</span></h1>
+  <p class="lede">Las tiendas del marketplace ZIAY se refieren clientes entre sí. Si no tienes lo que un cliente busca, lo buscas en otra tienda aliada y ganas comisión. Si otra no lo tiene y tú sí, recibes el lead.</p>
+  <div class="grid g2" style="margin-top:14px">
+    <div class="card accent">
+      <h3>📤 Flujo de outbound (tú refieres)</h3>
+      <div class="flow" style="margin:8px 0">
+        <span class="flow-step">Cliente pide</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-step alt">No tienes</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-step">Marketplace</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-step alt">Aliada despacha</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-step" style="border-color:var(--accent-3)">+5% comisión</span>
+      </div>
+      <p style="font-size:12px;margin:0">Lead Router busca en el marketplace por nombre, categoría, especificación. Filtra por reputación y stock. Ofrece al cliente con tu marca (white-label).</p>
+    </div>
+    <div class="card accent">
+      <h3>📥 Flujo de inbound (te refieren)</h3>
+      <div class="flow" style="margin:8px 0">
+        <span class="flow-step">Otra tienda</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-step alt">No tiene</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-step">Marketplace</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-step alt">Tú sí tienes</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-step" style="border-color:var(--accent-3)">Venta −5%</span>
+      </div>
+      <p style="font-size:12px;margin:0">Recibes el lead con todo el contexto (qué pidió, perfil, país). Tu IA lo atiende como si fuera tuyo. Vendes, pagas 5% al que refirió.</p>
+    </div>
+  </div>
+  <div class="card glow" style="margin-top:14px">
+    <h3>💎 Network effect</h3>
+    <div class="grid g3" style="margin-top:8px">
+      <div><p style="font-size:11.5px;margin:0">Más tiendas conectadas →</p><p style="font-size:11.5px;margin-top:3px"><strong>más opciones para tus clientes</strong> (menos "no lo manejamos").</p></div>
+      <div><p style="font-size:11.5px;margin:0">Más opciones →</p><p style="font-size:11.5px;margin-top:3px"><strong>más ventas cross-tenant</strong> (más comisiones para todos).</p></div>
+      <div><p style="font-size:11.5px;margin:0">Más ventas →</p><p style="font-size:11.5px;margin-top:3px"><strong>más tiendas se conectan</strong> (efecto red clásico).</p></div>
+    </div>
+  </div>
+  <div class="callout money" style="margin-top:12px">
+    <div class="callout-title">💰 Para el equipo: ojo con esto</div>
+    <p style="margin:0;font-size:13px">El marketplace es el mayor diferenciador competitivo de ZIAY. <strong>Ningún competidor lo tiene</strong>. Cada mejora al sistema de routing, reputación y conciliación del marketplace multiplica el valor de toda la plataforma.</p>
+  </div>
+  <div class="foot"><span class="brand"><b>ZIAY</b> · Marketplace</span><span>Network effect</span><span class="pg">13 / 22</span></div>
+</section>
+
+<!-- ============ SLIDE 14: Embed SDK ============ -->
+<section class="slide" data-title="Embed SDK">
+  <div class="eyebrow"><span class="dot"></span><span>Embed SDK</span><span class="bar"></span><span class="num">14 / 22</span></div>
+  <h1 class="title">Cómo se inserta ZIAY<br>en <span class="em">tiendas externas</span></h1>
+  <p class="lede">No todos los merchants venden solo por WhatsApp. Muchos ya tienen tienda web (Shopify, WooCommerce, propia). ZIAY se inserta como widget de chat — mismo equipo de IA, mismo catálogo, mismo checkout.</p>
+  <div class="grid g3" style="margin-top:14px">
+    <div class="card accent">
+      <h3>🛒 Shopify</h3>
+      <p style="font-size:12px;margin:0">App oficial en Shopify App Store. Instalación sin código. Sincroniza productos, inventario y órdenes automáticamente.</p>
+      <div class="tag-list" style="margin-top:6px"><span class="tag on">5 min</span><span class="tag on">No-code</span></div>
+    </div>
+    <div class="card accent">
+      <h3>🛍 WooCommerce</h3>
+      <p style="font-size:12px;margin:0">Plugin oficial de WordPress. Mismo flujo: sincroniza catálogo, widget aparece, IA atiende con contexto del carrito.</p>
+      <div class="tag-list" style="margin-top:6px"><span class="tag on">7 min</span><span class="tag on">No-code</span></div>
+    </div>
+    <div class="card accent">
+      <h3>🌐 Tienda propia</h3>
+      <p style="font-size:12px;margin:0">Script JS que se pega en cualquier sitio (React, Vue, HTML). Widget flotante con tu marca y tus colores.</p>
+      <div class="tag-list" style="margin-top:6px"><span class="tag on">1 línea</span><span class="tag on">White-label</span></div>
+    </div>
+  </div>
+  <div class="card glow" style="margin-top:14px">
+    <h3>🔌 Cómo funciona técnicamente (cajas, no código)</h3>
+    <div style="display:flex;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap">
+      <div class="box-arch" style="flex:1;min-width:140px"><div class="lbl">Front</div><div class="nm">Tienda web</div><div class="desc">Shopify/Woo/custom</div></div>
+      <span class="flow-arrow">→</span>
+      <div class="box-arch" style="flex:1;min-width:140px"><div class="lbl">Embed</div><div class="nm">ziay-widget.js</div><div class="desc">Script JS flotante</div></div>
+      <span class="flow-arrow">→</span>
+      <div class="box-arch" style="flex:1;min-width:140px"><div class="lbl">API</div><div class="nm">ZIAY API</div><div class="desc">REST + WebSocket</div></div>
+      <span class="flow-arrow">→</span>
+      <div class="box-arch" style="flex:1;min-width:140px"><div class="lbl">Agents</div><div class="nm">27 agentes</div><div class="desc">Atienden al cliente</div></div>
+      <span class="flow-arrow">→</span>
+      <div class="box-arch" style="flex:1;min-width:140px"><div class="lbl">Sync</div><div class="nm">Catálogo + orden</div><div class="desc">Bidireccional</div></div>
+    </div>
+    <p class="muted" style="font-size:11.5px;margin-top:10px">El widget es solo la punta del iceberg. Detrás está toda la plataforma ZIAY. Para el merchant es un botón. Para el equipo de desarrollo es una integración completa con sync de catálogo, sincronización de inventario, pasarela de pagos y webhook de órdenes.</p>
+  </div>
+  <div class="grid g3" style="margin-top:12px">
+    <div class="card"><div class="stat">+38%</div><div class="stat-l">recupero de carritos</div></div>
+    <div class="card"><div class="stat">2.8s</div><div class="stat-l">respuesta IA</div></div>
+    <div class="card"><div class="stat">100%</div><div class="stat-l">sincronizado</div></div>
+  </div>
+  <div class="foot"><span class="brand"><b>ZIAY</b> · Embed SDK</span><span>IA en cualquier tienda</span><span class="pg">14 / 22</span></div>
+</section>
+
+<!-- ============ SLIDE 15: Cross-border ============ -->
+<section class="slide" data-title="Cross-border">
+  <div class="eyebrow"><span class="dot"></span><span>Cross-border</span><span class="bar"></span><span class="num">15 / 22</span></div>
+  <h1 class="title">DDP pricing · customs ·<br><span class="em">multi-currency</span></h1>
+  <p class="lede">Vender a otro país no es solo cambiar la moneda. Hay aranceles, aduanas, regulaciones, métodos de pago distintos y lenguaje local. ZIAY lo maneja todo y entrega el precio final al cliente — sin sorpresas en aduana.</p>
+  <div class="grid g2" style="margin-top:14px">
+    <div class="card accent">
+      <h3>🌍 Lo que ZIAY calcula solo</h3>
+      <div class="step-row"><div class="step-num">1</div><div class="body"><p style="font-size:12px;margin:0"><strong>Conversión de moneda:</strong> tasa del día, en tiempo real.</p></div></div>
+      <div class="step-row"><div class="step-num">2</div><div class="body"><p style="font-size:12px;margin:0"><strong>Arancel de importación:</strong> por país y categoría de producto.</p></div></div>
+      <div class="step-row"><div class="step-num">3</div><div class="body"><p style="font-size:12px;margin:0"><strong>IVA / impuesto local:</strong> México 16%, Brasil 17%, Chile 19%, etc.</p></div></div>
+      <div class="step-row"><div class="step-num">4</div><div class="body"><p style="font-size:12px;margin:0"><strong>Envío internacional:</strong> cotiza con Aveonline/DHL/FedEx.</p></div></div>
+      <div class="step-row"><div class="step-num">5</div><div class="body"><p style="font-size:12px;margin:0"><strong>DDP (Delivered Duty Paid):</strong> todo incluido, cliente no paga nada extra al recibir.</p></div></div>
+      <div class="step-row"><div class="step-num">6</div><div class="body"><p style="font-size:12px;margin:0"><strong>Compliance por país:</strong> retracto, regulación local, facturación.</p></div></div>
+    </div>
+    <div class="card accent">
+      <h3>📦 Ejemplo: venta CO → MX</h3>
+      <table class="tbl" style="margin-top:8px">
+        <tr><th>Concepto</th><th class="num">Valor</th></tr>
+        <tr><td>Producto (COP)</td><td class="num">$129.000</td></tr>
+        <tr><td>Conversión (tasa día)</td><td class="num">≈ $580 MXN</td></tr>
+        <tr><td>Envío internacional</td><td class="num">$180 MXN</td></tr>
+        <tr><td>Arancel MX (0% textil)</td><td class="num">$0</td></tr>
+        <tr><td>IVA MX (16%)</td><td class="num">$93 MXN</td></tr>
+        <tr><td><strong>Total DDP</strong></td><td class="num"><strong>$853 MXN</strong></td></tr>
+      </table>
+      <p class="muted" style="font-size:11.5px;margin-top:8px">El cliente paga $853 MXN y recibe el paquete en su casa. <strong>Nada más</strong>. Sin sorpresas, sin trámites, sin ir a aduana.</p>
+    </div>
+  </div>
+  <div class="grid g5" style="margin-top:14px">
+    <div class="card" style="text-align:center"><div style="font-size:24px">🇨🇴</div><div style="font:600 10px 'JetBrains Mono';color:var(--muted);margin-top:2px">COP</div></div>
+    <div class="card" style="text-align:center"><div style="font-size:24px">🇲🇽</div><div style="font:600 10px 'JetBrains Mono';color:var(--muted);margin-top:2px">MXN</div></div>
+    <div class="card" style="text-align:center"><div style="font-size:24px">🇵🇪</div><div style="font:600 10px 'JetBrains Mono';color:var(--muted);margin-top:2px">PEN</div></div>
+    <div class="card" style="text-align:center"><div style="font-size:24px">🇨🇱</div><div style="font:600 10px 'JetBrains Mono';color:var(--muted);margin-top:2px">CLP</div></div>
+    <div class="card" style="text-align:center"><div style="font-size:24px">🇧🇷</div><div style="font:600 10px 'JetBrains Mono';color:var(--muted);margin-top:2px">BRL</div></div>
+  </div>
+  <div class="foot"><span class="brand"><b>ZIAY</b> · Cross-border</span><span>DDP + customs + multi-currency</span><span class="pg">15 / 22</span></div>
+</section>
+
+<!-- ============ SLIDE 16: Compliance ============ -->
+<section class="slide" data-title="Compliance">
+  <div class="eyebrow"><span class="dot"></span><span>Compliance & legal</span><span class="bar"></span><span class="num">16 / 22</span></div>
+  <h1 class="title">Ley 1581 · DIAN · anti-ban ·<br>GDPR · retracto <span class="em">todo cumplido</span></h1>
+  <p class="lede">Cada país tiene sus reglas. ZIAY las conoce, las aplica y las demuestra con logs inmutables. El merchant opera tranquilo — el sistema cumple por él.</p>
+  <div class="grid g2" style="margin-top:14px">
+    <div class="card accent">
+      <h3>⚖ Normas cumplidas</h3>
+      <table class="tbl" style="margin-top:8px">
+        <tr><th>Norma</th><th>País</th><th>Qué cumple</th></tr>
+        <tr><td>Ley 1581</td><td>CO</td><td>HABEAS Data, consentimiento, olvido</td></tr>
+        <tr><td>DIAN</td><td>CO</td><td>Facturación electrónica, retenciones</td></tr>
+        <tr><td>Retracto</td><td>LATAM</td><td>Proceso automático 30 días</td></tr>
+        <tr><td>GDPR</td><td>EU</td><td>Si cliente cruza frontera EU</td></tr>
+        <tr><td>LGPD</td><td>BR</td><td>Equivalente brasilero GDPR</td></tr>
+        <tr><td>Ley 1098</td><td>CO</td><td>Age gate productos restringidos</td></tr>
+        <tr><td>WhatsApp Policy</td><td>Global</td><td>Templates, ventanas, frecuencia</td></tr>
+        <tr><td>PCI-DSS</td><td>Global</td><td>No almacenamos datos de tarjeta</td></tr>
+      </table>
+    </div>
+    <div class="card accent">
+      <h3>🚫 Anti-ban WhatsApp</h3>
+      <div class="step-row"><div class="step-num">A</div><div class="body"><p style="font-size:12px;margin:0">Respeta ventana 24h de WhatsApp Business.</p></div></div>
+      <div class="step-row"><div class="step-num">B</div><div class="body"><p style="font-size:12px;margin:0">Usa templates aprobados por Meta.</p></div></div>
+      <div class="step-row"><div class="step-num">C</div><div class="body"><p style="font-size:12px;margin:0">Limita frecuencia (máx 1 msg/24h sin respuesta).</p></div></div>
+      <div class="step-row"><div class="step-num">D</div><div class="body"><p style="font-size:12px;margin:0">Filtra palabras prohibidas (spam, fraude, adulto).</p></div></div>
+      <div class="step-row"><div class="step-num">E</div><div class="body"><p style="font-size:12px;margin:0">Respeta horarios (no 9pm-8am hora local).</p></div></div>
+      <div class="step-row"><div class="step-num">F</div><div class="body"><p style="font-size:12px;margin:0">Detecta patrones de denuncia de usuarios.</p></div></div>
+      <div class="step-row"><div class="step-num">G</div><div class="body"><p style="font-size:12px;margin:0">Cada acción queda en log inmutable.</p></div></div>
+    </div>
+  </div>
+  <div class="callout warn" style="margin-top:12px">
+    <div class="callout-title">⚠ Para el equipo: esto no es opcional</div>
+    <p style="margin:0;font-size:13px">Una sola violación legal puede costar más que toda la operación de un año. <strong>El equipo de desarrollo debe tratar el compliance como feature de primera clase</strong>, no como "lo agregamos después". Cada cambio que toca datos de cliente, mensajería o pagos debe pasar por revisión de compliance.</p>
+  </div>
+  <div class="foot"><span class="brand"><b>ZIAY</b> · Compliance</span><span>Legal como feature</span><span class="pg">16 / 22</span></div>
+</section>
+
+<!-- ============ SLIDE 17: Arquitectura conceptual ============ -->
+<section class="slide" data-title="Arquitectura conceptual">
+  <div class="eyebrow"><span class="dot"></span><span>Arquitectura conceptual</span><span class="bar"></span><span class="num">17 / 22</span></div>
+  <h1 class="title">Frontend → API → services → DB<br><span class="em">en cajas, no en código</span></h1>
+  <p class="lede">No es un monolito ni un microservicio extremo. Es una arquitectura en capas con responsabilidades claras. Cada caja es un equipo o un módulo, y se comunican por contratos definidos.</p>
+  <div class="card glow" style="margin-top:14px">
+    <h3>🏛 Diagrama de capas</h3>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-top:10px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="width:110px;font:600 10px 'JetBrains Mono';color:var(--muted)">FRONT</div>
+        <div style="flex:1;display:flex;gap:6px">
+          <div class="box-arch" style="flex:1"><div class="nm">Dashboard React</div><div class="desc">Merchant + agente humano</div></div>
+          <div class="box-arch" style="flex:1"><div class="nm">Embed SDK</div><div class="desc">Widget tiendas externas</div></div>
+          <div class="box-arch" style="flex:1"><div class="nm">WhatsApp</div><div class="desc">Cloud API Meta</div></div>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:center;color:var(--accent-3);font-size:14px">↓</div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="width:110px;font:600 10px 'JetBrains Mono';color:var(--muted)">API</div>
+        <div style="flex:1;display:flex;gap:6px">
+          <div class="box-arch" style="flex:1"><div class="nm">REST API</div><div class="desc">147 endpoints</div></div>
+          <div class="box-arch" style="flex:1"><div class="nm">WebSocket</div><div class="desc">Live messaging</div></div>
+          <div class="box-arch" style="flex:1"><div class="nm">Webhooks</div><div class="desc">Inbound Meta/Google</div></div>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:center;color:var(--accent-3);font-size:14px">↓</div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="width:110px;font:600 10px 'JetBrains Mono';color:var(--muted)">SERVICES</div>
+        <div style="flex:1;display:flex;gap:6px">
+          <div class="box-arch" style="flex:1"><div class="nm">Agent Orchestrator</div><div class="desc">27 agentes + Governor</div></div>
+          <div class="box-arch" style="flex:1"><div class="nm">Quote Engine</div><div class="desc">Precios + flete + bundling</div></div>
+          <div class="box-arch" style="flex:1"><div class="nm">Payment Service</div><div class="desc">8 gateways + conciliación</div></div>
+          <div class="box-arch" style="flex:1"><div class="nm">Logistics Service</div><div class="desc">3 carriers + tracking</div></div>
+          <div class="box-arch" style="flex:1"><div class="nm">Analytics</div><div class="desc">Funnel + anomaly + trend</div></div>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:center;color:var(--accent-3);font-size:14px">↓</div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="width:110px;font:600 10px 'JetBrains Mono';color:var(--muted)">DATA</div>
+        <div style="flex:1;display:flex;gap:6px">
+          <div class="box-arch" style="flex:1"><div class="nm">PostgreSQL</div><div class="desc">78 modelos multi-tenant</div></div>
+          <div class="box-arch" style="flex:1"><div class="nm">Redis</div><div class="desc">Cache + rate limit</div></div>
+          <div class="box-arch" style="flex:1"><div class="nm">S3 / Storage</div><div class="desc">Fotos, PDFs, guías</div></div>
+          <div class="box-arch" style="flex:1"><div class="nm">LLM Provider</div><div class="desc">GLM-4.6 + VLM</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="grid g3" style="margin-top:12px">
+    <div class="card"><div class="stat">40</div><div class="stat-l">servicios backend</div></div>
+    <div class="card"><div class="stat">147</div><div class="stat-l">APIs</div></div>
+    <div class="card"><div class="stat">78</div><div class="stat-l">modelos de datos</div></div>
+  </div>
+  <div class="foot"><span class="brand"><b>ZIAY</b> · Arquitectura</span><span>Capas claras, contratos definidos</span><span class="pg">17 / 22</span></div>
+</section>
+
+<!-- ============ SLIDE 18: Integraciones ============ -->
+<section class="slide" data-title="Integraciones">
+  <div class="eyebrow"><span class="dot"></span><span>Integraciones</span><span class="bar"></span><span class="num">18 / 22</span></div>
+  <h1 class="title">Shopify · WooCommerce · WhatsApp ·<br>Instagram · <span class="em">TikTok</span></h1>
+  <p class="lede">ZIAY no vive aislado. Se conecta con las plataformas donde ya están los merchants y los clientes. Cada integración es bidireccional y sincronizada en tiempo real.</p>
+  <div class="grid g3" style="margin-top:14px">
+    <div class="card accent">
+      <h3>💬 WhatsApp Business</h3>
+      <p style="font-size:12px;margin:0">Cloud API oficial de Meta. Mensajes inbound/outbound, templates, media, botones interactivos, ubicación.</p>
+      <div class="badge ok" style="margin-top:6px">Canal principal LATAM</div>
+    </div>
+    <div class="card accent">
+      <h3>📸 Instagram DM</h3>
+      <p style="font-size:12px;margin:0">Mensajería directa de Instagram Business. Misma IA, mismo pipeline. Cliente escribe por IG, paga por cualquier método.</p>
+      <div class="badge ok" style="margin-top:6px">Tráfico orgánico</div>
+    </div>
+    <div class="card accent">
+      <h3>🎵 TikTok</h3>
+      <p style="font-size:12px;margin:0">Mensajería de TikTok Business + atribución de anuncios. Tendencia joven, alta conversión.</p>
+      <div class="badge ok" style="margin-top:6px">Tráfico pagado nuevo</div>
+    </div>
+    <div class="card accent">
+      <h3>🛒 Shopify</h3>
+      <p style="font-size:12px;margin:0">App Store oficial. Sync bidireccional de catálogo, inventario, órdenes. Embed SDK incluido.</p>
+      <div class="badge ok" style="margin-top:6px">1M+ merchants</div>
+    </div>
+    <div class="card accent">
+      <h3>🛍 WooCommerce</h3>
+      <p style="font-size:12px;margin:0">Plugin WordPress. Mismas capacidades que Shopify, para merchants con stack WP.</p>
+      <div class="badge ok" style="margin-top:6px">5M+ stores</div>
+    </div>
+    <div class="card accent">
+      <h3>🤖 n8n / Zapier</h3>
+      <p style="font-size:12px;margin:0">Webhooks + REST API para integrar con cualquier sistema: CRM, ERP, sheets, correo.</p>
+      <div class="badge ok" style="margin-top:6px">Universal</div>
+    </div>
+  </div>
+  <div class="callout think" style="margin-top:14px">
+    <div class="callout-title">🧠 Filosofía de integración</div>
+    <p style="margin:0;font-size:13px">ZIAY no compite con Shopify ni WooCommerce — <strong>los complementa</strong>. Si el merchant ya tiene tienda web, la potencia con IA. Si no tiene, ZIAY crea una tienda web SEO gratis. <strong>El merchant nunca tiene que elegir entre canales</strong>.</p>
+  </div>
+  <div class="foot"><span class="brand"><b>ZIAY</b> · Integraciones</span><span>Conectado al ecosistema</span><span class="pg">18 / 22</span></div>
+</section>
+
+<!-- ============ SLIDE 19: Métricas del sistema ============ -->
+<section class="slide" data-title="Métricas del sistema">
+  <div class="eyebrow"><span class="dot"></span><span>Métricas del sistema</span><span class="bar"></span><span class="num">19 / 22</span></div>
+  <h1 class="title">78 modelos · 147 APIs ·<br>986 tests · <span class="em">40 servicios</span></h1>
+  <p class="lede">No es un MVP ni un prototipo. Es un sistema empresarial construido con disciplina de ingeniería: cada componente tiene tests, cada endpoint tiene documentación, cada modelo tiene migración.</p>
+  <div class="grid g4" style="margin-top:18px">
+    <div class="card glow"><div class="stat">78</div><div class="stat-l">modelos de datos</div><p style="font-size:11px;color:var(--muted);margin-top:6px">Prisma schema multi-tenant completo: tenants, productos, conversaciones, órdenes, pagos, logs, analytics.</p></div>
+    <div class="card glow"><div class="stat">147</div><div class="stat-l">APIs REST</div><p style="font-size:11px;color:var(--muted);margin-top:6px">Cada endpoint autenticado, rate-limited, documentado, con tests E2E y observabilidad.</p></div>
+    <div class="card glow"><div class="stat">986</div><div class="stat-l">tests automatizados</div><p style="font-size:11px;color:var(--muted);margin-top:6px">Unit + integration + E2E. Cobertura de regresión total. Cada PR valida contra 986 escenarios.</p></div>
+    <div class="card glow"><div class="stat">40</div><div class="stat-l">servicios backend</div><p style="font-size:11px;color:var(--muted);margin-top:6px">Arquitectura modular: agents, quote, payment, logistics, analytics, marketplace, compliance, etc.</p></div>
+  </div>
+  <div class="grid g4" style="margin-top:14px">
+    <div class="card"><div class="stat">27</div><div class="stat-l">agentes IA</div><p style="font-size:11px;color:var(--muted);margin-top:4px">Cada uno con reglas NUNCA/SIEMPRE</p></div>
+    <div class="card"><div class="stat">29+17</div><div class="stat-l">reglas comportamiento</div><p style="font-size:11px;color:var(--muted);margin-top:4px">Validación de output del LLM</p></div>
+    <div class="card"><div class="stat">7</div><div class="stat-l">monedas soportadas</div><p style="font-size:11px;color:var(--muted);margin-top:4px">COP, MXN, PEN, CLP, BRL, USD, EUR</p></div>
+    <div class="card"><div class="stat">8</div><div class="stat-l">métodos de pago</div><p style="font-size:11px;color:var(--muted);margin-top:4px">MercadoPago, Wompi, Stripe, PayU...</p></div>
+  </div>
+  <div class="callout money" style="margin-top:14px">
+    <div class="callout-title">💎 Score de calidad: 10 / 10</div>
+    <p style="margin:0;font-size:13.5px">Lint 0 errores · TSC 0 errores · 986/986 tests pasando · build en 35s · todos los endpoints 200 · logs limpios. <strong>No es deuda técnica — es activo técnico</strong>.</p>
+  </div>
+  <div class="foot"><span class="brand"><b>ZIAY</b> · Métricas</span><span>Calidad de producto</span><span class="pg">19 / 22</span></div>
+</section>
+
+<!-- ============ SLIDE 20: Roadmap ============ -->
+<section class="slide" data-title="Roadmap">
+  <div class="eyebrow"><span class="dot"></span><span>Roadmap</span><span class="bar"></span><span class="num">20 / 22</span></div>
+  <h1 class="title">Qué viene <span class="em">después</span></h1>
+  <p class="lede">El sistema actual es el piso, no el techo. El roadmap amplía cobertura, profundiza IA y abre nuevos canales — siempre con foco en métricas de negocio.</p>
+  <div class="grid g4" style="margin-top:14px">
+    <div class="card accent">
+      <h3>Q1 · Profundización</h3>
+      <p style="font-size:11.5px;margin:0">VLM multimodal completo · Voice messages · Predictive bundles · Cross-sell ML.</p>
+      <div class="badge" style="margin-top:6px">+15% conversión</div>
+    </div>
+    <div class="card accent">
+      <h3>Q2 · Cobertura</h3>
+      <p style="font-size:11.5px;margin:0">Mercado Libre · Telegram · Facebook Messenger · Voice notes bidireccionales.</p>
+      <div class="badge" style="margin-top:6px">+30% alcance</div>
+    </div>
+    <div class="card accent">
+      <h3>Q3 · Marketplace 2.0</h3>
+      <p style="font-size:11.5px;margin:0">Reputación con blockchain · Smart contracts para comisión · Disputas automáticas.</p>
+      <div class="badge ok" style="margin-top:6px">Network effect x10</div>
+    </div>
+    <div class="card accent">
+      <h3>Q4 · Expansión USA</h3>
+      <p style="font-size:11.5px;margin:0">Compliance FCC/CCPA · Integraciones Shopify US · Apple Pay/Google Pay nativos.</p>
+      <div class="badge ok" style="margin-top:6px">Market $191B</div>
+    </div>
+  </div>
+  <div class="card glow" style="margin-top:14px">
+    <h3>🧭 Principios del roadmap</h3>
+    <div class="grid g3" style="margin-top:8px">
+      <div><p style="font-size:12px;margin:0"><strong>1. Métrica antes que feature.</strong> Cada nueva capacidad debe mover un KPI de negocio (conversión, AOV, retención). Si no mueve nada, no se lanza.</p></div>
+      <div><p style="font-size:12px;margin:0"><strong>2. Multi-tenant primero.</strong> Todo se construye para escalar a 10.000 tenants sin reescribir. No atajos "solo para un cliente".</p></div>
+      <div><p style="font-size:12px;margin:0"><strong>3. Compliance no negociable.</strong> Cada feature pasa por revisión legal. Si rompe Ley 1581/GDPR, no se lanza — se rediseña.</p></div>
+    </div>
+  </div>
+  <div class="callout think" style="margin-top:12px">
+    <div class="callout-title">🧠 Para el equipo</div>
+    <p style="margin:0;font-size:13px">El roadmap no es una lista de deseos — es un contrato con prioridades. <strong>Cada feature propuesta se evalúa contra estos 4 quarters</strong>. Si no encaja, se pospone. La disciplina de decir "no" es lo que mantiene la calidad.</p>
+  </div>
+  <div class="foot"><span class="brand"><b>ZIAY</b> · Roadmap</span><span>Q1 → Q4 · profundizar, expandir, escalar</span><span class="pg">20 / 22</span></div>
+</section>
+
+<!-- ============ SLIDE 21: Glosario ============ -->
+<section class="slide" data-title="Glosario">
+  <div class="eyebrow"><span class="dot"></span><span>Glosario</span><span class="bar"></span><span class="num">21 / 22</span></div>
+  <h1 class="title">Términos clave que <span class="em">debes conocer</span></h1>
+  <p class="lede">Si vas a trabajar en ZIAY, este es el vocabulario mínimo. Memorízalo — lo vas a usar todos los días.</p>
+  <div class="grid g2" style="margin-top:14px">
+    <div class="card accent">
+      <h3>📦 Negocio</h3>
+      <table class="tbl" style="margin-top:6px">
+        <tr><th>Término</th><th>Significado</th></tr>
+        <tr><td><strong>GMV</strong></td><td>Gross Merchandise Value. Total de ventas brutas.</td></tr>
+        <tr><td><strong>AOV</strong></td><td>Average Order Value. Ticket promedio.</td></tr>
+        <tr><td><strong>Tenant</strong></td><td>Tienda aislada dentro de ZIAY.</td></tr>
+        <tr><td><strong>Merchant</strong></td><td>Dueño de la tienda (cliente de ZIAY).</td></tr>
+        <tr><td><strong>Trafficker</strong></td><td>Genera tráfico con anuncios.</td></tr>
+        <tr><td><strong>DDP</strong></td><td>Delivered Duty Paid. Precio con todo incluido.</td></tr>
+      </table>
+    </div>
+    <div class="card accent">
+      <h3>📈 Métricas</h3>
+      <table class="tbl" style="margin-top:6px">
+        <tr><th>Término</th><th>Significado</th></tr>
+        <tr><td><strong>ROAS</strong></td><td>Return on Ad Spend. Revenue / ad spend.</td></tr>
+        <tr><td><strong>CAC</strong></td><td>Customer Acquisition Cost. Costo por cliente.</td></tr>
+        <tr><td><strong>LTV</strong></td><td>Lifetime Value. Valor total del cliente.</td></tr>
+        <tr><td><strong>NDR</strong></td><td>Net Dollar Retention. Retención neta de revenue.</td></tr>
+        <tr><td><strong>CPL</strong></td><td>Cost per Lead. Costo por lead.</td></tr>
+        <tr><td><strong>CVR</strong></td><td>Conversion Rate. Tasa de conversión.</td></tr>
+      </table>
+    </div>
+    <div class="card accent">
+      <h3>🤖 IA & producto</h3>
+      <table class="tbl" style="margin-top:6px">
+        <tr><th>Término</th><th>Significado</th></tr>
+        <tr><td><strong>Governor</strong></td><td>Agente supervisor que valida todo.</td></tr>
+        <tr><td><strong>Confianza</strong></td><td>Score 0-1 del LLM. &lt;0.6 escala a humano.</td></tr>
+        <tr><td><strong>Alucinación</strong></td><td>LLM inventa datos fuera de contexto.</td></tr>
+        <tr><td><strong>Prompt dinámico</strong></td><td>Prompt que aprende qué variantes venden más.</td></tr>
+        <tr><td><strong>VLM</strong></td><td>Vision Language Model. Identifica por foto.</td></tr>
+        <tr><td><strong>Smart routing</strong></td><td>Redirige lead a otra tienda si no tienes stock.</td></tr>
+      </table>
+    </div>
+    <div class="card accent">
+      <h3>🔧 Técnico</h3>
+      <table class="tbl" style="margin-top:6px">
+        <tr><th>Término</th><th>Significado</th></tr>
+        <tr><td><strong>Webhook</strong></td><td>HTTP callback de un sistema externo.</td></tr>
+        <tr><td><strong>Click_id</strong></td><td>Identificador del anuncio (fbclid, gclid).</td></tr>
+        <tr><td><strong>Mensajería 24h</strong></td><td>Ventana de WhatsApp Business API.</td></tr>
+        <tr><td><strong>PII</strong></td><td>Personally Identifiable Information.</td></tr>
+        <tr><td><strong>RMA</strong></td><td>Return Merchandise Authorization.</td></tr>
+        <tr><td><strong>SLA</strong></td><td>Service Level Agreement. Compromiso de servicio.</td></tr>
+      </table>
+    </div>
+  </div>
+  <div class="foot"><span class="brand"><b>ZIAY</b> · Glosario</span><span>Vocabulario mínimo</span><span class="pg">21 / 22</span></div>
+</section>
+
+<!-- ============ SLIDE 22: CTA ============ -->
+<section class="slide center" data-title="CTA">
+  <div class="ghost" style="top:-50px;right:-30px">→</div>
+  <div class="eyebrow" style="justify-content:center"><span class="dot"></span><span>El siguiente paso</span><span class="bar"></span><span class="num">22 / 22</span></div>
+  <h1 class="hero-title" style="font-size:44px">Construyamos el futuro del<br><span class="em">comercio conversacional</span></h1>
+  <p class="hero-sub">ZIAY no es un proyecto más. Es la capa de infraestructura que va a mover millones de conversaciones de venta en LATAM. Cada línea de código que escribimos aquí impacta a un merchant real, un cliente real, una venta real.</p>
+  <div class="hero-badges" style="margin-top:14px">
+    <span class="badge">Calidad 10/10</span>
+    <span class="badge ok">986 tests verdes</span>
+    <span class="badge">Roadmap claro</span>
+    <span class="badge">Multi-tenant primero</span>
+  </div>
+  <div class="grid g3" style="width:100%;max-width:900px;margin-top:24px">
+    <div class="card accent"><h3>📚 Lee el código</h3><p style="font-size:12.5px">Empieza por <code style="background:var(--panel-2);padding:1px 5px;border-radius:4px;font:600 11px 'JetBrains Mono';color:var(--accent-3)">prisma/schema.prisma</code> para entender el modelo de datos. Luego <code style="background:var(--panel-2);padding:1px 5px;border-radius:4px;font:600 11px 'JetBrains Mono';color:var(--accent-3)">src/lib/agents/</code>.</p></div>
+    <div class="card accent"><h3>🧠 Entiende el negocio</h3><p style="font-size:12.5px">Lee esta presentación completa + el onboarding. Sin entender el negocio, el código no tiene contexto.</p></div>
+    <div class="card accent"><h3>🚀 Contribuye</h3><p style="font-size:12.5px">Cada PR pasa por 986 tests. Cada feature pasa por revisión de compliance. Disciplina &gt; velocidad.</p></div>
+  </div>
+  <div class="callout money" style="margin-top:24px;max-width:780px">
+    <div class="callout-title">💎 Nuestro estándar</div>
+    <p style="margin:0;font-size:14px;text-align:center">No escribimos código que "funcione". Escribimos código que <strong>funcione, se mantenga, escale y cumpla</strong>. Esa es la diferencia entre un proyecto y un producto. <strong>Bienvenido al equipo</strong>.</p>
+  </div>
+  <p class="muted" style="margin-top:20px;font:600 11px 'JetBrains Mono';letter-spacing:.12em;text-transform:uppercase">📧 equipo@ziay.co · 📍 Bogotá · 🌎 LATAM</p>
+  <div class="foot"><span class="brand"><b>ZIAY</b> · Construyamos el futuro</span><span>CTA</span><span class="pg">22 / 22</span></div>
+</section>
+
+</div><!-- /deck -->
+
+<div class="nav">
+  <button id="prev" title="Anterior (←)">‹</button>
+  <span class="counter"><b id="cur">01</b> / <span id="tot">22</span></span>
+  <button id="next" title="Siguiente (→)">›</button>
+</div>
+</div>
+</div>
+
+<script>
+(function(){
+  const scaler = document.getElementById('scaler');
+  function fit(){
+    const w = window.innerWidth, h = window.innerHeight;
+    const s = Math.min(w/1280, h/720) * 0.98;
+    scaler.style.transform = 'scale(' + s + ')';
+  }
+  window.addEventListener('resize', fit);
+  fit();
+
+  const slides = Array.from(document.querySelectorAll('.slide'));
+  const total = slides.length;
+  const curEl = document.getElementById('cur');
+  const totEl = document.getElementById('tot');
+  const prog = document.getElementById('progress');
+  let idx = 0;
+  totEl.textContent = String(total).padStart(2,'0');
+
+  function show(n){
+    idx = (n + total) % total;
+    slides.forEach((s,i)=>s.classList.toggle('active', i===idx));
+    curEl.textContent = String(idx+1).padStart(2,'0');
+    prog.style.width = ((idx+1)/total*100) + '%';
+  }
+  document.getElementById('prev').addEventListener('click',()=>show(idx-1));
+  document.getElementById('next').addEventListener('click',()=>show(idx+1));
+  document.addEventListener('keydown',e=>{
+    if(e.key==='ArrowRight'||e.key==='PageDown'||e.key===' '){e.preventDefault();show(idx+1);}
+    else if(e.key==='ArrowLeft'||e.key==='PageUp'){e.preventDefault();show(idx-1);}
+    else if(e.key==='Home'){e.preventDefault();show(0);}
+    else if(e.key==='End'){e.preventDefault();show(total-1);}
+    else if(e.key==='f'||e.key==='F'){document.documentElement.requestFullscreen?.();}
+  });
+  let sx=0, sy=0;
+  document.addEventListener('touchstart',e=>{sx=e.touches[0].clientX;sy=e.touches[0].clientY;},{passive:true});
+  document.addEventListener('touchend',e=>{
+    const dx=e.changedTouches[0].clientX-sx;
+    const dy=e.changedTouches[0].clientY-sy;
+    if(Math.abs(dx)>50 && Math.abs(dx)>Math.abs(dy)) show(idx + (dx<0?1:-1));
+  },{passive:true});
+  show(0);
+})();
+</script>
+</body>
+</html>

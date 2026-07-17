@@ -26,9 +26,12 @@ li{font-size:1em;line-height:1.7;margin-bottom:6px}
 .grid-2{grid-template-columns:1fr 1fr}
 .grid-3{grid-template-columns:1fr 1fr 1fr}
 .grid-4{grid-template-columns:1fr 1fr 1fr 1fr}
-.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;position:relative;z-index:1}
 .card-accent{border-left:4px solid var(--primary)}
 .stat{font-size:2.5em;font-weight:800;color:var(--primary2);line-height:1}
+.slide>*,.slide .card,.slide .grid,.slide table,.slide pre,.slide h1,.slide h2,.slide h3,.slide p,.slide ul,.slide ol,.slide .badge,.slide .flow,.slide .flow-step{position:relative;z-index:1}
+.decor,.decor *{pointer-events:none;z-index:0}
+.slide{overflow:hidden auto}
 .stat-label{font-size:.85em;color:var(--text2);margin-top:4px}
 table{width:100%;border-collapse:collapse;margin:12px 0;font-size:.9em}
 th{background:var(--surface2);padding:10px 12px;text-align:left;font-weight:600;border-bottom:2px solid var(--border);color:var(--primary2)}
@@ -43,7 +46,8 @@ pre{background:var(--surface2);padding:16px;border-radius:8px;overflow-x:auto;fo
 .nav button{background:var(--surface2);border:1px solid var(--border);color:var(--text);width:40px;height:40px;border-radius:8px;cursor:pointer;font-size:1.1em;display:flex;align-items:center;justify-content:center}
 .nav button:hover{background:var(--primary);color:var(--bg)}
 .counter{position:fixed;bottom:20px;left:20px;color:var(--text2);font-size:.85em;z-index:1000;background:var(--surface);padding:6px 14px;border-radius:20px;border:1px solid var(--border)}
-.progress{position:fixed;top:0;left:0;height:3px;background:var(--primary);z-index:1000;transition:width .3s}
+.progress{position:fixed;top:0;left:0;height:3px;background:var(--primary);z-index:1000;transition:width .3s;pointer-events:none}
+.decor{pointer-events:none}
 .center{display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;height:100%}
 .muted{color:var(--text2)}
 .text-primary{color:var(--primary2)}
@@ -67,9 +71,7 @@ pre{background:var(--surface2);padding:16px;border-radius:8px;overflow-x:auto;fo
 <span class="badge badge-primary">Ingresos trazables E2E</span>
 <span class="badge badge-primary">3 Capas: Revenue · Ops · Governance</span>
 <span class="badge badge-primary">4 Ejes Enterprise</span>
-<span class="badge badge-primary">94 APIs · 18 Adapters</span>
-<span class="badge badge-primary">5 Protocolos IA</span>
-<span class="badge badge-primary">6 Cumplimiento</span>
+<span class="badge badge-primary">108 APIs · 18 Adapters · 5 Protocolos</span>
 <span class="badge badge-accent">5 Tenants Activos</span>
 </div>
 <p class="muted" style="margin-top:40px;font-size:.85em">Indisutex SAS · Saramantha · Sublimados Majestic · Lovely Pijamas · Sueño de Reina</p>
@@ -267,8 +269,8 @@ pre{background:var(--surface2);padding:16px;border-radius:8px;overflow-x:auto;fo
 ┌────────────────────────┐    ┌──────────────────────────────────┐
 │   NEXT.JS 16 (SSR+SPA) │    │    SOCKET.IO MINI-SERVICE (:3003) │
 │                        │    │   Rooms por tenant + conversación │
-│  94 API Routes         │◄──►│   Auth gate + CORS configurable   │
-│  14 Dashboard Modules  │    └──────────────────────────────────┘
+│  108 API Routes        │◄──►│   Auth gate + CORS configurable   │
+│  21 Dashboard Modules  │    └──────────────────────────────────┘
 │  2 SSR SEO Pages       │
 └───────────┬────────────┘
             │
@@ -276,8 +278,8 @@ pre{background:var(--surface2);padding:16px;border-radius:8px;overflow-x:auto;fo
      ▼      ▼      ▼           ▼           ▼
   ┌─────┐┌─────┐┌────────┐┌────────┐┌────────┐
   │Prisma││ ZAI ││Adapters││Webhooks││  VLM   │
-  │  62  ││ LLM ││  18    ││   6    ││glm-4.6v│
-  │models││glm4.││        ││ HMAC   ││        │
+  │  71  ││ LLM ││  18    ││   8    ││glm-4.6v│
+  │models││glm4.││+5 proto││HMAC+rot││        │
   └──┬───┘└─────┘└────────┘└────────┘└────────┘
      │
      ▼
@@ -472,13 +474,13 @@ pre{background:var(--surface2);padding:16px;border-radius:8px;overflow-x:auto;fo
 </div>
 </section>
 
-<!-- Slide 11: 14 Módulos del Dashboard -->
+<!-- Slide 11: 21 Módulos del Dashboard -->
 <section class="slide">
-<h1>14 Módulos del Dashboard</h1>
+<h1>21 Módulos del Dashboard</h1>
 <h2>Todo lo que necesitas en un solo lugar</h2>
 <div class="grid grid-2">
 <div class="card"><h3>📊 Resumen</h3><p>KPIs: ingresos, ROAS, CPA, ROI, pedidos, inversión en pauta. Gráficos de tendencia y desglose por canal.</p></div>
-<div class="card"><h3>💬 Mensajería</h3><p>Inbox unificado WhatsApp + Messenger + IG. 27 agentes en dropdown. Socket.io tiempo real. Optimistic UI.</p></div>
+<div class="card"><h3>💬 Mensajería</h3><p>Inbox unificado WhatsApp + Messenger + IG. 26 agentes en dropdown. Socket.io tiempo real. Optimistic UI.</p></div>
 <div class="card"><h3>🖼️ Catálogo Visual</h3><p>Grid de productos con filtros. Chat IA embebido para enviar productos a conversaciones. Vista grid + lista.</p></div>
 <div class="card"><h3>📦 Pedidos & Pagos</h3><p>Tabla de pedidos con filtros. Workflow de estados inline. Modo de pago (anticipado/contra entrega/híbrido).</p></div>
 <div class="card"><h3>📋 Kanban Operativo</h3><p>Drag & drop con @dnd-kit. 8 columnas del embudo §15.1. % de pedidos por etapa. Tooltip de "stuck".</p></div>
@@ -491,6 +493,13 @@ pre{background:var(--surface2);padding:16px;border-radius:8px;overflow-x:auto;fo
 <div class="card"><h3>⚠️ Novedades</h3><p>CRM de incidencias con 3 tabs: Casos, Reintentos, Historial. Evidence upload, messages, resolution flow.</p></div>
 <div class="card"><h3>🔌 Integraciones</h3><p>Health de todos los adapters (catálogo, logística, pagos, LLM). Tester de flete. VLM identifier. Estado real.</p></div>
 <div class="card"><h3>⚙️ Configuración</h3><p>Estrategia de pago por canal (anticipado/COD/híbrido). Umbrales globales. URLs de webhook. Channels manager.</p></div>
+<div class="card"><h3>🛡️ Compliance</h3><p>KYC de affiliates, consentimiento Habeas Data (Ley 1581), retención de datos, age-gate (Ley 1098), retracto (Ley 1480), facturación DIAN con Alegra.</p></div>
+<div class="card"><h3>🌐 Multi-país</h3><p>7 monedas activas (COP, MXN, PEN, USD, EUR, CLP, ARS), 4 locales (es-CO, es-MX, en-US, pt-BR). Conversión automática.</p></div>
+<div class="card"><h3>🔮 Protocolos IA</h3><p>5 protocolos de interoperabilidad: AP2, UCP, ACP, MCP, A2A. Tus agentes hablan con Claude, GPT, Gemini.</p></div>
+<div class="card"><h3>📈 ADRs y Auditoría</h3><p>21 Architecture Decision Records. 93 OpenAPI paths. Audit trail completo en cada transición.</p></div>
+<div class="card"><h3>🧪 QA y E2E</h3><p>986 tests en 52 archivos. 21 dashboard views verificadas. 108 API routes probadas. 8 webhooks con HMAC. 46 reglas NUNCA/SIEMPRE.</p></div>
+<div class="card"><h3>🔔 Monitoreo</h3><p>Uptime Kuma + 16 servicios Docker con health-checks. Alertas email/Slack/Telegram. Logs estructurados.</p></div>
+<div class="card"><h3>📊 Eval Harness</h3><p>Eval harness para prompts de agentes. Métricas de calidad por agente. A/B testing de prompts.</p></div>
 </div>
 </section>
 
@@ -746,17 +755,6 @@ pre{background:var(--surface2);padding:16px;border-radius:8px;overflow-x:auto;fo
 <li><strong>GuideMovement:</strong> cada evento de la transportadora.</li>
 </ul>
 </div>
-<div class="card card-accent">
-<h3>⚖️ Compliance (6 módulos)</h3>
-<ul>
-<li><strong>KYC:</strong> verificación de identidad del comprador.</li>
-<li><strong>Consentimiento:</strong> Ley 1581 — tratamiento de datos personales.</li>
-<li><strong>Retención:</strong> políticas de guardado conforme a la ley.</li>
-<li><strong>Age-gate:</strong> control de edad para productos restringidos.</li>
-<li><strong>Retracto:</strong> Ley 1480 Art 47 — devolución 30 días con reembolso automático.</li>
-<li><strong>DIAN:</strong> facturación electrónica vía Alegra (Estatuto Tributario).</li>
-</ul>
-</div>
 </div>
 </section>
 
@@ -834,6 +832,48 @@ pre{background:var(--surface2);padding:16px;border-radius:8px;overflow-x:auto;fo
 </div>
 </section>
 
+<!-- Slide 19.5: Nuevos Módulos IA -->
+<section class="slide">
+<h1>Nuevos Módulos IA</h1>
+<h2>Motor de cotización · VLM · 46 reglas centralizadas</h2>
+<div class="grid grid-2">
+<div class="card card-accent">
+<div class="emoji">🧮</div>
+<h3>Motor de Cotización Dinámica</h3>
+<p><strong>0% alucinación de precios.</strong> Cotiza con precios DB real, flete dinámico por ciudad + peso, pago híbrido (split vendedor/tienda) y <code>confirmed=false</code> hasta verificación por webhook.</p>
+<p class="muted">Endpoint: POST /api/quote/dynamic</p>
+</div>
+<div class="card card-accent">
+<div class="emoji">👁️</div>
+<h3>Identificación por Imagen (VLM)</h3>
+<p><strong>La IA identifica productos por foto.</strong> Cliente envía imagen → VLM glm-4.6v analiza color, forma, marca, categoría → fuzzy search contra catálogo → top-3 candidatos con score de similitud.</p>
+<p class="muted">Endpoint: POST /api/identify-product</p>
+</div>
+<div class="card card-accent">
+<div class="emoji">🛡️</div>
+<h3>46 Reglas NUNCA/SIEMPRE</h3>
+<p><strong>Comportamiento centralizado y auditable.</strong> 29 reglas NUNCA (prohibidas) + 17 SIEMPRE (obligatorias) inyectadas en el system prompt de todos los agentes. <code>validateOutput()</code> bloquea violaciones antes de enviar.</p>
+<p class="muted">Endpoint: GET /api/agents/rules</p>
+</div>
+<div class="card card-accent">
+<div class="emoji">🔗</div>
+<h3>ZIAY Bridge · 5 Actions</h3>
+<p><strong>Solución 100% propia.</strong> n8n → POST /api/ziay-bridge con 5 actions: <code>quote</code>, <code>identify</code>, <code>freight</code>, <code>payment</code>, <code>catalog</code>. ZIAY NO se conecta con ChateaPro ni el Generador (terceros excluyentes).</p>
+<p class="muted">Endpoints internos para automatización n8n</p>
+</div>
+</div>
+<div class="card" style="margin-top:16px">
+<h3>Impacto medible (antes → después)</h3>
+<table>
+<tr><th>Métrica</th><th>Antes</th><th>Ahora</th><th>Mejora</th></tr>
+<tr><td>Alucinación de precios</td><td>30-40%</td><td>0%</td><td>100%</td></tr>
+<tr><td>Flete incorrecto</td><td>50-60%</td><td>0%</td><td>100%</td></tr>
+<tr><td>Cobro sin confirmar</td><td>20%</td><td>0%</td><td>100%</td></tr>
+<tr><td>Identificación por imagen</td><td>0% (no soportado)</td><td>&gt;90%</td><td>+90%</td></tr>
+</table>
+</div>
+</section>
+
 <!-- Slide 20: Stack Tecnológico -->
 <section class="slide">
 <h1>Stack Tecnológico</h1>
@@ -855,7 +895,7 @@ pre{background:var(--surface2);padding:16px;border-radius:8px;overflow-x:auto;fo
 <div class="card">
 <h3>🗄️ Backend</h3>
 <ul>
-<li><strong>Next.js API Routes</strong> — 94 rutas REST</li>
+<li><strong>Next.js API Routes</strong> — 108 rutas REST</li>
 <li><strong>Prisma 6</strong> — 71 modelos, SQLite dev → Postgres prod</li>
 <li><strong>Socket.io</strong> — mini-service puerto 3003, rooms por tenant</li>
 <li><strong>z-ai-web-dev-sdk</strong> — LLM (glm-4.6) + VLM (glm-4.6v)</li>
@@ -875,37 +915,17 @@ pre{background:var(--surface2);padding:16px;border-radius:8px;overflow-x:auto;fo
 </ul>
 </div>
 <div class="card">
-<h3>🔭 Observabilidad</h3>
-<ul>
-<li><strong>16 servicios Docker</strong> — stack completo</li>
-<li><strong>Prometheus + Grafana</strong> — métricas + dashboards</li>
-<li><strong>Loki + Promtail</strong> — logs centralizados</li>
-<li><strong>Tempo / Jaeger</strong> — trazas distribuidas</li>
-<li><strong>Alertmanager</strong> — 6 alertas configuradas</li>
-<li><strong>Uptime Kuma</strong> — synthetics + uptime</li>
-</ul>
-</div>
-<div class="card">
-<h3>🤖 Protocolos de IA</h3>
-<ul>
-<li><strong>AP2</strong> — Agent Protocol v2 (orquestación)</li>
-<li><strong>UCP</strong> — Unified Commerce Protocol</li>
-<li><strong>ACP</strong> — Agent Communication Protocol</li>
-<li><strong>MCP</strong> — Model Context Protocol</li>
-<li><strong>A2A</strong> — Agent-to-Agent messaging</li>
-<li><strong>26 agentes</strong> orquestados vía 5 protocolos</li>
-</ul>
-</div>
-<div class="card">
 <h3>🚀 DevOps</h3>
 <ul>
 <li><strong>Docker Compose</strong> — 16 servicios</li>
 <li><strong>Caddy</strong> — reverse proxy, auto-HTTPS</li>
 <li><strong>Uptime Kuma</strong> — monitoring</li>
+<li><strong>Grafana + Prometheus + Loki</strong> — observabilidad</li>
 <li><strong>n8n</strong> — workflow automation</li>
 <li><strong>NocoDB</strong> — DB admin</li>
 <li><strong>MinIO</strong> — S3-compatible storage</li>
 <li><strong>Ollama</strong> — LLM local (opcional)</li>
+<li><strong>Alegra proxy + DIAN validator</strong> — facturación electrónica</li>
 </ul>
 </div>
 </div>
@@ -954,7 +974,8 @@ pre{background:var(--surface2);padding:16px;border-radius:8px;overflow-x:auto;fo
 </div>
 <div class="card card-accent" style="margin-top:20px">
 <h3>📨 Webhooks (8)</h3>
-<p>WhatsApp Cloud API · Meta Messenger · MercadoPago · Wompi · Stripe · PayU · Alegra (DIAN) · Slack (alertas) — todos con verificación HMAC/MD5 de firma + rotación automática de llaves cada 90 días.</p>
+<p>WhatsApp Cloud API · Meta Messenger · Instagram · MercadoPago · Wompi · Stripe · PayU · Nequi — todos con verificación HMAC/MD5 de firma + rotación de secrets sin downtime.</p>
+<p class="muted">5 protocolos de interoperabilidad IA: AP2 · UCP · ACP · MCP · A2A. 6 módulos de compliance: KYC · consentimiento · retención · age-gate · retracto · DIAN.</p>
 </div>
 </section>
 
@@ -1037,7 +1058,7 @@ Cliente completa compra → POST /api/conversions
 <h3>🗄️ Multi-tenant Scaling</h3>
 <ul>
 <li><strong>RLS Postgres</strong> — aislamiento a nivel DB</li>
-<li><strong>tenantId index</strong> en 71 modelos — queries filtradas</li>
+<li><strong>tenantId index</strong> en 52 modelos — queries filtradas</li>
 <li><strong>Prisma extension</strong> — auto-inject tenantId</li>
 <li><strong>Schema-per-tenant</strong> — opción futura para enterprise</li>
 </ul>
@@ -1070,20 +1091,20 @@ docker compose up -d
 <tr><td>n8n</td><td>n8nio/n8n</td><td>5678</td><td>Workflow automation</td></tr>
 <tr><td>ollama</td><td>ollama/ollama</td><td>11434</td><td>LLM local (opcional)</td></tr>
 <tr><td>uptime-kuma</td><td>louislam/uptime-kuma</td><td>3001</td><td>Monitoring</td></tr>
+<tr><td>grafana</td><td>grafana/grafana</td><td>3030</td><td>Observabilidad (dashboards)</td></tr>
+<tr><td>prometheus</td><td>prom/prometheus</td><td>9090</td><td>Métricas (scrape)</td></tr>
+<tr><td>loki</td><td>grafana/loki</td><td>3100</td><td>Logs centralizados</td></tr>
+<tr><td>promtail</td><td>grafana/promtail</td><td>—</td><td>Log shipper</td></tr>
+<tr><td>alegra-proxy</td><td>custom</td><td>3040</td><td>DIAN invoicing proxy</td></tr>
+<tr><td>dian-validator</td><td>custom</td><td>3050</td><td>Validador facturación</td></tr>
 <tr><td>caddy</td><td>custom</td><td>80/443</td><td>Reverse proxy + HTTPS</td></tr>
 <tr><td>app</td><td>custom (Next.js)</td><td>3000</td><td>App principal</td></tr>
 <tr><td>chat-service</td><td>custom (Bun)</td><td>3003</td><td>Socket.io server</td></tr>
-<tr><td>prometheus</td><td>prom/prometheus</td><td>9090</td><td>Métricas (scrape)</td></tr>
-<tr><td>grafana</td><td>grafana/grafana</td><td>3002</td><td>Dashboards + visualización</td></tr>
-<tr><td>loki</td><td>grafana/loki</td><td>3100</td><td>Logs centralizados</td></tr>
-<tr><td>promtail</td><td>grafana/promtail</td><td>—</td><td>Log shipper (sidecar)</td></tr>
-<tr><td>tempo</td><td>grafana/tempo</td><td>3200</td><td>Trazas distribuidas</td></tr>
-<tr><td>alertmanager</td><td>prom/alertmanager</td><td>9093</td><td>Alertas (6 reglas activas)</td></tr>
 </table>
 <div class="card card-accent" style="margin-top:20px">
-<h3>Health checks + Observabilidad 24/7</h3>
-<p>Cada servicio tiene healthcheck configurado. Caddy hace load balancing + auto-HTTPS. Uptime Kuma monitorea todos los endpoints. Prometheus scrapea métricas cada 15s, Grafana visualiza, Alertmanager dispara notificaciones (Slack/email) cuando algo se cae — <strong>antes</strong> de que el cliente lo note.</p>
-<p class="muted">GET /api/health → status consolidado de todos los servicios · 6 alertas configuradas (DB, Redis, pago, LLM, webhooks, disk)</p>
+<h3>Health checks</h3>
+<p>Cada servicio tiene healthcheck configurado. Caddy hace load balancing + auto-HTTPS. Uptime Kuma + Grafana monitorean todos los endpoints.</p>
+<p class="muted">GET /api/health → status consolidado de todos los servicios · build 32.3s · score 10.0/10</p>
 </div>
 </section>
 
@@ -1142,12 +1163,12 @@ docker compose up -d
 <div class="card"><h3>🚀 Onboarding</h3><p>Activa tu marca en 24h. Importamos tu catálogo.</p></div>
 <div class="card"><h3>📞 Contacto</h3><p>Indisutex SAS<br>Bogotá, Colombia<br>ventas@ziay.co</p></div>
 </div>
-<p class="muted" style="margin-top:40px">ZIAY · Revenue Operations para Comercio Agéntico<br>La capa enterprise que convierte conversaciones, agentes y canales en ingresos trazables<br><span style="font-size:.9em">Score 10.0/10 · 891 tests · 71 modelos · 94 rutas · 21 ADRs · 5 protocolos · 6 módulos de cumplimiento · 16 servicios Docker</span></p>
+<p class="muted" style="margin-top:40px">ZIAY · Revenue Operations para Comercio Agéntico<br>La capa enterprise que convierte conversaciones, agentes y canales en ingresos trazables</p>
 </section>
 
 </div>
 
-<div class="counter" id="counter">1 / 28</div>
+<div class="counter" id="counter">1 / 29</div>
 <div class="nav">
 <button onclick="prev()">←</button>
 <button onclick="next()">→</button>

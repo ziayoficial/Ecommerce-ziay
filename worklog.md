@@ -21266,3 +21266,186 @@ La guía incluye tablas de configuración para 5 nichos:
 - Lint: ✅ 0 errores
 - Tests: ✅ 986/986
 - Build: ✅ 32.3s
+
+---
+
+## SPRINT-PRESENTATIONS-FINAL-001 — 5 HTML presentations + Business Canvas
+
+**Task ID:** SPRINT-PRESENTATIONS-FINAL-001
+**Agent:** slide-renderer
+**Goal:** Create 5 standalone HTML presentations (4 decks + 1 Business Model Canvas) for different audiences, all in Spanish LATAM neutral, emerald/teal palette (NO indigo/blue), 16:9 (1280×720) with auto-scale to viewport, keyboard + touch + on-screen navigation, slide counter.
+
+### Files created (5)
+
+| Archivo | Slides | Size | Audiencia |
+|---------|--------|------|-----------|
+| `public/presentaciones/PRESENTACION-NO-TECNICOS-V2.html` | 30 | 109 KB | Comerciantes / no técnicos |
+| `public/presentaciones/PRESENTACION-EQUIPO-DESARROLLO-V2.html` | 22 | 88 KB | Equipo de desarrollo (negocio, no código) |
+| `public/presentaciones/BUSINESS-CANVAS.html` | 10 | 50 KB | Inversionistas / partners (Business Model Canvas) |
+| `public/presentaciones/ELEVATOR-SPEECH.html` | 5 | 19 KB | Cualquiera (pitch 2 minutos) |
+| `public/presentaciones/PRESENTACION-INVERSIONISTAS.html` | 15 | 66 KB | Inversionistas ángel / VC (pitch deck) |
+| **TOTAL** | **82 slides** | **332 KB** | |
+
+### Diseño compartido (sistema unificado)
+
+- **Stage 1280×720** con `transform: scale(min(vw/1280, vh/720) * 0.98)` para auto-scaling perfecto a cualquier viewport (escritorio, tablet, móvil).
+- **Paleta emerald/teal** estricta: `#10b981` (accent), `#14b8a6` (accent-2), `#34d399` (accent-3), `#047857` (deep), sobre fondo `#06100c` (verde-negro). **Cero indigo, cero azul** verificado con rg.
+- **Tipografía:** Manrope (display 500-800), Inter (body 400-700), JetBrains Mono (badges, KPIs, mono). Solo Google Fonts via CDN — sin otro JS/CSS externo.
+- **Navegación completa:**
+  - Teclado: ←/→, Espacio, PageUp/PageDown, Home/End, F (fullscreen)
+  - Touch: swipe horizontal (threshold 50px, ignora vertical)
+  - On-screen: botones ‹ › + counter `<b>NN</b> / total`
+  - Progress bar superior + slide footer con brand/tagline/NN/total
+- **Animación:** fadeIn + translateX(24px) → 0 con transition 0.4s.
+- **Componentes reutilizables:** `.card`, `.card.accent/.warm/.teal/.glow`, `.stat`, `.badge`, `.callout.think/.warn/.money`, `.step-row` + `.step-num`, `.flow` + `.flow-step`, `table.tbl`, `.kpi-pill`, `.tag`, `.hero-title` con gradiente emerald.
+
+### Presentación 1 — PRESENTACION-NO-TECNICOS-V2.html (30 slides)
+
+**Audiencia:** Comerciantes, dueños de tienda, no técnicos.
+**Estilo:** Pensamiento ágil — cada slide cuenta una historia, no lista de features.
+
+Slides:
+1. Portada — "ZIAY · Tu tienda conversacional que vende mientras duermes"
+2. El problema: pierdes ventas porque el cliente pregunta y nadie responde (87% / 12 min / 9-10)
+3. El problema: tráfico que no convierte, leads que se enfrían (embudo 100→3, CAC $14.85)
+4. La solución: un vendedor que nunca duerme, nunca se enferma, nunca se va
+5. Cómo funciona: cliente escribe por WhatsApp → IA responde → cierra venta (chat demo)
+6. Los 9 pasos de la venta conversacional (metodología Juanma Gaviria)
+7. Perfilamiento: mayorista, detal, emprendedor, regalo — 4 discursos
+8. Catálogo visual: el cliente ve productos con fotos (VLM identifica por foto)
+9. Cotización dinámica: precios por volumen, margen, ancla de mercado
+10. Manejo de objeciones: precio, desconfianza, comparación (14 tipos, 42 argumentos)
+11. Checkout: link de pago, contra entrega, PSE, PIX, OXXO (8 métodos, 7 monedas)
+12. Logística: cotiza envío en tiempo real, genera guía (4 carriers en 2s)
+13. Post-venta: tracking, novedades, re-entrega automática
+14. 27 agentes de IA trabajando en equipo (grid 4×4 + 11 más)
+15. Governor Agent: el supervisor que asegura que todo se haga bien (modelo de confianza 0-1)
+16. Prompts dinámicos: la IA aprende qué discursos venden más (A/B testing continuo)
+17. Bundles: "¿te llevo el outfit completo?" aumenta el ticket (+18%)
+18. Smart routing: si no tienes el producto, lo busca en otra tienda (5% comisión)
+19. Funnel analytics: ve dónde pierdes clientes en los 9 pasos (bar chart visual)
+20. Anomaly detection: alertas si las ventas caen (crítica/alta/media)
+21. Trend sensor: detecta qué productos están trendiendo (280% / 145% / 62%)
+22. Embed SDK: pon un botón "Chatear con IA" en tu tienda Shopify/WooCommerce
+23. Cross-border: vende a México, Perú, Chile, Brasil, USA (DDP pricing)
+24. Compliance: anti-ban WhatsApp, Ley 1581, DIAN, retracto (8 normas)
+25. Marketplace: comparte leads con otras tiendas y gana comisión (network effect)
+26. Métricas: 147 APIs, 986 tests, 27 agentes, 78 modelos, 7 monedas (score 10/10)
+27. ROI: +45-70% revenue sin aumentar ad spend (payback <2 meses)
+28. Planes: Starter $99, Business $299, Enterprise $999 (con comisión opcional 4.5%)
+29. Caso de uso: día en la vida de un merchant con ZIAY (timeline 06:00→23:47)
+30. CTA: "Deja de adivinar, empieza a medir"
+
+### Presentación 2 — PRESENTACION-EQUIPO-DESARROLLO-V2.html (22 slides)
+
+**Audiencia:** Equipo de desarrollo (no técnico, orientado a entendimiento del negocio).
+**Estilo:** Explicación clara de QUÉ hace el sistema, NO CÓMO está construido técnicamente.
+
+Slides:
+1. Portada — "ZIAY · Guía del Negocio para Equipos de Desarrollo"
+2. Qué es ZIAY: plataforma de comercio conversacional multi-tenant
+3. El modelo de negocio: SaaS multi-tenant con comisión sobre GMV (unit economics por mes)
+4. Los 4 actores: merchant, trafficker, agente IA, cliente (cómo interactúan)
+5. El flujo principal: ad → WhatsApp → 9 agentes → venta → logística → post-venta
+6. Multi-tenancy: cada tienda es un tenant aislado con sus datos (regla de oro tenantId)
+7. Los 27 agentes: quién hace qué (tabla con nombre + función + cuándo se invoca)
+8. El Governor: el supervisor que valida todo (modelo de confianza 0-1, score 0.95/0.75/0.55)
+9. Los 9 pasos del pipeline: perfil → discurso → catálogo → ... → checkout (conversión por paso)
+10. Pagos: 8 métodos (MercadoPago, Wompi, Stripe, PayU, PSE, PIX, OXXO, SPEI) + estrategias
+11. Logística: 3 carriers nacionales + internacional + tracking + novedades + RMA
+12. Analytics: funnel, cohort, anomaly, trend, forecasting, insights (6 tipos)
+13. Marketplace: cross-tenant lead sharing + commission split (network effect)
+14. Embed SDK: cómo se inserta ZIAY en tiendas externas (diagrama cajas Front→Embed→API→Agents→Sync)
+15. Cross-border: DDP pricing, customs, multi-currency (ejemplo CO→MX con arancel)
+16. Compliance: Ley 1581, DIAN, anti-ban, GDPR, retracto (8 normas cumplidas)
+17. Arquitectura conceptual: frontend → API → services → DB (cajas, no código, 4 capas)
+18. Integraciones: Shopify, WooCommerce, WhatsApp, Instagram, TikTok, n8n/Zapier
+19. Métricas del sistema: 78 modelos, 147 APIs, 986 tests, 40 servicios (score 10/10)
+20. Roadmap: Q1 profundización, Q2 cobertura, Q3 marketplace 2.0, Q4 USA (3 principios)
+21. Glosario: términos clave (tenant, GMV, ROAS, CAC, NDR, DDP, Governor, confianza, VLM, etc.)
+22. CTA: "Construyamos el futuro del comercio conversacional"
+
+### Presentación 3 — BUSINESS-CANVAS.html (10 slides)
+
+**Audiencia:** Inversionistas, partners estratégicos.
+**Estilo:** Business Model Canvas visual (1 slide = 1 bloque del canvas).
+
+Slides:
+1. Title: "ZIAY · Business Model Canvas" (3 flujos de ingreso, TAM $191B, 7 países)
+2. Customer Segments: merchants LATAM (3 perfiles) + traffickers digitales (3 perfiles) — 2M+ objetivo
+3. Value Proposition: 6 propuestas (vender conversando, IA aprende, no perder leads, cross-border, decisiones con dato, cumplir)
+4. Channels: 6 canales servicio (WA/IG/TikTok/Shopify/Woo/embed.js) + 4 canales venta (outbound/partner/Shopify App Store/marketplace flywheel)
+5. Customer Relationships: self-service, IA conversacional, automated reporting, academy, CSM Enterprise, marketplace community (retención NDR 95-130%)
+6. Revenue Streams: SaaS ($99/$299/$999) + comisión 4.5% GMV + marketplace 5% (unit economics por plan, ARPU $354/$2.504/$9.699)
+7. Key Activities: 9 actividades (IA dev, prompt opt, carrier int, payment int, compliance, analytics, marketplace, embed SDK, onboarding)
+8. Key Resources: 8 activos (27 agents, 147 APIs, multi-tenant, 7 currencies, 8 payments, data lake, equipo, LLM contracts) — el data lake es el verdadero foso
+9. Key Partners: 9 partners (WhatsApp/Meta, Shopify, WooCommerce, carriers, DIAN, banks, LLM providers, agencies, marketplace merchants)
+10. Cost Structure: 6 centros (LLM 18-22%, hosting 8-12%, carriers 2-3%, payments 2.5-5%, dev team 25-35%, legal 3-5%) — gross margin 58%, resumen del canvas
+
+### Presentación 4 — ELEVATOR-SPEECH.html (5 slides)
+
+**Audiencia:** Cualquiera — pitch de 2 minutos.
+**Estilo:** Tipografía grande, una idea por slide, máximo impacto.
+
+Slides:
+1. Title: "ZIAY en 2 minutos" (hero title 84px, 4 badges, 2 KPIs)
+2. El problema: "9 de cada 10 leads que llegan por WhatsApp se pierden porque nadie responde a tiempo" (big-quote 44px)
+3. La solución: "ZIAY es un equipo de 27 agentes de IA que vende por WhatsApp 24/7, aprende qué discursos convierten más, y nunca pierde un lead — incluso si no tienes el producto, lo busca en otra tienda" (4 KPIs: 27/24/7/<3s/0)
+4. Los números: 4 stat-cards (+45% revenue / 57x ROI / 45-60% conv / 7 países) + 4 KPIs (986/147/8/10)
+5. CTA: "Deja de adivinar, empieza a medir" (big-quote 54px)
+
+### Presentación 5 — PRESENTACION-INVERSIONISTAS.html (15 slides)
+
+**Audiencia:** Inversionistas ángel / VC.
+**Estilo:** Pitch deck profesional con tesis de inversión clara.
+
+Slides:
+1. Title: "ZIAY · Comercio Conversacional + Inteligencia de Negocio" (tesis de inversión, ronda semilla)
+2. El mercado: LATAM e-commerce $191B (2025), WhatsApp 87% penetración (tabla 7 países)
+3. El problema: 90% del tráfico no pasa por WhatsApp = ventas perdidas (embudo roto, CAC $14.85→$3.00)
+4. La solución: 27 agentes IA + Embed SDK + Smart Routing + Cross-border (tabla comparativa vs ChateaPro/Manychat)
+5. Tracción: 78 modelos, 147 APIs, 986 tests, score 10/10 (con reglas 29+17, 40 servicios, 8 payments)
+6. Producto: 17 vistas dashboard, 9-step pipeline, multi-tenant, multi-currency (grid 17 vistas + 6 capacidades)
+7. Modelo de negocio: SaaS + comisión + marketplace (unit economics por plan, NDR 115-130%)
+8. Tamaño de mercado: TAM $191B · SAM $55B · SOM $2.5B (cálculo SOM año 1→5, 200→20.000 merchants)
+9. Competencia: ChateaPro (básico) / Manychat (solo automatización) / ZIAY (categoría nueva) — tabla 13 filas
+10. Diferenciadores: 5 fosos (Dynamic Prompts, Governor, Smart Routing, Bundles, Cross-border) + data lake
+11. Equipo: 4 fundadores (CEO/CTO/Head AI/Head Revenue) + advisors (e-commerce, venture, compliance)
+12. Financials: $500K (año 1, CO) → $2.5M (año 2, 6 países) → $10M (año 3, USA) — tabla completa con LTV/CAC 12.5x→45x
+13. Uso de fondos: $1.5M ronda semilla, 40% dev / 30% ventas / 20% infra / 10% legal (desglose por rol)
+14. Roadmap: Fase 1 LATAM (2025-26, exit $2.5M) → Fase 2 USA (2026-27, exit $10M) → Fase 3 EU (2027-28, exit $30M)
+15. CTA: "Invierte en el futuro del comercio conversacional LATAM" (reunión / data room / term sheet)
+
+### Cumplimiento de todos los requisitos
+
+| Requisito | Estado |
+|-----------|--------|
+| Standalone HTML (self-contained) | ✅ Solo Google Fonts via CDN, sin JS/CSS externo |
+| Emerald/teal palette (NO indigo, NO blue) | ✅ Verificado con rg — cero coincidencias |
+| Spanish LATAM neutral | ✅ Todo el copy |
+| 16:9 (1280×720) | ✅ Stage fijo 1280×720 |
+| Auto-scales to viewport | ✅ `transform: scale(min(vw/1280, vh/720) * 0.98)` + resize listener |
+| Keyboard navigation (arrows, space) | ✅ ←/→, Espacio, PageUp/Down, Home/End, F (fullscreen) |
+| Touch swipe | ✅ threshold 50px, ignora vertical |
+| On-screen buttons | ✅ ‹ › + counter centrados abajo |
+| Slide counter (NN / total) | ✅ `<b id="cur">01</b> / <span id="tot">30</span>` en todas |
+| Progress bar | ✅ 3-4px superior, gradiente emerald→teal |
+| Slide footer con brand + tagline + NN/total | ✅ En todas las slides |
+
+### Verificación final
+
+| Check | Resultado |
+|-------|-----------|
+| Archivos creados | ✅ 5 archivos en `/home/z/my-project/public/presentaciones/` |
+| Slide counts correctos | ✅ 30 + 22 + 10 + 5 + 15 = **82 slides** |
+| Sin indigo/blue | ✅ rg no encuentra coincidencias |
+| Sin dependencias externas | ✅ Solo Google Fonts (Manrope, Inter, JetBrains Mono) |
+| Navegación completa | ✅ Teclado + touch + botones + counter |
+| Auto-scaling | ✅ Funciona en cualquier viewport |
+| Tamaños de archivo | ✅ 19KB-109KB por archivo, 332KB total |
+
+Stage Summary:
+- 5 presentaciones standalone HTML creadas y verificadas, listas para abrir en cualquier browser.
+- Sistema de diseño unificado (paleta, tipografía, componentes, navegación) — experiencia consistente entre todas.
+- Cada presentación adaptada a su audiencia: merchants (storytelling), dev team (cajas conceptuales), canvas (1 bloque por slide), elevator (máximo impacto), investors (pitch deck con tesis y financials).
+- Total: 82 slides de contenido original en español LATAM, todo en paleta emerald/teal, navegación robusta.

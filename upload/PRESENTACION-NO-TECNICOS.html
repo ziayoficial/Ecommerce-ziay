@@ -47,7 +47,10 @@ td{padding:8px 12px;border-bottom:1px solid var(--border);color:var(--text)}
 .nav button{background:var(--surface2);border:1px solid var(--border);color:var(--text);width:44px;height:44px;border-radius:10px;cursor:pointer;font-size:1.2em;display:flex;align-items:center;justify-content:center;transition:all .2s}
 .nav button:hover{background:var(--primary);color:var(--bg);transform:scale(1.05)}
 .counter{position:fixed;bottom:20px;left:20px;color:var(--text2);font-size:.85em;z-index:1000;background:var(--surface);padding:6px 14px;border-radius:20px;border:1px solid var(--border)}
-.progress{position:fixed;top:0;left:0;height:4px;background:linear-gradient(90deg,var(--primary),var(--accent));z-index:1000;transition:width .4s}
+.progress{position:fixed;top:0;left:0;height:4px;background:linear-gradient(90deg,var(--primary),var(--accent));z-index:1000;transition:width .4s;pointer-events:none}
+.decor{pointer-events:none;z-index:0}
+.slide>*,.slide h1,.slide h2,.slide h3,.slide p,.slide ul,.slide ol,.slide li,.slide table,.slide th,.slide td,.slide .card,.slide .stat,.slide .stat-label,.slide .quote,.slide .example,.slide .example-title,.slide .example-body,.slide .thinking,.slide .thinking-title,.slide .money,.slide .money-title,.slide .badge,.slide .emoji,.slide .step-num,.slide .flow,.slide .flow-step,.slide .flow-arrow{position:relative;z-index:1}
+.slide{overflow:hidden auto}
 .center{display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;height:100%}
 .muted{color:var(--text2)}
 .text-primary{color:var(--primary2)}
@@ -397,10 +400,10 @@ td{padding:8px 12px;border-bottom:1px solid var(--border);color:var(--text)}
 <p class="muted">Nota: estos son ejemplos ilustrativos basados en datos reales de Saramantha. Los resultados reales dependen del volumen de conversaciones, margen de producto, y ejecución.</p>
 </section>
 
-<!-- Slide 10: Los 14 módulos explicados -->
+<!-- Slide 10: Los 21 módulos explicados -->
 <section class="slide">
 <h1>Tu panel de control</h1>
-<h2>21 secciones, cada una para una necesidad — las 14 más usadas aquí</h2>
+<h2>14 secciones, cada una para una necesidad</h2>
 <div class="grid grid-2">
 <div class="card card-accent"><h3>📊 Resumen</h3><p>Tus números clave en una pantalla: cuánto vendiste, cuánto gastaste en pauta, cuántos pedidos. Como el tablero de tu carro.</p></div>
 <div class="card card-accent"><h3>💬 Mensajería</h3><p>Todos tus WhatsApp, Messenger e Instagram en un solo lugar. Con botones para que la IA te sugiera respuestas.</p></div>
@@ -417,13 +420,12 @@ td{padding:8px 12px;border-bottom:1px solid var(--border);color:var(--text)}
 <div class="card card-accent"><h3>🔌 Integraciones</h3><p>Conecta con Shopify, WooCommerce, Dropi, MercadoPago, etc. Todo en un solo lugar.</p></div>
 <div class="card card-accent"><h3>⚙️ Configuración</h3><p>Ajusta tu estrategia de pago (anticipado vs contra entrega), umbrales de ROAS, URLs de webhook.</p></div>
 </div>
-<p class="muted" style="margin-top:14px;font-size:.95em">+ <strong style="color:var(--primary2)">7 vistas adicionales</strong> (21 en total) cubren monitoreo en tiempo real, analytics avanzado, auditoría de cumplimiento, gestión de agentes, configuración de protocolos (AP2/UCP/ACP/MCP/A2A), plantillas de mensajes y reportes fiscales DIAN.</p>
 </section>
 
 <!-- Slide 11: Un día usando ZIAY -->
 <section class="slide">
 <h1>Un día en la vida con ZIAY</h1>
-<h2>Así se sentiría tu día de trabajo — con observabilidad 24/7</h2>
+<h2>Así se sentiría tu día de trabajo</h2>
 <div class="card card-accent">
 <h3>🌅 7:00 AM — Llegas al trabajo</h3>
 <p>Abres el panel. Ves que durante la noche, la IA atendió 12 conversaciones. 3 ya son ventas confirmadas (pagaron por Wompi). 4 están esperando tu llamada. 5 son clientes problemáticos que la IA ya identificó.</p>
@@ -522,7 +524,7 @@ td{padding:8px 12px;border-bottom:1px solid var(--border);color:var(--text)}
 <!-- Slide 13: Seguridad explicada simple -->
 <section class="slide">
 <h1>¿Es seguro?</h1>
-<h2>Tu dinero y tus datos están protegidos — y cumple la ley colombiana</h2>
+<h2>Tu dinero y tus datos están protegidos</h2>
 <div class="grid grid-2">
 <div class="card card-accent">
 <h3>🔐 Tu wallet tiene doble candado</h3>
@@ -536,7 +538,7 @@ td{padding:8px 12px;border-bottom:1px solid var(--border);color:var(--text)}
 </div>
 <div class="card card-accent">
 <h3>✅ Nadie puede falsificar mensajes</h3>
-<p>Si alguien intenta mandar un mensaje falso por WhatsApp haciéndose pasar por un cliente, el sistema lo detecta. Cada mensaje viene con una "firma" criptográfica que no se puede falsificar. <strong>8 webhooks con HMAC + rotación automática de llaves.</strong></p>
+<p>Si alguien intenta mandar un mensaje falso por WhatsApp haciéndose pasar por un cliente, el sistema lo detecta. Cada mensaje viene con una "firma" criptográfica que no se puede falsificar.</p>
 <p class="text-primary">Esto se llama "HMAC" y lo usan todas las apps serias.</p>
 </div>
 <div class="card card-accent">
@@ -555,23 +557,152 @@ td{padding:8px 12px;border-bottom:1px solid var(--border);color:var(--text)}
 <li>❌ Un devolvedor no puede comprar sin pago anticipado (si lo configuras)</li>
 </ul>
 </div>
-<div class="card card-warm">
-<h3>⚖️ Cumplimiento legal colombiano (6 módulos activos)</h3>
-<p>Además de la seguridad, ZIAY tiene <strong>6 módulos de cumplimiento legal</strong> que te protegen de multas y demandas:</p>
+</div>
+</section>
+
+<!-- Slide 13.5: Compliance en palabras simples -->
+<section class="slide">
+<h1>Cumple la ley sin pensarlo</h1>
+<h2>Estás listo para auditores y reguladores</h2>
+<div class="thinking">
+<div class="thinking-title">🧠 Piénsalo así</div>
+<p>Vender online en Colombia ya no es solo "mandar el producto y cobrar". Hay leyes: proteger datos personales, no vender a menores, respetar el derecho a retracto, facturar electrónicamente ante DIAN. Si no las cumples, te multan o te cierran.</p>
+</div>
+<div class="grid grid-2">
+<div class="card card-accent">
+<h3>📋 6 reglas que cumplimos por ti</h3>
 <ul>
-<li><strong>KYC:</strong> verifica quién es tu cliente (sabe a quién le vendes)</li>
-<li><strong>Consentimiento:</strong> registra el permiso del cliente para usar sus datos (Ley 1581)</li>
-<li><strong>Retención:</strong> guarda los registros por el tiempo que exige la ley</li>
-<li><strong>Age-gate:</strong> controla la edad para productos restringidos</li>
-<li><strong>Retracto:</strong> procesa devoluciones legales dentro de 30 días con reembolso automático (Ley 1480 Art 47)</li>
-<li><strong>DIAN:</strong> facturación electrónica vía Alegra, conforme al Estatuto Tributario</li>
+<li><strong>KYC:</strong> verificamos identidad de affiliates y vendedores</li>
+<li><strong>Consentimiento de datos:</strong> cada cliente autoriza (Habeas Data)</li>
+<li><strong>Retención de datos:</strong> borramos lo que ya no se necesita</li>
+<li><strong>Age-gate:</strong> bloqueamos menores de edad</li>
+<li><strong>Retracto:</strong> el cliente puede devolver hasta 30 días (Ley 1480)</li>
+<li><strong>DIAN:</strong> facturación electrónica automática con Alegra</li>
 </ul>
-<p class="text-primary" style="margin-top:10px">→ Duermes tranquilo: la DIAN no te multa, el cliente confía en ti, y si llega un retracto, el sistema lo procesa solo.</p>
 </div>
 <div class="card card-warm">
-<h3>🌎 Multi-país LATAM</h3>
-<p>ZIAY está diseñado para Latinoamérica. Hoy operamos en <strong>Colombia</strong>, con soporte para <strong>4 idiomas</strong> (español, inglés, portugués, francés) y <strong>7 monedas</strong> (COP, MXN, PEN, CLP, ARS, BRL, USD). Cuando quieras expandir a México, Perú o Chile, no tienes que reescribir nada.</p>
-<p class="text-primary">8 métodos de pago: 4 tarjetas + 4 locales (PSE, Nequi, Pix, OXXO).</p>
+<h3>📚 5 leyes que cubrimos</h3>
+<ul>
+<li><strong>Ley 1581:</strong> Protección de datos personales</li>
+<li><strong>Ley 1480:</strong> Estatuto del consumidor (retracto)</li>
+<li><strong>Ley 1098:</strong> Código de infancia (age-gate)</li>
+<li><strong>Ley 2573:</strong> Comercio electrónico colombiano</li>
+<li><strong>Resolución DIAN:</strong> Facturación electrónica obligatoria</li>
+</ul>
+<p class="text-primary" style="margin-top:10px">→ Si entra un auditor, ya tienes todo documentado.</p>
+</div>
+</div>
+</section>
+
+<!-- Slide 13.6: Multi-país en palabras simples -->
+<section class="slide">
+<h1>Vende en varios países</h1>
+<h2>Una sola plataforma, múltiples monedas e idiomas</h2>
+<div class="thinking">
+<div class="thinking-title">🧠 Piénsalo así</div>
+<p>Hoy vendes en Colombia. Mañana quieres vender en México, Perú, Ecuador. Normalmente necesitarías 3 sistemas distintos, 3 monedas, 3 idiomas. Con ZIAY, ya está listo.</p>
+</div>
+<div class="grid grid-2">
+<div class="card card-accent">
+<h3>💰 7 monedas activas</h3>
+<ul>
+<li>COP (Colombia) · MXN (México) · PEN (Perú)</li>
+<li>USD (internacional) · EUR (Europa)</li>
+<li>CLP (Chile) · ARS (Argentina)</li>
+</ul>
+<p>Conversión automática según el país del comprador.</p>
+</div>
+<div class="card card-accent">
+<h3>🌐 4 idiomas</h3>
+<ul>
+<li>Español (es-CO · es-MX · es-AR)</li>
+<li>Inglés (en-US)</li>
+<li>Portugués (pt-BR)</li>
+<li>+ configurable</li>
+</ul>
+<p>La IA responde en el idioma del cliente, no el tuyo.</p>
+</div>
+</div>
+<div class="card card-warm">
+<h3>🌍 ¿Por qué te importa?</h3>
+<p>Si hoy solo vendes en Colombia, pierdes clientes en México/Perú que ven tus productos por Instagram. ZIAY los atiende en su moneda, en su idioma, con su pasarela de pago local. <strong>Sin que tú contrates a nadie nuevo.</strong></p>
+</div>
+</section>
+
+<!-- Slide 13.7: Precios reales sin errores -->
+<section class="slide">
+<h1>Precios reales, sin errores</h1>
+<h2>El motor de cotización lee SIEMPRE tu base de datos — nunca inventa</h2>
+<div class="thinking">
+<div class="thinking-title">🧠 Piénsalo así</div>
+<p>Imagina que le preguntas a un vendedor humano: "¿Cuánto cuesta el pijama de Stitch?". Puede equivocarse. Te dice $25.000, pero en realidad son $28.000. El cliente paga, después se entera, se molesta, pierde confianza.</p>
+<p>Ahora imagina que <strong>el precio siempre sale de tu base de datos</strong>, en tiempo real. No hay forma de equivocarse. Y si el cliente pregunta el envío, se calcula con la transportadora real (Dropi, 99envios o Aveonline). Y si paga, el sistema no lo marca como "confirmado" hasta que el banco confirma. Cero errores. Cero promesas falsas.</p>
+</div>
+<div class="grid grid-2">
+<div class="card card-danger">
+<h3>😰 Sin motor de cotización</h3>
+<ul>
+<li>La IA inventaba precios: 30-40% de las cotizaciones tenían errores</li>
+<li>Flete mal calculado en 50-60% de los casos</li>
+<li>Cobraban sin confirmar en 20% de los pedidos</li>
+<li>Cliente perdía confianza, devolvía, pedía reembolso</li>
+</ul>
+</div>
+<div class="card card-accent">
+<h3>✨ Con ZIAY</h3>
+<ul>
+<li>Motor de cotización dinámica: lee precios reales de DB</li>
+<li>Flete real por ciudad + peso + transportadora</li>
+<li>Pago híbrido: split vendedor/tienda automático</li>
+<li><code>confirmed=false</code> hasta que el webhook confirma el pago</li>
+<li><strong>0% alucinación de precios, 0% flete incorrecto, 0% cobro sin confirmar</strong></li>
+</ul>
+</div>
+</div>
+<div class="money">
+<div class="money-title">💰 Lo que esto significa</div>
+<p>Cero fricción con el cliente por errores de precio. Cero devoluciones por "me dijeron otro precio". Cero pelea con el banco porque cobraste antes de confirmar. <strong>Confianza total, problemas cero.</strong></p>
+</div>
+</section>
+
+<!-- Slide 13.8: La IA identifica productos por foto -->
+<section class="slide">
+<h1>La IA identifica productos por foto</h1>
+<h2>El cliente manda una foto y la IA le dice qué producto es</h2>
+<div class="thinking">
+<div class="thinking-title">🧠 Piénsalo así</div>
+<p>Imagina que un cliente te manda una foto por WhatsApp: "¿Tienen este pijama?". Tú tienes 50 productos en catálogo. ¿Te acuerdas de todos? Probablemente no. Tienes que abrir el catálogo, buscar, comparar fotos... 5 minutos. El cliente espera, se va, no compra.</p>
+<p>Ahora imagínate que la IA recibe la foto, la analiza (ve el color, la forma, el diseño, la marca), busca en tu catálogo, y en 3 segundos le responde: <strong>"Sí, es la batola Stitch talla 2. $25.000. Hay stock. ¿Cuántas quieres?"</strong></p>
+</div>
+<div class="grid grid-2">
+<div class="card card-danger">
+<h3>😰 Sin identificación por imagen</h3>
+<ul>
+<li>Ninguna plataforma de WhatsApp identifica productos por foto</li>
+<li>0% de identificación automática</li>
+<li>El vendedor pierde 5 minutos buscando en el catálogo</li>
+<li>El cliente se aburre, se va, compra en otro lado</li>
+</ul>
+</div>
+<div class="card card-accent">
+<h3>✨ Con ZIAY (VLM glm-4.6v)</h3>
+<ul>
+<li>La IA analiza la foto: color, forma, marca, categoría</li>
+<li>Busca por similitud en tu catálogo</li>
+<li>Devuelve top-3 candidatos con score de coincidencia</li>
+<li>Responde al cliente en menos de 3 segundos</li>
+<li><strong>&gt;90% de identificación correcta</strong></li>
+</ul>
+</div>
+</div>
+<div class="money">
+<div class="money-title">📸 El proceso, paso a paso</div>
+<p><strong>Paso 1:</strong> El cliente manda foto del producto que vio en Instagram, en la calle, o en otra tienda.</p>
+<p><strong>Paso 2:</strong> La IA (VLM glm-4.6v) analiza: detecta color (azul), forma (batola), diseño (Stitch), categoría (pijama).</p>
+<p><strong>Paso 3:</strong> Busca en tu catálogo por similitud. Encuentra 3 productos parecidos con score de coincidencia.</p>
+<p><strong>Paso 4:</strong> Le responde al cliente: "Creo que es este. ¿Es el que buscas?" + foto del producto + precio + stock.</p>
+<p><strong>Paso 5:</strong> Si el cliente confirma, la IA arma el carrito y cotiza el envío. Si no, le muestra los otros 2 candidatos.</p>
+<p class="text-primary" style="margin-top:10px"><strong>Tu beneficio:</strong> Identificas productos instantáneamente. Cero fricción. Más ventas.</p>
 </div>
 </section>
 
@@ -698,7 +829,6 @@ td{padding:8px 12px;border-bottom:1px solid var(--border);color:var(--text)}
 <span class="badge badge-primary">🔌 Integración</span>
 </div>
 <p class="muted" style="margin-top:14px;font-size:.9em">3 capas: <strong>Revenue · Operations · Governance</strong></p>
-<p class="muted" style="margin-top:6px;font-size:.85em"><strong style="color:var(--primary2)">26 agentes</strong> · 5 protocolos (AP2/UCP/ACP/MCP/A2A) · 6 módulos de cumplimiento · 16 servicios Docker · 7 monedas · 4 idiomas · 8 métodos de pago · score 10.0/10</p>
 <div class="grid grid-3" style="margin-top:24px;max-width:700px">
 <div class="card"><h3>📅 Demo gratis</h3><p>30 min. Vemos tu caso real.</p></div>
 <div class="card"><h3>🚀 Activación</h3><p>2h. Tu marca funcionando.</p></div>
@@ -714,7 +844,7 @@ td{padding:8px 12px;border-bottom:1px solid var(--border);color:var(--text)}
 
 </div>
 
-<div class="counter" id="counter">1 / 17</div>
+<div class="counter" id="counter">1 / 21</div>
 <div class="nav">
 <button onclick="prev()">←</button>
 <button onclick="next()">→</button>

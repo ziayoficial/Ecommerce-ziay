@@ -25,8 +25,7 @@ conversacional y devuelve una respuesta generada por LLM (z-ai-web-dev-sdk).
 4. **Encadenamiento** — el nodo `Execute Workflow` permite invocar un workflow
    desde otro, replicando exactamente el patrón del orquestador interno.
 
-El resultado: una red de 26 workflows (uno por agente) + 3 workflows orquestador
-(pipeline A/B/C) que pueden ser monitoreados, versionados y debuggeados visualmente.
+El resultado: una red de **28 workflows** (26 agentes + 1 orquestador canónico + 1 legacy) que pueden ser monitoreados, versionados y debuggeados visualmente. Los pipelines A/B/C se ejecutan dentro del `master-orchestrator.json`.
 
 ---
 
@@ -441,10 +440,10 @@ Respuesta esperada:
 
 ---
 
-## 7. Los 26 workflows — plantilla genérica
+## 7. Los 28 workflows — plantilla genérica
 
 Como los 26 agentes comparten estructura idéntica (solo cambia `agentName` y a
-veces un campo extra del contexto), se puede generar los 26 JSON con un script.
+veces un campo extra del contexto), se puede generar los 26 JSON de agentes con un script (más 2 JSON adicionales: el `master-orchestrator.json` y el `10-agentes-conversacionales.json` legacy).
 A continuación, la plantilla genérica en JavaScript para Node:
 
 ```javascript
@@ -587,7 +586,7 @@ return [{
   };
 }
 
-// Generar los 26 archivos JSON
+// Generar los 26 archivos JSON de agentes (+ 2 orquestadores = 28 workflows totales)
 const outDir = path.resolve('./n8n-workflows/agents');
 fs.mkdirSync(outDir, { recursive: true });
 AGENTS.forEach(agent => {
@@ -609,15 +608,15 @@ node scripts/generate-n8n-workflows.js
 # ✓ generated profile
 # ...
 # ✓ generated logistics_notifier
-# Total: 26 workflows en ./n8n-workflows/agents
+# Total: 26 workflows de agentes + 2 orquestadores = 28 workflows en ./n8n-workflows/
 ```
 
 ---
 
-## 8. Importar los 26 workflows en bulk
+## 8. Importar los 28 workflows en bulk
 
 n8n permite importar workflows desde la UI (Copy → Paste → Import) o via API
-REST. Para 26 workflows, la API es más práctica.
+REST. Para 28 workflows (26 agentes + 2 orquestadores), la API es más práctica.
 
 ### 8.1 Import via API REST
 
@@ -644,7 +643,7 @@ for wf in n8n-workflows/agents/*.json; do
     "$N8N_URL/rest/workflows"
 done
 
-echo "✓ 26 workflows importados"
+echo "✓ 28 workflows importados (26 agentes + 2 orquestadores)"
 ```
 
 ### 8.2 Activar todos los workflows en bulk
@@ -1075,7 +1074,7 @@ intenta re-procesarlos cada noche.
 
 ### 13.1 Uptime Kuma pings
 
-Para cada uno de los 26 webhooks + 3 orquestadores, crear un monitor en
+Para cada uno de los 26 webhooks + 2 orquestadores + 1 master, crear un monitor en
 **Uptime Kuma** (incluido en el docker-compose, puerto 3001):
 
 ```
@@ -1280,7 +1279,7 @@ N8N_ALLOWED_ORIGINS=https://dashboard.tudominio.com,http://localhost:3000
 ### 16.2 Testing
 
 - **Staging**: réplica del stack en `staging.tudominio.com` con su propio n8n.
-- **Smoke tests**: script `scripts/n8n-smoke.sh` que llama a los 26 webhooks + 3 orquestadores y verifica 200.
+- **Smoke tests**: script `scripts/n8n-smoke.sh` que llama a los 26 webhooks de agentes + 2 orquestadores (master-orchestrator + legacy) y verifica 200.
 - **Integration tests**: 4 escenarios sembrados (`mayorista_familia`, `detal_stitch`, `regalo_hello_kitty`, `cancelacion_inventario`) corren contra staging cada noche.
 
 ### 16.3 Staging vs producción
@@ -1320,11 +1319,15 @@ N8N_ALLOWED_ORIGINS=https://dashboard.tudominio.com,http://localhost:3000
 ### Staging
 - [ ] docker-compose up -d levanta n8n en :5678 sin errores
 - [ ] Health check mutuo OK (n8n → CF API → n8n)
-- [ ] 26 workflows importados via API bulk import
-- [ ] 26 workflows en estado active
+- [ ] 28 workflows importados via API bulk import
+- [ ] 28 workflows en estado active
 - [ ] 3 workflows orquestador importados y linkeados (workflowId reales)
-- [ ] Smoke test: 26 webhooks devuelven 200
+- [ ] Smoke test: 28 webhooks devuelven 200
 - [ ] Smoke test: 3 orquestadores completan pipeline A/B/C
+- [ ] ZIAY Bridge funcional desde n8n (POST /api/ziay-bridge con action=quote → 200)
+- [ ] Endpoint de reglas responde (GET /api/agents/rules → 200 con 46 reglas)
+- [ ] VLM identificación funcional (POST /api/identify-product → 200)
+- [ ] Motor de cotización dinámica funcional (POST /api/quote/dynamic → 200)
 - [ ] Uptime Kuma monitores creados (29 monitores)
 - [ ] Slack alertas configuradas
 - [ ] Cron Pipeline C corriendo a las 3 AM UTC
@@ -1335,6 +1338,7 @@ N8N_ALLOWED_ORIGINS=https://dashboard.tudominio.com,http://localhost:3000
 - [ ] DNS + reverse proxy (Caddy/Nginx) configurado
 - [ ] TLS cert instalado (Let's Encrypt)
 - [ ] Variables de entorno prod seteadas (sin secrets en git)
+- [ ] ZIAY_SESSION rotado + almacenado en n8n Credentials (Header Auth)
 - [ ] Webhook URLs actualizadas en Meta/WA/MercadoPago/Wompi/Stripe/PayU
 - [ ] 2FA TOTP activado para todos los traffickers (verifica J7)
 - [ ] AuditLog de deploy registrado
@@ -1344,19 +1348,307 @@ N8N_ALLOWED_ORIGINS=https://dashboard.tudominio.com,http://localhost:3000
 
 ---
 
-## 18. Referencias
+## 18. ZIAY Bridge — integración n8n → ZIAY
+
+> **Sprints `SPRINT-ANTI-FRICCION-001` + `SPRINT-AJUSTE-EXCLUYENCIA-001`** — el ZIAY Bridge es el puente interno que permite a los 28 workflows de n8n delegar toda la lógica de negocio a ZIAY en lugar de hacer llamadas directas al LLM. Esto elimina la alucinación de precios, fletes estáticos, y la falta de identificación por imagen.
+
+### 18.1 Las 5 actions del ZIAY Bridge
+
+El bridge unifica 5 capabilities bajo un único endpoint (`POST /api/ziay-bridge`) para simplificar la integración desde n8n:
+
+| Action | Endpoint interno delegado | Descripción | Resuelve |
+|--------|---------------------------|-------------|----------|
+| `quote` | `POST /api/quote/dynamic` | Cotización completa: precios DB real + tramos de volumen + flete dinámico + pago híbrido + `confirmed: false` | Alucinación de precios, cotizaciones cruzadas, flete estático, pago híbrido, flete internacional, cobra sin confirmar |
+| `identify` | `POST /api/identify-product` | Identifica producto desde imagen del cliente usando VLM (glm-4.6v) + búsqueda fuzzy en catálogo | No identifica por imagen |
+| `freight` | adaptadores Dropi/99envios/Aveonline | Cotiza flete dinámico (nacional + internacional USD) | Flete estático, no flete internacional |
+| `payment` | configuración por canal | Calcula estrategia de pago híbrida (anticipado vs COD configurable) | No cobro híbrido |
+| `catalog` | DB ZIAY (Prisma) | Búsqueda de productos en catálogo real (no alucinado) | Búsqueda precisa de productos |
+
+### 18.2 Arquitectura del bridge
+
+```
+┌─────────────┐    POST /api/ziay-bridge        ┌──────────────────────┐
+│   n8n       │ ───────────────────────────────▶ │  ZIAY (Next.js)      │
+│  (workflow) │   { action: "quote",             │                      │
+│             │    tenantId, items, city }       │  ┌─────────────────┐ │
+│             │                                  │  │ dynamic-quote.ts│ │
+│             │                                  │  │  • precios DB   │ │
+│             │                                  │  │  • tramos vol.  │ │
+│             │                                  │  │  • flete dinám. │ │
+│             │                                  │  │  • pago híbrido │ │
+│             │                                  │  │  • confirmed:   │ │
+│             │                                  │  │    false        │ │
+│             │                                  │  └─────────────────┘ │
+│             │                                  │  ┌─────────────────┐ │
+│             │  ◀────────────────────────────── │  │ VLM glm-4.6v    │ │
+│             │   { ok, quote, items, freight,   │  │  + fuzzy search │ │
+│             │     payment, confirmed: false }  │  └─────────────────┘ │
+└─────────────┘                                  │  ┌─────────────────┐ │
+                                                 │  │ rules.ts        │ │
+                                                 │  │  46 reglas      │ │
+                                                 │  │  NUNCA/SIEMPRE  │ │
+                                                 │  │  +validateOutput│ │
+                                                 │  └─────────────────┘ │
+                                                 └──────────────────────┘
+
+⚠️ El bridge NO se expone a ChateaPro ni al Generador (terceros excluyentes).
+   Es uso interno + n8n únicamente.
+```
+
+### 18.3 Configuración del nodo HTTP Request en n8n
+
+Para invocar el bridge desde un workflow de n8n, configura un nodo **HTTP Request** así:
+
+```json
+{
+  "nodeName": "ZIAY Bridge — quote",
+  "type": "n8n-nodes-base.httpRequest",
+  "parameters": {
+    "method": "POST",
+    "url": "http://app:3000/api/ziay-bridge",
+    "authentication": "headerAuth",
+    "sendHeaders": true,
+    "headerParameters": {
+      "parameters": [
+        { "name": "Content-Type", "value": "application/json" },
+        { "name": "Cookie", "value": "next-auth.session-token={{$env.ZIAY_SESSION}}" }
+      ]
+    },
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={\n  \"action\": \"quote\",\n  \"tenantId\": \"{{ $json.tenantId }}\",\n  \"items\": {{ JSON.stringify($json.items) }},\n  \"city\": \"{{ $json.city }}\",\n  \"paymentStrategy\": \"hybrid\"\n}"
+  }
+}
+```
+
+> **Patrón recomendado de 2 nodos en cadena:**
+> 1. **Nodo Bridge** → obtiene datos reales (precios, flete, pago, producto identificado)
+> 2. **Nodo Agente** → `POST /api/agents/[agentName]` con el contexto ya resuelto por el bridge. El agente solo formatea la respuesta — no inventa datos.
+
+### 18.4 Variables de entorno n8n → ZIAY
+
+```bash
+# .env del contenedor n8n (o docker-compose: n8n → environment)
+ZIAY_API_URL=http://app:3000                # URL interna (mismo network Docker)
+ZIAY_SESSION=eyJhbGciOi...tu-token          # NextAuth session token (rotar mensual)
+
+# Si n8n está fuera del Docker network:
+# ZIAY_API_URL=https://ziay.tudominio.com
+```
+
+> Almacenar `ZIAY_SESSION` en **n8n Credentials → Header Auth** (no en texto plano del workflow).
+
+### 18.5 Smoke test del bridge desde n8n
+
+```bash
+# 1. Verificar action=quote (cotización completa)
+docker compose exec n8n curl -s -X POST http://app:3000/api/ziay-bridge \
+  -H 'Content-Type: application/json' \
+  -H "Cookie: next-auth.session-token=$ZIAY_SESSION" \
+  -d '{"action":"quote","tenantId":"ten-saramantha","items":[{"sku":"SHORT-HK","qty":10}],"city":"Medellín"}' \
+  | jq '.ok'
+
+# 2. Verificar action=identify (VLM desde URL)
+docker compose exec n8n curl -s -X POST http://app:3000/api/ziay-bridge \
+  -H 'Content-Type: application/json' \
+  -H "Cookie: next-auth.session-token=$ZIAY_SESSION" \
+  -d '{"action":"identify","tenantId":"ten-saramantha","imageUrl":"https://example.com/product.jpg"}' \
+  | jq '.ok'
+
+# 3. Verificar action=freight (solo flete)
+docker compose exec n8n curl -s -X POST http://app:3000/api/ziay-bridge \
+  -H 'Content-Type: application/json' \
+  -H "Cookie: next-auth.session-token=$ZIAY_SESSION" \
+  -d '{"action":"freight","tenantId":"ten-saramantha","city":"Medellín","units":10,"carrier":"dropi"}' \
+  | jq '.ok'
+
+# Output esperado: true en los 3 casos
+```
+
+---
+
+## 19. Sistema de Reglas NUNCA/SIEMPRE
+
+> **Sprint `SPRINT-REGLAS-001`** — las reglas NUNCA/SIEMPRE **NO van en los workflows de n8n**. Se gestionan centralizadamente en ZIAY (`src/lib/agents/rules.ts`) y se inyectan automáticamente en el system prompt de cada agente.
+
+### 19.1 Por qué las reglas NO viven en n8n
+
+| Aspecto | Si estuvieran en n8n | Con ZIAY centralizado |
+|---------|----------------------|----------------------|
+| Mantenimiento | Editar 28 workflows para cambiar 1 regla | Editar 1 archivo TypeScript |
+| Consistencia | Cada workflow puede tener versión distinta | Una sola fuente de verdad |
+| Validación | No hay post-check del output | `validateOutput` detecta violaciones |
+| Auditoría | Difícil — reglas dispersas | `GET /api/agents/rules` expone el catálogo |
+| Versionado | Acoplado a workflows n8n | Acoplado al código ZIAY (git history) |
+
+### 19.2 Catálogo de 46 reglas
+
+| Tipo | Cantidad | Función |
+|------|----------|---------|
+| **NUNCA** (prohibidas) | 29 | Límites duros — el agente no puede cruzar (decir "descuento", inventar precios, cobrar sin confirmar, usar markdown, mostrar urgencia falsa, etc.) |
+| **SIEMPRE** (obligatorias) | 17 | Comportamientos forzosos (confirmar dirección, ofrecer 2+ opciones, validar identidad, escalar a humano cuando aplica, etc.) |
+| **Total** | **46** | Centralizadas en `src/lib/agents/rules.ts` |
+
+### 19.3 Endpoint para consultar reglas desde n8n (opcional)
+
+```
+GET /api/agents/rules
+```
+
+Retorna el catálogo completo con formato compacto y verbose:
+
+```json
+{
+  "version": "1.0.0",
+  "stats": { "totalNunca": 29, "totalSiempre": 17, "total": 46 },
+  "nunca": [ "...29 reglas..." ],
+  "siempre": [ "...17 reglas..." ],
+  "categories": {
+    "pre-venta": { "...": "..." },
+    "post-venta": { "...": "..." }
+  },
+  "formats": {
+    "compact": "NUNCA:[N01]...|SIEMPRE:[S01]...",
+    "verbose": "..."
+  }
+}
+```
+
+> **Uso típico en n8n**: si necesitas mostrar las reglas en un dashboard interno de operaciones (ej. para auditoría), invoca `GET /api/agents/rules` desde un workflow de monitoreo. Las reglas **no** necesitan inyectarse en los prompts de n8n — eso lo hace ZIAY automáticamente.
+
+### 19.4 Validación de output (post-LLM)
+
+Cuando un workflow n8n llama a `POST /api/agents/[agentName]`, ZIAY ejecuta `validateOutput` sobre la respuesta del LLM y detecta violaciones de reglas NUNCA:
+
+| Regla | Patrón detectado | Penalización |
+|-------|-----------------|--------------|
+| N01 | "descuento" | confidence → 0.4 |
+| N13 | urgencia falsa ("solo hoy", "última oportunidad") | confidence → 0.4 |
+| N17 | "con gusto" | confidence → 0.4 |
+| N30 | markdown (`**bold**`, `__underline__`, `# headers`) | confidence → 0.4 |
+| N45 | "lamentablemente" / "desafortunadamente" | confidence → 0.4 |
+| N50 | emojis tristes (😢😭😞😔😟☹🙁) | confidence → 0.4 |
+
+Si `confidence < 0.6` → escalación automática a humano (el workflow n8n recibirá el flag `escalate: true`).
+
+---
+
+## 20. Motor de Cotización Dinámica
+
+> **Sprint `SPRINT-ANTI-FRICCION-001`** — el motor de cotización dinámica (`src/lib/agents/dynamic-quote.ts`, 280 líneas) reemplaza la lógica de "inventar precios en el prompt" por **consulta a DB real + APIs de transportadoras**.
+
+### 20.1 Qué hace el motor
+
+1. **Consulta precios reales** en la DB del tenant (Prisma → `Product` table).
+2. **Aplica tramos de volumen** automáticos (10+, 50+, 100+ unidades → descuento escalonado).
+3. **Cotiza flete dinámico** llamando a adaptadores reales:
+   - **Dropi** — envíos nacionales Colombia
+   - **99envios** — envíos nacionales Colombia (alternativa)
+   - **Aveonline** — internacional (USD)
+4. **Calcula estrategia de pago híbrida** configurable por canal:
+   - `hybrid` — anticipo + COD (porcentaje configurable)
+   - `advance` — 100% anticipado (personalizados)
+   - `cod` — 100% contra entrega (alimentos)
+5. **Genera mensaje WhatsApp** formateado con precios, flete, total y opciones de pago.
+6. **Devuelve `confirmed: false`** — NUNCA cobra sin el "sí" explícito del cliente.
+
+### 20.2 Cómo invocarlo desde n8n
+
+```
+POST /api/quote/dynamic
+Body: {
+  "tenantId": "ten-saramantha",
+  "items": [{"sku": "SHORT-HK", "qty": 10}],
+  "city": "Medellín",
+  "paymentStrategy": "hybrid",
+  "currency": "COP"
+}
+
+Response: {
+  "ok": true,
+  "items": [{"sku": "SHORT-HK", "qty": 10, "unitPrice": 17000, "subtotal": 170000}],
+  "freight": {"carrier": "dropi", "amount": 12000, "currency": "COP"},
+  "payment": {"strategy": "hybrid", "advance": 170000, "cod": 12000},
+  "total": 182000,
+  "message": "📝 Cotización:\n• 10 × Short Hello Kitty: $170.000\n• Flete Dropi: $12.000\n• Total: $182.000\n\n💳 Pago híbrido: $170.000 anticipo + $12.000 contraentrega",
+  "confirmed": false
+}
+```
+
+### 20.3 Configuración por nicho de mercado
+
+El motor es configurable por tenant + canal. Tablas de configuración para 5 nichos en `docs/ESTRATEGIA-ANTI-FRICCION.md` (moda/pijamas, sublimados, internacional, farmacia, alimentos).
+
+---
+
+## 21. Identificación por Imagen (VLM)
+
+> **Sprint `SPRINT-ANTI-FRICCION-001`** — el endpoint `POST /api/identify-product` identifica productos desde una imagen del cliente usando VLM (glm-4.6v) + búsqueda fuzzy en el catálogo del tenant.
+
+### 21.1 Flujo de identificación
+
+```
+1. Cliente envía imagen por WhatsApp → n8n webhook
+2. n8n llama a POST /api/identify-product con la imageUrl
+3. ZIAY ejecuta VLM (glm-4.6v):
+   a. Describe la imagen (color, forma, material, marca, texto visible)
+   b. Extrae keywords relevantes
+4. ZIAY busca en catálogo del tenant (búsqueda fuzzy por nombre/SKU/tags)
+5. ZIAY devuelve:
+   - Producto más probable (con score de similitud)
+   - 2-3 alternativas similares
+   - Precio real del producto
+6. n8n devuelve el resultado al cliente
+```
+
+### 21.2 Cómo invocarlo desde n8n
+
+```
+POST /api/identify-product
+Body: {
+  "tenantId": "ten-saramantha",
+  "imageUrl": "https://cdn.whatsapp.net/.../image.jpg"
+}
+
+Response: {
+  "ok": true,
+  "identified": {
+    "productId": "prod_abc123",
+    "sku": "SHORT-HK-M",
+    "name": "Short Hello Kitty talla M",
+    "price": 18500,
+    "currency": "COP",
+    "score": 0.92
+  },
+  "alternatives": [
+    { "sku": "SHORT-HK-S", "name": "Short Hello Kitty talla S", "score": 0.78 },
+    { "sku": "SHORT-STITCH-M", "name": "Short Stitch talla M", "score": 0.65 }
+  ]
+}
+```
+
+> **Importante**: el VLM consume tokens de visión del LLM — monitorear el costo con el dashboard de LLM Costs (`/dashboard → LLM costs`).
+
+---
+
+## 22. Referencias
 
 - **Código fuente**: `src/lib/agents/prompts.ts` (1333 líneas, 26 agentes)
 - **Orquestador**: `src/lib/orchestrator/constants.ts` (3 pipelines, 19 steps)
 - **API routes**: `src/app/api/agents/[agentName]/route.ts`
+- **Reglas**: `src/lib/agents/rules.ts` (46 reglas NUNCA/SIEMPRE) · `GET /api/agents/rules`
+- **Motor de cotización**: `src/lib/agents/dynamic-quote.ts` · `POST /api/quote/dynamic` · `POST /api/ziay-bridge?action=quote`
+- **VLM identificación**: `POST /api/identify-product` · `POST /api/ziay-bridge?action=identify`
+- **Estrategia anti-fricción**: `docs/ESTRATEGIA-ANTI-FRICCION.md`
+- **Guía de comportamiento**: `docs/GUIA-COMPORTAMIENTO-AGENTES.md`
 - **Auditoría**: `AUDIT-REPORT.md` (1202 líneas)
-- **Worklog**: `worklog.md` (cycle 1 completo)
+- **Worklog**: `worklog.md` (cycle 1 completo + sprints de reglas + anti-fricción)
 - **n8n docs**: https://docs.n8n.io
 - **Docker compose reference**: `docker-compose.yml` (16 servicios en v0.3.0)
 
 ---
 
-## 19. Apéndice — Agentes ordenados por pipeline
+## 23. Apéndice — Agentes ordenados por pipeline
 
 ### Pipeline A — Pre-venta (11 agentes)
 

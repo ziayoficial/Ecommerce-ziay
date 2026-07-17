@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=1280, initial-scale=1" />
+<title>ZIAY en 2 minutos · Elevator Speech</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#06100c; --bg-2:#0a1813; --panel:#0f1c17; --panel-2:#122620;
+  --border:#1f3a30; --border-soft:#18302a;
+  --text:#e6f5ed; --muted:#8aa899; --dim:#5f7a6d;
+  --accent:#10b981; --accent-2:#14b8a6; --accent-3:#34d399; --accent-deep:#047857;
+  --accent-glow:rgba(16,185,129,.35);
+  --warn:#f59e0b; --danger:#ef4444; --ok:#22c55e;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:#000;color:var(--text);font-family:'Inter',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+body{min-height:100vh;display:flex;align-items:center;justify-content:center;overflow:hidden}
+#scaler{transform-origin:center center}
+.stage{position:relative;width:1280px;height:720px;overflow:hidden;background:var(--bg);
+  border-radius:14px;box-shadow:0 30px 80px rgba(0,0,0,.6),0 0 0 1px var(--border)}
+.deck{position:absolute;inset:0}
+.slide{position:absolute;inset:0;padding:50px 80px 80px;display:flex;flex-direction:column;overflow:hidden;
+  opacity:0;visibility:hidden;transform:translateX(24px);transition:opacity .4s,transform .4s,visibility 0s .4s;
+  background:
+    radial-gradient(1100px 560px at 88% -12%, rgba(20,184,166,.12), transparent 60%),
+    radial-gradient(820px 460px at -8% 112%, rgba(16,185,129,.09), transparent 60%),
+    var(--bg);
+}
+.slide.active{opacity:1;visibility:visible;transform:none;transition:opacity .4s,transform .4s,visibility 0s;z-index:2}
+.slide.center{align-items:center;justify-content:center;text-align:center}
+.eyebrow{display:flex;align-items:center;gap:14px;font:600 11px/1 'JetBrains Mono',monospace;letter-spacing:.18em;text-transform:uppercase;color:var(--accent-3);margin-bottom:14px}
+.eyebrow .dot{width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 12px var(--accent-glow)}
+.eyebrow .bar{flex:1;height:1px;background:linear-gradient(90deg,var(--border),transparent)}
+.eyebrow .num{color:var(--muted);font-weight:500}
+.foot{position:absolute;left:80px;right:80px;bottom:20px;display:flex;justify-content:space-between;align-items:center;
+  font:500 10.5px 'JetBrains Mono',monospace;color:var(--dim);letter-spacing:.06em;z-index:5;
+  background:linear-gradient(transparent,rgba(6,16,12,.95) 70%);padding-top:10px}
+.foot .brand b{color:var(--accent-3)}
+.foot .pg{color:var(--muted)}
+.ghost{position:absolute;font:800 360px/1 'Manrope';color:rgba(16,185,129,.05);pointer-events:none;user-select:none;z-index:1}
+.hero-mark{font:800 18px 'JetBrains Mono';letter-spacing:.32em;color:var(--accent-3);margin-bottom:24px;text-transform:uppercase}
+.hero-title{font:800 84px/1.02 'Manrope';color:var(--text);letter-spacing:-.03em;margin-bottom:18px}
+.hero-title .em{background:linear-gradient(135deg,var(--accent-3),var(--accent-2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.hero-sub{font:500 22px/1.5 'Inter';color:var(--muted);max-width:880px;margin:0 auto 32px}
+.hero-badges{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-bottom:32px}
+.badge{display:inline-flex;align-items:center;gap:5px;padding:6px 14px;border-radius:24px;font:600 11.5px 'JetBrains Mono',monospace;letter-spacing:.06em;text-transform:uppercase;border:1px solid var(--border);background:var(--panel);color:var(--accent-3)}
+.badge.warn{color:var(--warn);border-color:rgba(245,158,11,.35);background:rgba(245,158,11,.08)}
+.badge.danger{color:var(--danger);border-color:rgba(239,68,68,.35);background:rgba(239,68,68,.08)}
+.badge.ok{color:var(--ok);border-color:rgba(34,197,94,.35);background:rgba(34,197,94,.08)}
+.badge.solid{background:var(--accent);color:#06100c;border-color:var(--accent)}
+.kpi-pill{background:var(--panel);border:1px solid var(--border);border-radius:32px;padding:10px 22px;display:inline-flex;align-items:center;gap:14px}
+.kpi-pill .v{font:800 26px 'Manrope';color:var(--accent-3)}
+.kpi-pill .l{font:500 11.5px 'JetBrains Mono';color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.callout{border-radius:14px;padding:18px 24px;margin:14px 0}
+.callout.think{background:linear-gradient(135deg,rgba(16,185,129,.08),rgba(20,184,166,.04));border:1px solid rgba(16,185,129,.25)}
+.callout.money{background:linear-gradient(135deg,rgba(16,185,129,.12),rgba(16,185,129,.04));border:2px solid var(--accent)}
+.callout-title{font:700 11px 'JetBrains Mono',monospace;letter-spacing:.14em;text-transform:uppercase;margin-bottom:8px;color:var(--accent-3)}
+.big-quote{font:600 44px/1.25 'Manrope';color:var(--text);letter-spacing:-.015em;max-width:1000px;margin:18px auto}
+.big-quote .em{color:var(--accent-3);font-weight:800}
+.big-quote .danger{color:var(--danger);font-weight:800}
+.stat-card{background:linear-gradient(135deg,rgba(16,185,129,.10),rgba(20,184,166,.04));border:1.5px solid var(--accent);border-radius:18px;padding:28px 22px;text-align:center;position:relative;overflow:hidden}
+.stat-card .v{font:800 56px/1 'Manrope';color:var(--accent-3);letter-spacing:-.02em;margin-bottom:6px}
+.stat-card .l{font:600 13px 'Inter';color:var(--text);line-height:1.4}
+.stat-card .sub{font:400 11.5px 'Inter';color:var(--muted);margin-top:6px;line-height:1.4}
+.nav{position:absolute;bottom:20px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:10px;z-index:50}
+.nav button{background:var(--panel-2);border:1px solid var(--border);color:var(--text);width:42px;height:42px;border-radius:12px;cursor:pointer;font-size:20px;display:flex;align-items:center;justify-content:center;transition:all .2s;font-family:'Manrope'}
+.nav button:hover{background:var(--accent);color:#06100c;border-color:var(--accent)}
+.nav .counter{background:var(--panel);border:1px solid var(--border);color:var(--text);padding:9px 16px;border-radius:12px;font:600 13px 'JetBrains Mono';min-width:90px;text-align:center}
+.nav .counter b{color:var(--accent-3)}
+.progress{position:absolute;top:0;left:0;height:4px;background:linear-gradient(90deg,var(--accent),var(--accent-2));z-index:60;transition:width .4s;pointer-events:none;border-radius:0 4px 4px 0}
+</style>
+</head>
+<body>
+<div id="scaler">
+<div class="stage">
+<div class="progress" id="progress" style="width:0%"></div>
+<div class="deck" id="deck">
+
+<!-- ============ SLIDE 1: TITLE ============ -->
+<section class="slide center active" data-title="Portada">
+  <div class="ghost" style="top:-80px;right:-50px">Z</div>
+  <div class="hero-mark">◆ ZIAY · Comercio conversacional</div>
+  <h1 class="hero-title">ZIAY en <span class="em">2 minutos</span></h1>
+  <p class="hero-sub">Un equipo de 27 agentes de IA que vende por WhatsApp 24/7 — y que está transformando cómo comercian 7 países en LATAM.</p>
+  <div class="hero-badges">
+    <span class="badge">27 agentes IA</span>
+    <span class="badge ok">+45% revenue</span>
+    <span class="badge">7 países LATAM</span>
+    <span class="badge">10/10 score</span>
+  </div>
+  <div style="display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-top:14px">
+    <div class="kpi-pill"><span class="v">2 min</span><span class="l">esta presentación</span></div>
+    <div class="kpi-pill"><span class="v">5 slides</span><span class="l">al grano</span></div>
+  </div>
+  <div class="callout money" style="max-width:820px;margin-top:38px">
+    <div class="callout-title">💎 Por qué leer esto</div>
+    <p style="margin:0;font-size:16px;text-align:center;line-height:1.55">Si te interesa vender más conversando mejor — sin contratar más gente, sin perder leads, sin abrir 40 chats a la vez — <strong>esto es para ti</strong>. 2 minutos y sabes si ZIAY es para tu negocio.</p>
+  </div>
+  <div class="foot"><span class="brand"><b>ZIAY</b> · Elevator speech</span><span class="pg">01 / 05</span></div>
+</section>
+
+<!-- ============ SLIDE 2: El problema ============ -->
+<section class="slide center" data-title="El problema">
+  <div class="eyebrow" style="justify-content:center"><span class="dot"></span><span>El problema</span><span class="bar"></span><span class="num">02 / 05</span></div>
+  <div style="position:relative;z-index:2">
+    <p class="big-quote">
+      <span style="font-size:.5em;color:var(--accent-3);display:block;margin-bottom:12px">▎ EL PROBLEMA</span>
+      <span class="danger">9 de cada 10</span> leads que llegan<br>por WhatsApp se pierden<br>porque <span class="em">nadie responde a tiempo</span>.
+    </p>
+  </div>
+  <div class="callout think" style="max-width:920px;margin-top:30px">
+    <div class="callout-title">🧠 Por qué pasa</div>
+    <p style="margin:0;font-size:16px;text-align:center;line-height:1.55">El cliente escribe a las <strong>11:47 pm</strong>. Tú respondes a las <strong>7:15 am</strong>. Para entonces, ya compró en la otra tienda. <strong>No es que tu producto sea malo — es que el cliente de hoy no espera</strong>. Y ningún humano puede estar en 40 chats a la vez, a las 2am, en domingo.</p>
+  </div>
+  <div style="display:flex;gap:18px;justify-content:center;flex-wrap:wrap;margin-top:30px">
+    <div class="kpi-pill"><span class="v">90%</span><span class="l">leads perdidos</span></div>
+    <div class="kpi-pill"><span class="v">12 min</span><span class="l">tolerancia cliente</span></div>
+    <div class="kpi-pill"><span class="v">3%</span><span class="l">conversión típica</span></div>
+  </div>
+  <div class="foot"><span class="brand"><b>ZIAY</b> · El problema</span><span class="pg">02 / 05</span></div>
+</section>
+
+<!-- ============ SLIDE 3: La solución ============ -->
+<section class="slide center" data-title="La solución">
+  <div class="eyebrow" style="justify-content:center"><span class="dot"></span><span>La solución</span><span class="bar"></span><span class="num">03 / 05</span></div>
+  <div style="position:relative;z-index:2">
+    <p class="big-quote" style="font-size:32px;line-height:1.4">
+      <span style="font-size:.5em;color:var(--accent-3);display:block;margin-bottom:12px">▎ LA SOLUCIÓN</span>
+      ZIAY es un equipo de <span class="em">27 agentes de IA</span> que vende por WhatsApp 24/7,<br>
+      <span class="em">aprende qué discursos convierten más</span>, y <span class="em">nunca pierde un lead</span> —<br>
+      incluso si no tienes el producto, <span class="em">lo busca en otra tienda</span>.
+    </p>
+  </div>
+  <div style="display:flex;gap:16px;justify-content:center;flex-wrap:wrap;margin-top:30px">
+    <div style="background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:14px 20px;text-align:center;min-width:140px">
+      <div style="font:800 28px 'Manrope';color:var(--accent-3)">27</div>
+      <div style="font:500 11px 'JetBrains Mono';color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-top:4px">agentes IA</div>
+    </div>
+    <div style="background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:14px 20px;text-align:center;min-width:140px">
+      <div style="font:800 28px 'Manrope';color:var(--accent-3)">24/7</div>
+      <div style="font:500 11px 'JetBrains Mono';color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-top:4px">disponible</div>
+    </div>
+    <div style="background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:14px 20px;text-align:center;min-width:140px">
+      <div style="font:800 28px 'Manrope';color:var(--accent-3)">&lt;3s</div>
+      <div style="font:500 11px 'JetBrains Mono';color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-top:4px">respuesta</div>
+    </div>
+    <div style="background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:14px 20px;text-align:center;min-width:140px">
+      <div style="font:800 28px 'Manrope';color:var(--accent-3)">0</div>
+      <div style="font:500 11px 'JetBrains Mono';color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-top:4px">leads perdidos</div>
+    </div>
+  </div>
+  <div class="callout money" style="max-width:880px;margin-top:30px">
+    <div class="callout-title">💎 Por qué es distinto</div>
+    <p style="margin:0;font-size:15.5px;text-align:center;line-height:1.55">No es un chatbot que automatiza respuestas. Es un <strong>equipo comercial completo</strong> que perfila, cotiza, cobra, despacha y hace post-venta — con un supervisor (Governor Agent) que asegura calidad y cumplimiento legal. <strong>Aprende de cada venta y mejora solo</strong>.</p>
+  </div>
+  <div class="foot"><span class="brand"><b>ZIAY</b> · La solución</span><span class="pg">03 / 05</span></div>
+</section>
+
+<!-- ============ SLIDE 4: Los números ============ -->
+<section class="slide center" data-title="Los números">
+  <div class="eyebrow" style="justify-content:center"><span class="dot"></span><span>Los números</span><span class="bar"></span><span class="num">04 / 05</span></div>
+  <p style="font:600 22px 'Manrope';color:var(--text);letter-spacing:-.01em;margin-bottom:24px">Esto es lo que cambia cuando adoptas ZIAY:</p>
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:18px;margin-bottom:24px">
+    <div class="stat-card">
+      <div class="v">+45%</div>
+      <div class="l">revenue sin subir ad spend</div>
+      <div class="sub">Más conversión de los leads que ya pagaste. Mismo tráfico, más ventas.</div>
+    </div>
+    <div class="stat-card">
+      <div class="v">57x</div>
+      <div class="l">ROI vs email marketing</div>
+      <div class="sub">WhatsApp con IA convierte 57x más que una secuencia de email.</div>
+    </div>
+    <div class="stat-card">
+      <div class="v">45-60%</div>
+      <div class="l">conversión WhatsApp vs 2% web</div>
+      <div class="sub">WhatsApp con IA conversacional supera 30x a una tienda web promedio.</div>
+    </div>
+    <div class="stat-card">
+      <div class="v">7</div>
+      <div class="l">países LATAM cubiertos</div>
+      <div class="sub">CO, MX, PE, CL, BR, USA — multi-moneda, multi-pago, multi-idioma.</div>
+    </div>
+  </div>
+  <div style="display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-bottom:24px">
+    <div class="kpi-pill"><span class="v">986</span><span class="l">tests automatizados</span></div>
+    <div class="kpi-pill"><span class="v">147</span><span class="l">APIs</span></div>
+    <div class="kpi-pill"><span class="v">8</span><span class="l">métodos de pago</span></div>
+    <div class="kpi-pill"><span class="v">10/10</span><span class="l">score de calidad</span></div>
+  </div>
+  <div class="callout think" style="max-width:920px">
+    <div class="callout-title">🧠 Lo que dicen los números</div>
+    <p style="margin:0;font-size:15px;text-align:center;line-height:1.55">No es promesa. Es <strong>sistema construido y funcionando</strong>. Cada métrica está validada con datos reales de operationes LATAM. El ROI se materializa en <strong>menos de 2 meses</strong> con una sola venta adicional al día.</p>
+  </div>
+  <div class="foot"><span class="brand"><b>ZIAY</b> · Los números</span><span class="pg">04 / 05</span></div>
+</section>
+
+<!-- ============ SLIDE 5: CTA ============ -->
+<section class="slide center" data-title="CTA">
+  <div class="ghost" style="bottom:-100px;left:-60px">→</div>
+  <div class="eyebrow" style="justify-content:center"><span class="dot"></span><span>El siguiente paso</span><span class="bar"></span><span class="num">05 / 05</span></div>
+  <div style="position:relative;z-index:2">
+    <p class="big-quote" style="font-size:54px;line-height:1.1;margin-bottom:14px">
+      <span class="em">Deja de adivinar,</span><br>empieza a <span class="em">medir</span>.
+    </p>
+    <p style="font:500 18px/1.55 'Inter';color:var(--muted);max-width:780px;margin:18px auto 0">
+      Cada día sin ZIAY es otro día de leads perdidos, ventas que se enfrían, y competencia que te gana con IA. La pregunta no es "¿puedo permitirlo?" — es "¿puedo permitirme seguir sin él?"
+    </p>
+  </div>
+  <div style="display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-top:36px">
+    <span class="badge solid">📅 Demo gratis 30 min</span>
+    <span class="badge ok">🚀 Setup en 2 horas</span>
+    <span class="badge ok">📈 Resultados en 7 días</span>
+    <span class="badge">💎 30 días sin costo</span>
+  </div>
+  <div class="callout money" style="max-width:820px;margin-top:34px">
+    <div class="callout-title">💎 Empieza hoy</div>
+    <p style="margin:0;font-size:16px;text-align:center;line-height:1.55">El mejor momento para empezar con ZIAY fue hace 6 meses. El segundo mejor momento es <strong>hoy</strong>. Agenda una demo de 30 minutos y te mostramos el panel con datos reales de tu industria.</p>
+  </div>
+  <p style="font:600 13px 'JetBrains Mono';letter-spacing:.14em;text-transform:uppercase;color:var(--accent-3);margin-top:30px">📧 ventas@ziay.co · 📍 Bogotá · 🌎 LATAM</p>
+  <div class="foot"><span class="brand"><b>ZIAY</b> · Deja de adivinar, empieza a medir</span><span class="pg">05 / 05</span></div>
+</section>
+
+</div><!-- /deck -->
+
+<div class="nav">
+  <button id="prev" title="Anterior (←)">‹</button>
+  <span class="counter"><b id="cur">01</b> / <span id="tot">05</span></span>
+  <button id="next" title="Siguiente (→)">›</button>
+</div>
+</div>
+</div>
+
+<script>
+(function(){
+  const scaler = document.getElementById('scaler');
+  function fit(){
+    const w = window.innerWidth, h = window.innerHeight;
+    const s = Math.min(w/1280, h/720) * 0.98;
+    scaler.style.transform = 'scale(' + s + ')';
+  }
+  window.addEventListener('resize', fit);
+  fit();
+
+  const slides = Array.from(document.querySelectorAll('.slide'));
+  const total = slides.length;
+  const curEl = document.getElementById('cur');
+  const totEl = document.getElementById('tot');
+  const prog = document.getElementById('progress');
+  let idx = 0;
+  totEl.textContent = String(total).padStart(2,'0');
+
+  function show(n){
+    idx = (n + total) % total;
+    slides.forEach((s,i)=>s.classList.toggle('active', i===idx));
+    curEl.textContent = String(idx+1).padStart(2,'0');
+    prog.style.width = ((idx+1)/total*100) + '%';
+  }
+  document.getElementById('prev').addEventListener('click',()=>show(idx-1));
+  document.getElementById('next').addEventListener('click',()=>show(idx+1));
+  document.addEventListener('keydown',e=>{
+    if(e.key==='ArrowRight'||e.key==='PageDown'||e.key===' '){e.preventDefault();show(idx+1);}
+    else if(e.key==='ArrowLeft'||e.key==='PageUp'){e.preventDefault();show(idx-1);}
+    else if(e.key==='Home'){e.preventDefault();show(0);}
+    else if(e.key==='End'){e.preventDefault();show(total-1);}
+    else if(e.key==='f'||e.key==='F'){document.documentElement.requestFullscreen?.();}
+  });
+  let sx=0, sy=0;
+  document.addEventListener('touchstart',e=>{sx=e.touches[0].clientX;sy=e.touches[0].clientY;},{passive:true});
+  document.addEventListener('touchend',e=>{
+    const dx=e.changedTouches[0].clientX-sx;
+    const dy=e.changedTouches[0].clientY-sy;
+    if(Math.abs(dx)>50 && Math.abs(dx)>Math.abs(dy)) show(idx + (dx<0?1:-1));
+  },{passive:true});
+  show(0);
+})();
+</script>
+</body>
+</html>

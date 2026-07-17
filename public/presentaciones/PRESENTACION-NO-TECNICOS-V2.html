@@ -1,0 +1,1260 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=1280, initial-scale=1" />
+<title>ZIAY · Tu tienda conversacional que vende mientras duermes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   ZIAY — Presentación para Comerciantes (no técnicos)
+   Emerald/teal palette · 1280×720 · auto-scale
+   ============================================================ */
+:root{
+  --bg:#06100c; --bg-2:#0a1813; --panel:#0f1c17; --panel-2:#122620;
+  --border:#1f3a30; --border-soft:#18302a;
+  --text:#e6f5ed; --muted:#8aa899; --dim:#5f7a6d;
+  --accent:#10b981; --accent-2:#14b8a6; --accent-3:#34d399; --accent-deep:#047857;
+  --accent-glow:rgba(16,185,129,.35);
+  --warn:#f59e0b; --danger:#ef4444; --ok:#22c55e;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:#000;color:var(--text);font-family:'Inter',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+body{min-height:100vh;display:flex;align-items:center;justify-content:center;overflow:hidden}
+
+/* Stage 1280×720 with auto-scale */
+#scaler{transform-origin:center center}
+.stage{position:relative;width:1280px;height:720px;overflow:hidden;background:var(--bg);
+  border-radius:14px;box-shadow:0 30px 80px rgba(0,0,0,.6),0 0 0 1px var(--border)}
+.deck{position:absolute;inset:0}
+.slide{position:absolute;inset:0;padding:44px 64px 76px;display:flex;flex-direction:column;overflow:hidden;
+  opacity:0;visibility:hidden;transform:translateX(24px);transition:opacity .4s,transform .4s,visibility 0s .4s;
+  background:
+    radial-gradient(1100px 560px at 88% -12%, rgba(20,184,166,.12), transparent 60%),
+    radial-gradient(820px 460px at -8% 112%, rgba(16,185,129,.09), transparent 60%),
+    var(--bg);
+}
+.slide.active{opacity:1;visibility:visible;transform:none;transition:opacity .4s,transform .4s,visibility 0s;z-index:2}
+.slide.center{align-items:center;justify-content:center;text-align:center}
+
+/* Typography */
+.eyebrow{display:flex;align-items:center;gap:14px;font:600 11px/1 'JetBrains Mono',monospace;letter-spacing:.18em;text-transform:uppercase;color:var(--accent-3);margin-bottom:12px}
+.eyebrow .dot{width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 12px var(--accent-glow)}
+.eyebrow .bar{flex:1;height:1px;background:linear-gradient(90deg,var(--border),transparent)}
+.eyebrow .num{color:var(--muted);font-weight:500}
+h1.title{font:800 38px/1.08 'Manrope',sans-serif;color:var(--text);letter-spacing:-.02em;margin-bottom:8px}
+h1.title .em{color:var(--accent-3)}
+h2.title{font:700 24px/1.2 'Manrope',sans-serif;color:var(--text);letter-spacing:-.01em;margin-bottom:14px}
+h2.title .em{color:var(--accent-3)}
+.lede{font:400 14.5px/1.6 'Inter',sans-serif;color:var(--muted);max-width:980px;margin-bottom:16px}
+h3{font:700 14px/1.3 'Manrope',sans-serif;color:var(--accent-3);margin-bottom:6px;letter-spacing:.01em}
+p{font:400 13.5px/1.6 'Inter',sans-serif;color:var(--text);margin-bottom:8px}
+p.muted{color:var(--muted)}
+.lead{font:500 16px/1.55 'Inter',sans-serif;color:var(--text)}
+
+/* Footer */
+.foot{position:absolute;left:64px;right:64px;bottom:18px;display:flex;justify-content:space-between;align-items:center;
+  font:500 10.5px 'JetBrains Mono',monospace;color:var(--dim);letter-spacing:.06em;z-index:5;
+  background:linear-gradient(transparent,rgba(6,16,12,.95) 70%);padding-top:10px}
+.foot .brand b{color:var(--accent-3)}
+.foot .sep{color:var(--border)}
+.foot .pg{color:var(--muted)}
+
+/* Components */
+.card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px 16px}
+.card.accent{border-left:4px solid var(--accent)}
+.card.warm{border-left:4px solid var(--warn)}
+.card.danger{border-left:4px solid var(--danger)}
+.card.teal{border-left:4px solid var(--accent-2)}
+.card.glow{background:linear-gradient(135deg,rgba(16,185,129,.10),rgba(20,184,166,.04));border:1px solid rgba(16,185,129,.35)}
+
+.grid{display:grid;gap:12px}
+.g2{grid-template-columns:1fr 1fr}
+.g3{grid-template-columns:1fr 1fr 1fr}
+.g4{grid-template-columns:1fr 1fr 1fr 1fr}
+.g5{grid-template-columns:repeat(5,1fr)}
+
+.stat{font:800 32px/1 'Manrope',sans-serif;color:var(--accent-3);letter-spacing:-.02em}
+.stat .u{font-size:.55em;color:var(--muted);font-weight:600;margin-left:4px}
+.stat-l{font:500 11px/1.3 'JetBrains Mono',monospace;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-top:6px}
+
+.badge{display:inline-flex;align-items:center;gap:5px;padding:4px 11px;border-radius:20px;font:600 10.5px 'JetBrains Mono',monospace;letter-spacing:.06em;text-transform:uppercase;border:1px solid var(--border);background:var(--panel);color:var(--accent-3)}
+.badge.warn{color:var(--warn);border-color:rgba(245,158,11,.35);background:rgba(245,158,11,.08)}
+.badge.danger{color:var(--danger);border-color:rgba(239,68,68,.35);background:rgba(239,68,68,.08)}
+.badge.ok{color:var(--ok);border-color:rgba(34,197,94,.35);background:rgba(34,197,94,.08)}
+.badge.solid{background:var(--accent);color:#06100c;border-color:var(--accent)}
+
+.flow{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.flow-step{background:var(--panel-2);border:1px solid var(--accent);padding:8px 14px;border-radius:10px;font:600 12px 'Inter';color:var(--text);white-space:nowrap}
+.flow-step.alt{border-color:var(--accent-2)}
+.flow-arrow{color:var(--accent-3);font-size:16px;font-weight:700}
+
+table.tbl{width:100%;border-collapse:separate;border-spacing:0;font:400 12px/1.4 'Inter';
+  background:var(--panel);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+table.tbl th{background:var(--panel-2);color:var(--accent-3);font:600 10.5px 'JetBrains Mono',monospace;letter-spacing:.08em;text-transform:uppercase;text-align:left;padding:9px 12px;border-bottom:1px solid var(--border)}
+table.tbl td{padding:8px 12px;color:var(--text);border-bottom:1px solid var(--border-soft);vertical-align:top}
+table.tbl tr:last-child td{border-bottom:none}
+table.tbl td.num{font-family:'JetBrains Mono',monospace;color:var(--accent-3)}
+
+.callout{border-radius:10px;padding:12px 16px;margin:8px 0}
+.callout.think{background:linear-gradient(135deg,rgba(16,185,129,.08),rgba(20,184,166,.04));border:1px solid rgba(16,185,129,.25)}
+.callout.warn{background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.3)}
+.callout.money{background:linear-gradient(135deg,rgba(16,185,129,.12),rgba(16,185,129,.04));border:2px solid var(--accent)}
+.callout-title{font:700 10.5px 'JetBrains Mono',monospace;letter-spacing:.12em;text-transform:uppercase;margin-bottom:6px;color:var(--accent-3)}
+.callout.warn .callout-title{color:var(--warn)}
+.callout.money .callout-title{color:var(--accent-3)}
+
+.step-num{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;background:var(--accent);color:#06100c;font:800 13px 'Manrope';flex-shrink:0}
+.step-row{display:flex;align-items:flex-start;gap:12px;margin-bottom:8px}
+.step-row .body h3{margin-bottom:2px}
+.step-row .body p{font-size:12.5px}
+
+.ghost{position:absolute;font:800 320px/1 'Manrope';color:rgba(16,185,129,.04);pointer-events:none;user-select:none;z-index:1}
+.decor{pointer-events:none;user-select:none}
+
+/* Chat bubbles */
+.chat{display:flex;flex-direction:column;gap:8px;max-width:380px}
+.bubble{padding:9px 13px;border-radius:14px;font:500 12.5px/1.45 'Inter';max-width:80%}
+.bubble.in{background:var(--panel-2);border:1px solid var(--border);border-bottom-left-radius:4px;align-self:flex-start}
+.bubble.out{background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#06100c;border-bottom-right-radius:4px;align-self:flex-end;font-weight:600}
+.bubble .meta{display:block;font:500 9px 'JetBrains Mono';opacity:.6;margin-top:3px}
+
+/* Pricing */
+.price{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:18px 16px;display:flex;flex-direction:column}
+.price.featured{border:2px solid var(--accent);background:linear-gradient(180deg,rgba(16,185,129,.10),var(--panel))}
+.price .name{font:700 13px 'JetBrains Mono';letter-spacing:.1em;text-transform:uppercase;color:var(--accent-3);margin-bottom:6px}
+.price .amt{font:800 30px 'Manrope';color:var(--text);letter-spacing:-.02em}
+.price .amt .cur{font-size:.5em;color:var(--muted);font-weight:600;margin-right:3px}
+.price .amt .per{font-size:.4em;color:var(--muted);font-weight:600;margin-left:4px}
+.price ul{list-style:none;margin:10px 0 0;padding:0}
+.price ul li{font:400 12px/1.5 'Inter';color:var(--text);padding:3px 0 3px 18px;position:relative}
+.price ul li::before{content:'✓';position:absolute;left:0;color:var(--accent-3);font-weight:700}
+
+/* Nav */
+.nav{position:absolute;bottom:18px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:8px;z-index:50}
+.nav button{background:var(--panel-2);border:1px solid var(--border);color:var(--text);width:38px;height:38px;border-radius:10px;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;transition:all .2s;font-family:'Manrope'}
+.nav button:hover{background:var(--accent);color:#06100c;border-color:var(--accent)}
+.nav .counter{background:var(--panel);border:1px solid var(--border);color:var(--text);padding:8px 14px;border-radius:10px;font:600 12px 'JetBrains Mono';min-width:80px;text-align:center}
+.nav .counter b{color:var(--accent-3)}
+
+.progress{position:absolute;top:0;left:0;height:3px;background:linear-gradient(90deg,var(--accent),var(--accent-2));z-index:60;transition:width .4s;pointer-events:none;border-radius:0 3px 3px 0}
+
+/* Title hero */
+.hero-mark{font:800 16px 'JetBrains Mono';letter-spacing:.3em;color:var(--accent-3);margin-bottom:18px;text-transform:uppercase}
+.hero-title{font:800 56px/1.05 'Manrope';color:var(--text);letter-spacing:-.025em;margin-bottom:14px}
+.hero-title .em{background:linear-gradient(135deg,var(--accent-3),var(--accent-2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.hero-sub{font:500 18px/1.5 'Inter';color:var(--muted);max-width:780px;margin:0 auto 26px}
+.hero-badges{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:28px}
+
+.kpi-row{display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
+.kpi-pill{background:var(--panel);border:1px solid var(--border);border-radius:30px;padding:8px 18px;display:flex;align-items:center;gap:10px}
+.kpi-pill .v{font:800 20px 'Manrope';color:var(--accent-3)}
+.kpi-pill .l{font:500 11px 'JetBrains Mono';color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+
+.dotted-line{border:none;border-top:1px dashed var(--border);margin:10px 0}
+.tag-list{display:flex;flex-wrap:wrap;gap:6px}
+.tag{font:500 11px 'JetBrains Mono';color:var(--muted);background:var(--panel-2);border:1px solid var(--border);padding:3px 9px;border-radius:6px}
+.tag.on{color:var(--accent-3);border-color:rgba(16,185,129,.4)}
+</style>
+</head>
+<body>
+<div id="scaler">
+<div class="stage">
+<div class="progress" id="progress" style="width:0%"></div>
+<div class="deck" id="deck">
+
+<!-- ============ SLIDE 1: TITLE ============ -->
+<section class="slide center active" data-title="Portada">
+  <div class="ghost" style="top:-60px;right:-30px">Z</div>
+  <div class="hero-mark">◆ ZIAY · Comercio conversacional</div>
+  <h1 class="hero-title">Tu tienda conversacional<br>que <span class="em">vende mientras duermes</span></h1>
+  <p class="hero-sub">Un equipo de 27 agentes de IA que atiende, cotiza, cobra y despacha por WhatsApp — 24 horas, 7 días, sin que tú escribas una sola palabra.</p>
+  <div class="hero-badges">
+    <span class="badge">Para comerciantes</span>
+    <span class="badge">Sin tecnicismos</span>
+    <span class="badge ok">+45% ventas</span>
+    <span class="badge">7 países LATAM</span>
+  </div>
+  <div class="kpi-row">
+    <div class="kpi-pill"><span class="v">27</span><span class="l">agentes IA</span></div>
+    <div class="kpi-pill"><span class="v">24/7</span><span class="l">disponible</span></div>
+    <div class="kpi-pill"><span class="v">&lt;3s</span><span class="l">respuesta</span></div>
+    <div class="kpi-pill"><span class="v">7</span><span class="l">monedas</span></div>
+  </div>
+  <p class="muted" style="margin-top:32px;font:500 11px 'JetBrains Mono';letter-spacing:.1em;text-transform:uppercase;color:var(--dim)">Indisutex SAS · LATAM · 2025</p>
+  <div class="foot"><span class="brand"><b>ZIAY</b> · Tu tienda conversacional</span><span>Portada</span><span class="pg">01 / 30</span></div>
+</section>
+
+<!-- ============ SLIDE 2: El problema — nadie responde ============ -->
+<section class="slide" data-title="El problema">
+  <div class="eyebrow"><span class="dot"></span><span>El problema · 01</span><span class="bar"></span><span class="num">02 / 30</span></div>
+  <h1 class="title">Pierdes ventas porque el cliente pregunta<br>y <span class="em">nadie responde</span></h1>
+  <p class="lede">No es que tu producto sea malo ni tu precio alto. Es que el cliente de hoy no espera: escribe por WhatsApp a las 10:43 pm, mira si le contestaron a las 7:15 am, y si no — compra en la otra tienda.</p>
+  <div class="grid g3" style="margin-top:14px">
+    <div class="card danger">
+      <div class="stat">87%</div>
+      <div class="stat-l">de los mensajes fuera de horario nunca se responden</div>
+      <p class="muted" style="font-size:12px;margin-top:8px">Tu tienda cierra a las 6pm. El cliente compra a las 11pm. Él gana, tú pierdes.</p>
+    </div>
+    <div class="card danger">
+      <div class="stat">12 min</div>
+      <div class="stat-l">es el tiempo que un lead espera antes de irse</div>
+      <p class="muted" style="font-size:12px;margin-top:8px">Pasado ese tiempo, la probabilidad de cerrar cae 400%. Ya no eres tú, es la competencia.</p>
+    </div>
+    <div class="card danger">
+      <div class="stat">9 / 10</div>
+      <div class="stat-l">leads que llegan por WhatsApp se pierden</div>
+      <p class="muted" style="font-size:12px;margin-top:8px">El 90% del dinero que invertiste en pauta para que escriban… se evapora sin respuesta.</p>
+    </div>
+  </div>
+  <div class="callout warn" style="margin-top:14px">
+    <div class="callout-title">⚠ La realidad incómoda</div>
+    <p style="margin:0;font-size:13.5px">No pierdes clientes porque no quieras atender. Pierdes clientes porque <strong>ningún humano puede estar en 40 chats a la vez</strong>, a las 2am, en domingo, con fiebre. Tu negocio creció más rápido que tu capacidad de responder.</p>
+  </div>
+  <div class="foot"><span class="brand"><b>ZIAY</b> · El problema</span><span>Nadie responde</span><span class="pg">02 / 30</span></div>
+</section>
+
+<!-- ============ SLIDE 3: Tráfico que no convierte ============ -->
+<section class="slide" data-title="Tráfico frío">
+  <div class="eyebrow"><span class="dot"></span><span>El problema · 02</span><span class="bar"></span><span class="num">03 / 30</span></div>
+  <h1 class="title">Pagas por tráfico que llega…<br>y <span class="em">se enfría</span> antes de cerrar</h1>
+  <p class="lede">Inviertes en anuncios. El cliente hace clic. Llega a tu WhatsApp emocionado. Y ahí muere: tardas 3 horas en responder, le mandas un PDF de precios, le preguntas el barrio, él se distrae, y la venta se enfría para siempre.</p>
+  <div class="grid g2" style="margin-top:14px">
+    <div class="card danger">
+      <h3>❄ El embudo con fugas</h3>
+      <div class="flow" style="margin:10px 0">
+        <span class="flow-step" style="opacity:.95">100 clics</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-step" style="opacity:.7">70 escriben</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-step" style="opacity:.4">20 esperan</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-step" style="opacity:.2;color:var(--danger);border-color:var(--danger)">3 compran</span>
+      </div>
+      <p class="muted" style="font-size:12px">De cada 100 clics que pagaste, cierras 3. El resto se enfría esperando una respuesta que nunca llegó, o un precio que tardaste en calcular.</p>
+    </div>
+    <div class="card warm">
+      <h3>💸 Lo que realmente cuesta</h3>
+      <table class="tbl" style="margin-top:8px">
+        <tr><th>Concepto</th><th class="num">Valor</th></tr>
+        <tr><td>CPC promedio LATAM</td><td class="num">$0.45</td></tr>
+        <tr><td>Clicks para 1 venta</td><td class="num">33</td></tr>
+        <tr><td>Costo por venta (CAC)</td><td class="num">$14.85</td></tr>
+        <tr><td>Conversión real</td><td class="num">3%</td></tr>
+      </table>
+      <p class="muted" style="font-size:12px;margin-top:8px">Si subieras la conversión de 3% a 8% (todavía lejos del 45% de WhatsApp con IA), tu CAC caería a $5.5 — <strong>misma pauta, casi 3x más ventas</strong>.</p>
+    </div>
+  </div>
+  <div class="callout think" style="margin-top:14px">
+    <div class="callout-title">🧠 Pensamiento ágil</div>
+    <p style="margin:0;font-size:13.5px">El problema no es el tráfico. Es <strong>lo que haces con el tráfico</strong>. Un lead caliente que se enfría es peor que no haberlo recibido — porque <em>ya pagaste por él</em>.</p>
+  </div>
+  <div class="foot"><span class="brand"><b>ZIAY</b> · El problema</span><span>Leads que se enfrían</span><span class="pg">03 / 30</span></div>
+</section>
+
+<!-- ============ SLIDE 4: La solución ============ -->
+<section class="slide center" data-title="La solución">
+  <div class="ghost" style="bottom:-80px;left:-40px">∞</div>
+  <div class="eyebrow" style="justify-content:center"><span class="dot"></span><span>La solución</span><span class="bar"></span><span class="num">04 / 30</span></div>
+  <h1 class="title" style="font-size:44px">Un vendedor que <span class="em">nunca duerme</span>,<br>nunca se enferma, nunca se va</h1>
+  <p class="lede" style="text-align:center;margin-left:auto;margin-right:auto">ZIAY es un equipo de 27 agentes de inteligencia artificial que atiende tu WhatsApp como lo haría tu mejor vendedor — pero sin pausas, sin malos días, sin vacaciones, y aprendiendo de cada conversación para vender más en la siguiente.</p>
+  <div class="grid g3" style="width:100%;margin-top:18px">
+    <div class="card glow">
+      <h3>🌑 Nunca duerme</h3>
+      <p style="font-size:13px">Atiende a las 3am del domingo con la misma calidad que a las 11am del martes. Tu cliente recibe respuesta en menos de 3 segundos, siempre.</p>
+    </div>
+    <div class="card glow">
+      <h3>🤒 Nunca se enferma</h3>
+      <p style="font-size:13px">No hay gripa, ni descanso, ni día libre. Mientras tu competencia espera al lunes, tú ya cerraste 4 ventas el sábado en la madrugada.</p>
+    </div>
+    <div class="card glow">
+      <h3>🚪 Nunca se va</h3>
+      <p style="font-size:13px">No renuncia, no pide aumento, no se lleva a tus clientes. Aprende todo tu catálogo en minutos y lo recuerda para siempre.</p>
+    </div>
+  </div>
+  <div class="callout money" style="margin-top:18px;max-width:900px">
+    <div class="callout-title">💎 La promesa</div>
+    <p style="margin:0;font-size:14.5px;text-align:center">No reemplazamos a tu equipo humano — <strong>lo multiplicamos</strong>. Tu mejor vendedor atiende 40 chats al día. ZIAY atiende 4.000 al mismo tiempo, con el mismo nivel de cuidado. Y le pasa a tu equipo solo los casos que sí necesitan un humano.</p>
+  </div>
+  <div class="foot"><span class="brand"><b>ZIAY</b> · La solución</span><span>Un vendedor infinito</span><span class="pg">04 / 30</span></div>
+</section>
+
+<!-- ============ SLIDE 5: Cómo funciona ============ -->
+<section class="slide" data-title="Cómo funciona">
+  <div class="eyebrow"><span class="dot"></span><span>Cómo funciona</span><span class="bar"></span><span class="num">05 / 30</span></div>
+  <h1 class="title">Cliente escribe por WhatsApp →<br>IA responde → <span class="em">cierra la venta</span></h1>
+  <p class="lede">Tres pasos. Sin descargas, sin apps, sin curva de aprendizaje para tu cliente. Él ya sabe usar WhatsApp — ZIAY hace el resto.</p>
+  <div class="grid g3" style="margin-top:18px;align-items:stretch">
+    <div class="card accent" style="display:flex;flex-direction:column">
+      <div class="step-num" style="margin-bottom:10px">1</div>
+      <h3>El cliente escribe</h3>
+      <p style="font-size:13px">"Hola, ¿tienes pijamas talla M en azul? ¿Cuánto cuesta el envío a Medellín?"</p>
+      <div class="chat" style="margin-top:10px">
+        <div class="bubble in">Hola, ¿tienes pijamas talla M en azul? <span class="meta">11:47 pm</span></div>
+      </div>
+    </div>
+    <div class="card accent" style="display:flex;flex-direction:column">
+      <div class="step-num" style="margin-bottom:10px">2</div>
+      <h3>La IA responde</h3>
+      <p style="font-size:13px">Revisa catálogo, calcula precio, cotiza envío en tiempo real y responde en 2.8 segundos.</p>
+      <div class="chat" style="margin-top:10px">
+        <div class="bubble out">¡Claro! Tenemos 3 modelos en M azul: Clásico $89k, Premium $129k, Premium+ $159k. Envío a Medellín: $8.500 (llega mañana). ¿Cuál te envío? <span class="meta">11:47 pm · 2.8s</span></div>
+      </div>
+    </div>
+    <div class="card accent" style="display:flex;flex-direction:column">
+      <div class="step-num" style="margin-bottom:10px">3</div>
+      <h3>Cierra la venta</h3>
+      <p style="font-size:13px">Genera link de pago, registra el pedido, crea la guía y programa el envío — sin que tú intervengas.</p>
+      <div class="chat" style="margin-top:10px">
+        <div class="bubble out">¡Listo! Pedido #4821 confirmado. Paga aquí: ziay.co/p/8f2k · Guía Dropi generada, llega mañana 2-4pm. 🎉 <span class="meta">11:49 pm</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="callout think" style="margin-top:14px">
+    <div class="callout-title">⏱ El tiempo promedio de cierre</div>
+    <p style="margin:0;font-size:13.5px">De "Hola" a "Pedido confirmado": <strong>4 minutos y 12 segundos</strong>. A las 11:47 pm. Un domingo. Sin que tú supieras que pasó hasta que revisaste el dashboard el lunes a las 8am.</p>
+  </div>
+  <div class="foot"><span class="brand"><b>ZIAY</b> · Cómo funciona</span><span>3 pasos</span><span class="pg">05 / 30</span></div>
+</section>
+
+<!-- ============ SLIDE 6: Los 9 pasos ============ -->
+<section class="slide" data-title="9 pasos">
+  <div class="eyebrow"><span class="dot"></span><span>Metodología · Juanma Gaviria</span><span class="bar"></span><span class="num">06 / 30</span></div>
+  <h1 class="title">Los <span class="em">9 pasos</span> de la venta conversacional</h1>
+  <p class="lede">No es magia. Es una metodología probada de venta consultiva aplicada a chat. Cada paso tiene un objetivo medible y un agente de IA que lo ejecuta — para que ninguna venta se pierda por saltarse un paso.</p>
+  <div class="grid g3" style="margin-top:14px;gap:10px">
+    <div class="card"><div class="step-row"><div class="step-num">1</div><div class="body"><h3>Saludo & rapport</h3><p class="muted">Rompe el hielo, genera confianza, lee el tono del cliente.</p></div></div></div>
+    <div class="card"><div class="step-row"><div class="step-num">2</div><div class="body"><h3>Perfilamiento</h3><p class="muted">Mayorista, detal, emprendedor o regalo — cada uno con su discurso.</p></div></div></div>
+    <div class="card"><div class="step-row"><div class="step-num">3</div><div class="body"><h3>Detección de necesidad</h3><p class="muted">Qué busca, para quién, cuándo lo necesita, presupuesto.</p></div></div></div>
+    <div class="card"><div class="step-row"><div class="step-num">4</div><div class="body"><h3>Presentación de catálogo</h3><p class="muted">Muestra opciones visuales que encajen con el perfil detectado.</p></div></div></div>
+    <div class="card"><div class="step-row"><div class="step-num">5</div><div class="body"><h3>Cotización dinámica</h3><p class="muted">Precio por volumen, margen, ancla de mercado — en tiempo real.</p></div></div></div>
+    <div class="card"><div class="step-row"><div class="step-num">6</div><div class="body"><h3>Manejo de objeciones</h3><p class="muted">Precio, desconfianza, comparación — con argumentos preparados.</p></div></div></div>
+    <div class="card"><div class="step-row"><div class="step-num">7</div><div class="body"><h3>Cierre & checkout</h3><p class="muted">Link de pago, contra entrega, PSE, PIX, OXXO — lo que él prefiera.</p></div></div></div>
+    <div class="card"><div class="step-row"><div class="step-num">8</div><div class="body"><h3>Confirmación & logística</h3><p class="muted">Genera guía, cotiza envío, programa entrega, confirma dirección.</p></div></div></div>
+    <div class="card"><div class="step-row"><div class="step-num">9</div><div class="body"><h3>Post-venta & re-entrega</h3><p class="muted">Tracking, novedades, re-entrega automática, reseña, up-sell.</p></div></div></div>
+  </div>
+  <div class="callout think" style="margin-top:12px">
+    <div class="callout-title">🧠 Por qué funciona</div>
+    <p style="margin:0;font-size:13px">Un vendedor humano olvida el paso 3 cuando tiene prisa, se salta el 6 cuando el cliente insiste, y nunca llega al 9 porque ya está atendiendo otro chat. La IA <strong>nunca se salta un paso</strong>. Y si lo hace, el Governor Agent lo detecta y corrige.</p>
+  </div>
+  <div class="foot"><span class="brand"><b>ZIAY</b> · Metodología</span><span>9 pasos de la venta conversacional</span><span class="pg">06 / 30</span></div>
+</section>
+
+<!-- ============ SLIDE 7: Perfilamiento ============ -->
+<section class="slide" data-title="Perfilamiento">
+  <div class="eyebrow"><span class="dot"></span><span>Paso 2 · Perfilamiento</span><span class="bar"></span><span class="num">07 / 30</span></div>
+  <h1 class="title">Cada cliente es distinto.<br><span class="em">Cada uno merece su discurso</span></h1>
+  <p class="lede">No le hablas igual a una madre que compra un pijama de regalo para su hija, que a una tendera que te va a comprar 200 unidades al por mayor. La IA lo detecta en los primeros 3 mensajes y adapta el discurso entero.</p>
+  <div class="grid g4" style="margin-top:14px">
+    <div class="card accent">
+      <h3>🏪 Mayorista</h3>
+      <p style="font-size:12.5px">"Maneja volumen, busca margen, le importa el precio unitario, el plazo de pago y la rotación."</p>
+      <p class="muted" style="font-size:11.5px">Discurso: precios escalonados, descuento por tramos, crédito comercial, logística paletizada.</p>
+    </div>
+    <div class="card accent">
+      <h3>🛍 Detal</h3>
+      <p style="font-size:12.5px">"Tiene tienda, compra para revender, le importa el margen, la exclusividad y el respaldo."</p>
+      <p class="muted" style="font-size:11.5px">Discurso: muestra surtida, margen sugerido, material POP, plazos de reabastecimiento.</p>
+    </div>
+    <div class="card accent">
+      <h3>🚀 Emprendedor</h3>
+      <p style="font-size:12.5px">"Empieza, compra poco, necesita aprender, le importa la guía y el dropshipping."</p>
+      <p class="muted" style="font-size:11.5px">Discurso: catálogo curado, dropshipping, mini-cursos, fotos profesionales para sus redes.</p>
+    </div>
+    <div class="card accent">
+      <h3>🎁 Regalo</h3>
+      <p style="font-size:12.5px">"Compra para otro, le importa la presentación, la entrega a tiempo y el detalle."</p>
+      <p class="muted" style="font-size:11.5px">Discurso: gift wrapping, mensaje personalizado, fecha exacta de entrega, devolución fácil.</p>
+    </div>
+  </div>
+  <div class="callout think" style="margin-top:14px">
+    <div class="callout-title">🧠 El impacto real</div>
+    <p style="margin:0;font-size:13.5px">Un mismo pijama se vende distinto a cada perfil. Al mayorista le hablas de <strong>margen</strong>, al detal de <strong>rotación</strong>, al emprendedor de <strong>oportunidad</strong>, al regalo de <strong>emoción</strong>. Perfilando bien, la conversión sube de 12% a 38%.</p>
+  </div>
+  <div class="grid g3" style="margin-top:12px">
+    <div class="card"><div class="stat">3 mensajes</div><div class="stat-l">para detectar el perfil</div></div>
+    <div class="card"><div class="stat">+26 pts</div><div class="stat-l">conversión con discurso correcto</div></div>
+    <div class="card"><div class="stat">4 perfiles</div><div class="stat-l">expandibles a tu nicho</div></div>
+  </div>
+  <div class="foot"><span class="brand"><b>ZIAY</b> · Perfilamiento</span><span>4 perfiles, 4 discursos</span><span class="pg">07 / 30</span></div>
+</section>
+
+<!-- ============ SLIDE 8: Catálogo visual ============ -->
+<section class="slide" data-title="Catálogo visual">
+  <div class="eyebrow"><span class="dot"></span><span>Paso 4 · Catálogo visual</span><span class="bar"></span><span class="num">08 / 30</span></div>
+  <h1 class="title">El cliente <span class="em">ve</span> lo que va a comprar</h1>
+  <p class="lede">No le mandas un PDF pesado ni un link que no abre. La IA envía fotos reales del producto, con precio, tallas disponibles y descripción — directo en el chat, en segundos.</p>
+  <div class="grid g2" style="margin-top:14px">
+    <div class="card">
+      <h3>📸 Catálogo en el chat</h3>
+      <div class="grid g3" style="gap:8px;margin-top:10px">
+        <div style="background:linear-gradient(135deg,#0d9488,#10b981);border-radius:8px;aspect-ratio:1;display:flex;align-items:flex-end;justify-content:center;padding:6px;color:#06100c;font:700 11px 'Manrope'">Premium+</div>
+        <div style="background:linear-gradient(135deg,#047857,#10b981);border-radius:8px;aspect-ratio:1;display:flex;align-items:flex-end;justify-content:center;padding:6px;color:#06100c;font:700 11px 'Manrope'">Clásico</div>
+        <div style="background:linear-gradient(135deg,#14b8a6,#0d9488);border-radius:8px;aspect-ratio:1;display:flex;align-items:flex-end;justify-content:center;padding:6px;color:#06100c;font:700 11px 'Manrope'">Premium</div>
+      </div>
+      <p style="font-size:12.5px;margin-top:10px">Cada foto llega con su nombre, precio, tallas, colores y disponibilidad. El cliente ve exactamente lo que va a recibir — <strong>cero sorpresas, cero devoluciones por expectativa</strong>.</p>
+    </div>
+    <div class="card">
+      <h3>✨ Lo que la IA hace sola</h3>
+      <div class="step-row"><div class="step-num" style="background:var(--accent-2)">A</div><div class="body"><p style="font-size:12.5px;margin:0"><strong>Filtra por perfil:</strong> si es regalo, muestra los más vendidos. Si es mayorista, muestra los de mayor margen.</p></div></div>
+      <div class="step-row"><div class="step-num" style="background:var(--accent-2)">B</div><div class="body"><p style="font-size:12.5px;margin:0"><strong>Cruza con stock:</strong> solo muestra lo que sí tienes. Nunca ofrece lo que no puede entregar.</p></div></div>
+      <div class="step-row"><div class="step-num" style="background:var(--accent-2)">C</div><div class="body"><p style="font-size:12.5px;margin:0"><strong>Sugiere bundles:</strong> "los que compraron este también llevaron X" — aumenta el ticket promedio.</p></div></div>
+      <div class="step-row"><div class="step-num" style="background:var(--accent-2)">D</div><div class="body"><p style="font-size:12.5px;margin:0"><strong>Identifica por foto:</strong> el cliente manda una foto y la IA encuentra el producto en tu catálogo con VLM.</p></div></div>
+    </div>
+  </div>
+  <div class="grid g4" style="margin-top:14px">
+    <div class="card"><div class="stat">2.8s</div><div class="stat-l">envío de foto + descripción</div></div>
+    <div class="card"><div class="stat">+18%</div><div class="stat-l">ticket promedio con bundles</div></div>
+    <div class="card"><div class="stat">−40%</div><div class="stat-l">devoluciones por expectativa</div></div>
+    <div class="card"><div class="stat">100%</div><div class="stat-l">sincronizado con tu stock</div></div>
+  </div>
+  <div class="foot"><span class="brand"><b>ZIAY</b> · Catálogo visual</span><span>Ver para creer</span><span class="pg">08 / 30</span></div>
+</section>
+
+<!-- ============ SLIDE 9: Cotización dinámica ============ -->
+<section class="slide" data-title="Cotización dinámica">
+  <div class="eyebrow"><span class="dot"></span><span>Paso 5 · Cotización dinámica</span><span class="bar"></span><span class="num">09 / 30</span></div>
+  <h1 class="title">El precio correcto,<br>para el cliente correcto, <span class="em">en segundos</span></h1>
+  <p class="lede">No más Excel, no más "déjame consulto y te aviso". La IA calcula precio, descuento por volumen, margen y te lo entrega con la lógica completa — explicada al cliente sin que él tenga que entenderla.</p>
+  <div class="grid g2" style="margin-top:14px">
+    <div class="card accent">
+      <h3>🧮 Cómo se calcula el precio</h3>
+      <table class="tbl" style="margin-top:8px">
+        <tr><th>Variable</th><th>Ejemplo</th></tr>
+        <tr><td>Precio base</td><td class="num">$89.000</td></tr>
+        <tr><td>Descuento por volumen (10+)</td><td class="num">−8%</td></tr>
+        <tr><td>Margen objetivo mayorista</td><td class="num">35%</td></tr>
+        <tr><td>Ancla de mercado (precioRef)</td><td class="num">$129.000</td></tr>
+        <tr><td><strong>Precio final</strong></td><td class="num"><strong>$81.880</strong></td></tr>
+      </table>
+      <p class="muted" style="font-size:12px;margin-top:8px">La IA muestra al cliente: "Por 10 unidades, $81.880 c/u (precio normal $89.000). Te estás ahorrando $71.200 total." — <strong>el descuento se siente, no se explica</strong>.</p>
+    </div>
+    <div class="card accent">
+      <h3>🎯 Lo que la IA considera</h3>
+      <div class="step-row"><div class="step-num">1</div><div class="body"><p style="font-size:12.5px;margin:0"><strong>Costo real:</strong> compra + flete inbound + impuestos + comisión gateway.</p></div></div>
+      <div class="step-row"><div class="step-num">2</div><div class="body"><p style="font-size:12.5px;margin:0"><strong>Margen mínimo:</strong> nunca baja del piso configurado. Si no da margen, no lo ofrece.</p></div></div>
+      <div class="step-row"><div class="step-num">3</div><div class="body"><p style="font-size:12.5px;margin:0"><strong>Tramos de volumen:</strong> 1-9, 10-49, 50-199, 200+ — cada uno con su descuento.</p></div></div>
+      <div class="step-row"><div class="step-num">4</div><div class="body"><p style="font-size:12.5px;margin:0"><strong>Ancla de mercado:</strong> compara con precio de referencia para que el descuento se perciba real.</p></div></div>
+      <div class="step-row"><div class="step-num">5</div><div class="body"><p style="font-size:12.5px;margin:0"><strong>Flete dinámico:</strong> cotiza con 3 carriers en tiempo real, elige el más barato para ese destino.</p></div></div>
+    </div>
+  </div>
+  <div class="callout money" style="margin-top:12px">
+    <div class="callout-title">💰 El resultado</div>
+    <p style="margin:0;font-size:13.5px">Una cotización que antes tomaba 20 minutos (abrir Excel, buscar el precio, calcular el descuento, cotizar el flete, escribirlo bonito) — ahora toma <strong>2.8 segundos</strong>. Y el cliente lo recibe antes de irse a dormir.</p>
+  </div>
+  <div class="foot"><span class="brand"><b>ZIAY</b> · Cotización dinámica</span><span>Precio correcto, cliente correcto</span><span class="pg">09 / 30</span></div>
+</section>
+
+<!-- ============ SLIDE 10: Manejo de objeciones ============ -->
+<section class="slide" data-title="Objeciones">
+  <div class="eyebrow"><span class="dot"></span><span>Paso 6 · Objeciones</span><span class="bar"></span><span class="num">10 / 30</span></div>
+  <h1 class="title">"Está muy caro" no es el final.<br>Es <span class="em">donde empieza la venta</span></h1>
+  <p class="lede">Cada objeción es una señal de interés. La IA las reconoce, las clasifica y responde con argumentos preparados por tu equipo — y aprende cuáles funcionan para usarlos más.</p>
+  <div class="grid g3" style="margin-top:14px">
+    <div class="card warm">
+      <h3>💸 "Está muy caro"</h3>
+      <p style="font-size:12.5px">No es precio, es percepción de valor. La IA re-encuadra: muestra el ancla de mercado, desglosa el precio por uso, ofrece bundle o plan de pagos.</p>
+      <div class="callout think" style="margin:8px 0 0;padding:8px 10px"><p style="margin:0;font-size:11.5px"><em>"El Clásico sale a $89k, pero te dura 18 meses — son $4.900/mes. ¿Cuánto te dura el de $50k?"</em></p></div>
+    </div>
+    <div class="card warm">
+      <h3>🔒 "No confío en pagar online"</h3>
+      <p style="font-size:12.5px">No es desconfianza del producto, es del medio. La IA ofrece contra entrega, PSE, pago contra factura, garantía escrita.</p>
+      <div class="callout think" style="margin:8px 0 0;padding:8px 10px"><p style="margin:0;font-size:11.5px"><em>"Entendido. Te lo envío con pago contra entrega. Solo pagas cuando lo recibas. ¿Te parece?"</em></p></div>
+    </div>
+    <div class="card warm">
+      <h3>⚖ "Lo vi más barato en otro lado"</h3>
+      <p style="font-size:12.5px">No es precio, es comparación. La IA activa Smart Routing, compara referencias, muestra diferencias reales.</p>
+      <div class="callout think" style="margin:8px 0 0;padding:8px 10px"><p style="margin:0;font-size:11.5px"><em>"El de allá es importado sin garantía. El nuestro incluye 6 meses y envío gratis. ¿Te lo llevo?"</em></p></div>
+    </div>
+  </div>
+  <div class="grid g4" style="margin-top:14px">
+    <div class="card"><div class="stat">14</div><div class="stat-l">tipos de objeción detectados</div></div>
+    <div class="card"><div class="stat">42</div><div class="stat-l">argumentos preparados</div></div>
+    <div class="card"><div class="stat">+22%</div><div class="stat-l">conversión tras objeción</div></div>
+    <div class="card"><div class="stat">100%</div><div class="stat-l">aprende cuál funciona mejor</div></div>
+  </div>
+  <div class="callout think" style="margin-top:12px">
+    <div class="callout-title">🧠 El aprendizaje continuo</div>
+    <p style="margin:0;font-size:13px">Si el argumento "te dura 18 meses" cierra más ventas que "garantía 6 meses", la IA lo usa más. Tu vendedor humano no recuerda qué argumento funcionó mejor. La IA <strong>mide y optimiza solita</strong>.</p>
+  </div>
+  <div class="foot"><span class="brand"><b>ZIAY</b> · Objeciones</span><span>El "no" es el inicio</span><span class="pg">10 / 30</span></div>
+</section>
+
+<!-- ============ SLIDE 11: Checkout ============ -->
+<section class="slide" data-title="Checkout">
+  <div class="eyebrow"><span class="dot"></span><span>Paso 7 · Checkout</span><span class="bar"></span><span class="num">11 / 30</span></div>
+  <h1 class="title">El cliente paga como <span class="em">él prefiera</span></h1>
+  <p class="lede">No le obligues a usar un método que no conoce. Si es de Brasil, recibe PIX. Si es de México, OXXO. Si es de Colombia, PSE o contra entrega. Si es de USA, tarjeta. La IA ofrece las opciones nativas de su país — en su moneda.</p>
+  <div class="grid g4" style="margin-top:14px">
+    <div class="card accent"><h3>🇨🇴 Colombia</h3><p style="font-size:12px">PSE, tarjeta, contra entrega, Wompi, MercadoPago, PayU, Nequi, Daviplata.</p><div class="tag-list" style="margin-top:6px"><span class="tag on">COP</span></div></div>
+    <div class="card accent"><h3>🇲🇽 México</h3><p style="font-size:12px">OXXO, SPEI, tarjeta, MercadoPago, Stripe. Efectivo en 7-Eleven.</p><div class="tag-list" style="margin-top:6px"><span class="tag on">MXN</span></div></div>
+    <div class="card accent"><h3>🇧🇷 Brasil</h3><p style="font-size:12px">PIX (instantáneo), Boleto, tarjeta, MercadoPago. El 80% usa PIX.</p><div class="tag-list" style="margin-top:6px"><span class="tag on">BRL</span></div></div>
+    <div class="card accent"><h3>🇺🇸 USA</h3><p style="font-size:12px">Stripe (tarjeta, Apple Pay, Google Pay), PayPal, ACH.</p><div class="tag-list" style="margin-top:6px"><span class="tag on">USD</span></div></div>
+  </div>
+  <div class="grid g3" style="margin-top:14px">
+    <div class="card">
+      <h3>⚡ Pago instantáneo</h3>
+      <p style="font-size:12.5px">Link generado en 1.2s. El cliente paga, el dinero llega, el pedido se libera — todo automático, sin que tú apruebes nada.</p>
+    </div>
+    <div class="card">
+      <h3>🚚 Contra entrega</h3>
+      <p style="font-size:12.5px">Para clientes nuevos o de bajo ticket. La IA calcula riesgo, pide anticipo si el ticket supera tu umbral, ofrece mixto si el cliente prefiere.</p>
+    </div>
+    <div class="card">
+      <h3>💸 Híbrido inteligente</h3>
+      <p style="font-size:12.5px">50% anticipado, 50% contra entrega. La IA lo ofrece para tickets altos y clientes nuevos — reduce riesgo sin perder la venta.</p>
+    </div>
+  </div>
+  <div class="callout money" style="margin-top:12px">
+    <div class="callout-title">💎 8 métodos · 7 monedas · 1 checkout</div>
+    <p style="margin:0;font-size:13.5px">MercadoPago, Wompi, Stripe, PayU, PSE, PIX, OXXO, SPEI — todos integrados. Conversión de pago <strong>+34%</strong> cuando ofreces el método nativo del país del cliente.</p>
+  </div>
+  <div class="foot"><span class="brand"><b>ZIAY</b> · Checkout</span><span>Pago como el cliente prefiere</span><span class="pg">11 / 30</span></div>
+</section>
+
+<!-- ============ SLIDE 12: Logística ============ -->
+<section class="slide" data-title="Logística">
+  <div class="eyebrow"><span class="dot"></span><span>Paso 8 · Logística</span><span class="bar"></span><span class="num">12 / 30</span></div>
+  <h1 class="title">Cotiza el envío en tiempo real<br>y <span class="em">genera la guía</span> sin abrir otra app</h1>
+  <p class="lede">El cliente pregunta "¿cuánto cuesta el envío a Bucaramanga?" — la IA cotiza con 3 transportadoras en 2 segundos, elige la más barata o la más rápida, genera la guía y se la envía al cliente. Todo desde el mismo chat.</p>
+  <div class="grid g2" style="margin-top:14px">
+    <div class="card accent">
+      <h3>🚚 Carriers integrados</h3>
+      <table class="tbl" style="margin-top:8px">
+        <tr><th>Carrier</th><th>Cobertura</th><th>Tipo</th></tr>
+        <tr><td>Dropi</td><td>Colombia nacional</td><td>Económico</td></tr>
+        <tr><td>99envios</td><td>Colombia + frontera</td><td>Express</td></tr>
+        <tr><td>Aveonline</td><td>LATAM internacional</td><td>Cross-border</td></tr>
+        <tr><td>DHL / FedEx</td><td>USA + Europa</td><td>Internacional</td></tr>
+      </table>
+      <p class="muted" style="font-size:12px;margin-top:8px">La IA compara precio, tiempo y confiabilidad. Si el cliente está en Bogotá y pidió Express, elige 99envios. Si está en Leticia, elige el único que llega.</p>
+    </div>
+    <div class="card accent">
+      <h3>⚡ Lo que pasa en 2 segundos</h3>
+      <div class="step-row"><div class="step-num">1</div><div class="body"><p style="font-size:12.5px;margin:0">Lee la dirección del cliente (valida ciudad, barrio, código postal).</p></div></div>
+      <div class="step-row"><div class="step-num">2</div><div class="body"><p style="font-size:12.5px;margin:0">Calcula peso volumétrico del paquete según los productos del carrito.</p></div></div>
+      <div class="step-row"><div class="step-num">3</div><div class="body"><p style="font-size:12.5px;margin:0">Cotiza con todos los carriers aplicables a esa ruta.</p></div></div>
+      <div class="step-row"><div class="step-num">4</div><div class="body"><p style="font-size:12.5px;margin:0">Elige la mejor opción (más barata, más rápida o mixta según reglas).</p></div></div>
+      <div class="step-row"><div class="step-num">5</div><div class="body"><p style="font-size:12.5px;margin:0">Genera la guía en PDF y la envía al cliente con número de rastreo.</p></div></div>
+      <div class="step-row"><div class="step-num">6</div><div class="body"><p style="font-size:12.5px;margin:0">Registra el pedido en tu panel con estado "listo para despachar".</p></div></div>
+    </div>
+  </div>
+  <div class="grid g4" style="margin-top:14px">
+    <div class="card"><div class="stat">2s</div><div class="stat-l">cotización completa</div></div>
+    <div class="card"><div class="stat">4</div><div class="stat-l">carriers simultáneos</div></div>
+    <div class="card"><div class="stat">0</div><div class="stat-l">apps que abrir</div></div>
+    <div class="card"><div class="stat">100%</div><div class="stat-l">guías en tu panel</div></div>
+  </div>
+  <div class="foot"><span class="brand"><b>ZIAY</b> · Logística</span><span>Envío en tiempo real</span><span class="pg">12 / 30</span></div>
+</section>
+
+<!-- ============ SLIDE 13: Post-venta ============ -->
+<section class="slide" data-title="Post-venta">
+  <div class="eyebrow"><span class="dot"></span><span>Paso 9 · Post-venta</span><span class="bar"></span><span class="num">13 / 30</span></div>
+  <h1 class="title">La venta no termina<br>cuando el cliente paga. <span class="em">Empieza</span></h1>
+  <p class="lede">El 70% de tus ventas futuras vienen de clientes que ya compraron. ZIAY los cuida: tracking automático, gestión de novedades sin fricción, re-entrega sin costo si el paquete no llegó, y reseñas que generan prueba social para tu próxima venta.</p>
+  <div class="grid g2" style="margin-top:14px">
+    <div class="card accent">
+      <h3>📦 Tracking automático</h3>
+      <p style="font-size:12.5px">El cliente escribe "¿dónde está mi pedido?" — la IA responde con la ubicación en tiempo real, ETA y cualquier novedad. Sin que tú abras la app del carrier.</p>
+      <div class="chat" style="margin-top:8px">
+        <div class="bubble in">¿Dónde está mi pedido? <span class="meta">2:14 pm</span></div>
+        <div class="bubble out">Tu pedido #4821 está en la central de Medellín, en ruta de entrega. Llega hoy entre 2-4pm. 🚚 <span class="meta">2:14 pm · 1.8s</span></div>
+      </div>
+    </div>
+    <div class="card accent">
+      <h3>🔄 Novedades sin fricción</h3>
+      <p style="font-size:12.5px">Si el paquete no se entregó, la IA detecta la novedad del carrier, contacta al cliente, reprograma la entrega y genera nueva guía — <strong>sin que tú sepas que pasó</strong>.</p>
+      <div class="step-row" style="margin-top:8px"><div class="step-num" style="background:var(--accent-2)">A</div><div class="body"><p style="font-size:12px;margin:0">Lee novedad del carrier (dirección errada, cliente ausente).</p></div></div>
+      <div class="step-row"><div class="step-num" style="background:var(--accent-2)">B</div><div class="body"><p style="font-size:12px;margin:0">Escribe al cliente, confirma dirección correcta.</p></div></div>
+      <div class="step-row"><div class="step-num" style="background:var(--accent-2)">C</div><div class="body"><p style="font-size:12px;margin:0">Genera nueva guía, programa re-entrega sin costo.</p></div></div>
+    </div>
+  </div>
+  <div class="grid g3" style="margin-top:14px">
+    <div class="card"><div class="stat">−65%</div><div class="stat-l">tiempo en gestión de novedades</div></div>
+    <div class="card"><div class="stat">+47%</div><div class="stat-l">clientes que recompran</div></div>
+    <div class="card"><div class="stat">4.7★</div><div class="stat-l">rating promedio post-venta</div></div>
+  </div>
+  <div class="callout money" style="margin-top:12px">
+    <div class="callout-title">💎 El verdadero valor</div>
+    <p style="margin:0;font-size:13.5px">Un cliente bien atendido en el post-venta recompra <strong>2.3x más</strong>. Y le cuenta a 3 amigos. Y deja una reseña que cierra tus próximas 10 ventas. El post-venta no es un costo — es tu mejor campaña de marketing.</p>
+  </div>
+  <div class="foot"><span class="brand"><b>ZIAY</b> · Post-venta</span><span>La venta empieza al pagar</span><span class="pg">13 / 30</span></div>
+</section>
+
+<!-- ============ SLIDE 14: 27 agentes ============ -->
+<section class="slide" data-title="27 agentes">
+  <div class="eyebrow"><span class="dot"></span><span>El equipo de IA</span><span class="bar"></span><span class="num">14 / 30</span></div>
+  <h1 class="title">27 agentes de IA<br><span class="em">trabajando en equipo</span></h1>
+  <p class="lede">No es un solo chatbot. Es un equipo especializado — cada agente hace una cosa y la hace muy bien, y se pasan el cliente entre ellos como en una tienda bien organizada.</p>
+  <div class="grid g4" style="margin-top:12px;gap:8px">
+    <div class="card"><h3 style="font-size:12px">👤 Governor</h3><p style="font-size:11.5px">Supervisor. Asegura que todo se haga bien.</p></div>
+    <div class="card"><h3 style="font-size:12px">🎭 Perfilador</h3><p style="font-size:11.5px">Detecta mayorista, detal, regalo.</p></div>
+    <div class="card"><h3 style="font-size:12px">💬 Recepcionista</h3><p style="font-size:11.5px">Saluda, lee tono, abre el chat.</p></div>
+    <div class="card"><h3 style="font-size:12px">🔍 Detector de necesidad</h3><p style="font-size:11.5px">Qué busca, para quién, cuándo.</p></div>
+    <div class="card"><h3 style="font-size:12px">📚 Catalogador</h3><p style="font-size:11.5px">Muestra productos visuales.</p></div>
+    <div class="card"><h3 style="font-size:12px">🧮 Cotizador</h3><p style="font-size:11.5px">Precio, volumen, margen, ancla.</p></div>
+    <div class="card"><h3 style="font-size:12px">🚚 Fletista</h3><p style="font-size:11.5px">Cotiza envío, compara carriers.</p></div>
+    <div class="card"><h3 style="font-size:12px">🛡 Manejador de objeciones</h3><p style="font-size:11.5px">Precio, desconfianza, comparación.</p></div>
+    <div class="card"><h3 style="font-size:12px">🧠 Bundleador</h3><p style="font-size:11.5px">Sugiere productos complementarios.</p></div>
+    <div class="card"><h3 style="font-size:12px">💳 Cobrador</h3><p style="font-size:11.5px">Genera link de pago, confirma.</p></div>
+    <div class="card"><h3 style="font-size:12px">📦 Despachador</h3><p style="font-size:11.5px">Genera guía, programa entrega.</p></div>
+    <div class="card"><h3 style="font-size:12px">📍 Tracker</h3><p style="font-size:11.5px">Rastrea paquete, responde "¿dónde?"</p></div>
+    <div class="card"><h3 style="font-size:12px">🔄 Gestor de novedades</h3><p style="font-size:11.5px">Reprograma, re-entrega, RMA.</p></div>
+    <div class="card"><h3 style="font-size:12px">⭐ Pedidor de reseña</h3><p style="font-size:11.5px">Solicita rating post-entrega.</p></div>
+    <div class="card"><h3 style="font-size:12px">📈 Analista de funnel</h3><p style="font-size:11.5px">Detecta dónde pierdes clientes.</p></div>
+    <div class="card"><h3 style="font-size:12px">🚨 Detector de anomalías</h3><p style="font-size:11.5px">Alerta si ventas caen o suben.</p></div>
+  </div>
+  <div class="grid g2" style="margin-top:10px">
+    <div class="card teal"><h3 style="font-size:12.5px">+ 11 agentes más</h3><p style="font-size:11.5px;margin:0">Predictor de tendencias · Enrutador de leads · Cumplidor legal · Anti-ban WhatsApp · Traductor cross-border · VLM identificador · Optimizador de prompts · Conciliador de pagos · Generador de reportes · Avisador de stock bajo · Escalador a humano.</p></div>
+    <div class="card glow"><h3 style="font-size:12.5px">Trabajo coordinado</h3><p style="font-size:11.5px;margin:0">Cada agente sabe cuándo intervenir y cuándo callar. El Governor asigna el cliente al agente correcto y vigila que la conversación fluya. Como una orquesta sin director visible — pero con uno.</p></div>
+  </div>
+  <div class="foot"><span class="brand"><b>ZIAY</b> · 27 agentes</span><span>Un equipo, no un bot</span><span class="pg">14 / 30</span></div>
+</section>
+
+<!-- ============ SLIDE 15: Governor ============ -->
+<section class="slide" data-title="Governor">
+  <div class="eyebrow"><span class="dot"></span><span>Agente supervisor</span><span class="bar"></span><span class="num">15 / 30</span></div>
+  <h1 class="title">El <span class="em">Governor Agent</span>:<br>el supervisor que nunca se distrae</h1>
+  <p class="lede">Cada tienda tiene un gerente. ZIAY tiene uno también: el Governor. Vigila cada conversación, asegura que los 9 pasos se cumplan, interviene si un agente se desvía, y escala a humano cuando hace falta.</p>
+  <div class="grid g2" style="margin-top:14px">
+    <div class="card accent">
+      <h3>👁 Qué vigila el Governor</h3>
+      <div class="step-row"><div class="step-num" style="background:var(--accent-2)">A</div><div class="body"><p style="font-size:12.5px;margin:0"><strong>Que se sigan los 9 pasos.</strong> Si el Cotizador salta el perfilamiento, lo corrige.</p></div></div>
+      <div class="step-row"><div class="step-num" style="background:var(--accent-2)">B</div><div class="body"><p style="font-size:12.5px;margin:0"><strong>Que no se inventen precios.</strong> Si un agente cita un precio fuera de catálogo, lo bloquea.</p></div></div>
+      <div class="step-row"><div class="step-num" style="background:var(--accent-2)">C</div><div class="body"><p style="font-size:12.5px;margin:0"><strong>Que no se cobre sin confirmar.</strong> Si el Cobrador envía link antes del "sí", lo detiene.</p></div></div>
+      <div class="step-row"><div class="step-num" style="background:var(--accent-2)">D</div><div class="body"><p style="font-size:12.5px;margin:0"><strong>Que se respete la ley.</strong> Anti-ban WhatsApp, Ley 1581, retracto, datos sensibles.</p></div></div>
+      <div class="step-row"><div class="step-num" style="background:var(--accent-2)">E</div><div class="body"><p style="font-size:12.5px;margin:0"><strong>Que el cliente no se frustre.</strong> Si hay 3 mensajes sin respuesta, interviene.</p></div></div>
+    </div>
+    <div class="card glow">
+      <h3>🛡 Cómo interviene</h3>
+      <p style="font-size:12.5px">El Governor no atiende al cliente directamente — coordina a los demás agentes y, si hace falta, <strong>pasa el chat a un humano</strong> con todo el contexto.</p>
+      <table class="tbl" style="margin-top:10px">
+        <tr><th>Trigger</th><th>Acción</th></tr>
+        <tr><td>Precio fuera de catálogo</td><td>Bloquea + corrige</td></tr>
+        <tr><td>Pago sin confirmación</td><td>Pausa + re-confirma</td></tr>
+        <tr><td>Cliente molesto (3+ msg sin respuesta)</td><td>Prioriza + escala</td></tr>
+        <tr><td>Regla legal violada</td><td>Corta + notifica</td></tr>
+        <tr><td>Agente alucinando</td><td>Penaliza confianza + re-genera</td></tr>
+        <tr><td>Confianza baja (&lt;0.6)</td><td>Escalado a humano</td></tr>
+      </table>
+      <p class="muted" style="font-size:11.5px;margin-top:8px">Resultado: la IA puede equivocarse — pero el Governor no la deja llegar al cliente con el error.</p>
+    </div>
+  </div>
+  <div class="callout think" style="margin-top:12px">
+    <div class="callout-title">🧠 Por qué importa</div>
+    <p style="margin:0;font-size:13.5px">Un chatbot sin supervisor alucina, inventa precios, cobra mal, ofende. Un equipo de 27 agentes con Governor se comporta como <strong>tu mejor vendedor en su mejor día</strong> — siempre.</p>
+  </div>
+  <div class="foot"><span class="brand"><b>ZIAY</b> · Governor Agent</span><span>El supervisor invisible</span><span class="pg">15 / 30</span></div>
+</section>
+
+<!-- ============ SLIDE 16: Prompts dinámicos ============ -->
+<section class="slide" data-title="Prompts dinámicos">
+  <div class="eyebrow"><span class="dot"></span><span>Autoaprendizaje</span><span class="bar"></span><span class="num">16 / 30</span></div>
+  <h1 class="title">La IA <span class="em">aprende</span> qué discursos venden más</h1>
+  <p class="lede">Tu vendedor humano prueba un argumento, le va bien, lo sigue usando — pero se olvida al mes. La IA mide qué discurso convirtió más, lo promueve automáticamente, y guarda el aprendizaje para siempre.</p>
+  <div class="grid g2" style="margin-top:14px">
+    <div class="card accent">
+      <h3>🧪 Cómo funciona el aprendizaje</h3>
+      <div class="step-row"><div class="step-num">1</div><div class="body"><p style="font-size:12.5px;margin:0">La IA prueba 3 variantes de un argumento con clientes similares.</p></div></div>
+      <div class="step-row"><div class="step-num">2</div><div class="body"><p style="font-size:12.5px;margin:0">Mide cuál cierra más ventas (no solo cuál "suena mejor").</p></div></div>
+      <div class="step-row"><div class="step-num">3</div><div class="body"><p style="font-size:12.5px;margin:0">Promueve la ganadora al "prompt principal".</p></div></div>
+      <div class="step-row"><div class="step-num">4</div><div class="body"><p style="font-size:12.5px;margin:0">Sigue testeando nuevas variantes contra la campeona.</p></div></div>
+      <div class="step-row"><div class="step-num">5</div><div class="body"><p style="font-size:12.5px;margin:0">El discurso mejora cada semana, sin que tú hagas nada.</p></div></div>
+    </div>
+    <div class="card accent">
+      <h3>📊 Ejemplo real</h3>
+      <table class="tbl" style="margin-top:8px">
+        <tr><th>Variante</th><th class="num">Conversión</th></tr>
+        <tr><td>"Te dura 18 meses"</td><td class="num">12%</td></tr>
+        <tr><td>"Garantía 6 meses"</td><td class="num">9%</td></tr>
+        <tr><td>"Son $4.900/mes"</td><td class="num">18% ✓</td></tr>
+        <tr><td>"Incluye envío gratis"</td><td class="num">11%</td></tr>
+      </table>
+      <p class="muted" style="font-size:12px;margin-top:8px">La variante ganadora ("Son $4.900/mes") se promueve sola. La IA la usa por defecto en el próximo mes, y sigue probando nuevas contra ella. <strong>Optimización continua sin intervención humana</strong>.</p>
+    </div>
+  </div>
+  <div class="grid g3" style="margin-top:14px">
+    <div class="card"><div class="stat">+34%</div><div class="stat-l">conversión promedio en 90 días</div></div>
+    <div class="card"><div class="stat">12</div><div class="stat-l">variantes testeadas por semana</div></div>
+    <div class="card"><div class="stat">0</div><div class="stat-l">acciones manuales requeridas</div></div>
+  </div>
+  <div class="callout think" style="margin-top:12px">
+    <div class="callout-title">🧠 La ventaja compuesta</div>
+    <p style="margin:0;font-size:13px">Cada día que pasa, la IA es un poco mejor que ayer. Tu competencia con chatbot estático no mejora nunca. <strong>La diferencia se acumula como interés compuesto</strong>: en 6 meses no le puedes alcanzar.</p>
+  </div>
+  <div class="foot"><span class="brand"><b>ZIAY</b> · Prompts dinámicos</span><span>Aprende y mejora</span><span class="pg">16 / 30</span></div>
+</section>
+
+<!-- ============ SLIDE 17: Bundles ============ -->
+<section class="slide" data-title="Bundles">
+  <div class="eyebrow"><span class="dot"></span><span>Aumento de ticket</span><span class="bar"></span><span class="num">17 / 30</span></div>
+  <h1 class="title">"¿Te llevo el <span class="em">outfit completo</span>?"</h1>
+  <p class="lede">El cliente vino por un pijama. La IA detecta la oportunidad y le ofrece el set completo: pijama + bata + pantuflas + crema. No es up-sell agresivo — es recomendación útil que el cliente agradece.</p>
+  <div class="grid g2" style="margin-top:14px">
+    <div class="card accent">
+      <h3>🛍 Cómo detecta la oportunidad</h3>
+      <div class="step-row"><div class="step-num">1</div><div class="body"><p style="font-size:12.5px;margin:0">Cruza el producto del carrito con tu catálogo de complementos.</p></div></div>
+      <div class="step-row"><div class="step-num">2</div><div class="body"><p style="font-size:12.5px;margin:0">Filtra por perfil (al regalo le ofrece presentación, al mayorista le ofrece mix).</p></div></div>
+      <div class="step-row"><div class="step-num">3</div><div class="body"><p style="font-size:12.5px;margin:0">Calcula descuento por bundle (5-15% sobre precio individual).</p></div></div>
+      <div class="step-row"><div class="step-num">4</div><div class="body"><p style="font-size:12.5px;margin:0">Lo ofrece <strong>después</strong> de que el cliente dijo "sí" al primero.</p></div></div>
+    </div>
+    <div class="card accent">
+      <h3>💬 La conversación real</h3>
+      <div class="chat">
+        <div class="bubble in">Llévame el Premium+ en M azul <span class="meta">11:48 pm</span></div>
+        <div class="bubble out">¡Listo! Antes de cerrar: los que lo compraron también llevaron la bata a juego ($79k, -10% si lo agregas ahora) y las pantuflas ($35k). ¿Te lo armo completo por $245k en vez de $273k? <span class="meta">11:48 pm</span></div>
+        <div class="bubble in">Sí, pero sin las pantuflas <span class="meta">11:49 pm</span></div>
+        <div class="bubble out">Perfecto. Pijama Premium+ + bata a juego = $192k. ¿Confirmo? <span class="meta">11:49 pm</span></div>
+        <div class="bubble in">Sí <span class="meta">11:49 pm</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="grid g4" style="margin-top:14px">
+    <div class="card"><div class="stat">+18%</div><div class="stat-l">ticket promedio</div></div>
+    <div class="card"><div class="stat">31%</div><div class="stat-l">aceptación de bundle</div></div>
+    <div class="card"><div class="stat">0</div><div class="stat-l">fricción percibida</div></div>
+    <div class="card"><div class="stat">+47%</div><div class="stat-l">margen por bundle</div></div>
+  </div>
+  <div class="callout money" style="margin-top:12px">
+    <div class="callout-title">💰 La matemática simple</div>
+    <p style="margin:0;font-size:13.5px">Si vendes 100 pijamas al día a $89k = $8.9M COP. Con bundles (+18%): $10.5M COP. <strong>$1.6M COP más al día, sin un cliente nuevo</strong>. Solo por preguntar bien, en el momento justo.</p>
+  </div>
+  <div class="foot"><span class="brand"><b>ZIAY</b> · Bundles</span><span>Outfit completo</span><span class="pg">17 / 30</span></div>
+</section>
+
+<!-- ============ SLIDE 18: Smart routing ============ -->
+<section class="slide" data-title="Smart routing">
+  <div class="eyebrow"><span class="dot"></span><span>Smart Lead Routing</span><span class="bar"></span><span class="num">18 / 30</span></div>
+  <h1 class="title">Si no tienes el producto,<br>lo <span class="em">busca en otra tienda</span></h1>
+  <p class="lede">El cliente pregunta por algo que no tienes. En vez de decir "no lo manejamos" y perder la venta, la IA lo busca en el marketplace de tiendas aliadas, lo cobra, lo despacha y tú ganas comisión. Cero leads perdidos.</p>
+  <div class="grid g2" style="margin-top:14px">
+    <div class="card accent">
+      <h3>🔀 El flujo</h3>
+      <div class="flow" style="margin:10px 0">
+        <span class="flow-step">Cliente pide</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-step alt">No lo tienes</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-step">Marketplace</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-step alt">Tienda aliada</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-step" style="border-color:var(--accent-3)">Venta + comisión</span>
+      </div>
+      <p style="font-size:12.5px">El cliente recibe el producto, la tienda aliada hace la venta, y tú ganas comisión por referir. <strong>Tres ganan, nadie pierde</strong>.</p>
+      <table class="tbl" style="margin-top:10px">
+        <tr><th>Rol</th><th>Beneficio</th></tr>
+        <tr><td>Tú (originador)</td><td>Comisión 5% sin costo</td></tr>
+        <tr><td>Tienda aliada</td><td>Venta que no hubiera tenido</td></tr>
+        <tr><td>Cliente</td><td>Encuentra lo que buscaba</td></tr>
+      </table>
+    </div>
+    <div class="card accent">
+      <h3>🎯 Cuándo se activa</h3>
+      <div class="step-row"><div class="step-num">1</div><div class="body"><p style="font-size:12.5px;margin:0">El cliente pide un producto que no está en tu catálogo.</p></div></div>
+      <div class="step-row"><div class="step-num">2</div><div class="body"><p style="font-size:12.5px;margin:0">La IA busca en el marketplace por nombre, categoría y especificación.</p></div></div>
+      <div class="step-row"><div class="step-num">3</div><div class="body"><p style="font-size:12.5px;margin:0">Filtra por tiendas aliadas con buena reputación y stock real.</p></div></div>
+      <div class="step-row"><div class="step-num">4</div><div class="body"><p style="font-size:12.5px;margin:0">Le ofrece la opción al cliente con tu marca (white-label).</p></div></div>
+      <div class="step-row"><div class="step-num">5</div><div class="body"><p style="font-size:12.5px;margin:0">Si acepta, la aliada despacha y tú registras la comisión.</p></div></div>
+      <div class="step-row"><div class="step-num">6</div><div class="body"><p style="font-size:12.5px;margin:0">El cliente nunca sabe que vino de otra tienda.</p></div></div>
+    </div>
+  </div>
+  <div class="callout money" style="margin-top:12px">
+    <div class="callout-title">💎 0 leads perdidos</div>
+    <p style="margin:0;font-size:13.5px">Antes: "no lo manejamos" = venta perdida para siempre. Ahora: <strong>venta para alguien, comisión para ti, cliente feliz</strong>. El marketplace ZIAY conecta a cientos de tiendas LATAM — entre todas, casi siempre alguien tiene lo que se busca.</p>
+  </div>
+  <div class="foot"><span class="brand"><b>ZIAY</b> · Smart routing</span><span>0 leads perdidos</span><span class="pg">18 / 30</span></div>
+</section>
+
+<!-- ============ SLIDE 19: Funnel analytics ============ -->
+<section class="slide" data-title="Funnel analytics">
+  <div class="eyebrow"><span class="dot"></span><span>Analítica</span><span class="bar"></span><span class="num">19 / 30</span></div>
+  <h1 class="title">Ve <span class="em">dónde pierdes</span> clientes<br>en los 9 pasos</h1>
+  <p class="lede">No más "no sé por qué no vendemos más". El funnel analytics te muestra exactamente en qué paso se caen tus clientes, con qué perfil, en qué horario, con qué producto — para que sepas dónde corregir.</p>
+  <div class="card accent" style="margin-top:14px">
+    <h3>📊 Tu embudo, paso a paso</h3>
+    <div style="margin-top:12px;display:flex;flex-direction:column;gap:6px">
+      <div style="display:flex;align-items:center;gap:10px"><span style="width:120px;font:600 11px 'JetBrains Mono';color:var(--muted)">1. Saludo</span><div style="height:22px;background:linear-gradient(90deg,var(--accent),var(--accent-2));border-radius:5px;width:95%;display:flex;align-items:center;padding:0 10px;color:#06100c;font:700 11px 'Manrope'">1.000 leads · 95% avanza</div></div>
+      <div style="display:flex;align-items:center;gap:10px"><span style="width:120px;font:600 11px 'JetBrains Mono';color:var(--muted)">2. Perfil</span><div style="height:22px;background:linear-gradient(90deg,var(--accent),var(--accent-2));border-radius:5px;width:82%;display:flex;align-items:center;padding:0 10px;color:#06100c;font:700 11px 'Manrope'">820 · 82% · −13% aquí</div></div>
+      <div style="display:flex;align-items:center;gap:10px"><span style="width:120px;font:600 11px 'JetBrains Mono';color:var(--muted)">3. Necesidad</span><div style="height:22px;background:linear-gradient(90deg,var(--accent),var(--accent-2));border-radius:5px;width:68%;display:flex;align-items:center;padding:0 10px;color:#06100c;font:700 11px 'Manrope'">680 · 68% · −14% aquí</div></div>
+      <div style="display:flex;align-items:center;gap:10px"><span style="width:120px;font:600 11px 'JetBrains Mono';color:var(--muted)">4. Catálogo</span><div style="height:22px;background:linear-gradient(90deg,var(--warn),#fbbf24);border-radius:5px;width:42%;display:flex;align-items:center;padding:0 10px;color:#06100c;font:700 11px 'Manrope'">420 · 42% · −26% ⚠</div></div>
+      <div style="display:flex;align-items:center;gap:10px"><span style="width:120px;font:600 11px 'JetBrains Mono';color:var(--muted)">5. Cotiza</span><div style="height:22px;background:linear-gradient(90deg,var(--accent),var(--accent-2));border-radius:5px;width:38%;display:flex;align-items:center;padding:0 10px;color:#06100c;font:700 11px 'Manrope'">380 · 38%</div></div>
+      <div style="display:flex;align-items:center;gap:10px"><span style="width:120px;font:600 11px 'JetBrains Mono';color:var(--muted)">6. Objeciones</span><div style="height:22px;background:linear-gradient(90deg,var(--warn),#fbbf24);border-radius:5px;width:21%;display:flex;align-items:center;padding:0 10px;color:#06100c;font:700 11px 'Manrope'">210 · 21% · −17% ⚠</div></div>
+      <div style="display:flex;align-items:center;gap:10px"><span style="width:120px;font:600 11px 'JetBrains Mono';color:var(--muted)">7. Checkout</span><div style="height:22px;background:linear-gradient(90deg,var(--accent),var(--accent-2));border-radius:5px;width:18%;display:flex;align-items:center;padding:0 10px;color:#06100c;font:700 11px 'Manrope'">180 · 18%</div></div>
+      <div style="display:flex;align-items:center;gap:10px"><span style="width:120px;font:600 11px 'JetBrains Mono';color:var(--muted)">8. Logística</span><div style="height:22px;background:linear-gradient(90deg,var(--accent),var(--accent-2));border-radius:5px;width:16%;display:flex;align-items:center;padding:0 10px;color:#06100c;font:700 11px 'Manrope'">160 · 16%</div></div>
+      <div style="display:flex;align-items:center;gap:10px"><span style="width:120px;font:600 11px 'JetBrains Mono';color:var(--muted)">9. Post-venta</span><div style="height:22px;background:linear-gradient(90deg,var(--accent-3),var(--accent));border-radius:5px;width:15%;display:flex;align-items:center;padding:0 10px;color:#06100c;font:700 11px 'Manrope'">150 · 15% ✓</div></div>
+    </div>
+  </div>
+  <div class="callout warn" style="margin-top:12px">
+    <div class="callout-title">⚠ Lo que ves aquí</div>
+    <p style="margin:0;font-size:13px">Pierdes <strong>26% en catálogo</strong> (muchos productos sin foto) y <strong>17% en objeciones</strong> (no tienes argumento de garantía). Corrige esos dos pasos y tu conversión pasa de 15% a 28%. <strong>+87% más ventas sin un cliente nuevo</strong>.</p>
+  </div>
+  <div class="foot"><span class="brand"><b>ZIAY</b> · Funnel analytics</span><span>Dónde pierdes, dónde corriges</span><span class="pg">19 / 30</span></div>
+</section>
+
+<!-- ============ SLIDE 20: Anomaly detection ============ -->
+<section class="slide" data-title="Anomaly detection">
+  <div class="eyebrow"><span class="dot"></span><span>Alertas inteligentes</span><span class="bar"></span><span class="num">20 / 30</span></div>
+  <h1 class="title">Si las ventas caen,<br><span class="em">te enteras antes</span> de que duelan</h1>
+  <p class="lede">No te enteras el 30 del mes cuando cierras libros. La IA monitorea cada hora y te avisa en cuanto detecta algo raro: caída de ventas, pico de devoluciones, carrier con demoras, agente alucinando. Antes de que se convierta en problema.</p>
+  <div class="grid g3" style="margin-top:14px">
+    <div class="card danger">
+      <h3>📉 Caída de ventas</h3>
+      <p style="font-size:12.5px">"Tus ventas cayeron 34% en las últimas 6 horas vs. el promedio. Posible causa: anuncio de Meta pausado por Facebook."</p>
+      <div class="badge danger" style="margin-top:8px">Crítica · actúa ya</div>
+    </div>
+    <div class="card warm">
+      <h3>📦 Pico de devoluciones</h3>
+      <p style="font-size:12.5px">"3 devoluciones en 2 horas del producto X. Todas por 'talla no corresponde'. Revisa la guía de tallas."</p>
+      <div class="badge warn" style="margin-top:8px">Alta · hoy</div>
+    </div>
+    <div class="card warm">
+      <h3>🚚 Carrier con demoras</h3>
+      <p style="font-size:12.5px">"Dropi reporta demoras de 24h en ruta Bogotá-Medellín. 8 pedidos afectados. ¿Activar 99envios?"</p>
+      <div class="badge warn" style="margin-top:8px">Media · esta semana</div>
+    </div>
+  </div>
+  <div class="grid g2" style="margin-top:14px">
+    <div class="card accent">
+      <h3>🤖 Agente alucinando</h3>
+      <p style="font-size:12.5px">"El Cotizador ofreció $79.000 por un producto que cuesta $89.000. El Governor lo bloqueó. Revisa la regla de descuento."</p>
+      <div class="badge ok" style="margin-top:8px">Auto-bloqueado</div>
+    </div>
+    <div class="card accent">
+      <h3>📈 Oportunidad detectada</h3>
+      <p style="font-size:12.5px">"Búsquedas de 'pijamas térmicos' subieron 280% esta semana. Tienes 0 en catálogo. ¿Lo agregamos?"</p>
+      <div class="badge ok" style="margin-top:8px">Oportunidad · gana más</div>
+    </div>
+  </div>
+  <div class="callout think" style="margin-top:12px">
+    <div class="callout-title">🧠 De reactivo a proactivo</div>
+    <p style="margin:0;font-size:13.5px">Antes te enterabas de los problemas cuando el cliente se quejaba — o peor, cuando no volvía. Ahora <strong>te enteras cuando el sistema los detecta</strong>, antes de que el cliente lo note. Operar reactivo es caro; operar proactivo es ventaja.</p>
+  </div>
+  <div class="foot"><span class="brand"><b>ZIAY</b> · Anomaly detection</span><span>Entérate antes</span><span class="pg">20 / 30</span></div>
+</section>
+
+<!-- ============ SLIDE 21: Trend sensor ============ -->
+<section class="slide" data-title="Trend sensor">
+  <div class="eyebrow"><span class="dot"></span><span>Sensor de tendencias</span><span class="bar"></span><span class="num">21 / 30</span></div>
+  <h1 class="title">Detecta qué productos están<br><span class="em">trendiendo</span> antes que tu competencia</h1>
+  <p class="lede">La IA escucha lo que preguntan los clientes, lo que buscan, lo que comparten — y detecta patrones de tendencia emergentes. Te avisa cuando algo empieza a subir, no cuando ya todos lo venden.</p>
+  <div class="grid g2" style="margin-top:14px">
+    <div class="card accent">
+      <h3>📡 De dónde salen los datos</h3>
+      <div class="step-row"><div class="step-num">1</div><div class="body"><p style="font-size:12.5px;margin:0">Búsquedas dentro de tus conversaciones de WhatsApp.</p></div></div>
+      <div class="step-row"><div class="step-num">2</div><div class="body"><p style="font-size:12.5px;margin:0">Productos que la gente pide por foto (VLM identifica referencias).</p></div></div>
+      <div class="step-row"><div class="step-num">3</div><div class="body"><p style="font-size:12.5px;margin:0">Comentarios de clientes sobre qué vieron en redes.</p></div></div>
+      <div class="step-row"><div class="step-num">4</div><div class="body"><p style="font-size:12.5px;margin:0">Cruce con tendencias públicas de TikTok e Instagram.</p></div></div>
+      <div class="step-row"><div class="step-num">5</div><div class="body"><p style="font-size:12.5px;margin:0">Búsquedas de Google Trends en tu país.</p></div></div>
+    </div>
+    <div class="card accent">
+      <h3>📈 Lo que ves en tu panel</h3>
+      <table class="tbl" style="margin-top:8px">
+        <tr><th>Producto</th><th class="num">7d</th><th class="num">Trend</th><th>Acción</th></tr>
+        <tr><td>Pijamas térmicos</td><td class="num">+280%</td><td class="num">🔥🔥🔥</td><td>Comprar stock</td></tr>
+        <tr><td>Batas de seda</td><td class="num">+145%</td><td class="num">🔥🔥</td><td>Buscar proveedor</td></tr>
+        <tr><td>Pijamas estampados</td><td class="num">+62%</td><td class="num">🔥</td><td>Renovar diseños</td></tr>
+        <tr><td>Pijamas clásicos</td><td class="num">+8%</td><td class="num">→</td><td>Mantener</td></tr>
+        <tr><td>Ropa de descanso algodón</td><td class="num">−12%</td><td class="num">↓</td><td>Liquidar</td></tr>
+      </table>
+      <p class="muted" style="font-size:12px;margin-top:8px">No es intuición. Es <strong>dato crudo, en tiempo real, de tus propios clientes</strong>. Mientras tu competencia adivina, tú decides con evidencia.</p>
+    </div>
+  </div>
+  <div class="callout money" style="margin-top:12px">
+    <div class="callout-title">💎 La ventaja de 2 semanas</div>
+    <p style="margin:0;font-size:13.5px">Detectar una tendencia 2 semanas antes que el resto significa comprar stock barato, posicionarte primero en Google, y vender a precio completo mientras los demás todavía ni saben. <strong>El primero en moverse se queda con el 60% del mercado</strong>.</p>
+  </div>
+  <div class="foot"><span class="brand"><b>ZIAY</b> · Trend sensor</span><span>Tendencias antes que todos</span><span class="pg">21 / 30</span></div>
+</section>
+
+<!-- ============ SLIDE 22: Embed SDK ============ -->
+<section class="slide" data-title="Embed SDK">
+  <div class="eyebrow"><span class="dot"></span><span>Embed SDK</span><span class="bar"></span><span class="num">22 / 30</span></div>
+  <h1 class="title">Pon un botón <span class="em">"Chatear con IA"</span><br>en tu tienda Shopify o WooCommerce</h1>
+  <p class="lede">No tienes que elegir entre tienda web y WhatsApp. ZIAY se inserta en tu tienda existente como un widget de chat — mismo equipo de IA, mismo catálogo, mismo checkout. El cliente habla con la IA desde la web, paga, y sigue por WhatsApp si lo prefiere.</p>
+  <div class="grid g3" style="margin-top:14px">
+    <div class="card accent">
+      <h3>🛒 Shopify</h3>
+      <p style="font-size:12.5px">Instalas la app desde la tienda de Shopify. Sincroniza productos, inventario y órdenes automáticamente. El widget aparece en tu tienda en 5 minutos.</p>
+      <div class="tag-list" style="margin-top:8px"><span class="tag on">5 min</span><span class="tag on">Sin código</span><span class="tag">Sync stock</span></div>
+    </div>
+    <div class="card accent">
+      <h3>🛍 WooCommerce</h3>
+      <p style="font-size:12.5px">Plugin oficial para WordPress. Mismo principio: sincroniza catálogo, abre el widget, y la IA atiende con todo el contexto del carrito abandonado.</p>
+      <div class="tag-list" style="margin-top:8px"><span class="tag on">7 min</span><span class="tag on">Sin código</span><span class="tag">Carrito abandonado</span></div>
+    </div>
+    <div class="card accent">
+      <h3>🌐 Tienda propia</h3>
+      <p style="font-size:12.5px">Si tienes tienda custom (React, Vue, HTML puro), pegas un script y listo. El widget aparece flotante, con tu marca y tus colores.</p>
+      <div class="tag-list" style="margin-top:8px"><span class="tag on">1 línea</span><span class="tag on">White-label</span><span class="tag">Cualquier stack</span></div>
+    </div>
+  </div>
+  <div class="card glow" style="margin-top:14px">
+    <h3>⚡ El widget en acción</h3>
+    <div class="grid g2" style="align-items:center">
+      <div>
+        <p style="font-size:13px">Cliente entra a tu tienda. Ve el producto. Duda. En vez de abandonar, hace clic en el widget flotante y escribe: "¿esto en talla M?"</p>
+        <p style="font-size:13px">La IA responde en 2 segundos, con foto, precio y link de pago. El cliente paga sin salir de la tienda. <strong>Cero fricción, máxima conversión</strong>.</p>
+        <div class="badge ok" style="margin-top:8px">Recupera 38% de carritos abandonados</div>
+      </div>
+      <div style="background:var(--panel-2);border:1px solid var(--border);border-radius:10px;padding:14px;position:relative">
+        <div style="font:600 11px 'JetBrains Mono';color:var(--muted);margin-bottom:8px">💬 Chatear con IA</div>
+        <div class="chat" style="max-width:100%">
+          <div class="bubble out">¡Hola! 👋 ¿Viste el pijama Premium+? Tenemos talla M en azul. ¿Te interesa? <span class="meta">bot · ahora</span></div>
+          <div class="bubble in">Sí, ¿cuánto cuesta con envío a Cali?</div>
+          <div class="bubble out">$129.000 + $9.500 envío = $138.500. Llega mañana. ¿Te genero el link? <span class="meta">1.8s</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span class="brand"><b>ZIAY</b> · Embed SDK</span><span>IA en tu tienda existente</span><span class="pg">22 / 30</span></div>
+</section>
+
+<!-- ============ SLIDE 23: Cross-border ============ -->
+<section class="slide" data-title="Cross-border">
+  <div class="eyebrow"><span class="dot"></span><span>Cross-border</span><span class="bar"></span><span class="num">23 / 30</span></div>
+  <h1 class="title">Vende a <span class="em">México, Perú, Chile, Brasil, USA</span><br>desde el mismo WhatsApp</h1>
+  <p class="lede">Tu cliente está en Monterrey y tú en Bogotá. La IA habla su español local, le cobra en su moneda, le calcula el arancel, le cotiza el envío internacional y le entrega con DDP (todo incluido, sin sorpresas en aduana).</p>
+  <div class="grid g5" style="margin-top:14px">
+    <div class="card accent" style="text-align:center"><div style="font-size:28px">🇨🇴</div><h3 style="font-size:11px;margin-top:4px">Colombia</h3><p style="font-size:11px;color:var(--muted);margin:0">COP · PSE</p></div>
+    <div class="card accent" style="text-align:center"><div style="font-size:28px">🇲🇽</div><h3 style="font-size:11px;margin-top:4px">México</h3><p style="font-size:11px;color:var(--muted);margin:0">MXN · OXXO</p></div>
+    <div class="card accent" style="text-align:center"><div style="font-size:28px">🇵🇪</div><h3 style="font-size:11px;margin-top:4px">Perú</h3><p style="font-size:11px;color:var(--muted);margin:0">PEN · Niubiz</p></div>
+    <div class="card accent" style="text-align:center"><div style="font-size:28px">🇨🇱</div><h3 style="font-size:11px;margin-top:4px">Chile</h3><p style="font-size:11px;color:var(--muted);margin:0">CLP · Webpay</p></div>
+    <div class="card accent" style="text-align:center"><div style="font-size:28px">🇧🇷</div><h3 style="font-size:11px;margin-top:4px">Brasil</h3><p style="font-size:11px;color:var(--muted);margin:0">BRL · PIX</p></div>
+  </div>
+  <div class="grid g2" style="margin-top:14px">
+    <div class="card accent">
+      <h3>🌍 Lo que la IA maneja sola</h3>
+      <div class="step-row"><div class="step-num" style="background:var(--accent-2)">A</div><div class="body"><p style="font-size:12px;margin:0"><strong>Idioma:</strong> español LATAM neutral, portugués BR, inglés US.</p></div></div>
+      <div class="step-row"><div class="step-num" style="background:var(--accent-2)">B</div><div class="body"><p style="font-size:12px;margin:0"><strong>Moneda:</strong> convierte en tiempo real con tasa del día.</p></div></div>
+      <div class="step-row"><div class="step-num" style="background:var(--accent-2)">C</div><div class="body"><p style="font-size:12px;margin:0"><strong>Aranceles:</strong> calcula impuestos de importación por país.</p></div></div>
+      <div class="step-row"><div class="step-num" style="background:var(--accent-2)">D</div><div class="body"><p style="font-size:12px;margin:0"><strong>DDP:</strong> precio final con todo incluido, sin sorpresas.</p></div></div>
+      <div class="step-row"><div class="step-num" style="background:var(--accent-2)">E</div><div class="body"><p style="font-size:12px;margin:0"><strong>Compliance:</strong> retracto por país, regulación local, facturación.</p></div></div>
+    </div>
+    <div class="card accent">
+      <h3>📦 Ejemplo: venta CO → MX</h3>
+      <div class="chat">
+        <div class="bubble in">Hola, ¿envías a Monterrey? <span class="meta">Cliente MX</span></div>
+        <div class="bubble out">¡Sí! Pijama Premium+ $129.000 COP ≈ $580 MXN. Envío internacional: $180 MXN. Total: $760 MXN con todo incluido (arancel, IVA, envío). Llega en 5-7 días. ¿Te lo llevo? <span class="meta">2.4s</span></div>
+      </div>
+      <table class="tbl" style="margin-top:10px">
+        <tr><th>Concepto</th><th class="num">Valor MXN</th></tr>
+        <tr><td>Producto (COP→MXN)</td><td class="num">$580</td></tr>
+        <tr><td>Envío internacional</td><td class="num">$180</td></tr>
+        <tr><td>Arancel + IVA</td><td class="num">incluido</td></tr>
+        <tr><td><strong>Total DDP</strong></td><td class="num"><strong>$760</strong></td></tr>
+      </table>
+    </div>
+  </div>
+  <div class="foot"><span class="brand"><b>ZIAY</b> · Cross-border</span><span>7 países, 1 tienda</span><span class="pg">23 / 30</span></div>
+</section>
+
+<!-- ============ SLIDE 24: Compliance ============ -->
+<section class="slide" data-title="Compliance">
+  <div class="eyebrow"><span class="dot"></span><span>Compliance & legal</span><span class="bar"></span><span class="num">24 / 30</span></div>
+  <h1 class="title">Antiban WhatsApp, Ley 1581, DIAN, retracto<br><span class="em">todo cumplido, sin que tú hagas nada</span></h1>
+  <p class="lede">El riesgo legal no es cosa de juego. Un WhatsApp baneado te pierde 6 meses de trabajo. Una demanda por datos personales te cuesta más que toda tu operación. ZIAY cumple por ti — y te lo demuestra con logs.</p>
+  <div class="grid g2" style="margin-top:14px">
+    <div class="card accent">
+      <h3>🚫 Anti-ban WhatsApp</h3>
+      <div class="step-row"><div class="step-num">1</div><div class="body"><p style="font-size:12px;margin:0">Respeta ventana de 24h de WhatsApp Business.</p></div></div>
+      <div class="step-row"><div class="step-num">2</div><div class="body"><p style="font-size:12px;margin:0">Usa templates aprobados por Meta para mensajes proactivos.</p></div></div>
+      <div class="step-row"><div class="step-num">3</div><div class="body"><p style="font-size:12px;margin:0">Limita frecuencia (no spam: máx 1 mensaje cada 24h sin respuesta).</p></div></div>
+      <div class="step-row"><div class="step-num">4</div><div class="body"><p style="font-size:12px;margin:0">Detecta palabras prohibidas (spam, phishing, contenido adulto).</p></div></div>
+      <div class="step-row"><div class="step-num">5</div><div class="body"><p style="font-size:12px;margin:0">Respeta horarios (no enviar 9pm-8am hora local del cliente).</p></div></div>
+    </div>
+    <div class="card accent">
+      <h3>⚖ Cumplimiento legal</h3>
+      <table class="tbl" style="margin-top:8px">
+        <tr><th>Norma</th><th>Qué cumple ZIAY</th></tr>
+        <tr><td>Ley 1581 (CO)</td><td>Consentimiento, HABEAS Data, olvido</td></tr>
+        <tr><td>DIAN</td><td>Facturación electrónica, retenciones</td></tr>
+        <tr><td>Retracto</td><td>Proceso automático en 30 días</td></tr>
+        <tr><td>GDPR (EU)</td><td>Si cruzas frontera con clientes EU</td></tr>
+        <tr><td>Ley 1098</td><td>Age gate para productos restringidos</td></tr>
+        <tr><td>LGPD (BR)</td><td>Equivalente brasilero de GDPR</td></tr>
+      </table>
+      <p class="muted" style="font-size:11.5px;margin-top:8px">Cada acción legal queda registrada en log inmutable. Si DIAN te audita, tienes todo. Si un cliente pide borrarse, se borra de verdad.</p>
+    </div>
+  </div>
+  <div class="callout think" style="margin-top:12px">
+    <div class="callout-title">🧠 El costo de no cumplir</div>
+    <p style="margin:0;font-size:13.5px">Un WhatsApp baneado = 4 a 12 semanas sin vender + reconstruir base de clientes. Una multa por Ley 1581 = hasta 2.000 salarios mínimos. <strong>Cumplir no es costo — es seguro contra pérdida total</strong>.</p>
+  </div>
+  <div class="foot"><span class="brand"><b>ZIAY</b> · Compliance</span><span>Legal sin dolores de cabeza</span><span class="pg">24 / 30</span></div>
+</section>
+
+<!-- ============ SLIDE 25: Marketplace ============ -->
+<section class="slide" data-title="Marketplace">
+  <div class="eyebrow"><span class="dot"></span><span>Marketplace ZIAY</span><span class="bar"></span><span class="num">25 / 30</span></div>
+  <h1 class="title">Comparte leads con otras tiendas<br>y <span class="em">gana comisión</span></h1>
+  <p class="lede">Tu mejor cliente no siempre compra lo que tú tienes. Pero sí compra lo que otra tienda aliada tiene. ZIAY los conecta: tú refieres, la aliada vende, los dos ganan. Y al revés: cuando no tienes lo que buscan, alguien sí lo tiene y te paga comisión.</p>
+  <div class="grid g3" style="margin-top:14px">
+    <div class="card accent">
+      <h3>📤 Tú refieres</h3>
+      <p style="font-size:12.5px">Cliente pide algo que no tienes. La IA lo busca en el marketplace, lo ofrece, la aliada despacha.</p>
+      <div class="callout money" style="margin:8px 0 0;padding:8px 10px"><p style="margin:0;font-size:12px"><strong>Tú ganas: 5%</strong> de comisión por referir.</p></div>
+    </div>
+    <div class="card accent">
+      <h3>📥 Te refieren</h3>
+      <p style="font-size:12.5px">Otra tienda no tiene lo que un cliente busca, pero tú sí. La IA de ella te lo pasa.</p>
+      <div class="callout money" style="margin:8px 0 0;padding:8px 10px"><p style="margin:0;font-size:12px"><strong>Tú ganas: venta nueva</strong> menos 5% comisión.</p></div>
+    </div>
+    <div class="card accent">
+      <h3>🤝 Aliados estratégicos</h3>
+      <p style="font-size:12.5px">Elige con quién te conectas. Filtra por nicho, país, reputación. Tú decides quién puede referirte.</p>
+      <div class="callout think" style="margin:8px 0 0;padding:8px 10px"><p style="margin:0;font-size:12px">Cero canibalización: no se compite, se complementa.</p></div>
+    </div>
+  </div>
+  <div class="card glow" style="margin-top:14px">
+    <h3>💰 La matemática del marketplace</h3>
+    <div class="grid g3" style="margin-top:10px">
+      <div><p style="font-size:12px;margin:0">Si tienes 1.000 leads/mes y el 20% pide algo que no tienes:</p><p style="font-size:12px;margin-top:4px"><strong>200 leads perdidos antes.</strong></p></div>
+      <div><p style="font-size:12px;margin:0">Si 30% acepta la opción del marketplace (60 ventas):</p><p style="font-size:12px;margin-top:4px"><strong>60 ventas con comisión de 5%.</strong></p></div>
+      <div><p style="font-size:12px;margin:0">A un ticket promedio de $120.000 COP:</p><p style="font-size:12px;margin-top:4px"><strong>+$360.000 COP/mes extra</strong>, sin costo alguno.</p></div>
+    </div>
+  </div>
+  <div class="callout think" style="margin-top:12px">
+    <div class="callout-title">🧠 Network effect</div>
+    <p style="margin:0;font-size:13.5px">Cuanto más tiendas se conectan al marketplace ZIAY, más opciones hay para tus clientes y más leads recibes de otras. <strong>La red se vuelve más valiosa para cada participante</strong> — el efecto clásico de los marketplaces que ganan.</p>
+  </div>
+  <div class="foot"><span class="brand"><b>ZIAY</b> · Marketplace</span><span>Comparte y gana</span><span class="pg">25 / 30</span></div>
+</section>
+
+<!-- ============ SLIDE 26: Métricas ============ -->
+<section class="slide" data-title="Métricas del sistema">
+  <div class="eyebrow"><span class="dot"></span><span>La plataforma por dentro</span><span class="bar"></span><span class="num">26 / 30</span></div>
+  <h1 class="title">No es promesa.<br>Es <span class="em">sistema construido</span></h1>
+  <p class="lede">Esto no es un prototipo ni un slide deck. Es una plataforma con 986 tests, 147 APIs, 27 agentes y 78 modelos — lista para procesar tus ventas hoy mismo.</p>
+  <div class="grid g4" style="margin-top:18px">
+    <div class="card glow"><div class="stat">147</div><div class="stat-l">APIs expuestas</div><p style="font-size:11.5px;color:var(--muted);margin-top:6px">Cada endpoint con tests E2E, autenticación, rate limiting y observabilidad.</p></div>
+    <div class="card glow"><div class="stat">986</div><div class="stat-l">tests automatizados</div><p style="font-size:11.5px;color:var(--muted);margin-top:6px">Cobertura de regresión. Cada cambio se valida contra 986 escenarios.</p></div>
+    <div class="card glow"><div class="stat">27</div><div class="stat-l">agentes de IA</div><p style="font-size:11.5px;color:var(--muted);margin-top:6px">Cada uno especializado, con reglas NUNCA/SIEMPRE y Governor supervisor.</p></div>
+    <div class="card glow"><div class="stat">78</div><div class="stat-l">modelos de datos</div><p style="font-size:11.5px;color:var(--muted);margin-top:6px">Esquema completo: tenants, productos, órdenes, conversaciones, analytics.</p></div>
+  </div>
+  <div class="grid g4" style="margin-top:14px">
+    <div class="card"><div class="stat">7</div><div class="stat-l">monedas soportadas</div><p style="font-size:11.5px;color:var(--muted);margin-top:6px">COP, MXN, PEN, CLP, BRL, USD, EUR.</p></div>
+    <div class="card"><div class="stat">8</div><div class="stat-l">métodos de pago</div><p style="font-size:11.5px;color:var(--muted);margin-top:6px">MercadoPago, Wompi, Stripe, PayU, PSE, PIX, OXXO, SPEI.</p></div>
+    <div class="card"><div class="stat">9</div><div class="stat-l">pasos del pipeline</div><p style="font-size:11.5px;color:var(--muted);margin-top:6px">De saludo a post-venta, cada uno medible y optimizable.</p></div>
+    <div class="card"><div class="stat">40</div><div class="stat-l">servicios backend</div><p style="font-size:11.5px;color:var(--muted);margin-top:6px">Arquitectura modular, escalable horizontalmente.</p></div>
+  </div>
+  <div class="callout money" style="margin-top:14px">
+    <div class="callout-title">💎 Score de calidad: 10 / 10</div>
+    <p style="margin:0;font-size:13.5px">No es "trabajo en progreso". Es producto maduro, probado, con cobertura total y arquitectura empresarial. Lo que ves en esta presentación <strong>ya está construido y funcionando</strong>.</p>
+  </div>
+  <div class="foot"><span class="brand"><b>ZIAY</b> · Métricas</span><span>Sistema construido</span><span class="pg">26 / 30</span></div>
+</section>
+
+<!-- ============ SLIDE 27: ROI ============ -->
+<section class="slide" data-title="ROI">
+  <div class="eyebrow"><span class="dot"></span><span>Retorno de inversión</span><span class="bar"></span><span class="num">27 / 30</span></div>
+  <h1 class="title">+45-70% revenue<br>sin aumentar <span class="em">ad spend</span></h1>
+  <p class="lede">No necesitas más anuncios. Necesitas que los leads que ya pagaste se conviertan. Esa es la promesa — y los números lo respaldan.</p>
+  <div class="grid g2" style="margin-top:14px">
+    <div class="card accent">
+      <h3>📊 El cálculo (1 mes, tienda típica)</h3>
+      <table class="tbl" style="margin-top:8px">
+        <tr><th>Concepto</th><th class="num">Antes</th><th class="num">Con ZIAY</th></tr>
+        <tr><td>Leads/mes</td><td class="num">1.000</td><td class="num">1.000</td></tr>
+        <tr><td>Conversión</td><td class="num">3%</td><td class="num">15%</td></tr>
+        <tr><td>Ventas/mes</td><td class="num">30</td><td class="num">150</td></tr>
+        <tr><td>Ticket promedio</td><td class="num">$89k</td><td class="num">$105k</td></tr>
+        <tr><td><strong>Revenue/mes</strong></td><td class="num"><strong>$2.67M</strong></td><td class="num"><strong>$15.75M</strong></td></tr>
+        <tr><td>Ad spend (igual)</td><td class="num">$1.5M</td><td class="num">$1.5M</td></tr>
+        <tr><td><strong>Ganancia</strong></td><td class="num"><strong>$1.17M</strong></td><td class="num"><strong>$14.25M</strong></td></tr>
+      </table>
+    </div>
+    <div class="card glow">
+      <h3>📈 El impacto compuesto</h3>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-top:10px">
+        <div><div style="display:flex;justify-content:space-between;font:600 12px 'Inter'"><span>Revenue mensual</span><span style="color:var(--accent-3)">+490%</span></div><div style="height:8px;background:var(--panel-2);border-radius:4px;margin-top:4px"><div style="height:100%;background:linear-gradient(90deg,var(--accent),var(--accent-2));border-radius:4px;width:90%"></div></div></div>
+        <div><div style="display:flex;justify-content:space-between;font:600 12px 'Inter'"><span>Conversión</span><span style="color:var(--accent-3)">+400%</span></div><div style="height:8px;background:var(--panel-2);border-radius:4px;margin-top:4px"><div style="height:100%;background:linear-gradient(90deg,var(--accent),var(--accent-2));border-radius:4px;width:85%"></div></div></div>
+        <div><div style="display:flex;justify-content:space-between;font:600 12px 'Inter'"><span>Ticket promedio</span><span style="color:var(--accent-3)">+18%</span></div><div style="height:8px;background:var(--panel-2);border-radius:4px;margin-top:4px"><div style="height:100%;background:linear-gradient(90deg,var(--accent),var(--accent-2));border-radius:4px;width:25%"></div></div></div>
+        <div><div style="display:flex;justify-content:space-between;font:600 12px 'Inter'"><span>ROAS (mismo ad spend)</span><span style="color:var(--accent-3)">+490%</span></div><div style="height:8px;background:var(--panel-2);border-radius:4px;margin-top:4px"><div style="height:100%;background:linear-gradient(90deg,var(--accent),var(--accent-2));border-radius:4px;width:90%"></div></div></div>
+        <div><div style="display:flex;justify-content:space-between;font:600 12px 'Inter'"><span>Costo operativo (mano obra)</span><span style="color:var(--danger)">−60%</span></div><div style="height:8px;background:var(--panel-2);border-radius:4px;margin-top:4px"><div style="height:100%;background:linear-gradient(90deg,var(--danger),#f87171);border-radius:4px;width:40%"></div></div></div>
+      </div>
+    </div>
+  </div>
+  <div class="callout money" style="margin-top:14px">
+    <div class="callout-title">💰 Payback &lt; 2 meses</div>
+    <p style="margin:0;font-size:14px">Inviertes $299/mes en ZIAY Business. Recuperas la inversión en menos de 2 meses con <strong>una sola venta adicional al día</strong>. Después de eso, es ganancia neta — mes tras mes, mientras tu IA aprende y vende más.</p>
+  </div>
+  <div class="foot"><span class="brand"><b>ZIAY</b> · ROI</span><span>+45-70% sin más anuncios</span><span class="pg">27 / 30</span></div>
+</section>
+
+<!-- ============ SLIDE 28: Planes ============ -->
+<section class="slide" data-title="Planes">
+  <div class="eyebrow"><span class="dot"></span><span>Planes & pricing</span><span class="bar"></span><span class="num">28 / 30</span></div>
+  <h1 class="title">Elige tu plan.<br><span class="em">Empieza hoy</span>.</h1>
+  <p class="lede">Sin permanencia, sin sorpresas, sin costo de activación. Cancelas cuando quieras. Lo único que sube con el plan es cuánto vende la IA por ti.</p>
+  <div class="grid g3" style="margin-top:14px;align-items:stretch">
+    <div class="price">
+      <div class="name">Starter</div>
+      <div class="amt"><span class="cur">$</span>99<span class="per">/mes</span></div>
+      <p style="font-size:11.5px;color:var(--muted);margin-top:6px">Para emprendedores y tiendas pequeñas que empiezan.</p>
+      <ul>
+        <li>1 WhatsApp Business</li>
+        <li>Hasta 500 conversaciones/mes</li>
+        <li>9 agentes esenciales</li>
+        <li>Catálogo hasta 100 productos</li>
+        <li>1 método de pago</li>
+        <li>1 carrier (Dropi)</li>
+        <li>Embed SDK (tienda propia)</li>
+        <li>Soporte por chat</li>
+      </ul>
+    </div>
+    <div class="price featured">
+      <div class="name">Business · Más popular</div>
+      <div class="amt"><span class="cur">$</span>299<span class="per">/mes</span></div>
+      <p style="font-size:11.5px;color:var(--muted);margin-top:6px">Para tiendas establecidas que ya venden por WhatsApp.</p>
+      <ul>
+        <li>3 WhatsApp Business</li>
+        <li>Conversaciones ilimitadas</li>
+        <li>27 agentes completos</li>
+        <li>Catálogo hasta 5.000 productos</li>
+        <li>8 métodos de pago (7 monedas)</li>
+        <li>3 carriers + cross-border</li>
+        <li>Embed SDK (Shopify + WooCommerce)</li>
+        <li>Funnel + anomaly + trend</li>
+        <li>Marketplace (recibir leads)</li>
+        <li>Soporte prioritario 24/7</li>
+      </ul>
+    </div>
+    <div class="price">
+      <div class="name">Enterprise</div>
+      <div class="amt"><span class="cur">$</span>999<span class="per">/mes</span></div>
+      <p style="font-size:11.5px;color:var(--muted);margin-top:6px">Para marcas con múltiples tiendas, multi-país, alto volumen.</p>
+      <ul>
+        <li>WhatsApp ilimitados</li>
+        <li>Multi-tenant (varias tiendas)</li>
+        <li>27 agentes + custom</li>
+        <li>Catálogo ilimitado</li>
+        <li>Todos los métodos + customs</li>
+        <li>Todos los carriers + DDP</li>
+        <li>Embed SDK + white-label</li>
+        <li>Analytics avanzado + forecasting</li>
+        <li>Marketplace (referir + recibir)</li>
+        <li>SLA 99.9% + CSM dedicado</li>
+        <li>On-premise opcional</li>
+      </ul>
+    </div>
+  </div>
+  <div class="callout think" style="margin-top:14px">
+    <div class="callout-title">🧠 Comisión opcional sobre GMV</div>
+    <p style="margin:0;font-size:13px">Si prefieres alinear incentivos, puedes bajar la mensualidad y pagar <strong>4.5% sobre GMV</strong> (ventas cerradas por la IA). Si la IA no vende, no pagas. Si vende mucho, ambos ganamos.</p>
+  </div>
+  <div class="foot"><span class="brand"><b>ZIAY</b> · Planes</span><span>$99 · $299 · $999</span><span class="pg">28 / 30</span></div>
+</section>
+
+<!-- ============ SLIDE 29: Día en la vida ============ -->
+<section class="slide" data-title="Día en la vida">
+  <div class="eyebrow"><span class="dot"></span><span>Un día con ZIAY</span><span class="bar"></span><span class="num">29 / 30</span></div>
+  <h1 class="title">Un día en la vida de un merchant<br><span class="em">con ZIAY</span></h1>
+  <p class="lede">Esto es lo que cambia. No es teoría — es lo que viven nuestros comerciantes todos los días.</p>
+  <div class="card accent" style="margin-top:14px">
+    <div class="grid g4" style="gap:10px">
+      <div style="padding:8px;border-left:3px solid var(--accent)"><div style="font:600 11px 'JetBrains Mono';color:var(--accent-3);margin-bottom:4px">06:00 AM</div><p style="font-size:11.5px;margin:0">Aún duermes. La IA cerró 4 ventas en la madrugada (Bogotá, Medellín, Quito, Monterrey). Una con bundle, dos con contra entrega.</p></div>
+      <div style="padding:8px;border-left:3px solid var(--accent)"><div style="font:600 11px 'JetBrains Mono';color:var(--accent-3);margin-bottom:4px">08:30 AM</div><p style="font-size:11.5px;margin:0">Revisas el dashboard. 28 conversaciones activas, 12 cerradas, 4 escaladas a humano (clientes VIP). 0 pendientes.</p></div>
+      <div style="padding:8px;border-left:3px solid var(--accent)"><div style="font:600 11px 'JetBrains Mono';color:var(--accent-3);margin-bottom:4px">10:15 AM</div><p style="font-size:11.5px;margin:0">La IA detecta un pico de interés en pijamas térmicos. Te sugiere comprar stock. Apruebas con un clic.</p></div>
+      <div style="padding:8px;border-left:3px solid var(--accent)"><div style="font:600 11px 'JetBrains Mono';color:var(--accent-3);margin-bottom:4px">12:00 PM</div><p style="font-size:11.5px;margin:0">Almuerzas tranquilo. La IA sigue vendiendo. Un cliente de Brasil paga con PIX, otro de México con OXXO.</p></div>
+      <div style="padding:8px;border-left:3px solid var(--accent)"><div style="font:600 11px 'JetBrains Mono';color:var(--accent-3);margin-bottom:4px">02:30 PM</div><p style="font-size:11.5px;margin:0">El Governor escaló 1 caso: cliente VIP pidiendo crédito comercial. Lo atiendes en 5 min, cierras venta de $4.5M COP.</p></div>
+      <div style="padding:8px;border-left:3px solid var(--accent)"><div style="font:600 11px 'JetBrains Mono';color:var(--accent-3);margin-bottom:4px">05:00 PM</div><p style="font-size:11.5px;margin:0">La IA detecta que Dropi tiene demoras en una ruta. Cambia a 99envios automáticamente. 8 pedidos no se atrasan.</p></div>
+      <div style="padding:8px;border-left:3px solid var(--accent)"><div style="font:600 11px 'JetBrains Mono';color:var(--accent-3);margin-bottom:4px">08:00 PM</div><p style="font-size:11.5px;margin:0">Cenas con tu familia. El WhatsApp sigue trabajando. 3 leads nuevos entran, la IA los perfila y responde.</p></div>
+      <div style="padding:8px;border-left:3px solid var(--accent-3)"><div style="font:600 11px 'JetBrains Mono';color:var(--accent-3);margin-bottom:4px">11:47 PM</div><p style="font-size:11.5px;margin:0">Cierras el día: <strong>32 ventas · $3.8M COP · $480k comisión marketplace · 0 horas extra tuyas</strong>. Mañana será igual.</p></div>
+    </div>
+  </div>
+  <div class="grid g4" style="margin-top:14px">
+    <div class="card"><div class="stat">32</div><div class="stat-l">ventas en el día</div></div>
+    <div class="card"><div class="stat">3.8M</div><div class="stat-l">COP revenue</div></div>
+    <div class="card"><div class="stat">0h</div><div class="stat-l">tiempo extra del merchant</div></div>
+    <div class="card"><div class="stat">4</div><div class="stat-l">países atendidos</div></div>
+  </div>
+  <div class="foot"><span class="brand"><b>ZIAY</b> · Día en la vida</span><span>El merchant del futuro</span><span class="pg">29 / 30</span></div>
+</section>
+
+<!-- ============ SLIDE 30: CTA ============ -->
+<section class="slide center" data-title="CTA">
+  <div class="ghost" style="top:-60px;left:-40px">→</div>
+  <div class="eyebrow" style="justify-content:center"><span class="dot"></span><span>El siguiente paso</span><span class="bar"></span><span class="num">30 / 30</span></div>
+  <h1 class="hero-title" style="font-size:48px">Deja de adivinar,<br><span class="em">empieza a medir</span></h1>
+  <p class="hero-sub">Cada día sin ZIAY es otro día de leads perdidos, ventas que se enfrían, y competencia que te gana con IA. La pregunta no es "¿puedo permitírmelo?" — es "¿puedo permitirme seguir sin él?"</p>
+  <div class="hero-badges" style="margin-top:14px">
+    <span class="badge">Setup en 2 horas</span>
+    <span class="badge ok">30 días sin costo</span>
+    <span class="badge">Sin permanencia</span>
+    <span class="badge">Cancelas cuando quieras</span>
+  </div>
+  <div class="grid g3" style="width:100%;max-width:900px;margin-top:24px">
+    <div class="card accent"><h3>📅 Agenda demo</h3><p style="font-size:12.5px">30 minutos. Te mostramos el panel con datos reales de tu industria. Sin compromiso.</p><div class="badge ok" style="margin-top:6px">Esta semana</div></div>
+    <div class="card accent"><h3>🚀 Activa tu tienda</h3><p style="font-size:12.5px">Conectamos WhatsApp, importamos tu catálogo, configuramos los 27 agentes.</p><div class="badge ok" style="margin-top:6px">2 horas</div></div>
+    <div class="card accent"><h3>📈 Empieza a medir</h3><p style="font-size:12.5px">Semana 1: +30% conversaciones atendidas. Semana 4: +45% ventas. Para siempre.</p><div class="badge ok" style="margin-top:6px">Resultados en 7 días</div></div>
+  </div>
+  <div class="callout money" style="margin-top:24px;max-width:780px">
+    <div class="callout-title">💎 La decisión es simple</div>
+    <p style="margin:0;font-size:14px;text-align:center">Tu competencia ya está automatizando. Cada mes que esperas es un mes de ventaja que le regalas. <strong>El mejor momento para empezar fue hace 6 meses. El segundo mejor momento es hoy.</strong></p>
+  </div>
+  <p class="muted" style="margin-top:20px;font:600 11px 'JetBrains Mono';letter-spacing:.12em;text-transform:uppercase">📧 ventas@ziay.co · 📍 Bogotá · 🌎 LATAM</p>
+  <div class="foot"><span class="brand"><b>ZIAY</b> · Deja de adivinar, empieza a medir</span><span>CTA</span><span class="pg">30 / 30</span></div>
+</section>
+
+</div><!-- /deck -->
+
+<div class="nav">
+  <button id="prev" title="Anterior (←)">‹</button>
+  <span class="counter"><b id="cur">01</b> / <span id="tot">30</span></span>
+  <button id="next" title="Siguiente (→)">›</button>
+</div>
+</div>
+</div>
+
+<script>
+(function(){
+  // ====== Auto-scale 1280x720 to viewport ======
+  const scaler = document.getElementById('scaler');
+  function fit(){
+    const w = window.innerWidth, h = window.innerHeight;
+    const s = Math.min(w/1280, h/720) * 0.98;
+    scaler.style.transform = 'scale(' + s + ')';
+  }
+  window.addEventListener('resize', fit);
+  fit();
+
+  // ====== Navigation ======
+  const slides = Array.from(document.querySelectorAll('.slide'));
+  const total = slides.length;
+  const curEl = document.getElementById('cur');
+  const totEl = document.getElementById('tot');
+  const prog = document.getElementById('progress');
+  let idx = 0;
+  totEl.textContent = String(total).padStart(2,'0');
+
+  function show(n){
+    idx = (n + total) % total;
+    slides.forEach((s,i)=>s.classList.toggle('active', i===idx));
+    curEl.textContent = String(idx+1).padStart(2,'0');
+    prog.style.width = ((idx+1)/total*100) + '%';
+  }
+  document.getElementById('prev').addEventListener('click',()=>show(idx-1));
+  document.getElementById('next').addEventListener('click',()=>show(idx+1));
+  document.addEventListener('keydown',e=>{
+    if(e.key==='ArrowRight'||e.key==='PageDown'||e.key===' '){e.preventDefault();show(idx+1);}
+    else if(e.key==='ArrowLeft'||e.key==='PageUp'){e.preventDefault();show(idx-1);}
+    else if(e.key==='Home'){e.preventDefault();show(0);}
+    else if(e.key==='End'){e.preventDefault();show(total-1);}
+    else if(e.key==='f'||e.key==='F'){document.documentElement.requestFullscreen?.();}
+  });
+  let sx=0, sy=0;
+  document.addEventListener('touchstart',e=>{sx=e.touches[0].clientX;sy=e.touches[0].clientY;},{passive:true});
+  document.addEventListener('touchend',e=>{
+    const dx=e.changedTouches[0].clientX-sx;
+    const dy=e.changedTouches[0].clientY-sy;
+    if(Math.abs(dx)>50 && Math.abs(dx)>Math.abs(dy)) show(idx + (dx<0?1:-1));
+  },{passive:true});
+  show(0);
+})();
+</script>
+</body>
+</html>

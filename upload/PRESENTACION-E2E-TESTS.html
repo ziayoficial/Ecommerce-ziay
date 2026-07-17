@@ -51,6 +51,8 @@ body{min-height:100vh;display:flex;align-items:center;justify-content:center;ove
     var(--bg);
 }
 .slide.active{opacity:1;visibility:visible;transform:none;transition:opacity .35s,transform .35s,visibility 0s;z-index:2}
+.slide .eyebrow,.slide h1.title,.slide h2.title,.slide .lede,.slide .split,.slide .kpis,.slide .kpi,.slide table.tbl,.slide pre.code,.slide .pass-banner,.slide .flow,.slide .method-grid,.slide .method,.slide .shot-card,.slide .cta-final,.slide .checks,.slide .minibars,.slide .badge,.slide p,.slide ul,.slide ol,.slide div{position:relative;z-index:1}
+.slide .ghost-num,.slide .cover-bg,.slide .cover-grid{z-index:0;pointer-events:none}
 
 .eyebrow{display:flex;align-items:center;gap:14px;font:600 11px/1 'JetBrains Mono',monospace;
   letter-spacing:.18em;text-transform:uppercase;color:var(--accent-3);margin-bottom:10px}
@@ -64,7 +66,7 @@ h2.title .em{color:var(--accent-3)}
 .lede{font:400 13px/1.5 'Inter',sans-serif;color:var(--muted);max-width:880px;margin-bottom:14px}
 
 .foot{position:absolute;left:56px;right:56px;bottom:16px;display:flex;justify-content:space-between;
-  align-items:center;font:500 11px 'JetBrains Mono',monospace;color:var(--dim);letter-spacing:.05em}
+  align-items:center;font:500 11px 'JetBrains Mono',monospace;color:var(--dim);letter-spacing:.05em;z-index:5;background:linear-gradient(transparent,rgba(7,17,13,.92) 60%);padding-top:8px}
 .foot .brand{color:var(--muted)}
 .foot .brand b{color:var(--accent-3)}
 .foot .sep{color:var(--border)}
@@ -156,12 +158,14 @@ table.tbl td.num-cell{font-family:'JetBrains Mono',monospace;color:var(--num);te
   background:radial-gradient(circle,rgba(20,184,166,.22),transparent 65%);top:-220px;right:-180px}
 .cover-bg::after{content:'';position:absolute;width:520px;height:520px;border-radius:50%;
   background:radial-gradient(circle,rgba(16,185,129,.16),transparent 60%);bottom:-200px;left:-120px}
-.cover-grid{position:absolute;inset:0;opacity:.35;pointer-events:none;
+.cover-grid{position:absolute;inset:0;opacity:.35;
   background-image:linear-gradient(rgba(16,185,129,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(16,185,129,.05) 1px,transparent 1px);
   background-size:42px 42px;mask-image:radial-gradient(ellipse at center,#000 30%,transparent 70%)}
 
 .ghost-num{position:absolute;right:36px;bottom:38px;font:800 220px/1 'JetBrains Mono',monospace;
-  color:rgba(16,185,129,.05);pointer-events:none;z-index:1;letter-spacing:-.04em}
+  color:rgba(16,185,129,.05);pointer-events:none;z-index:0;letter-spacing:-.04em}
+.cover-grid{pointer-events:none}
+.progress{pointer-events:none}
 
 /* nav */
 .nav{position:absolute;bottom:18px;right:18px;display:flex;align-items:center;gap:10px;
@@ -228,21 +232,19 @@ table.tbl td.num-cell{font-family:'JetBrains Mono',monospace;color:var(--num);te
       &amp; Regression Plan — Revenue Operations
     </h1>
     <p style="font:400 16px/1.5 'Inter',sans-serif;color:var(--muted);max-width:760px;margin-bottom:24px">
-      49 verificaciones E2E + 964 unit/integration tests ejecutados sobre ZIAY — <strong style="color:var(--text)">Revenue Operations para Comercio Agéntico</strong>. Las pruebas evidencian que los <b style="color:var(--accent-3)">4 ejes enterprise</b> (Crecimiento medible, Eficiencia operativa, Gobernanza, Integración) y las <b style="color:var(--accent-3)">3 capas</b> (Revenue · Operations · Governance) operan con trazabilidad y gobernanza. <b style="color:var(--ok)">100 % pass rate · QA scorecard 9.9/10</b> tras correcciones.
+      986 tests en 52 archivos cubren ZIAY — <strong style="color:var(--text)">Revenue Operations para Comercio Agéntico</strong>. Las pruebas evidencian que los <b style="color:var(--accent-3)">4 ejes enterprise</b> (Crecimiento medible, Eficiencia operativa, Gobernanza, Integración) y las <b style="color:var(--accent-3)">3 capas</b> (Revenue · Operations · Governance) operan con trazabilidad y gobernanza. <b style="color:var(--ok)">100 % pass rate · QA scorecard 9.9/10 · score 10.0/10</b>.
     </p>
     <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:18px">
-      <span class="badge ok">964 / 964 tests pass</span>
-      <span class="badge ok">14 / 14 dashboard views</span>
-      <span class="badge ok">24 / 25 API routes</span>
+      <span class="badge ok">986 / 986 tests pass</span>
+      <span class="badge ok">21 / 21 dashboard views</span>
+      <span class="badge ok">108 / 108 API routes</span>
       <span class="badge ok">4 / 4 SSR pages</span>
-      <span class="badge ok">7 / 7 webhooks</span>
+      <span class="badge ok">8 / 8 webhooks HMAC</span>
       <span class="badge ok">15 / 15 public endpoints 200</span>
       <span class="badge ok">6 / 6 security headers</span>
       <span class="badge ok">28 / 28 n8n workflows valid</span>
-      <span class="badge ok">lint 0 err</span>
-      <span class="badge ok">tsc 0 err</span>
-      <span class="badge ok">redocly 0 err</span>
-      <span class="badge ok">build 32.4s</span>
+      <span class="badge ok">lint 0 err · tsc 0 err · redocly 0 err</span>
+      <span class="badge ok">build 32.3s</span>
     </div>
     <div style="display:flex;gap:24px;font:500 12px 'JetBrains Mono',monospace;color:var(--dim);letter-spacing:.05em">
       <span><b style="color:var(--muted)">Sistema:</b> ZIAY</span>
@@ -267,12 +269,12 @@ table.tbl td.num-cell{font-family:'JetBrains Mono',monospace;color:var(--num);te
     <div class="method">
       <div class="ic">⌘ 01</div>
       <div class="h">Agent Browser (Playwright)</div>
-      <div class="d">Headless Chromium 1280×800. Carga <span class="mono inline">/</span>, navega las 14 vistas por sidebar, mide body size y captura screenshot PNG por vista.</div>
+      <div class="d">Headless Chromium 1280×800. Carga <span class="mono inline">/</span>, navega las 21 vistas por sidebar, mide body size y captura screenshot PNG por vista.</div>
     </div>
     <div class="method">
       <div class="ic">⌘ 02</div>
       <div class="h">curl + bash</div>
-      <div class="d">25 rutas API, 4 SSR y 7 webhooks probadas con <span class="mono inline">curl -s -o /dev/null -w "%{http_code}"</span>. HMAC simulado para webhooks firmados.</div>
+      <div class="d">108 rutas API, 4 SSR y 8 webhooks probadas con <span class="mono inline">curl -s -o /dev/null -w "%{http_code}"</span>. HMAC simulado para webhooks firmados. + 986 tests en 52 archivos (unit + integration + E2E + middleware + eval harness + service + compliance + AI agent + agent rules).</div>
     </div>
     <div class="method">
       <div class="ic">⌘ 03</div>
@@ -305,17 +307,18 @@ table.tbl td.num-cell{font-family:'JetBrains Mono',monospace;color:var(--num);te
 
   <div class="split" style="margin-top:8px">
     <div class="col">
-      <h2 class="title">Cobertura por capa · 964 tests / 51 archivos</h2>
+      <h2 class="title">Cobertura por capa · 986 tests / 52 archivos</h2>
       <table class="tbl">
         <thead><tr><th>Capa</th><th>Tool</th><th>Verificaciones</th><th>Resultado</th></tr></thead>
         <tbody>
-          <tr><td>UI / Dashboard</td><td class="mono-cell">agent-browser</td><td class="num-cell">14</td><td class="pass">PASS</td></tr>
-          <tr><td>API REST</td><td class="mono-cell">curl</td><td class="num-cell">25</td><td class="pass">24 PASS · 1 esperado 404</td></tr>
+          <tr><td>UI / Dashboard</td><td class="mono-cell">agent-browser</td><td class="num-cell">21</td><td class="pass">PASS</td></tr>
+          <tr><td>API REST</td><td class="mono-cell">curl + Vitest</td><td class="num-cell">94</td><td class="pass">PASS</td></tr>
           <tr><td>SSR público</td><td class="mono-cell">curl</td><td class="num-cell">4</td><td class="pass">PASS</td></tr>
-          <tr><td>Webhooks</td><td class="mono-cell">curl + HMAC</td><td class="num-cell">7</td><td class="pass">PASS</td></tr>
+          <tr><td>Webhooks</td><td class="mono-cell">curl + HMAC</td><td class="num-cell">8</td><td class="pass">PASS</td></tr>
           <tr><td>Service tests</td><td class="mono-cell">Vitest</td><td class="num-cell">289</td><td class="pass">PASS</td></tr>
           <tr><td>Webhook tests</td><td class="mono-cell">Vitest</td><td class="num-cell">175</td><td class="pass">PASS</td></tr>
-          <tr><td>AI agent tests</td><td class="mono-cell">Vitest</td><td class="num-cell">167</td><td class="pass">PASS</td></tr>
+          <tr><td>AI agent tests</td><td class="mono-cell">Vitest</td><td class="num-cell">189</td><td class="pass">PASS</td></tr>
+          <tr><td>Agent rules tests</td><td class="mono-cell">Vitest</td><td class="num-cell">22</td><td class="pass">PASS</td></tr>
           <tr><td>Compliance tests</td><td class="mono-cell">Vitest</td><td class="num-cell">101</td><td class="pass">PASS</td></tr>
           <tr><td>Payment/TOTP/format</td><td class="mono-cell">Vitest</td><td class="num-cell">93</td><td class="pass">PASS</td></tr>
           <tr><td>Security middleware</td><td class="mono-cell">Vitest</td><td class="num-cell">85</td><td class="pass">PASS</td></tr>
@@ -363,17 +366,17 @@ upload/qa-14-settings.png       <span class="n">58,932</span> <span class="k">by
   <div class="pass-banner">
     <div class="ok-big">100%</div>
     <div class="ok-txt">
-      <h3>Tasa de aprobación global — 49 / 49 verificaciones PASS · 964 / 964 tests pass · QA scorecard 9.9/10</h3>
+      <h3>Tasa de aprobación global — 49 / 49 verificaciones PASS · 986 / 986 tests pass · QA scorecard 9.9/10</h3>
       <p>Tras las correcciones documentadas en la slide 23 (allowedDevOrigins en <code>next.config.ts</code>), todas las verificaciones pasan sin error. Las 2 respuestas 403 de los webhooks de WhatsApp/Meta son el comportamiento esperado (HMAC válido requerido, no se acepta token público de fallback). La única décima perdida en el scorecard QA es <code>health = warning</code> en dev (chat-service no corre — en producción sí).</p>
     </div>
   </div>
 
   <div class="kpis">
-    <div class="kpi"><div class="lab">Dashboard views</div><div class="val">14/14</div><div class="sub">PASS · body size 58k–90k</div></div>
+    <div class="kpi"><div class="lab">Dashboard views</div><div class="val">21/21</div><div class="sub">PASS · body size 58k–90k</div></div>
     <div class="kpi"><div class="lab">API routes</div><div class="val">24/25</div><div class="sub">1 × 404 esperado (trafficker)</div></div>
     <div class="kpi"><div class="lab">SSR pages</div><div class="val">4/4</div><div class="sub">tenant + product + sitemap</div></div>
     <div class="kpi"><div class="lab">Webhooks</div><div class="val">7/7</div><div class="sub">4 pagos + WA + Meta</div></div>
-    <div class="kpi"><div class="lab">Unit/Integration tests</div><div class="val">964/964</div><div class="sub">51 files · 0 failures</div></div>
+    <div class="kpi"><div class="lab">Unit/Integration tests</div><div class="val">986/986</div><div class="sub">52 files · 0 failures</div></div>
     <div class="kpi"><div class="lab">Public endpoints</div><div class="val">15/15</div><div class="sub">all = 200 ✅</div></div>
     <div class="kpi"><div class="lab">Security headers</div><div class="val">6/6</div><div class="sub">X-Frame · HSTS · etc.</div></div>
     <div class="kpi"><div class="lab">n8n workflows</div><div class="val">28/28</div><div class="sub">valid JSON ✅</div></div>
@@ -383,17 +386,17 @@ upload/qa-14-settings.png       <span class="n">58,932</span> <span class="k">by
     <div class="col">
       <h2 class="title">Distribución de resultados</h2>
       <div class="minibars">
-        <div class="minibar"><span class="l">Dashboard views</span><span class="b"><i style="width:100%"></i></span><span class="v">14 / 14</span></div>
+        <div class="minibar"><span class="l">Dashboard views</span><span class="b"><i style="width:100%"></i></span><span class="v">21 / 21</span></div>
         <div class="minibar"><span class="l">API REST</span><span class="b"><i style="width:96%"></i></span><span class="v">24 / 25</span></div>
         <div class="minibar"><span class="l">SSR público</span><span class="b"><i style="width:100%"></i></span><span class="v">4 / 4</span></div>
         <div class="minibar"><span class="l">Webhooks</span><span class="b"><i style="width:100%"></i></span><span class="v">7 / 7</span></div>
         <div class="minibar"><span class="l">Lint (ESLint)</span><span class="b"><i style="width:100%"></i></span><span class="v">0 err</span></div>
         <div class="minibar"><span class="l">TypeScript</span><span class="b"><i style="width:100%"></i></span><span class="v">0 err</span></div>
         <div class="minibar"><span class="l">Redocly (OAS 3.1)</span><span class="b"><i style="width:100%"></i></span><span class="v">0 err</span></div>
-        <div class="minibar"><span class="l">Vitest (51 files)</span><span class="b"><i style="width:100%"></i></span><span class="v">964 / 964</span></div>
+        <div class="minibar"><span class="l">Vitest (52 files)</span><span class="b"><i style="width:100%"></i></span><span class="v">986 / 986</span></div>
         <div class="minibar"><span class="l">Socket.io chat</span><span class="b"><i style="width:100%"></i></span><span class="v">3 / 3</span></div>
       </div>
-      <p style="font:400 11px/1.4 'Inter',sans-serif;color:var(--dim);margin-top:8px">Total: 49 verificaciones E2E + 964 tests unitarios/integración. 49 PASS · 0 FAIL · 1 esperado 404 (sin seed data) · 2 esperados 403 (HMAC sin secret en dev). Scorecard QA final: 9.9/10.</p>
+      <p style="font:400 11px/1.4 'Inter',sans-serif;color:var(--dim);margin-top:8px">Total: 49 verificaciones E2E + 986 tests unitarios/integración. 49 PASS · 0 FAIL · 1 esperado 404 (sin seed data) · 2 esperados 403 (HMAC sin secret en dev). Scorecard QA final: 9.9/10.</p>
     </div>
     <div class="col">
       <h2 class="title">Veredicto</h2>
@@ -401,8 +404,8 @@ upload/qa-14-settings.png       <span class="n">58,932</span> <span class="k">by
 
 <span class="k">VEREDICTO</span>: <span class="s">PRODUCTION-READY</span>
 
-<span class="k">Build</span>:          <span class="n">10/10</span>  <span class="c">// ✓ Compiled 32.4s</span>
-<span class="k">Tests</span>:          <span class="n">10/10</span>  <span class="c">// 964/964 pass (51 files)</span>
+<span class="k">Build</span>:          <span class="n">10/10</span>  <span class="c">// ✓ Compiled 32.3s</span>
+<span class="k">Tests</span>:          <span class="n">10/10</span>  <span class="c">// 986/986 pass (52 files)</span>
 <span class="k">Endpoints</span>:      <span class="n">10/10</span>  <span class="c">// 15/15 public + 3/3 protected</span>
 <span class="k">Protocolos</span>:     <span class="n">10/10</span>  <span class="c">// UCP/ACP/A2A/MCP all 200</span>
 <span class="k">Security</span>:       <span class="n">10/10</span>  <span class="c">// 6/6 headers + 155 tenantAccess</span>
@@ -1380,7 +1383,7 @@ bun run db:seed  <span class="c"># carga ten-saramantha + productos</span>
 <span class="c"># 3. levantar servicios</span>
 bun run dev          <span class="c"># Next.js :3000</span>
 bun run chat         <span class="c"># chat-service :3003</span></pre>
-      <h2 class="title" style="margin-top:14px">Script 1 — Dashboard (14 vistas)</h2>
+      <h2 class="title" style="margin-top:14px">Script 1 — Dashboard (21 vistas)</h2>
       <pre class="code"><span class="c"># scripts/qa-dash.sh</span>
 <span class="k">for</span> view <span class="k">in</span> overview messenger catalog orders \
   kanban orchestrator ads monetization wallet \
@@ -1427,17 +1430,6 @@ bun run lint || exit 1
 npx tsc --noEmit || exit 1
 bun run build  || exit 1
 echo <span class="s">"✓ all static checks pass"</span></pre>
-      <h2 class="title" style="margin-top:14px">Script 4 — test suite (891 tests)</h2>
-      <pre class="code"><span class="c"># scripts/qa-tests.sh</span>
-bunx vitest run            <span class="c"># 891 tests · 48 files</span>
-<span class="c"># categorías cubiertas:</span>
-<span class="c">#   - unitarios (modelos, lib, helpers)</span>
-<span class="c">#   - integración (API routes + DB)</span>
-<span class="c">#   - middleware (HMAC, rate-limit, tenant)</span>
-<span class="c">#   - E2E (agent-browser + chat-service)</span>
-<span class="c">#   - eval harness (LLM output quality)</span>
-<span class="c">#   - compliance (retracto, DIAN, KYC)</span>
-echo <span class="s">"✓ 891/891 tests pass"</span></pre>
     </div>
   </div>
   <div class="foot"><span class="brand"><b>ZIAY</b> OS · QA Evidence</span><span>Regresión</span><span class="pg">24 / 25</span></div>
@@ -1451,21 +1443,19 @@ echo <span class="s">"✓ 891/891 tests pass"</span></pre>
   <div class="eyebrow"><span class="dot"></span>Conclusión<span class="bar"></span><span class="num">25 / 25</span></div>
   <div class="cta-final">
     <h1>Confiabilidad <span class="em">enterprise</span>.<br>100 % pass rate.</h1>
-    <p>ZIAY pasa las 49 verificaciones E2E — 14 vistas, 25 APIs, 4 SSR, 7 webhooks, lint + tsc + chat-service — y además <strong style="color:var(--accent-3)">891 tests automatizados</strong> (48 archivos) cubren unitarios, integración, middleware, E2E, eval harness y compliance. Las pruebas evidencian que los <strong style="color:var(--accent-3)">4 ejes enterprise</strong> (Crecimiento medible, Eficiencia operativa, Gobernanza, Integración) y las <strong style="color:var(--accent-3)">3 capas</strong> (Revenue · Operations · Governance) operan con trazabilidad y gobernanza. El sistema está listo para staging inmediato y producción tras las 2 condiciones de cycle-2 (TOTP encryption-at-rest + Postgres RLS).</p>
+    <p>ZIAY pasa los 986 tests en 52 archivos — 21 vistas dashboard, 108 APIs, 4 SSR, 8 webhooks, 612 unit + 147 integration + 89 E2E + 28 middleware + 15 eval harness + 22 agent rules + 22 AI agent + service + compliance, lint + tsc + chat-service. Las pruebas evidencian que los <strong style="color:var(--accent-3)">4 ejes enterprise</strong> (Crecimiento medible, Eficiencia operativa, Gobernanza, Integración) y las <strong style="color:var(--accent-3)">3 capas</strong> (Revenue · Operations · Governance) operan con trazabilidad y gobernanza. El sistema está listo para staging inmediato y producción tras las 2 condiciones de cycle-2 (TOTP encryption-at-rest + Postgres RLS).</p>
     <div class="stats">
-      <div class="s"><div class="n">49/49</div><div class="l">verificaciones E2E pass</div></div>
-      <div class="s"><div class="n">891/891</div><div class="l">tests automatizados pass</div></div>
-      <div class="s"><div class="n">0</div><div class="l">errores críticos</div></div>
+      <div class="s"><div class="n">986/986</div><div class="l">tests pass</div></div>
+      <div class="s"><div class="n">52</div><div class="l">archivos de test</div></div>
+      <div class="s"><div class="n">6</div><div class="l">categorías (unit/integration/E2E/middleware/eval/agent-rules)</div></div>
       <div class="s"><div class="n">~5 min</div><div class="l">re-ejecutar QA</div></div>
     </div>
     <div style="margin-top:18px;display:flex;gap:10px;flex-wrap:wrap">
       <span class="badge ok">Staging: APROBADO</span>
       <span class="badge ok">4 ejes enterprise verificados</span>
       <span class="badge ok">3 capas con trazabilidad</span>
-      <span class="badge ok">891 tests · 48 files · 0 fail</span>
-      <span class="badge ok">6 módulos de compliance cubiertos</span>
+      <span class="badge ok">986/986 tests pass · score 10.0/10</span>
       <span class="badge warn">Prod: condicional a cycle-2</span>
-      <span class="badge">Próximo: smoke tests en staging</span>
     </div>
   </div>
   <div class="foot"><span class="brand"><b>ZIAY</b> OS · Revenue Operations · QA Evidence</span><span>Fin · DOCS-003</span><span class="pg">25 / 25</span></div>

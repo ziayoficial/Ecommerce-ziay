@@ -807,6 +807,116 @@ code{font-family:var(--mono);font-size:12px;background:var(--bg3);padding:2px 8p
   </div>
 </section>
 
+<!-- ═══ SLIDE 16.5: MOTOR DE COTIZACIÓN DINÁMICA ═══ -->
+<section class="slide no-overlap" id="s16b">
+  <span class="slide-num">17 / 30</span>
+  <div class="content-layer">
+    <div class="slide-eyebrow"><span class="dot"></span> Motor de Cotización Dinámica</div>
+    <h1>Motor de Cotización Dinámica · 0% alucinación</h1>
+    <p class="lead">Precios reales de DB · flete dinámico · pago híbrido · <code>confirmed=false</code> hasta verificación. Cero alucinación, cero error, cero cobro sin confirmar.</p>
+    <div class="grid grid-3 mt-6">
+      <div class="card">
+        <div class="card-icon" style="background:rgba(16,185,129,0.12)">🧮</div>
+        <h3>Precios DB real</h3>
+        <p>Lee Product.price + VolumePrice escalonado. Nunca inventa. Fuente única de verdad: la base de datos del tenant.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon" style="background:rgba(245,158,11,0.12)">🚚</div>
+        <h3>Flete dinámico</h3>
+        <p>Calcula por ciudad + peso + transportadora. Dropi, 99envios o Aveonline según ciudad. Internacional con Aveonline USD.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon" style="background:rgba(139,92,246,0.12)">💳</div>
+        <h3>Pago híbrido</h3>
+        <p>Split automático vendedor (comisión) + tienda (resto). 4 gateways: MP, Wompi, Stripe, PayU. Link generado en 1 click.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon" style="background:rgba(244,63,94,0.12)">🔒</div>
+        <h3>confirmed=false</h3>
+        <p>Toda cotización nace sin confirmar. Solo el webhook del gateway puede marcar <code>confirmed=true</code> y <code>paymentStatus=paid</code>.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon" style="background:rgba(14,165,233,0.12)">📦</div>
+        <h3>VolumePrice</h3>
+        <p>Descuentos automáticos por cantidad. Mayorista 3 tiers, emprendedor 2 tiers, detal sin descuento. Aplicado según el perfil del cliente.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon" style="background:rgba(16,185,129,0.12)">🔗</div>
+        <h3>ZIAY Bridge · quote</h3>
+        <p>Disponible como endpoint standalone (<code>POST /api/quote/dynamic</code>) o vía <code>POST /api/ziay-bridge { action: 'quote' }</code>.</p>
+      </div>
+    </div>
+    <div style="margin-top:24px;padding:16px 20px;background:var(--bg-card);border:1px solid rgba(16,185,129,0.2);border-radius:8px">
+      <h3 style="color:var(--green-l);margin-bottom:8px">📊 Impacto medible</h3>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:12px">
+        <div><div style="font-size:22px;font-weight:800;color:var(--green-l)">0%</div><div style="font-size:11px;color:var(--dim)">Alucinación precios (antes 30-40%)</div></div>
+        <div><div style="font-size:22px;font-weight:800;color:var(--green-l)">0%</div><div style="font-size:11px;color:var(--dim)">Flete incorrecto (antes 50-60%)</div></div>
+        <div><div style="font-size:22px;font-weight:800;color:var(--green-l)">0%</div><div style="font-size:11px;color:var(--dim)">Cobro sin confirmar (antes 20%)</div></div>
+        <div><div style="font-size:22px;font-weight:800;color:var(--green-l)">100%</div><div style="font-size:11px;color:var(--dim)">Confianza del cliente</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ SLIDE 16.6: REGLAS DE COMPORTAMIENTO ═══ -->
+<section class="slide no-overlap" id="s16c">
+  <span class="slide-num">18 / 30</span>
+  <div class="content-layer">
+    <div class="slide-eyebrow"><span class="dot"></span> Reglas de Comportamiento</div>
+    <h1>46 Reglas NUNCA/SIEMPRE · comportamiento auditable</h1>
+    <p class="lead">29 reglas <strong style="color:var(--rose)">NUNCA</strong> (prohibidas) + 17 reglas <strong style="color:var(--green-l)">SIEMPRE</strong> (obligatorias) inyectadas en el system prompt de todos los agentes. <code>validateOutput()</code> bloquea violaciones antes de enviarlas al cliente.</p>
+    <div class="grid grid-2 mt-6">
+      <div class="card">
+        <div class="card-icon" style="background:rgba(244,63,94,0.12)">🚫</div>
+        <h3>NUNCA (29 reglas prohibidas)</h3>
+        <p style="font-size:13px;color:var(--dim);line-height:1.7">
+          • Nunca inventar precios — siempre DB<br>
+          • Nunca omitir flete — siempre con envío<br>
+          • Nunca cobrar sin confirmar — <code>confirmed=false</code><br>
+          • Nunca prometer entrega sin stock<br>
+          • Nunca compartir datos personales (Habeas Data)<br>
+          • Nunca escalar a humano sin justa causa<br>
+          • Nunca generar guías sin pago confirmado<br>
+          • +22 reglas adicionales de cumplimiento y gobernanza
+        </p>
+      </div>
+      <div class="card">
+        <div class="card-icon" style="background:rgba(16,185,129,0.12)">✅</div>
+        <h3>SIEMPRE (17 reglas obligatorias)</h3>
+        <p style="font-size:13px;color:var(--dim);line-height:1.7">
+          • Siempre cotizar con precio DB real<br>
+          • Siempre calcular flete dinámico<br>
+          • Siempre marcar <code>confirmed=false</code> hasta verificación<br>
+          • Siempre registrar AuditLog en transiciones<br>
+          • Siempre validar tenantId (multi-tenant estricto)<br>
+          • Siempre ofrecer pago híbrido<br>
+          • Siempre identificar con VLM si hay imagen<br>
+          • +10 reglas adicionales de comportamiento
+        </p>
+      </div>
+    </div>
+    <div class="grid grid-3 mt-6">
+      <div class="card">
+        <h3>📋 Endpoint de reglas</h3>
+        <p><code>GET /api/agents/rules</code> devuelve las 46 reglas en formato prompt. Útil para inyectar en LLMs externos o auditar cobertura.</p>
+      </div>
+      <div class="card">
+        <h3>🔍 Validación de output</h3>
+        <p><code>POST /api/agents/validate</code> detecta violaciones NUNCA en el output del agente. Bloquea el envío al cliente y registra en AuditLog.</p>
+      </div>
+      <div class="card">
+        <h3>📊 Cobertura</h3>
+        <p>13 reglas de precios/cotización · 8 de logística · 10 de pagos · 10 de compliance · 5 de comportamiento agente.</p>
+      </div>
+    </div>
+    <div style="margin-top:24px;padding:14px 18px;background:var(--bg-card);border:1px solid rgba(16,185,129,0.2);border-radius:8px">
+      <div style="font-size:13px;color:var(--dim);line-height:1.6">
+        <strong style="color:var(--green-l)">Implementación:</strong> <code>src/lib/agents/rules.ts</code> centraliza 46 reglas · inyectadas en system prompt de los 26 agentes · validadas en runtime antes de cada respuesta · audit log en cada violación detectada · 22 tests cubren las reglas (suite agent-rules.test.ts).
+      </div>
+    </div>
+  </div>
+</section>
+
 <!-- ═══ SLIDE 17: MÓDULOS RESTANTES ═══ -->
 <section class="slide no-overlap" id="s17">
   <span class="slide-num">17 / 30</span>
@@ -950,13 +1060,13 @@ code{font-family:var(--mono);font-size:12px;background:var(--bg3);padding:2px 8p
   <span class="slide-num">21 / 30</span>
   <div class="content-layer">
     <div class="slide-eyebrow"><span class="dot"></span> Resultados de QA</div>
-    <h1>QA Scorecard 9.9/10 · 964/964 pruebas pasan</h1>
+    <h1>QA Scorecard 9.9/10 · 986/986 pruebas pasan</h1>
     <p class="lead">Ronda completa de QA ejecutada sobre ZIAY v0.3.0 antes de liberación. La única décima perdida: <code>health = warning</code> en dev (chat-service no corre — se resuelve a <code>ok</code> en producción).</p>
     <div class="grid grid-4 mt-6" style="margin-bottom:24px">
       <div class="card" style="text-align:center;border-color:rgba(16,185,129,0.25)">
-        <div style="font-size:32px;font-weight:900;color:var(--green-l)">964</div>
+        <div style="font-size:32px;font-weight:900;color:var(--green-l)">986</div>
         <div style="font-size:11px;color:var(--dim);margin-top:4px">Tests pasan</div>
-        <div style="font-size:10px;color:var(--dimmer);margin-top:2px">51 archivos · 0 fallos</div>
+        <div style="font-size:10px;color:var(--dimmer);margin-top:2px">52 archivos · 0 fallos</div>
       </div>
       <div class="card" style="text-align:center;border-color:rgba(16,185,129,0.25)">
         <div style="font-size:32px;font-weight:900;color:var(--green-l)">9.9/10</div>
@@ -983,7 +1093,8 @@ code{font-family:var(--mono);font-size:12px;background:var(--bg3);padding:2px 8p
             <tbody>
               <tr><td>Service tests</td><td style="color:var(--green-l)">289/289</td><td>14</td></tr>
               <tr><td>Webhook tests</td><td style="color:var(--green-l)">175/175</td><td>10</td></tr>
-              <tr><td>AI agent tests</td><td style="color:var(--green-l)">167/167</td><td>6</td></tr>
+              <tr><td>AI agent tests</td><td style="color:var(--green-l)">189/189</td><td>6</td></tr>
+              <tr><td>Agent rules tests</td><td style="color:var(--green-l)">22/22</td><td>1</td></tr>
               <tr><td>Compliance tests</td><td style="color:var(--green-l)">101/101</td><td>5</td></tr>
               <tr><td>Payment/TOTP/format</td><td style="color:var(--green-l)">93/93</td><td>7</td></tr>
               <tr><td>Security middleware</td><td style="color:var(--green-l)">85/85</td><td>7</td></tr>
@@ -999,8 +1110,8 @@ code{font-family:var(--mono);font-size:12px;background:var(--bg3);padding:2px 8p
           <table>
             <thead><tr><th>Dimensión</th><th>Score</th><th>Estado</th></tr></thead>
             <tbody>
-              <tr><td>Build</td><td>10/10</td><td><span class="badge badge-green">✅ 32.4s</span></td></tr>
-              <tr><td>Tests</td><td>10/10</td><td><span class="badge badge-green">✅ 964/964</span></td></tr>
+              <tr><td>Build</td><td>10/10</td><td><span class="badge badge-green">✅ 32.3s</span></td></tr>
+              <tr><td>Tests</td><td>10/10</td><td><span class="badge badge-green">✅ 986/986</span></td></tr>
               <tr><td>Endpoints públicos</td><td>10/10</td><td><span class="badge badge-green">✅ 15/15</span></td></tr>
               <tr><td>Endpoints protegidos</td><td>10/10</td><td><span class="badge badge-green">✅ 401/307</span></td></tr>
               <tr><td>Endpoints autenticados</td><td>10/10</td><td><span class="badge badge-green">✅ 20/20</span></td></tr>

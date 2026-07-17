@@ -46,7 +46,7 @@ h2.title .em{color:var(--accent-3)}
 .lede{font:400 13px/1.5 'Inter',sans-serif;color:var(--muted);max-width:880px;margin-bottom:14px}
 
 .foot{position:absolute;left:56px;right:56px;bottom:16px;display:flex;justify-content:space-between;
-  align-items:center;font:500 11px 'JetBrains Mono',monospace;color:var(--dim);letter-spacing:.05em}
+  align-items:center;font:500 11px 'JetBrains Mono',monospace;color:var(--dim);letter-spacing:.05em;z-index:5;background:linear-gradient(transparent,rgba(7,17,13,.92) 60%);padding-top:8px}
 .foot .brand{color:var(--muted)}
 .foot .brand b{color:var(--accent-3)}
 .foot .pg{color:var(--muted)}
@@ -72,7 +72,9 @@ table.tbl td.mono-cell{font-family:'JetBrains Mono',monospace;font-size:11px;col
 .split-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
 
 .ghost-num{position:absolute;right:36px;bottom:38px;font:800 220px/1 'JetBrains Mono',monospace;
-  color:rgba(16,185,129,.05);pointer-events:none;z-index:1;letter-spacing:-.04em}
+  color:rgba(16,185,129,.05);pointer-events:none;z-index:0;letter-spacing:-.04em}
+.slide .eyebrow,.slide h1.title,.slide h2.title,.slide .lede,.slide .split,.slide .split-3,.slide .col,.slide table.tbl,.slide pre.code,.slide .flowchart,.slide .fc-row,.slide .fc-node,.slide .step-card,.slide .persona,.slide .outcome,.slide .edge-case,.slide .journey-index,.slide .ji,.slide .kpis,.slide .kpi,.slide .cta-final,.slide .badge,.slide p,.slide ul,.slide ol,.slide div,.span .h1,.slide .h2,.slide .h3{position:relative;z-index:1}
+.slide .ghost-num,.slide .cover-bg,.slide .cover-grid{z-index:0;pointer-events:none}
 
 .nav{position:absolute;bottom:18px;right:18px;display:flex;align-items:center;gap:10px;
   background:rgba(7,17,13,.85);border:1px solid var(--border);border-radius:999px;padding:6px 10px;z-index:1000}
@@ -199,6 +201,7 @@ ul.checks li::before{content:'▸';position:absolute;left:0;color:var(--accent-3
       <strong style="color:var(--accent-3)">Revenue Operations para Comercio Agéntico.</strong> 8 journeys end-to-end del <b style="color:var(--accent-3)">comprador</b> — desde el primer mensaje en WhatsApp
       hasta el cierre del ciclo (compra, pago, envío, post-venta, devolución, remarketing, SEO y affiliator).
       Cada journey evidencia <b style="color:var(--accent-3)">ingresos trazables</b> y mapea agentes, APIs y modelos DB sobre los 4 ejes enterprise.
+      26 agentes IA interoperan vía <b style="color:var(--accent-3)">5 protocolos</b> (AP2/UCP/ACP/MCP/A2A) · 108 API routes · 71 modelos Prisma · 986 tests.
     </p>
     <div class="journey-index">
       <div class="ji"><div class="n">J1</div><div class="t">Compra nueva</div><div class="a">10 agentes · Eficiencia operativa</div></div>
@@ -271,7 +274,7 @@ product_enrichment, marketplace, affiliator
 vision, guide_alert, address_analysis,
 traffic_orchestrator, sales_retainer,
 logistics_notifier, (+orchestrate meta)</pre>
-      <p style="font:400 11px/1.4 'Inter',sans-serif;color:var(--dim);margin-top:8px">Cada journey marca qué agentes se invocan y en qué orden. Total: 26 agentes cubren todo el ciclo de vida del comprador. Comunicación entre agentes vía <strong style="color:var(--accent-3)">5 protocolos estándar</strong>: AP2 (Agent Protocol v2), UCP (Unified Commerce), ACP (Agent Communication), MCP (Model Context), A2A (Agent-to-Agent).</p>
+      <p style="font:400 11px/1.4 'Inter',sans-serif;color:var(--dim);margin-top:8px">Cada journey marca qué agentes se invocan y en qué orden. Total: 26 agentes cubren todo el ciclo de vida del comprador.</p>
     </div>
   </div>
   <div class="foot"><span class="brand"><b>ZIAY</b> OS · Revenue Operations · Trazabilidad E2E</span><span>Persona</span><span class="pg">02 / 26</span></div>
@@ -1682,7 +1685,7 @@ Conversation.<span class="fn">update</span>({
 
 <span class="c">// Bogotá → 99envios (90% effectiveness)
 // Medellín → Dropi (88%)
-// Cali → Aveonline (85%)</span></pre>
+// Cali → Aveonline (85%)</pre>
       <h2 class="title" style="margin-top:12px">Remarketing segments</h2>
       <ul class="checks">
         <li><b>cart_recovery</b> — abandono &lt; 24h → recordatorio + descuento 5%</li>
@@ -1820,14 +1823,156 @@ trf-001  Ana Trafficker  wallet $1.2M  2FA ✅</pre>
 </section>
 
 <!-- ============================================================ -->
-<!-- SLIDE 26 — Conclusion -->
+<!-- SLIDE 25.5 — Protocolos IA en los journeys -->
 <!-- ============================================================ -->
 <section class="slide" data-slide="26">
   <div class="ghost-num" data-decor>26</div>
-  <div class="eyebrow"><span class="dot"></span>Conclusión<span class="bar"></span><span class="num">26 / 26</span></div>
+  <div class="eyebrow"><span class="dot"></span>Protocolos IA · interoperabilidad<span class="bar"></span><span class="num">26 / 27</span></div>
+  <h1 class="title">5 protocolos que <span class="em">conectan</span> tus agentes</h1>
+  <p class="lede">Cada journey invoca agentes vía API REST interno. Los <b style="color:var(--accent-3)">5 protocolos de interoperabilidad IA</b> permiten que tus agentes hablen también con LLMs y agentes externos (Claude, GPT, Gemini, agentes custom).</p>
+
+  <div class="split">
+    <div class="col">
+      <h2 class="title">Protocolos activos</h2>
+      <table class="tbl">
+        <thead><tr><th>Protocolo</th><th>Nombre</th><th>Usado en journey</th></tr></thead>
+        <tbody>
+          <tr><td class="mono-cell">AP2</td><td>Anthropic Protocol v2</td><td>J1 (claude fallback en checkout)</td></tr>
+          <tr><td class="mono-cell">UCP</td><td>Unified Context Protocol</td><td>J1, J2 (contexto entre profile→quote→checkout)</td></tr>
+          <tr><td class="mono-cell">ACP</td><td>Agent Communication Protocol</td><td>J5 (marketplace cross-brand)</td></tr>
+          <tr><td class="mono-cell">MCP</td><td>Model Context Protocol</td><td>J4 (buyer_behavior con tools externos)</td></tr>
+          <tr><td class="mono-cell">A2A</td><td>Agent-to-Agent</td><td>J7 (trafficker affiliate ↔ seller agents)</td></tr>
+        </tbody>
+      </table>
+      <p style="font:400 11px/1.4 'Inter',sans-serif;color:var(--dim);margin-top:8px">Cada protocolo es opt-in: si no se configura, los agentes usan la API REST interna. Si se configura, ganan interoperabilidad con el ecosistema IA externo.</p>
+    </div>
+    <div class="col">
+      <h2 class="title">Diagrama de interoperabilidad</h2>
+      <div class="flowchart">
+        <div class="fc-row">
+          <div class="fc-node start">J1 Compra</div>
+          <div class="fc-arr">→</div>
+          <div class="fc-node agent">buyer_behavior</div>
+          <div class="fc-arr">→</div>
+          <div class="fc-node api">MCP tools</div>
+        </div>
+        <div class="fc-row">
+          <div class="fc-node api">UCP context</div>
+          <div class="fc-arr">→</div>
+          <div class="fc-node agent">quote</div>
+          <div class="fc-arr">→</div>
+          <div class="fc-node agent">checkout</div>
+        </div>
+        <div class="fc-row">
+          <div class="fc-node agent">checkout</div>
+          <div class="fc-arr">→</div>
+          <div class="fc-node api">AP2 fallback</div>
+          <div class="fc-arr">→</div>
+          <div class="fc-node end">Claude API</div>
+        </div>
+        <div class="fc-row">
+          <div class="fc-node start">J5 Marketplace</div>
+          <div class="fc-arr">→</div>
+          <div class="fc-node api">ACP</div>
+          <div class="fc-arr">→</div>
+          <div class="fc-node">Seller agent (otra marca)</div>
+        </div>
+        <div class="fc-row">
+          <div class="fc-node start">J7 Affiliate</div>
+          <div class="fc-arr">→</div>
+          <div class="fc-node api">A2A</div>
+          <div class="fc-arr">→</div>
+          <div class="fc-node">Trafficker agent</div>
+        </div>
+      </div>
+      <div class="outcome" style="margin-top:12px">
+        <div class="h">✓ Open ecosystem IA</div>
+        <div class="d">Tus agentes no son una isla. Hablan con cualquier LLM/agent externo vía estándares abiertos. Vendor lock-in: cero.</div>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span class="brand"><b>ZIAY</b> OS · Revenue Operations · Trazabilidad E2E</span><span>Protocolos IA</span><span class="pg">26 / 27</span></div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 27 — ZIAY Bridge · 5 Actions para n8n -->
+<!-- ============================================================ -->
+<section class="slide" data-slide="27">
+  <div class="ghost-num" data-decor>27</div>
+  <div class="eyebrow"><span class="dot"></span>ZIAY Bridge · 5 actions<span class="bar"></span><span class="num">27 / 28</span></div>
+  <h1 class="title">ZIAY Bridge · <span class="em">5 actions</span> para n8n</h1>
+  <p class="lede">Un solo endpoint — <code>POST /api/ziay-bridge</code> — expone las 5 capabilities core de ZIAY para automatización n8n. ZIAY es solución <b style="color:var(--accent-3)">100% propia</b> y NO se conecta con ChateaPro ni el Generador (terceros excluyentes).</p>
+
+  <div class="split">
+    <div class="col">
+      <h2 class="title">Las 5 actions del bridge</h2>
+      <table class="tbl">
+        <thead><tr><th>Action</th><th>Journey</th><th>Resuelve</th></tr></thead>
+        <tbody>
+          <tr><td class="mono-cell">quote</td><td>J1, J2</td><td>Cotización dinámica: precios DB + flete + pago híbrido + <code>confirmed=false</code></td></tr>
+          <tr><td class="mono-cell">identify</td><td>J1 (catalog)</td><td>Identificación de producto por imagen con VLM glm-4.6v + fuzzy search</td></tr>
+          <tr><td class="mono-cell">freight</td><td>J1 (logistics), J3</td><td>Cotización de flete internacional y nacional (Dropi/99envios/Aveonline)</td></tr>
+          <tr><td class="mono-cell">payment</td><td>J2</td><td>Link de pago híbrido (split vendedor/tienda) · 4 gateways</td></tr>
+          <tr><td class="mono-cell">catalog</td><td>J1, J5</td><td>Búsqueda fuzzy de productos por texto o imagen · top-N con score</td></tr>
+        </tbody>
+      </table>
+      <div class="outcome" style="margin-top:10px">
+        <div class="h">✓ 1 endpoint · 5 capabilities · 0 mantenimiento</div>
+        <div class="d">n8n manda una petición HTTP Request → ZIAY ejecuta la lógica interna → devuelve respuesta estructurada. Auth por API key + tenantId. Rate limit 60 req/min. AuditLog en cada invocación.</div>
+      </div>
+    </div>
+    <div class="col">
+      <h2 class="title">Arquitectura del bridge</h2>
+      <div class="flowchart">
+        <div class="fc-row">
+          <div class="fc-node start">n8n workflow</div>
+          <div class="fc-arr">→</div>
+          <div class="fc-node api">HTTP Request</div>
+          <div class="fc-arr">→</div>
+          <div class="fc-node api">/api/ziay-bridge</div>
+        </div>
+        <div class="fc-row">
+          <div class="fc-node api">/api/ziay-bridge</div>
+          <div class="fc-arr">→</div>
+          <div class="fc-node decision">action: quote|identify|freight|payment|catalog</div>
+        </div>
+        <div class="fc-row">
+          <div class="fc-node decision">dispatch</div>
+          <div class="fc-arr">→</div>
+          <div class="fc-node agent">dynamic-quote.ts</div>
+          <div class="fc-arr">→</div>
+          <div class="fc-node db">DB + adapters</div>
+        </div>
+        <div class="fc-row">
+          <div class="fc-node db">DB + adapters</div>
+          <div class="fc-arr">→</div>
+          <div class="fc-node end">200 JSON response</div>
+          <div class="fc-arr">→</div>
+          <div class="fc-node start">n8n next node</div>
+        </div>
+      </div>
+      <pre class="code" style="margin-top:10px"><span class="c">// n8n HTTP Request node config</span>
+URL: <span class="s">{{$env.ZIAY_API_URL}}/api/ziay-bridge</span>
+Method: <span class="k">POST</span>
+Headers:
+  Authorization: Bearer <span class="s">{{$env.ZIAY_API_KEY}}</span>
+  X-Tenant-Id: <span class="s">{{$env.ZIAY_TENANT}}</span>
+Body:
+  { action: <span class="s">"quote"</span>, payload: {...} }</pre>
+    </div>
+  </div>
+  <div class="foot"><span class="brand"><b>ZIAY</b> OS · Revenue Operations · Trazabilidad E2E</span><span>ZIAY Bridge</span><span class="pg">27 / 28</span></div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 28 — Conclusion -->
+<!-- ============================================================ -->
+<section class="slide" data-slide="28">
+  <div class="ghost-num" data-decor>28</div>
+  <div class="eyebrow"><span class="dot"></span>Conclusión<span class="bar"></span><span class="num">28 / 28</span></div>
   <div class="cta-final">
     <h1>Trazabilidad <span class="em">de extremo a extremo.</span></h1>
-    <p>ZIAY cubre los 8 journeys críticos del comprador — desde el primer "Hola" hasta el cierre del ciclo completo. Cada journey evidencia <strong style="color:var(--accent-3)">ingresos trazables</strong> sobre los 4 ejes enterprise (Crecimiento medible, Eficiencia operativa, Gobernanza, Integración) y mapea agentes específicos, APIs REST y modelos Prisma. La arquitectura es resiliente (fallbacks, retries, idempotencia) y auditable (cada transición logueada).</p>
+    <p>ZIAY cubre los 8 journeys críticos del comprador — desde el primer "Hola" hasta el cierre del ciclo completo. Cada journey evidencia <strong style="color:var(--accent-3)">ingresos trazables</strong> sobre los 4 ejes enterprise (Crecimiento medible, Eficiencia operativa, Gobernanza, Integración) y mapea agentes específicos, APIs REST y modelos Prisma. La arquitectura es resiliente (fallbacks, retries, idempotencia) y auditable (cada transición logueada). 5 protocolos de interoperabilidad IA (AP2/UCP/ACP/MCP/A2A) evitan vendor lock-in.</p>
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:14px">
       <div style="background:rgba(7,17,13,.5);border:1px solid var(--border);border-radius:8px;padding:12px">
         <div style="font:800 22px 'Inter',sans-serif;color:var(--accent-3)">8</div>
@@ -1850,18 +1995,17 @@ trf-001  Ana Trafficker  wallet $1.2M  2FA ✅</pre>
       <span class="badge ok">100% journeys con fallback</span>
       <span class="badge ok">AuditLog en cada transición</span>
       <span class="badge ok">Ingresos trazables E2E</span>
-      <span class="badge ok">6 módulos de cumplimiento (KYC, retracto, DIAN...)</span>
       <span class="badge">Próximo: voice commerce (J9)</span>
     </div>
   </div>
-  <div class="foot"><span class="brand"><b>ZIAY</b> OS · Revenue Operations · Trazabilidad E2E</span><span>Fin · DOCS-003</span><span class="pg">26 / 26</span></div>
+  <div class="foot"><span class="brand"><b>ZIAY</b> OS · Revenue Operations · Trazabilidad E2E</span><span>Fin · DOCS-003</span><span class="pg">28 / 28</span></div>
 </section>
 
  </div><!-- /deck -->
 
  <div class="nav">
    <button id="prev" title="Anterior (←)">‹</button>
-   <span class="counter"><b id="cur">01</b> / <span id="tot">26</span></span>
+   <span class="counter"><b id="cur">01</b> / <span id="tot">28</span></span>
    <button id="next" title="Siguiente (→)">›</button>
  </div>
 </div>

@@ -2,8 +2,12 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=5.0">
+<meta name="theme-color" content="#047857">
+<meta name="description" content="ZIAY · Modelo de Negocio + Customer Journey — Plataforma SaaS de Comercio Conversacional con 27 agentes de IA para LATAM">
 <title>ZIAY · Modelo de Negocio + Customer Journey</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -11,74 +15,131 @@
   --mint:#d1fae5;--mint-2:#ecfdf5;--slate:#1e293b;--slate-2:#334155;
   --gray:#64748b;--gray-2:#94a3b8;--amber:#f59e0b;--rose:#f43f5e;
   --bg:#f8fafc;--card:#ffffff;--border:#e2e8f0;
+  --safe-top:env(safe-area-inset-top,0px);
+  --safe-bottom:env(safe-area-inset-bottom,0px);
 }
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Inter',sans-serif;background:#0f172a;color:var(--slate);overflow:hidden}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  font-family:'Inter',sans-serif;background:#0f172a;color:var(--slate);
+  overflow:hidden;
+  -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
+  text-rendering:optimizeLegibility;
+}
 
 /* ── Deck ── */
-#deck{position:relative;width:100vw;height:100vh;overflow:hidden;z-index:1}
+#deck{position:relative;width:100vw;height:100vh;height:100dvh;overflow:hidden;z-index:1}
 .slide{
   position:absolute;inset:0;display:none;flex-direction:column;
-  align-items:center;justify-content:center;padding:40px 60px;
+  align-items:center;justify-content:center;
+  padding:clamp(16px,4vw,40px) clamp(16px,5vw,60px);
+  padding-top:calc(clamp(16px,4vw,40px) + var(--safe-top));
+  padding-bottom:calc(clamp(72px,10vw,80px) + var(--safe-bottom));
   background:var(--bg);z-index:2;
+  overflow-y:auto;-webkit-overflow-scrolling:touch;
 }
 .slide.active{display:flex;z-index:3}
+.slide::-webkit-scrollbar{width:5px;height:5px}
+.slide::-webkit-scrollbar-thumb{background:var(--emerald);border-radius:3px}
+.slide::-webkit-scrollbar-track{background:transparent}
+.slide>*{flex-shrink:0}
 
-/* ── Typography ── */
-h1{font-family:'Manrope',sans-serif;font-weight:800;font-size:42px;line-height:1.15;letter-spacing:-0.02em;color:var(--slate)}
-h2{font-family:'Manrope',sans-serif;font-weight:700;font-size:32px;line-height:1.2;letter-spacing:-0.01em;color:var(--slate);margin-bottom:8px}
-h3{font-family:'Manrope',sans-serif;font-weight:700;font-size:22px;color:var(--emerald-dark)}
-p{font-size:18px;line-height:1.65;color:var(--slate-2);max-width:920px}
-.small{font-size:15px;color:var(--gray)}
-.tag{display:inline-block;padding:4px 14px;border-radius:20px;font-size:13px;font-weight:600;background:var(--mint);color:var(--emerald-dark);margin-bottom:12px}
+/* ── Typography (fluid with clamp) ── */
+h1{font-family:'Manrope',sans-serif;font-weight:800;font-size:clamp(28px,6vw,42px);line-height:1.15;letter-spacing:-0.02em;color:var(--slate)}
+h2{font-family:'Manrope',sans-serif;font-weight:700;font-size:clamp(22px,4.5vw,32px);line-height:1.2;letter-spacing:-0.01em;color:var(--slate);margin-bottom:8px;text-align:center}
+h3{font-family:'Manrope',sans-serif;font-weight:700;font-size:clamp(18px,3vw,22px);color:var(--emerald-dark)}
+p{font-size:clamp(15px,2.2vw,18px);line-height:1.6;color:var(--slate-2);max-width:920px}
+p.center{text-align:center}
+.small{font-size:clamp(13px,1.8vw,15px);color:var(--gray);text-align:center}
+.tag{display:inline-block;padding:4px 14px;border-radius:20px;font-size:clamp(11px,1.6vw,13px);font-weight:600;background:var(--mint);color:var(--emerald-dark);margin-bottom:12px}
 
 /* ── Layout helpers ── */
 .center{text-align:center}
-.spacer{height:20px}
-.icon-row{display:flex;gap:24px;justify-content:center;flex-wrap:wrap;margin-top:24px}
-.icon-box{text-align:center;width:140px}
-.icon-box .ico{font-size:36px;margin-bottom:6px}
-.icon-box .lbl{font-size:13px;font-weight:600;color:var(--slate-2)}
-.icon-box .sub{font-size:11px;color:var(--gray)}
+.spacer{height:clamp(12px,2vw,20px);flex-shrink:0}
+.icon-row{display:flex;gap:clamp(12px,2.5vw,24px);justify-content:center;flex-wrap:wrap;margin-top:24px;width:100%}
+.icon-box{text-align:center;width:clamp(80px,18vw,140px)}
+.icon-box .ico{font-size:clamp(26px,5vw,36px);margin-bottom:6px}
+.icon-box .lbl{font-size:clamp(11px,1.7vw,13px);font-weight:600;color:var(--slate-2)}
+.icon-box .sub{font-size:clamp(10px,1.4vw,11px);color:var(--gray)}
 
 /* ── Canvas grid ── */
-.canvas-grid{display:grid;grid-template-columns:1fr 1fr 1fr;grid-template-rows:1fr 1fr;gap:12px;width:100%;max-width:1100px;height:480px}
-.canvas-cell{background:var(--card);border:1.5px solid var(--border);border-radius:10px;padding:16px;overflow-y:auto;position:relative}
-.canvas-cell h4{font-family:'Manrope',sans-serif;font-weight:700;font-size:14px;text-transform:uppercase;letter-spacing:0.05em;color:var(--emerald-dark);margin-bottom:10px}
+.canvas-grid{
+  display:grid;
+  grid-template-columns:1fr;
+  grid-template-rows:auto;
+  gap:10px;width:100%;max-width:1100px;
+  height:auto;max-height:none;
+}
+.canvas-cell{
+  background:var(--card);border:1.5px solid var(--border);border-radius:10px;
+  padding:14px;overflow-y:auto;position:relative;
+  max-height:clamp(180px,30vh,260px);
+}
+.canvas-cell h4{font-family:'Manrope',sans-serif;font-weight:700;font-size:clamp(12px,1.8vw,14px);text-transform:uppercase;letter-spacing:0.05em;color:var(--emerald-dark);margin-bottom:10px;padding-right:24px}
 .canvas-cell ul{list-style:none}
-.canvas-cell li{font-size:13px;line-height:1.5;color:var(--slate-2);margin-bottom:6px;padding-left:16px;position:relative}
+.canvas-cell li{font-size:clamp(12px,1.7vw,13px);line-height:1.5;color:var(--slate-2);margin-bottom:6px;padding-left:16px;position:relative}
 .canvas-cell li::before{content:'▸';position:absolute;left:0;color:var(--emerald)}
 .canvas-cell .emoji{position:absolute;top:12px;right:14px;font-size:20px;opacity:0.5}
 
 /* ── Journey ── */
-.journey-flow{display:flex;align-items:stretch;gap:0;width:100%;max-width:1100px;margin-top:20px}
-.journey-step{flex:1;background:var(--card);border:1.5px solid var(--border);border-radius:10px;padding:14px;margin:0 4px;position:relative;display:flex;flex-direction:column}
+.journey-flow{
+  display:flex;align-items:stretch;gap:0;width:100%;max-width:1100px;margin-top:14px;
+  overflow-x:auto;-webkit-overflow-scrolling:touch;
+  padding-bottom:6px;scroll-snap-type:x mandatory;
+}
+.journey-flow::-webkit-scrollbar{height:4px}
+.journey-flow::-webkit-scrollbar-thumb{background:var(--emerald);border-radius:2px}
+.journey-step{
+  flex:0 0 clamp(110px,30vw,180px);min-width:clamp(110px,30vw,180px);
+  background:var(--card);border:1.5px solid var(--border);border-radius:10px;
+  padding:12px;margin:0 4px;position:relative;display:flex;flex-direction:column;
+  scroll-snap-align:start;
+}
 .journey-step .num{width:28px;height:28px;border-radius:50%;background:var(--emerald);color:white;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;margin-bottom:8px}
-.journey-step h5{font-family:'Manrope',sans-serif;font-weight:700;font-size:14px;color:var(--slate);margin-bottom:4px}
-.journey-step p{font-size:12px;line-height:1.45;color:var(--gray);max-width:none}
+.journey-step h5{font-family:'Manrope',sans-serif;font-weight:700;font-size:clamp(13px,1.9vw,14px);color:var(--slate);margin-bottom:4px}
+.journey-step p{font-size:clamp(11px,1.6vw,12px);line-height:1.45;color:var(--gray);max-width:none}
 .journey-step .emoji{font-size:24px;margin-bottom:4px}
-.journey-arrow{display:flex;align-items:center;color:var(--gray-2);font-size:18px;padding:0 2px}
+.journey-arrow{display:flex;align-items:center;color:var(--gray-2);font-size:18px;padding:0 2px;flex-shrink:0}
 
 /* ── E2E Scenario ── */
-.scenario{display:flex;flex-direction:column;gap:10px;width:100%;max-width:1000px;margin-top:16px}
-.scenario-row{display:flex;align-items:flex-start;gap:14px;padding:12px 16px;background:var(--card);border:1.5px solid var(--border);border-radius:10px}
-.scenario-row .time{font-family:'Manrope',sans-serif;font-weight:700;font-size:13px;color:var(--emerald-dark);min-width:70px;padding-top:2px}
-.scenario-row .desc{font-size:15px;line-height:1.55;color:var(--slate-2)}
-.scenario-row .agent{display:inline-block;padding:2px 10px;border-radius:12px;font-size:11px;font-weight:600;background:var(--mint);color:var(--emerald-dark);margin-left:8px}
+.scenario{display:flex;flex-direction:column;gap:10px;width:100%;max-width:1000px;margin-top:14px}
+.scenario-row{display:flex;align-items:flex-start;gap:12px;padding:12px 14px;background:var(--card);border:1.5px solid var(--border);border-radius:10px}
+.scenario-row .time{font-family:'Manrope',sans-serif;font-weight:700;font-size:clamp(11px,1.6vw,13px);color:var(--emerald-dark);min-width:60px;padding-top:2px;flex-shrink:0}
+.scenario-row .desc{font-size:clamp(13px,1.9vw,15px);line-height:1.5;color:var(--slate-2)}
+.scenario-row .agent{display:inline-block;padding:2px 8px;border-radius:12px;font-size:clamp(10px,1.4vw,11px);font-weight:600;background:var(--mint);color:var(--emerald-dark);margin-left:6px;white-space:nowrap}
 
 /* ── KPI cards ── */
-.kpi-row{display:flex;gap:16px;justify-content:center;flex-wrap:wrap;margin-top:24px}
-.kpi-card{background:var(--card);border:1.5px solid var(--border);border-radius:12px;padding:20px 28px;text-align:center;min-width:160px}
-.kpi-card .num{font-family:'Manrope',sans-serif;font-weight:800;font-size:36px;color:var(--emerald)}
-.kpi-card .lbl{font-size:13px;color:var(--gray);margin-top:4px}
+.kpi-row{display:grid;grid-template-columns:repeat(2,1fr);gap:clamp(8px,2vw,16px);justify-content:center;margin-top:20px;width:100%;max-width:900px}
+.kpi-card{background:var(--card);border:1.5px solid var(--border);border-radius:12px;padding:14px 12px;text-align:center}
+.kpi-card .num{font-family:'Manrope',sans-serif;font-weight:800;font-size:clamp(24px,4vw,36px);color:var(--emerald)}
+.kpi-card .lbl{font-size:clamp(11px,1.6vw,13px);color:var(--gray);margin-top:4px}
 
 /* ── Nav ── */
-#nav{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:12px;z-index:100;background:rgba(15,23,42,0.9);backdrop-filter:blur(10px);padding:10px 20px;border-radius:30px;box-shadow:0 4px 20px rgba(0,0,0,0.15)}
-#nav button{background:var(--emerald);color:white;border:none;width:38px;height:38px;border-radius:50%;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;transition:all 0.2s}
+#nav{
+  position:fixed;bottom:calc(16px + var(--safe-bottom));left:50%;transform:translateX(-50%);
+  display:flex;align-items:center;gap:10px;z-index:100;
+  background:rgba(15,23,42,0.92);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  padding:8px 14px;border-radius:30px;box-shadow:0 4px 20px rgba(0,0,0,0.25);
+  max-width:calc(100vw - 24px);
+}
+#nav button{
+  background:var(--emerald);color:white;border:none;
+  width:44px;height:44px;min-width:44px;border-radius:50%;cursor:pointer;
+  font-size:20px;display:flex;align-items:center;justify-content:center;
+  transition:all 0.2s;font-family:'Manrope',sans-serif;font-weight:700;
+}
 #nav button:hover{background:var(--emerald-dark);transform:scale(1.05)}
-#nav button:disabled{background:var(--gray-2);cursor:not-allowed;transform:none}
-#counter{color:white;font-family:'Manrope',sans-serif;font-weight:600;font-size:14px;min-width:60px;text-align:center}
-#progress{position:fixed;top:0;left:0;height:3px;background:var(--emerald);z-index:200;transition:width 0.3s ease}
+#nav button:active{transform:scale(0.95)}
+#nav button:disabled{background:var(--gray-2);cursor:not-allowed;transform:none;opacity:0.6}
+#counter{color:white;font-family:'Manrope',sans-serif;font-weight:600;font-size:clamp(12px,1.8vw,14px);min-width:56px;text-align:center}
+#progress{position:fixed;top:0;left:0;height:3px;background:var(--emerald);z-index:200;transition:width 0.3s ease;width:0%}
+#swipe-hint{
+  position:fixed;bottom:calc(72px + var(--safe-bottom));left:50%;transform:translateX(-50%);
+  background:rgba(15,23,42,0.85);color:white;padding:6px 14px;border-radius:16px;
+  font-size:12px;z-index:99;opacity:0;transition:opacity 0.4s;pointer-events:none;
+  font-family:'Manrope',sans-serif;font-weight:600;
+}
+#swipe-hint.show{opacity:1}
 
 /* ── Slide-specific ── */
 .gradient-bg{background:linear-gradient(135deg,#047857 0%,#0d9488 100%);color:white}
@@ -87,21 +148,62 @@ p{font-size:18px;line-height:1.65;color:var(--slate-2);max-width:920px}
 .dark-bg{background:#0f172a;color:white}
 .dark-bg h1,.dark-bg h2,.dark-bg h3,.dark-bg p{color:white}
 .dark-bg .small{color:var(--gray-2)}
-.feature-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;width:100%;max-width:1000px;margin-top:20px}
-.feature-card{background:var(--card);border:1.5px solid var(--border);border-radius:10px;padding:18px;display:flex;gap:14px;align-items:flex-start}
-.feature-card .emoji{font-size:28px;flex-shrink:0}
-.feature-card .txt h5{font-family:'Manrope',sans-serif;font-weight:700;font-size:16px;color:var(--slate);margin-bottom:4px}
-.feature-card .txt p{font-size:14px;line-height:1.5;color:var(--gray);max-width:none}
-.persona-row{display:flex;gap:20px;justify-content:center;margin-top:24px}
-.persona-card{background:var(--card);border:1.5px solid var(--border);border-radius:12px;padding:24px;text-align:center;width:220px}
-.persona-card .emoji{font-size:40px;margin-bottom:8px}
-.persona-card h5{font-family:'Manrope',sans-serif;font-weight:700;font-size:17px;color:var(--slate);margin-bottom:4px}
-.persona-card p{font-size:13px;color:var(--gray);max-width:none}
+.feature-grid{
+  display:grid;grid-template-columns:1fr;gap:12px;width:100%;max-width:1000px;margin-top:18px;
+}
+.feature-card{background:var(--card);border:1.5px solid var(--border);border-radius:10px;padding:16px;display:flex;gap:12px;align-items:flex-start}
+.feature-card .emoji{font-size:clamp(24px,3.5vw,28px);flex-shrink:0}
+.feature-card .txt{min-width:0}
+.feature-card .txt h5{font-family:'Manrope',sans-serif;font-weight:700;font-size:clamp(14px,2vw,16px);color:var(--slate);margin-bottom:4px}
+.feature-card .txt p{font-size:clamp(13px,1.8vw,14px);line-height:1.5;color:var(--gray);max-width:none}
+.persona-row{
+  display:grid;grid-template-columns:1fr;gap:12px;justify-content:center;margin-top:18px;width:100%;max-width:900px;
+}
+.persona-card{background:var(--card);border:1.5px solid var(--border);border-radius:12px;padding:18px;text-align:center}
+.persona-card .emoji{font-size:36px;margin-bottom:6px}
+.persona-card h5{font-family:'Manrope',sans-serif;font-weight:700;font-size:clamp(15px,2.2vw,17px);color:var(--slate);margin-bottom:4px}
+.persona-card p{font-size:clamp(12px,1.7vw,13px);color:var(--gray);max-width:none;line-height:1.5}
 /* scrollable cells */
 .scrollable{overflow-y:auto}
 .scrollable::-webkit-scrollbar{width:5px}
 .scrollable::-webkit-scrollbar-thumb{background:var(--emerald);border-radius:3px}
 .scrollable::-webkit-scrollbar-track{background:transparent}
+
+/* ── Title slide special ── */
+.slide h1.big{font-size:clamp(40px,12vw,52px)}
+.slide h1.final{font-size:clamp(28px,7vw,48px)}
+
+/* ── Responsive: tablet & up ── */
+@media (min-width:640px){
+  .feature-grid{grid-template-columns:1fr 1fr;gap:14px}
+  .persona-row{grid-template-columns:repeat(2,1fr);gap:16px}
+  .kpi-row{grid-template-columns:repeat(4,1fr)}
+  .icon-row{gap:24px}
+}
+@media (min-width:900px){
+  .canvas-grid{grid-template-columns:1fr 1fr 1fr;grid-template-rows:1fr 1fr;height:480px;max-height:480px}
+  .persona-row{grid-template-columns:repeat(4,1fr);gap:20px}
+  .kpi-row{grid-template-columns:repeat(4,1fr);gap:16px}
+  .icon-box{width:140px}
+  .journey-flow{overflow-x:visible;flex-wrap:nowrap}
+  .journey-step{flex:1;min-width:0}
+}
+@media (min-width:1100px){
+  .canvas-grid{gap:12px}
+}
+
+/* ── Print-friendly fallback ── */
+@media print{
+  body{overflow:visible;background:white}
+  #deck{height:auto;overflow:visible}
+  .slide{position:relative;display:flex !important;page-break-after:always;overflow:visible}
+  #nav,#progress,#swipe-hint{display:none}
+}
+
+/* ── Reduced motion ── */
+@media (prefers-reduced-motion:reduce){
+  *{transition:none !important;animation:none !important}
+}
 </style>
 </head>
 <body>
@@ -113,15 +215,15 @@ p{font-size:18px;line-height:1.65;color:var(--slate-2);max-width:920px}
 <!-- ═══════════════════════════════════════════════════════════════ -->
 <section class="slide active gradient-bg center">
   <div class="tag">Plataforma SaaS · LATAM 2025</div>
-  <h1 style="font-size:52px">ZIAY</h1>
-  <p style="font-size:24px;margin-top:8px;opacity:0.95">Comercio Conversacional + Inteligencia de Negocio</p>
+  <h1 class="big">ZIAY</h1>
+  <p style="margin-top:8px;opacity:0.95;font-size:clamp(16px,2.8vw,24px);text-align:center">Comercio Conversacional + Inteligencia de Negocio</p>
   <div class="spacer"></div>
-  <p style="font-size:18px;opacity:0.85;max-width:700px">
+  <p style="opacity:0.85;max-width:700px;text-align:center;font-size:clamp(14px,2vw,18px)">
     Un equipo de 27 agentes de IA que vende por WhatsApp 24/7,<br>
     aprende qué discursos convierten más, y nunca pierde un lead.
   </p>
   <div class="spacer"></div>
-  <p style="font-size:15px;opacity:0.7">Modelo de Negocio · Customer Journey · Caso de Uso E2E</p>
+  <p style="opacity:0.7;font-size:clamp(12px,1.8vw,15px);text-align:center">Modelo de Negocio · Customer Journey · Caso de Uso E2E</p>
 </section>
 
 <!-- ═══════════════════════════════════════════════════════════════ -->
@@ -130,13 +232,13 @@ p{font-size:18px;line-height:1.65;color:var(--slate-2);max-width:920px}
 <section class="slide center">
   <div class="tag">¿Qué es ZIAY?</div>
   <h2>Imagina que tu mejor vendedor nunca duerme</h2>
-  <p style="margin-top:16px">
+  <p style="margin-top:12px;text-align:center">
     ZIAY es una plataforma que se conecta a tu WhatsApp y a tu tienda online.
     Cuando un cliente escribe, <strong>27 agentes de inteligencia artificial</strong> toman la conversación
     y la guían paso a paso hasta cerrar la venta — como lo haría tu mejor asesora comercial,
     pero disponible 24 horas, 7 días, sin enfermarse, sin irse de vacaciones, y aprendiendo de cada venta para mejorar la siguiente.
   </p>
-  <div class="icon-row" style="margin-top:28px">
+  <div class="icon-row" style="margin-top:24px">
     <div class="icon-box"><div class="ico">💬</div><div class="lbl">Conversa por WhatsApp</div><div class="sub">Igual que tu mejor vendedora</div></div>
     <div class="icon-box"><div class="ico">🧠</div><div class="lbl">Aprende qué vende más</div><div class="sub">Optimiza sus discursos solo</div></div>
     <div class="icon-box"><div class="ico">📦</div><div class="lbl">Cierra la venta</div><div class="sub">Cotiza, cobra, genera guía</div></div>
@@ -151,7 +253,7 @@ p{font-size:18px;line-height:1.65;color:var(--slate-2);max-width:920px}
 <section class="slide center">
   <div class="tag" style="background:#fef2f2;color:#dc2626">El problema</div>
   <h2>9 de cada 10 leads que llegan por WhatsApp se pierden</h2>
-  <div class="feature-grid" style="margin-top:24px">
+  <div class="feature-grid" style="margin-top:20px">
     <div class="feature-card"><div class="emoji">⏰</div><div class="txt"><h5>Nadie responde a tiempo</h5><p>El cliente escribe a las 10pm, tu equipo sale a las 6pm. Para mañana ya compró con la competencia.</p></div></div>
     <div class="feature-card"><div class="emoji">🤷</div><div class="txt"><h5>No tienes el producto</h5><p>El cliente pregunta por algo que no tienes. La venta se pierde aunque otra tienda sí lo tenga.</p></div></div>
     <div class="feature-card"><div class="emoji">📉</div><div class="txt"><h5>El tráfico no convierte</h5><p>Pagas ads para traer clientes, pero el 98% se va sin comprar porque la experiencia es lenta o genérica.</p></div></div>
@@ -165,8 +267,8 @@ p{font-size:18px;line-height:1.65;color:var(--slate-2);max-width:920px}
 <section class="slide center">
   <div class="tag">La solución</div>
   <h2>ZIAY hace todo el trabajo por ti</h2>
-  <p style="margin-top:12px">Desde que el cliente hace clic en tu anuncio hasta que recibe su pedido — todo automático, todo medido, todo optimizado.</p>
-  <div class="feature-grid" style="margin-top:20px">
+  <p style="margin-top:10px;text-align:center">Desde que el cliente hace clic en tu anuncio hasta que recibe su pedido — todo automático, todo medido, todo optimizado.</p>
+  <div class="feature-grid" style="margin-top:18px">
     <div class="feature-card"><div class="emoji">🤖</div><div class="txt"><h5>27 Agentes de IA</h5><p>Cada uno especializado: uno perfila al cliente, otro muestra el catálogo, otro cotiza, otro maneja objeciones, otro cierra la venta. Trabajan en equipo como un equipo comercial real.</p></div></div>
     <div class="feature-card"><div class="emoji">🧬</div><div class="txt"><h5>Aprendizaje dinámico</h5><p>La IA prueba diferentes discursos y se queda con los que más venden. Cada semana es más efectiva sin que tú muevas un dedo.</p></div></div>
     <div class="feature-card"><div class="emoji">🔀</div><div class="txt"><h5>Smart Routing</h5><p>Si no tienes un producto, ZIAY lo busca en otras de tus marcas o en el marketplace. El lead no se pierde — se redirige a quien sí lo tiene.</p></div></div>
@@ -196,7 +298,7 @@ p{font-size:18px;line-height:1.65;color:var(--slate-2);max-width:920px}
 <section class="slide center">
   <div class="tag">Business Model Canvas</div>
   <h2>¿Cómo hace dinero ZIAY?</h2>
-  <p class="small" style="margin-bottom:16px">9 bloques que explican el negocio completo · pensamiento ágil</p>
+  <p class="small" style="margin-bottom:12px">9 bloques que explican el negocio completo · pensamiento ágil</p>
   <div class="canvas-grid">
     <div class="canvas-cell scrollable"><span class="emoji">👥</span><h4>1 · Segmentos</h4><ul><li>Merchants con tienda WhatsApp en LATAM</li><li>Tiendas Shopify/WooCommerce que quieren vender por chat</li><li>Traffickers que generan leads y buscan comisión</li><li>Marcas con múltiples tiendas (multi-brand)</li></ul></div>
     <div class="canvas-cell scrollable" style="background:var(--mint-2);border-color:var(--emerald)"><span class="emoji">💎</span><h4>2 · Propuesta de valor</h4><ul><li>Vender más conversando mejor (IA que aprende)</li><li>No perder leads (smart routing + bundles)</li><li>Vender 24/7 sin contratar personal</li><li>Cross-border sin fricción (precio todo incluido)</li><li>Compliance anti-ban (tu WhatsApp seguro)</li></ul></div>
@@ -214,8 +316,8 @@ p{font-size:18px;line-height:1.65;color:var(--slate-2);max-width:920px}
   <div class="tag">Business Model Canvas · Parte 2</div>
   <h2>Recursos, Partners y Costos</h2>
   <div class="spacer"></div>
-  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;width:100%;max-width:1100px">
-    <div class="canvas-cell scrollable" style="height:340px"><span class="emoji">🔑</span><h4>7 · Recursos clave</h4><ul>
+  <div class="canvas-grid" style="max-width:1100px">
+    <div class="canvas-cell scrollable"><span class="emoji">🔑</span><h4>7 · Recursos clave</h4><ul>
       <li>27 agentes de IA (perfil, discurso, catálogo, cotización, objeciones, checkout, logística, etc.)</li>
       <li>Plataforma multi-tenant (una instancia, miles de tiendas)</li>
       <li>147 rutas API (infraestructura completa)</li>
@@ -225,7 +327,7 @@ p{font-size:18px;line-height:1.65;color:var(--slate-2);max-width:920px}
       <li>Governor Agent (supervisor de compliance)</li>
       <li>Dynamic Prompt Engine (auto-optimización)</li>
     </ul></div>
-    <div class="canvas-cell scrollable" style="height:340px"><span class="emoji">🤝</span><h4>8 · Partners clave</h4><ul>
+    <div class="canvas-cell scrollable"><span class="emoji">🤝</span><h4>8 · Partners clave</h4><ul>
       <li><strong>Meta/WhatsApp:</strong> Business API + Instagram Graph API</li>
       <li><strong>Shopify:</strong> App Store + webhook integration</li>
       <li><strong>WooCommerce:</strong> WordPress plugin</li>
@@ -235,7 +337,7 @@ p{font-size:18px;line-height:1.65;color:var(--slate-2);max-width:920px}
       <li><strong>DIAN:</strong> facturación electrónica (Alegra)</li>
       <li><strong>Google / TikTok:</strong> Ads APIs + attribution</li>
     </ul></div>
-    <div class="canvas-cell scrollable" style="height:340px"><span class="emoji">💸</span><h4>9 · Estructura de costos</h4><ul>
+    <div class="canvas-cell scrollable"><span class="emoji">💸</span><h4>9 · Estructura de costos</h4><ul>
       <li><strong>LLM API (40%):</strong> llamadas a modelo de lenguaje (glm-4.6, GPT-4o)</li>
       <li><strong>Hosting (15%):</strong> servidor, DB PostgreSQL, Redis</li>
       <li><strong>Pagos (12%):</strong> comisiones de gateways (2.9-3.9%)</li>
@@ -253,7 +355,7 @@ p{font-size:18px;line-height:1.65;color:var(--slate-2);max-width:920px}
 <section class="slide center">
   <div class="tag">Customer Journey</div>
   <h2>Los 9 pasos de una venta conversacional</h2>
-  <p class="small" style="margin-bottom:12px">Desde que el cliente hace clic en el anuncio hasta que recibe su pedido</p>
+  <p class="small" style="margin-bottom:8px">Desde que el cliente hace clic en el anuncio hasta que recibe su pedido · desliza horizontalmente →</p>
   <div class="journey-flow">
     <div class="journey-step"><div class="num">1</div><div class="emoji">🎯</div><h5>Perfilamiento</h5><p>¿Para ti o para tu negocio? Detecta si es mayorista, detal o regalo.</p></div>
     <div class="journey-arrow">→</div>
@@ -333,8 +435,8 @@ p{font-size:18px;line-height:1.65;color:var(--slate-2);max-width:920px}
 <section class="slide center">
   <div class="tag">Todo lo que ofrece ZIAY</div>
   <h2>Una plataforma, infinitas posibilidades</h2>
-  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;width:100%;max-width:1100px;margin-top:16px">
-    <div class="canvas-cell scrollable" style="height:380px"><h4>🤖 Agentes de IA</h4><ul>
+  <div class="canvas-grid" style="max-width:1100px;margin-top:14px">
+    <div class="canvas-cell scrollable"><h4>🤖 Agentes de IA</h4><ul>
       <li>27 agentes especializados</li>
       <li>Governor Agent (supervisor)</li>
       <li>Dynamic Prompt Engine (aprende)</li>
@@ -345,7 +447,7 @@ p{font-size:18px;line-height:1.65;color:var(--slate-2);max-width:920px}
       <li>Vision Agent (identifica por foto)</li>
       <li>Sentiment Analyzer</li>
     </ul></div>
-    <div class="canvas-cell scrollable" style="height:380px"><h4>💬 Mensajería</h4><ul>
+    <div class="canvas-cell scrollable"><h4>💬 Mensajería</h4><ul>
       <li>WhatsApp Business API</li>
       <li>Instagram DMs + comentarios</li>
       <li>Messenger de Facebook</li>
@@ -355,7 +457,7 @@ p{font-size:18px;line-height:1.65;color:var(--slate-2);max-width:920px}
       <li>Comment-to-DM automation</li>
       <li>Anti-ban (24h window + rate limit)</li>
     </ul></div>
-    <div class="canvas-cell scrollable" style="height:380px"><h4>💳 Pagos</h4><ul>
+    <div class="canvas-cell scrollable"><h4>💳 Pagos</h4><ul>
       <li>MercadoPago (LATAM)</li>
       <li>Wompi (Colombia)</li>
       <li>Stripe (internacional)</li>
@@ -365,7 +467,7 @@ p{font-size:18px;line-height:1.65;color:var(--slate-2);max-width:920px}
       <li>OXXO + SPEI (México)</li>
       <li>Credenciales por tenant</li>
     </ul></div>
-    <div class="canvas-cell scrollable" style="height:380px"><h4>🚚 Logística</h4><ul>
+    <div class="canvas-cell scrollable"><h4>🚚 Logística</h4><ul>
       <li>Dropi, 99envios, Aveonline (CO)</li>
       <li>DHL / FedEx (internacional)</li>
       <li>Tracking en tiempo real</li>
@@ -375,7 +477,7 @@ p{font-size:18px;line-height:1.65;color:var(--slate-2);max-width:920px}
       <li>NDR flow (entrega fallida)</li>
       <li>Página pública de tracking</li>
     </ul></div>
-    <div class="canvas-cell scrollable" style="height:380px"><h4>📊 Analytics</h4><ul>
+    <div class="canvas-cell scrollable"><h4>📊 Analytics</h4><ul>
       <li>Funnel conversacional (9 etapas)</li>
       <li>Anomaly detection (real-time)</li>
       <li>Cohort analysis (retención)</li>
@@ -385,7 +487,7 @@ p{font-size:18px;line-height:1.65;color:var(--slate-2);max-width:920px}
       <li>Inventory optimizer</li>
       <li>Daily/weekly reporter</li>
     </ul></div>
-    <div class="canvas-cell scrollable" style="height:380px"><h4>🌍 Cross-Border</h4><ul>
+    <div class="canvas-cell scrollable"><h4>🌍 Cross-Border</h4><ul>
       <li>7 monedas (COP/MXN/BRL/USD...)</li>
       <li>DDP pricing (todo incluido)</li>
       <li>Customs calculator</li>
@@ -404,8 +506,8 @@ p{font-size:18px;line-height:1.65;color:var(--slate-2);max-width:920px}
 <section class="slide center">
   <div class="tag">Integraciones</div>
   <h2>ZIAY se conecta con todo</h2>
-  <p style="margin-top:8px">No reemplazas tu tienda — la potencias. ZIAY se inserta en lo que ya tienes.</p>
-  <div class="feature-grid" style="margin-top:20px">
+  <p style="margin-top:6px;text-align:center">No reemplazas tu tienda — la potencias. ZIAY se inserta en lo que ya tienes.</p>
+  <div class="feature-grid" style="margin-top:18px">
     <div class="feature-card"><div class="emoji">🛍️</div><div class="txt"><h5>Shopify</h5><p>App con ScriptTag que añade botón "Chatear con IA" en cada producto. Webhook bidireccional: órdenes, stock, productos sincronizados en tiempo real.</p></div></div>
     <div class="feature-card"><div class="emoji">🛒</div><div class="txt"><h5>WooCommerce</h5><p>Plugin de WordPress con shortcode + hook automático en product pages. Sync de catálogo + órdenes via REST API.</p></div></div>
     <div class="feature-card"><div class="emoji">📦</div><div class="txt"><h5>Embed SDK universal</h5><p>Una línea de código: &lt;script src="ziay.co/embed/embed.js"&gt;. Funciona en cualquier web. Detecta productos automáticamente.</p></div></div>
@@ -421,7 +523,7 @@ p{font-size:18px;line-height:1.65;color:var(--slate-2);max-width:920px}
 <section class="slide center">
   <div class="tag">Seguridad y Compliance</div>
   <h2>Tu negocio está protegido</h2>
-  <div class="feature-grid" style="margin-top:20px">
+  <div class="feature-grid" style="margin-top:18px">
     <div class="feature-card"><div class="emoji">🛡️</div><div class="txt"><h5>4 capas de defense-in-depth</h5><p>RLS en PostgreSQL + Prisma Extension + Governor Agent + Tool Scoping. Los datos de cada tienda están aislados — imposible que se filtren entre tenants.</p></div></div>
     <div class="feature-card"><div class="emoji">🔒</div><div class="txt"><h5>Anti-ban WhatsApp</h5><p>Respeta ventana de 24h, rate limit por teléfono, template pre-approval, monitoreo de quality rating. Tu número está seguro.</p></div></div>
     <div class="feature-card"><div class="emoji">⚖️</div><div class="txt"><h5>Compliance legal</h5><p>Ley 1581 (datos personales), DIAN (facturación electrónica), retracto (Ley 1480), age gate, KYC. GDPR para clientes europeos.</p></div></div>
@@ -455,36 +557,36 @@ p{font-size:18px;line-height:1.65;color:var(--slate-2);max-width:920px}
 <section class="slide center">
   <div class="tag">Planes</div>
   <h2>Elige tu plan</h2>
-  <div class="persona-row" style="margin-top:28px">
+  <div class="persona-row" style="margin-top:24px">
     <div class="persona-card" style="border-color:var(--border)">
       <div class="emoji">🌱</div>
       <h5>Starter</h5>
-      <p style="font-size:28px;font-weight:800;color:var(--emerald);margin:8px 0">$99<span style="font-size:14px;color:var(--gray)">/mes</span></p>
+      <p style="font-size:clamp(24px,5vw,28px);font-weight:800;color:var(--emerald);margin:8px 0">$99<span style="font-size:14px;color:var(--gray)">/mes</span></p>
       <p>1 marca · 1 canal WhatsApp<br>9 agentes pipeline<br>1,000 conversaciones/mes<br>Analytics básico</p>
     </div>
     <div class="persona-card" style="border:2px solid var(--emerald);background:var(--mint-2)">
       <div class="emoji">🚀</div>
       <h5>Business</h5>
-      <p style="font-size:28px;font-weight:800;color:var(--emerald);margin:8px 0">$299<span style="font-size:14px;color:var(--gray)">/mes</span></p>
+      <p style="font-size:clamp(24px,5vw,28px);font-weight:800;color:var(--emerald);margin:8px 0">$299<span style="font-size:14px;color:var(--gray)">/mes</span></p>
       <p>3 marcas · 3 canales<br>27 agentes + Governor<br>5,000 conversaciones/mes<br>Analytics + Funnel + Bundles<br>Embed SDK</p>
     </div>
     <div class="persona-card" style="border-color:var(--border)">
       <div class="emoji">🏢</div>
       <h5>Enterprise</h5>
-      <p style="font-size:28px;font-weight:800;color:var(--emerald);margin:8px 0">$999<span style="font-size:14px;color:var(--gray)">/mes</span></p>
+      <p style="font-size:clamp(24px,5vw,28px);font-weight:800;color:var(--emerald);margin:8px 0">$999<span style="font-size:14px;color:var(--gray)">/mes</span></p>
       <p>Marcas ilimitadas · Multi-tenant<br>27 agentes + Cross-border<br>Conversaciones ilimitadas<br>Dynamic Prompts + Smart Routing<br>API access + SLA</p>
     </div>
   </div>
-  <p class="small" style="margin-top:24px">Todos los planes incluyen: 4.5% comisión sobre GMV · Compliance anti-ban · Soporte por WhatsApp</p>
+  <p class="small" style="margin-top:20px">Todos los planes incluyen: 4.5% comisión sobre GMV · Compliance anti-ban · Soporte por WhatsApp</p>
 </section>
 
 <!-- ═══════════════════════════════════════════════════════════════ -->
 <!-- SLIDE 17 — CTA Final -->
 <!-- ═══════════════════════════════════════════════════════════════ -->
 <section class="slide gradient-bg center">
-  <h1 style="font-size:48px">Deja de adivinar.<br>Empieza a medir.</h1>
+  <h1 class="final">Deja de adivinar.<br>Empieza a medir.</h1>
   <div class="spacer"></div>
-  <p style="font-size:20px;opacity:0.95;max-width:680px">
+  <p style="opacity:0.95;max-width:680px;text-align:center;font-size:clamp(15px,2.4vw,20px)">
     ZIAY convierte cada conversación de WhatsApp en una venta medible,
     optimizable y escalable. Sin contratar más personal. Sin perder leads.
     Sin salir de WhatsApp.
@@ -497,54 +599,106 @@ p{font-size:18px;line-height:1.65;color:var(--slate-2);max-width:920px}
     <div class="icon-box"><div class="ico">🛡️</div><div class="lbl" style="color:white">Anti-ban garantizado</div></div>
   </div>
   <div class="spacer"></div>
-  <p style="font-size:16px;opacity:0.8">ziay.co · contacto@ziay.co · Bogotá, Colombia</p>
+  <p style="opacity:0.8;text-align:center;font-size:clamp(13px,1.9vw,16px)">ziay.co · contacto@ziay.co · Bogotá, Colombia</p>
 </section>
 
 </div><!-- /deck -->
 
 <!-- ── Navigation ── -->
 <div id="nav">
-  <button id="prev" onclick="navigate(-1)">‹</button>
+  <button id="prev" onclick="navigate(-1)" aria-label="Anterior">‹</button>
   <span id="counter">1 / 17</span>
-  <button id="next" onclick="navigate(1)">›</button>
+  <button id="next" onclick="navigate(1)" aria-label="Siguiente">›</button>
 </div>
+<div id="swipe-hint">← Desliza para navegar →</div>
 
 <script>
-let current=0;
-const slides=document.querySelectorAll('.slide');
-const total=slides.length;
-const counter=document.getElementById('counter');
-const prevBtn=document.getElementById('prev');
-const nextBtn=document.getElementById('next');
-const progress=document.getElementById('progress');
+(function(){
+  let current=0;
+  const slides=document.querySelectorAll('.slide');
+  const total=slides.length;
+  const counter=document.getElementById('counter');
+  const prevBtn=document.getElementById('prev');
+  const nextBtn=document.getElementById('next');
+  const progress=document.getElementById('progress');
+  const swipeHint=document.getElementById('swipe-hint');
+  let swipeLock=false;
 
-function show(n){
-  slides[current].classList.remove('active');
-  current=Math.max(0,Math.min(total-1,n));
-  slides[current].classList.add('active');
-  counter.textContent=(current+1)+' / '+total;
-  prevBtn.disabled=current===0;
-  nextBtn.disabled=current===total-1;
-  progress.style.width=((current+1)/total*100)+'%';
-}
+  function show(n){
+    const target=Math.max(0,Math.min(total-1,n));
+    if(target===current) return;
+    slides[current].classList.remove('active');
+    // Scroll current slide to top before leaving
+    slides[current].scrollTop=0;
+    current=target;
+    slides[current].classList.add('active');
+    slides[current].scrollTop=0;
+    counter.textContent=(current+1)+' / '+total;
+    prevBtn.disabled=current===0;
+    nextBtn.disabled=current===total-1;
+    progress.style.width=((current+1)/total*100)+'%';
+  }
 
-function navigate(dir){show(current+dir);}
+  window.show=show;
+  window.navigate=function(dir){show(current+dir);};
 
-document.addEventListener('keydown',e=>{
-  if(e.key==='ArrowRight'||e.key===' '||e.key==='PageDown')navigate(1);
-  if(e.key==='ArrowLeft'||e.key==='PageUp')navigate(-1);
-  if(e.key==='Home')show(0);
-  if(e.key==='End')show(total-1);
-});
+  // Keyboard navigation
+  document.addEventListener('keydown',function(e){
+    if(e.key==='ArrowRight'||e.key===' '||e.key==='PageDown'){e.preventDefault();navigate(1);}
+    else if(e.key==='ArrowLeft'||e.key==='PageUp'){e.preventDefault();navigate(-1);}
+    else if(e.key==='Home'){show(0);}
+    else if(e.key==='End'){show(total-1);}
+  });
 
-let touchX=0;
-document.addEventListener('touchstart',e=>touchX=e.touches[0].clientX);
-document.addEventListener('touchend',e=>{
-  const dx=e.changedTouches[0].clientX-touchX;
-  if(Math.abs(dx)>50)navigate(dx<0?1:-1);
-});
+  // Touch swipe (improved: ignore vertical scrolls, ignore touches on interactive elements)
+  let touchX=0,touchY=0,touchTime=0,touchTarget=null;
+  document.addEventListener('touchstart',function(e){
+    touchX=e.touches[0].clientX;
+    touchY=e.touches[0].clientY;
+    touchTime=Date.now();
+    touchTarget=e.target;
+  },{passive:true});
 
-show(0);
+  document.addEventListener('touchend',function(e){
+    const dx=e.changedTouches[0].clientX-touchX;
+    const dy=e.changedTouches[0].clientY-touchY;
+    const dt=Date.now()-touchTime;
+    // Only horizontal swipes, fast enough, with dominant X axis, not on scrollable cells
+    const isHorizontal=Math.abs(dx)>Math.abs(dy)*1.5;
+    const isLongEnough=Math.abs(dx)>60;
+    const isFastEnough=dt<800;
+    // Ignore if touch started inside a scrollable area
+    const onScrollable=touchTarget && touchTarget.closest('.scrollable, .journey-flow, .canvas-cell, .scenario');
+    if(isHorizontal && isLongEnough && isFastEnough && !onScrollable && !swipeLock){
+      swipeLock=true;
+      navigate(dx<0?1:-1);
+      setTimeout(function(){swipeLock=false;},400);
+    }
+  },{passive:true});
+
+  // Show swipe hint once on first visit
+  if(!sessionStorage.getItem('ziay_swipe_seen')){
+    setTimeout(function(){
+      swipeHint.classList.add('show');
+      setTimeout(function(){swipeHint.classList.remove('show');},3000);
+    },1200);
+    sessionStorage.setItem('ziay_swipe_seen','1');
+  }
+
+  // Mouse wheel navigation (desktop)
+  let wheelLock=false;
+  document.addEventListener('wheel',function(e){
+    if(wheelLock) return;
+    // Only navigate if slide isn't being scrolled, or is at boundary
+    const active=slides[current];
+    const atTop=active.scrollTop<=0;
+    const atBottom=active.scrollTop+active.clientHeight>=active.scrollHeight-2;
+    if(e.deltaY>30 && atBottom){wheelLock=true;navigate(1);setTimeout(function(){wheelLock=false;},600);}
+    else if(e.deltaY<-30 && atTop){wheelLock=true;navigate(-1);setTimeout(function(){wheelLock=false;},600);}
+  },{passive:true});
+
+  show(0);
+})();
 </script>
 </body>
 </html>

@@ -21487,3 +21487,103 @@ Stage Summary:
 - Sin desbordamiento: contenido largo usa scroll vertical con scrollbar estilizada
 - Pensamiento ágil: storytelling progresivo, cada slide construye sobre la anterior
 - Verificado: HTTP 200, 17 slides detectadas, navegación funcional
+
+---
+Task ID: 2
+Agent: general-purpose (market-researcher)
+Task: Market research on LATAM conversational commerce SaaS — TAM/SAM/SOM, competitors, trends, ICP, pricing, regulation
+
+Work Log:
+- Leí los últimos 500 lines de worklog.md (21,489 líneas total) para entender el contexto previo: ZIAY es SaaS multi-tenant B2B de comercio conversacional LATAM con 27 agentes IA sobre WhatsApp; ya existen 5 presentaciones HTML (BUSINESS-CANVAS, ELEVATOR-SPEECH, INVERSIONISTAS, etc.) y un Business Canvas ágil; el sistema tiene 147 APIs, 986 tests, score 10/10; ya existen ADRs sobre multi-currency, payments, compliance, retracto.
+- Invoqué el skill `web-search` vía Skill tool y ejecuté 26 búsquedas CLI (`z-ai function -n web_search`) en paralelo sobre:
+  * TAM/SAM/SOM: conversational commerce global & LATAM 2024-2025, WhatsApp Business penetration, LATAM SaaS market, SMB software market
+  * Competidores LATAM: Yalo, Zenvia, Blip, Sirena (acquired by Zenvia), Helena CRM (acquired by Asaas), Leadsales, Aivo, Botmaker, Kommo
+  * Competidores globales: Twilio, Bird/MessageBird, ManyChat, Chatfuel, Intercom Fin, Zendesk, Conversica, Drift
+  * Conversational AI enterprise: Kore.ai, Cognigy, Rasa, Yellow.ai
+  * eCommerce enablers: VTEX, Mercado Libre, Shopify, TiendaNube
+  * WhatsApp API pricing changes 2024-2025 (categorías service/utility/authentication/marketing, gratis desde 1 nov 2024)
+  * Tendencias: McKinsey State of AI, Gartner agentic AI predictions, Forrester gen AI adoption, LATAM cross-border ecommerce
+  * ICP: SMB LATAM segment, verticals (fashion/beauty), conversion rate benchmarks (5-15% in-chat vs 2-3% web), pain points (lead leakage, response time)
+  * Pricing: ManyChat $15-139, Botmaker $149-499, Sirena $99-199, Kommo $15-25/seat, Intercom Fin $0.99/resolution, Zendesk $1.50-2.00/resolution, Yellow.ai $0.99/resolution, Kore.ai $50-300K/yr
+  * LLM API costs: GPT-4o mini $0.15/$0.60 per MTok, Gemini 2.0 Flash $0.10/$0.40, DeepSeek V4 $0.14/$0.28
+  * Payment methods by country: PIX (Brasil 42%), PSE (Colombia 34%), OXXO (México), Bre-B (Colombia 2024)
+  * Regulatory: LGPD Brasil, LFPDPPP México, Ley 1581 Colombia, Ley 2439/2024 Colombia (eCommerce reform), AI Bill Brasil PL 2.338/2023
+  * WhatsApp Pay expansion Brasil (greenlighted by Central Bank)
+  * retracto/consumer protection laws CO/MX/BR
+  * Agentic AI trends 2025 (Gartner: 80% CS issues resolved autonomously by 2029, 33% enterprise software with agentic AI by 2028)
+- Guardé cada resultado como JSON en /tmp/market-research/search_*.json
+- Extraje datos relevantes con python3 (parsing de JSON, primeros 8 resultados por query con snippet truncado a 400 chars)
+- Compilé reporte integral en español (7,591 palabras, 893 líneas) con 10 secciones: Resumen Ejecutivo, TAM/SAM/SOM, Panorama Competitivo (6 anillos), Tendencias, ICP, Pricing, Regulación, Oportunidades/Amenazas, Recomendaciones, Bibliografía
+- Incluí 124 fuentes citadas con URLs verificables
+- Cálculos clave:
+  * TAM = USD 18.2 B (mercado conversacional LATAM 2025, Alex Digital 360)
+  * SAM = USD 4.2 B (23% del TAM, SMB retail WhatsApp-first en 5 países foco)
+  * SOM año 3 = USD 30-60 M (0.7-1.5% del SAM, 4,000-6,000 merchants pagando)
+  * Gross margin >70% (COGS USD 0.025/conversación vs revenue implícito USD 0.30-0.80)
+- Top 5 competidores identificados: Yalo (MX, $10.6M revenue 2024, +46% YoY), Zenvia/Sirena (BR, $165.2M revenue 2024), ManyChat (global, $15-139/mes), Botmaker (LATAM, $149-499/mes), Intercom Fin ($0.99/resolution)
+- 3 white spaces críticos: (1) multi-agente agéntico 27+Governor en SMB, (2) marketplace cross-tenant smart routing, (3) cross-border DDP pricing multi-currency
+- 3 amenazas principales: WhatsApp Pay expandiendo a MX/CO/CL, consolidación (Zenvia→Sirena, Asaas→Helena), AI Bill Brasil + Ley 2439/2024 Colombia
+
+Stage Summary:
+- TAM figure: USD 18.2 B (LATAM conversational commerce market 2025, source: Alex Digital 360 — https://www.alexdigital360.com/blog/latin-america-ai-sales-automation-2026-whatsapp-commerce-market-opportunity); SAM = USD 4.2 B; SOM año 3 = USD 30-60 M
+- Top 5 competitors found:
+  1. Yalo (México) — USD 10.6M revenue 2024 (+46% YoY), USD 93M raised, foco enterprise CPG
+  2. Zenvia + Sirena (Brasil) — USD 165.2M revenue 2024 (NASDAQ:ZENV), Sirena adquirida 2021
+  3. ManyChat (global) — USD 15-139/mes, fuerte en creadores/Instagram, sin motor transaccional
+  4. Botmaker (Argentina/LATAM) — USD 149-499/mes + $0.07/conv extra, omnicanal
+  5. Intercom Fin (global) — USD 0.99/resolution, ~USD 5,650/mes para 20 agentes, foco customer support (no sales)
+- Biggest market opportunity for ZIAY: ser la "categoría nueva" — multi-agente agéntico (27 agentes + Governor con modelo de confianza 0-1) + comisión 4.5% GMV + marketplace cross-tenant para SMB retail LATAM. Ningún competidor combina estas tres dimensiones. Gartner valida la categoría (33% enterprise software con agentic AI para 2028 vs <1% en 2024), pero la categoría SMB retail LATAM está vacía. Adicionalmente, el pricing de WhatsApp Business API con conversaciones service gratis desde 1 nov 2024 + LLMs en USD 0.10-0.60/MTok hacen viable gross margin >70% en plan SMB USD 99-299/mes.
+- Report saved to: /home/z/my-project/public/presentaciones/INVESTIGACION-MERCADO.md (7,591 palabras, 893 líneas, 124 fuentes URL citadas)
+
+---
+Task ID: 1
+Agent: general-purpose (fintech-auditor)
+Task: Comprehensive fintech audit of ZIAY project — payments, security, compliance, multi-currency, anti-fraud, reconciliation
+
+Work Log:
+- Leí las últimas ~500 líneas de `worklog.md` para entender el contexto de sprints anteriores (sprint de reglas de agentes, anti-fricción, presentaciones HTML, canvas ágil). Identifiqué que el proyecto está en una etapa de pulido post-MVP con cobertura de tests 986 y scorecard QA 9.9/10.
+- Mapeé el inventario fintech completo del proyecto:
+  * 4 adapters globales: `mercadopago.ts` (239 líneas), `wompi.ts` (220), `stripe.ts` (265), `payu.ts` (322)
+  * 4 adapters locales PSE/PIX/OXXO/SPEI declarados en ADR-0013 pero `local-payments.ts` NO EXISTE en disco
+  * 7 webhooks de pago/mensajería: mercadopago, stripe, wompi, payu, pse, pix, whatsapp, meta
+  * Compliance layer: dian-invoicing (408), retracto (269), kyc-gate (178), retention (234), age-gate (192), dsr, consent, kyc
+  * Wallet: wallet.service.ts (388) + route (513) + 6 componentes dashboard
+  * FX: i18n/currency.ts (323) + i18n/tax.ts (187) + refresh-rates route + FxRate Prisma model
+  * ACP/UCP: ap2 mandates, ucp checkout, acp refunds (bearer ed25519)
+- Inspeccioné en detalle:
+  * `prisma/schema.prisma` (1822 líneas) — Order, Invoice, WalletAccount, WalletTransaction, WithdrawalRequest, AP2Mandate, UcpCheckoutSession, IdentityVerification, ConsentRecord, FxRate, AuditLog (con proofHash/proofSignature W3C VC)
+  * `prisma/sql/rls-policies.sql` (191 líneas) — 19 tablas con RLS
+  * `src/lib/rls.ts` — Prisma extension + RLS SQL policies + getTenantDb helper
+  * `src/lib/middleware/{hmac,idempotency,csrf,rate-limit}.ts` — HMAC timingSafeEqual, idempotencia 2 capas (in-memory + DB AuditLog), CSRF, rate-limit
+  * `src/lib/crypto/{signing,audit-signing}.ts` — ed25519 keypair por tenant, W3C VC sign/verify
+  * `src/lib/acp/bearer.ts` — bearer firmado `{mandateId}.{ed25519(mandateId)}` (V4 AUDIT-FINAL-SEC-001)
+  * `src/lib/services/{wallet,credentials,payments-config}.ts` — service layer
+  * `src/lib/adapters/{payment-adapter,payment-registry,payment-webhook-utils,dian-alegra}.ts`
+  * `src/app/api/{webhooks,payments,compliance,finance,wallet,conciliation,conversions,acp/v1,ucp/v1,monetization}/**/route.ts`
+  * 6 ADRs fintech: 0012 (multi-currency), 0013 (local payments), 0017 (fx persistence), 0018 (webhook rotation), 0019 (automated refund retracto), 0020 (dian-alegra)
+- Verifiqué con `npx tsc --noEmit`:
+  * 58 errores TypeScript en src/
+  * Confirmé error explícito: `src/lib/adapters/payment-registry.ts(29,8): error TS2307: Cannot find module './local-payments'` y `src/app/api/payments/local/route.ts(12,8): error TS2307: Cannot find module '@/lib/adapters/local-payments'`
+  * Confirmé que `.gitignore` contiene `local-*` que oculta el archivo faltante
+- Identifiqué los 3 riesgos críticos bloqueantes + 17 riesgos adicionales (Altos/Medios/Bajos)
+- Comparé contra PCI-DSS v4.0 SAQ-A, SOC 2 Trust Services Criteria, ISO 27001 Annex A
+- Construí roadmap de remediación 30/60/90 días con 24 acciones priorizadas
+- Escribí reporte estructurado en español (LATAM) con 7 secciones: Resumen Ejecutivo, Inventario (56 módulos), Hallazgos por 8 categorías, Top 10 Riesgos Críticos + 10 adicionales, Brecha vs Estándares (PCI-DSS/SOC 2/ISO 27001), Roadmap 30/60/90, Conclusión.
+
+Stage Summary:
+- **Puntaje global de madurez fintech: 5.5 / 10** (cimientos sólidos pero 3 bloqueantes críticos).
+- **Top 3 riesgos críticos:**
+  1. **R-1 (Crítico):** `local-payments.ts` NO existe en disco → PSE/PIX/OXXO/SPEI rotos. 4 de 8 métodos de pago anunciados son no-funcionales. `payment-registry.ts` no carga. Causa raíz: `.gitignore` con patrón `local-*` oculta el archivo faltante. Confirmado con `tsc`: "Cannot find module '@/lib/adapters/local-payments'".
+  2. **R-2 (Crítico):** 58 errores de TypeScript en `src/` — `tsc --noEmit` falla. Imposibilidad de desplegar con type-safety. CI/CD sin gate.
+  3. **R-3 (Crítico):** Ausencia total de anti-fraude transaccional — sin velocity checks, sin blocklists, sin AML/OFAC, sin 3DS/SCA, sin device fingerprinting. Solo KYC gate para crédito/cuotas/compras > COP 2M. Cualquier fraude con tarjeta robada por debajo del umbral prospera.
+- **Top 3 fortalezas:** (1) Adapter pattern limpio para 4 gateways + webhook verification HMAC-SHA256 timingSafeEqual consistente en los 7 endpoints; (2) Compliance LATAM real y documentado (DIAN vía Alegra, retracto Ley 1480, DSR Ley 1581, KYC Ley 2573, age gate Ley 1098, retention); (3) Idempotencia webhooks 2 capas (in-memory + DB AuditLog con SHA-256) + rotación de secretos con grace period (ADR-0018).
+- **Hallazgos adicionales clave:**
+  - `/api/conciliation` SIN auth → leak de GMV cross-tenant (R-4 Alto)
+  - `walletService.recordTransaction` usa `Promise.all` no `$transaction` → ledger y balance pueden divergir (R-5 Alto)
+  - No hay validación de monto en `applyPaymentUpdate` → webhook firmado con monto distinto puede marcar orden pagada (R-6 Alto)
+  - Stripe refund probablemente roto: usa `paymentId` (Checkout Session `cs_...`) como `payment_intent` (debería ser `pi_...`) (R-7 Alto)
+  - DIAN: sin Alegra configurado → factura con CUFE local inválido (NITs placeholders) (R-8 Alto)
+  - Credenciales de gateways en `Setting` plaintext (solo TOTP encriptado) (R-9 Medio)
+  - RLS SQL no cubre wallet/AP2/UCP/IdentityVerification/ConsentRecord/DecisionLog/Setting (R-10 Medio)
+- **Dimensión más fuerte:** Compliance LATAM (8.0/10). **Dimensión más débil:** Anti-fraude (3.5/10).
+- Report saved to: /home/z/my-project/public/presentaciones/AUDITORIA-FINTECH.md

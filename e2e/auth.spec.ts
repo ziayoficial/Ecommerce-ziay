@@ -32,8 +32,7 @@ test.describe('Authentication flows', () => {
 
   test('login page renders with email + password form', async ({ page }) => {
     await page.goto('/login')
-    await expect(page).toHaveTitle(/CommerceFlow|Saramantha|login|Acceso|sesi/i)
-
+    await expect(page).toHaveTitle(/ZIAY|CommerceFlow|Saramantha|login|Acceso|sesi|Comercio/i)
     // Email + password inputs.
     await expect(page.locator('input[type="email"], input[name="email"]')).toBeVisible()
     await expect(page.locator('input[type="password"], input[name="password"]')).toBeVisible()

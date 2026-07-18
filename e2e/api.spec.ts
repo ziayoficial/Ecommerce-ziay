@@ -110,11 +110,11 @@ test.describe('Webhook routes', () => {
   })
 
   test('/api/webhooks/whatsapp GET returns 200 with the correct verify token (when configured)', async ({ request }) => {
-    // When WA_VERIFY_TOKEN is unset, the route uses 'commerceflow_verify' as the default.
+    // When WA_VERIFY_TOKEN is unset in dev, the route uses 'dev-wa-verify-token-change-me' as the default.
     // We try the default token. If env has WA_VERIFY_TOKEN set, this will 403 — still assert
     // the route handled the request without crashing.
     const res = await request.get(
-      '/api/webhooks/whatsapp?hub.mode=subscribe&hub.verify_token=commerceflow_verify&hub.challenge=test-challenge',
+      '/api/webhooks/whatsapp?hub.mode=subscribe&hub.verify_token=dev-wa-verify-token-change-me&hub.challenge=test-challenge',
     )
     expect([200, 403]).toContain(res.status())
     if (res.status() === 200) {

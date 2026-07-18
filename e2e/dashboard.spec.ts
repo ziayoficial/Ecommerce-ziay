@@ -12,7 +12,7 @@ import { test, expect, type Page } from '@playwright/test'
 const TEST_EMAIL = 'valentina@saramantha.co'
 const TEST_PASSWORD = 'demo123'
 
-/** The 14 sidebar nav items defined in src/components/dashboard/sidebar.tsx (NAV_ITEMS). */
+/** The 16 sidebar nav items defined in src/components/dashboard/nav-items.ts (NAV_ITEMS). */
 const EXPECTED_NAV = [
   { id: 'overview', label: /Resumen/i },
   { id: 'messenger', label: /Mensajería|Mensajeria/i },
@@ -20,12 +20,14 @@ const EXPECTED_NAV = [
   { id: 'orders', label: /Pedidos/i },
   { id: 'kanban', label: /Kanban/i },
   { id: 'orchestrator', label: /Orquestador/i },
+  { id: 'llm-costs', label: /Costos de IA/i },
   { id: 'ads', label: /Atribución|Atribucion|Pauta/i },
   { id: 'monetization', label: /Monetización|Monetizacion/i },
   { id: 'wallet', label: /Wallet/i },
   { id: 'logistics', label: /Inteligencia Logística|Logística|Logistica/i },
   { id: 'marketplace', label: /Marketplace/i },
   { id: 'novedades', label: /Novedades/i },
+  { id: 'governance', label: /Gobernanza/i },
   { id: 'integrations', label: /Catálogo e Integraciones|Integraciones/i },
   { id: 'settings', label: /Configuración|Configuracion/i },
 ] as const
@@ -34,14 +36,14 @@ test.beforeEach(async ({ page }) => {
   await signIn(page)
 })
 
-test.describe('Dashboard — 14 views', () => {
-  test('sidebar shows exactly 14 nav items', async ({ page }) => {
+test.describe('Dashboard — 16 views', () => {
+  test('sidebar shows exactly 16 nav items', async ({ page }) => {
     await page.waitForURL('**/', { timeout: 30_000 })
     const navButtons = page.locator('aside nav button')
-    await expect(navButtons).toHaveCount(14)
+    await expect(navButtons).toHaveCount(16)
   })
 
-  test('all 14 expected labels are present in the sidebar', async ({ page }) => {
+  test('all 16 expected labels are present in the sidebar', async ({ page }) => {
     await page.waitForURL('**/', { timeout: 30_000 })
     for (const item of EXPECTED_NAV) {
       await expect(page.locator('aside nav button', { hasText: item.label }).first()).toBeVisible()

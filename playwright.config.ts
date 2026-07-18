@@ -18,7 +18,9 @@ export default defineConfig({
   testDir: './e2e',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
+  // CI: 0 retries (e2e is non-blocking, retries just waste CI minutes).
+  // Local: no retries.
+  retries: 0,
   workers: process.env.CI ? 1 : undefined,
   reporter: process.env.CI ? [['github'], ['html', { open: 'never' }]] : 'html',
   use: {

@@ -148,6 +148,10 @@ jobs:
       WA_VERIFY_TOKEN: dev-wa-verify-token-change-me
       META_VERIFY_TOKEN: dev-meta-verify-token-change-me
       NOCODB_WEBHOOK_SECRET: dev-nocodb-webhook-secret-change-me
+      MERCADOPAGO_WEBHOOK_SECRET: dev-mp-webhook-secret-change-me
+      STRIPE_WEBHOOK_SECRET: dev-stripe-webhook-secret-change-me
+      WOMPI_EVENTS_SECRET: dev-wompi-events-secret-change-me
+      PAYU_WEBHOOK_SECRET: dev-payu-webhook-secret-change-me
       PLAYWRIGHT_BROWSERS_PATH: /home/runner/.cache/ms-playwright
 
     steps:

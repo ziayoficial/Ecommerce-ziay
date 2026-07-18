@@ -142,7 +142,9 @@ test.describe('Dashboard — 16 views', () => {
     await page.waitForURL('**/', { timeout: 30_000 })
     await page.locator('aside nav button', { hasText: /Inteligencia Log|Log.stica/i }).first().click()
     // The topbar h1 reflects the active view's label.
-    await expect(page.locator('header h1')).toHaveText(/Inteligencia Log/i, { timeout: 10_000 })
+    // The topbar renders the view label in a BreadcrumbPage (not h1).
+    // Check the header's text content instead.
+    await expect(page.locator('header')).toContainText(/Inteligencia Log/i, { timeout: 10_000 })
     // Wait for either the loaded content markers OR the loading skeleton (both
     // count as "the view rendered without crashing").
     await expect
@@ -161,7 +163,7 @@ test.describe('Dashboard — 16 views', () => {
   test('marketplace view shows listings', async ({ page }) => {
     await page.waitForURL('**/', { timeout: 30_000 })
     await page.locator('aside nav button', { hasText: /Marketplace/i }).first().click()
-    await expect(page.locator('header h1')).toHaveText(/Marketplace/i, { timeout: 10_000 })
+    await expect(page.locator('header')).toContainText(/Marketplace/i, { timeout: 10_000 })
     await expect
         .poll(
           async () => {

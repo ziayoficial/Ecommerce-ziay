@@ -22344,3 +22344,29 @@ Stage Summary:
 - 1490 files on remote
 - All CI-ready: tsc 0 errors, lint 0 errors, 986/986 tests pass
 - CI workflow (.github/workflows/ci.yml) already configured: lint + typecheck + unit-tests + openapi-spec + build (PostgreSQL) + e2e (Playwright)
+
+---
+Task ID: REBRAND-ZIAY
+Agent: main (orchestrator)
+Task: Rebrand ownership to ZIAY, remove all indisutex references, push to GitHub
+
+Work Log:
+- Searched entire project for "indisutex" (case-insensitive): found 2,580 occurrences across 130 git-tracked files
+- 3-step global replacement via sed:
+  1. Domains: indisutex.com→ziay.co, commerceflow.indisutex.com→ziay.co, staging.commerceflow.indisutex.com→staging.ziay.co
+  2. Company/tenant: Indisutex SAS→ZIAY SAS, Indisutex Intl→ZIAY Intl, Indisutex International→ZIAY International
+  3. Remaining: INDISUTEX→ZIAY, Indisutex→ZIAY, indisutex→ziay
+- Verified: 0 remaining occurrences (git grep -ic returns 0)
+- Verified: 2,109 occurrences of "ZIAY SAS" (ownership properly attributed)
+- Updated git remote with new PAT (github_pat_11BUTIFFI0NW4KWOnNMreN_...)
+- Committed (0552275): 131 files changed, 2567 insertions, 2567 deletions
+- Pushed to https://github.com/ziayoficial/Ecommerce-ziay successfully
+- Post-rebrand verification: tsc 0 errors, lint 0 errors, 986/986 tests pass
+
+Stage Summary:
+- GitHub repo fully updated: https://github.com/ziayoficial/Ecommerce-ziay
+- All "indisutex" references removed (0 remaining)
+- Ownership now "ZIAY SAS" throughout (LICENSE, README, layout.tsx, SECURITY.md, docs, seed.ts, etc.)
+- Domains updated: ziay.co (was indisutex.com)
+- Emails updated: security@ziay.co (was security@indisutex.com)
+- Project health: 0 tsc errors, 0 lint errors, 986/986 tests, 35 RLS policies, dev server healthy

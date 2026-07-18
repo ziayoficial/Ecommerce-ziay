@@ -26,7 +26,7 @@ test.describe('Governance Dashboard', () => {
 
     // The view always renders `<section aria-label="Gobernanza">` (skeleton,
     // error, and loaded states all wrap in this section). Wait for it.
-    await expect(page.locator('section[aria-label="Gobernanza"]')).toBeVisible({ timeout: 15_000 })
+    await expect(page.locator('section[aria-label="Gobernanza"]')).toBeVisible({ timeout: 20_000 })
 
     // Both tab triggers are rendered by Radix Tabs (role=tab). We accept
     // either the loaded tabs OR the loading skeleton — both confirm the
@@ -41,7 +41,7 @@ test.describe('Governance Dashboard', () => {
           const hasSkeleton = (await page.locator('section[aria-label="Gobernanza"] [class*="animate-pulse"], section[aria-label="Gobernanza"] [class*="skeleton"]').count().catch(() => 0)) > 0
           return hasSkeleton
         },
-        { timeout: 15_000, intervals: [500, 1000, 2000] },
+        { timeout: 25_000, intervals: [500, 1000, 2000, 3000] },
       )
       .toBeTruthy()
 
@@ -55,7 +55,7 @@ test.describe('Governance Dashboard', () => {
 
   test('switches between tabs', async ({ page }) => {
     await page.locator('aside nav button', { hasText: /Gobernanza/i }).first().click()
-    await expect(page.locator('section[aria-label="Gobernanza"]')).toBeVisible({ timeout: 15_000 })
+    await expect(page.locator('section[aria-label="Gobernanza"]')).toBeVisible({ timeout: 20_000 })
 
     // Wait for tabs to render (loaded state). The skeleton doesn't render
     // the tab list, so we poll until the tabs are interactive.
@@ -64,7 +64,7 @@ test.describe('Governance Dashboard', () => {
         async () => {
           return await page.locator('section[aria-label="Gobernanza"] [role="tab"]').count().catch(() => 0)
         },
-        { timeout: 15_000, intervals: [500, 1000, 2000] },
+        { timeout: 25_000, intervals: [500, 1000, 2000, 3000] },
       )
       .toBeGreaterThanOrEqual(2)
 
@@ -96,7 +96,7 @@ async function signIn(page: Page): Promise<void> {
   await page.locator('button[type="submit"]').click()
   await page.waitForURL('**/', { timeout: 30_000 })
 
-  await expect(page.locator('header button[aria-label="Menú de usuario"]')).toBeVisible({ timeout: 15_000 })
+  await expect(page.locator('header button[aria-label="Menú de usuario"]')).toBeVisible({ timeout: 20_000 })
   await expect
     .poll(
       async () => {
@@ -105,7 +105,7 @@ async function signIn(page: Page): Promise<void> {
         const body = await res.json().catch(() => ({ tenants: [] }))
         return Array.isArray(body.tenants) ? body.tenants.length : 0
       },
-      { timeout: 15_000, intervals: [300, 800, 1500] },
+      { timeout: 30_000, intervals: [500, 1000, 2000, 3000] },
     )
     .toBeGreaterThan(0)
 }

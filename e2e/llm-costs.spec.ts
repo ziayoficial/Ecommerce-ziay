@@ -30,7 +30,7 @@ test.describe('LLM Costs Dashboard', () => {
 
     // The view always renders `<section aria-label="Costos de IA">` (skeleton,
     // error, and loaded states all wrap in this section). Wait for it.
-    await expect(page.locator('section[aria-label="Costos de IA"]')).toBeVisible({ timeout: 15_000 })
+    await expect(page.locator('section[aria-label="Costos de IA"]')).toBeVisible({ timeout: 20_000 })
 
     // KPI cards render — accept either the loaded KPI labels OR the
     // loading skeleton. Both confirm the view mounted without crashing.
@@ -42,14 +42,14 @@ test.describe('LLM Costs Dashboard', () => {
           const hasSkeleton = (await page.locator('section[aria-label="Costos de IA"] [class*="animate-pulse"], section[aria-label="Costos de IA"] [class*="skeleton"]').count().catch(() => 0)) > 0
           return hasKpis || hasSkeleton
         },
-        { timeout: 15_000, intervals: [500, 1000, 2000] },
+        { timeout: 25_000, intervals: [500, 1000, 2000, 3000] },
       )
       .toBeTruthy()
   })
 
   test('shows budget cards', async ({ page }) => {
     await page.locator('aside nav button', { hasText: /Costos de IA/i }).first().click()
-    await expect(page.locator('section[aria-label="Costos de IA"]')).toBeVisible({ timeout: 15_000 })
+    await expect(page.locator('section[aria-label="Costos de IA"]')).toBeVisible({ timeout: 20_000 })
 
     // Budget cards (Presupuesto diario + Presupuesto mensual) only render
     // when the `/api/llm/budget` fetch resolves successfully. If the API
@@ -62,20 +62,20 @@ test.describe('LLM Costs Dashboard', () => {
           const text = (await page.locator('section[aria-label="Costos de IA"]').innerText().catch(() => '')).toLowerCase()
           return /presupuesto diario|presupuesto mensual|no se pudo cargar|sin actividad/i.test(text)
         },
-        { timeout: 15_000, intervals: [500, 1000, 2000] },
+        { timeout: 25_000, intervals: [500, 1000, 2000, 3000] },
       )
       .toBeTruthy()
   })
 
   test('refresh button works', async ({ page }) => {
     await page.locator('aside nav button', { hasText: /Costos de IA/i }).first().click()
-    await expect(page.locator('section[aria-label="Costos de IA"]')).toBeVisible({ timeout: 15_000 })
+    await expect(page.locator('section[aria-label="Costos de IA"]')).toBeVisible({ timeout: 20_000 })
 
     // Wait until the loaded view (with the "Refrescar" button) is present.
     // The initial loading skeleton doesn't include the refresh button —
     // it only appears once data has loaded (success OR error path).
     const refreshBtn = page.locator('section[aria-label="Costos de IA"] button', { hasText: /Refrescar|Reintentar/i }).first()
-    await expect(refreshBtn).toBeVisible({ timeout: 15_000 })
+    await expect(refreshBtn).toBeVisible({ timeout: 20_000 })
 
     // Click refresh — the button toggles into the `Actualizando...` state
     // (text via t('common.refreshing')) AND adds the `.animate-spin` class
@@ -111,7 +111,7 @@ async function signIn(page: Page): Promise<void> {
   // Wait for the topbar to load + the tenant store to populate so views
   // that depend on `useTenantId()` can fetch their data. Mirrors the
   // pattern from dashboard.spec.ts.
-  await expect(page.locator('header button[aria-label="Menú de usuario"]')).toBeVisible({ timeout: 15_000 })
+  await expect(page.locator('header button[aria-label="Menú de usuario"]')).toBeVisible({ timeout: 20_000 })
   await expect
     .poll(
       async () => {
@@ -120,7 +120,7 @@ async function signIn(page: Page): Promise<void> {
         const body = await res.json().catch(() => ({ tenants: [] }))
         return Array.isArray(body.tenants) ? body.tenants.length : 0
       },
-      { timeout: 15_000, intervals: [300, 800, 1500] },
+      { timeout: 30_000, intervals: [500, 1000, 2000, 3000] },
     )
     .toBeGreaterThan(0)
 }

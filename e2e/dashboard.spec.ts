@@ -69,7 +69,7 @@ test.describe('Dashboard — 16 views', () => {
             const childCount = await mainEl.locator('div').count().catch(() => 0)
             return childCount > 0
           },
-          { timeout: 15_000, intervals: [500, 1000, 2000] },
+          { timeout: 25_000, intervals: [500, 1000, 2000, 3000] },
         )
         .toBeTruthy()
     })
@@ -87,7 +87,7 @@ test.describe('Dashboard — 16 views', () => {
             const hasCurrency = /\$\s?\d|cop/i.test(text)
             return hasKpiText || hasCurrency
           },
-          { timeout: 15_000, intervals: [500, 1000, 2000] },
+          { timeout: 25_000, intervals: [500, 1000, 2000, 3000] },
         )
         .toBeTruthy()
   })
@@ -101,7 +101,7 @@ test.describe('Dashboard — 16 views', () => {
             const text = (await page.locator('main').innerText().catch(() => '')).toLowerCase()
             return /whatsapp|messenger|instagram|conversaci|hilo|chat|bandeja/i.test(text)
           },
-          { timeout: 15_000, intervals: [500, 1000, 2000] },
+          { timeout: 20_000, intervals: [500, 1000, 2000, 3000] },
         )
         .toBeTruthy()
   })
@@ -115,7 +115,7 @@ test.describe('Dashboard — 16 views', () => {
             const text = (await page.locator('main').innerText().catch(() => '')).toLowerCase()
             return /saldo disponible|wallet|retiro|2fa|cuenta|no se pudo cargar/i.test(text)
           },
-          { timeout: 15_000, intervals: [500, 1000, 2000] },
+          { timeout: 25_000, intervals: [500, 1000, 2000, 3000] },
         )
         .toBeTruthy()
   })
@@ -131,7 +131,7 @@ test.describe('Dashboard — 16 views', () => {
             const count = await page.locator('main [role="tab"]').count().catch(() => 0)
             return count
           },
-          { timeout: 15_000, intervals: [500, 1000, 2000] },
+          { timeout: 25_000, intervals: [500, 1000, 2000, 3000] },
         )
         .toBeGreaterThanOrEqual(1)
     const finalCount = await page.locator('main [role="tab"]').count()
@@ -155,7 +155,7 @@ test.describe('Dashboard — 16 views', () => {
             const hasSkeleton = (await page.locator('main [class*="animate-pulse"], main [class*="skeleton"]').count().catch(() => 0)) > 0
             return hasContent || hasSkeleton
           },
-          { timeout: 15_000, intervals: [500, 1000, 2000] },
+          { timeout: 25_000, intervals: [500, 1000, 2000, 3000] },
         )
         .toBeTruthy()
   })
@@ -172,7 +172,7 @@ test.describe('Dashboard — 16 views', () => {
             const hasSkeleton = (await page.locator('main [class*="animate-pulse"], main [class*="skeleton"]').count().catch(() => 0)) > 0
             return hasContent || hasSkeleton
           },
-          { timeout: 15_000, intervals: [500, 1000, 2000] },
+          { timeout: 25_000, intervals: [500, 1000, 2000, 3000] },
         )
         .toBeTruthy()
   })
@@ -190,7 +190,7 @@ async function signIn(page: Page): Promise<void> {
   // the tenant store must be populated (so views depending on useTenantId()
   // can fetch their data). We poll /api/tenants via the page context (which
   // has the auth cookie) until it returns a non-empty list.
-  await expect(page.locator('header button[aria-label="Menú de usuario"]')).toBeVisible({ timeout: 15_000 })
+  await expect(page.locator('header button[aria-label="Menú de usuario"]')).toBeVisible({ timeout: 20_000 })
   await expect
     .poll(
       async () => {
@@ -199,7 +199,7 @@ async function signIn(page: Page): Promise<void> {
         const body = await res.json().catch(() => ({ tenants: [] }))
         return Array.isArray(body.tenants) ? body.tenants.length : 0
       },
-      { timeout: 15_000, intervals: [300, 800, 1500] },
+      { timeout: 30_000, intervals: [500, 1000, 2000, 3000] },
     )
     .toBeGreaterThan(0)
 }

@@ -24,7 +24,8 @@ test.describe('Public Status Page', () => {
     expect(res?.status()).toBeLessThan(400)
 
     // H1 title is always present (server-rendered, no client-side gating).
-    await expect(page.locator('h1', { hasText: 'Estado del Sistema' })).toBeVisible({ timeout: 10_000 })
+    // Use .first() because the layout may also render an h1 (strict mode).
+    await expect(page.locator('h1', { hasText: 'Estado del Sistema' }).first()).toBeVisible({ timeout: 10_000 })
   })
 
   test('shows overall status indicator', async ({ page }) => {

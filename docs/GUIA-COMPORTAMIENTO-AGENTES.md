@@ -660,4 +660,4 @@ return result.content
 
 ---
 
-*ZIAY v0.3.0 · Indisutex SAS © 2026 · Bogotá, Colombia*
+*ZIAY v0.3.0 · ZIAY SAS © 2026 · Bogotá, Colombia*

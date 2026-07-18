@@ -52,9 +52,9 @@ export const metadata: Metadata = {
     "ecommerce",
   ],
   applicationName: "ZIAY",
-  authors: [{ name: "Indisutex SAS" }],
-  creator: "Indisutex SAS",
-  publisher: "Indisutex SAS",
+  authors: [{ name: "ZIAY SAS" }],
+  creator: "ZIAY SAS",
+  publisher: "ZIAY SAS",
   manifest: "/manifest.json",
   alternates: {
     canonical: BASE_URL,
@@ -128,7 +128,7 @@ export const viewport: Viewport = {
 //
 // SEO-4 (IF-4) — completed the Organization schema per the audit findings:
 //   - `contactPoint` (WhatsApp support, 24/7 for LATAM)
-//   - `address` (Indisutex SAS, Bogotá, Colombia)
+//   - `address` (ZIAY SAS, Bogotá, Colombia)
 //   - `taxID` (NIT for Colombia — published on legal pages)
 //   - `sameAs` now points to real social profiles (Instagram, LinkedIn,
 //     Facebook) instead of the irrelevant CDN logo URL
@@ -140,17 +140,17 @@ const orgJsonLd = {
   "@context": "https://schema.org",
   "@type": "Organization",
   name: "ZIAY",
-  legalName: "Indisutex SAS",
+  legalName: "ZIAY SAS",
   url: BASE_URL,
   logo: `${BASE_URL}/logo.svg`,
   description:
     "Plataforma omnicanal de venta conversacional (WhatsApp, Messenger, Instagram) con órdenes, pagos anticipado/contra entrega y atribución de pauta con CPA, ROAS y ROI para LATAM.",
-  // Founding year of Indisutex SAS (the legal entity behind ZIAY). The
+  // Founding year of ZIAY SAS (the legal entity behind ZIAY). The
   // README's "© 2026" refers to the current copyright year, not the
   // founding date — these are independent fields.
   foundingDate: "2024",
   areaServed: ["CO", "MX", "PE", "CL", "AR", "BR"],
-  // SEO-4 — NIT (Colombian tax ID) for Indisutex SAS. Published on the
+  // SEO-4 — NIT (Colombian tax ID) for ZIAY SAS. Published on the
   // legal/privacy pages; safe to expose in structured data (it's public
   // business registration info, not sensitive PII).
   taxID: "901.876.543-2",

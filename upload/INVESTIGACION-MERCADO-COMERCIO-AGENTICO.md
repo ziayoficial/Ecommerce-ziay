@@ -182,7 +182,7 @@ ZIAY se posiciona en un **espacio único** que ningún competidor cubre completa
 | **SAM** (Serviceable Addressable Market) | LATAM conversational commerce 2026 | $24.6B ($18.2B × 1.35 growth) |
 | **SOM** (Serviceable Obtainable Market) | Colombia + México WhatsApp commerce year 1 | $50-100M (0.2-0.4% del SAM) |
 
-### Caso de Uso Específico: Indisutex SAS
+### Caso de Uso Específico: ZIAY SAS
 
 | Métrica | Valor |
 |---|---|
@@ -194,11 +194,11 @@ ZIAY se posiciona en un **espacio único** que ningún competidor cubre completa
 | ROAS con ZIAY (proyectado) | 2.5x+ (verdict engine automático) |
 | ROI ZIAY | 16x (por cada $1 invertido, recupera $16) |
 
-### Expansión: De Indisutex a mercado abierto
+### Expansión: De ZIAY a mercado abierto
 
 | Fase | Mercado | Clientes objetivo | GMV esperado |
 |---|---|---|---|
-| **Fase 1** (meses 1-3) | Indisutex (4 marcas) | 4 | $50M COP/mes |
+| **Fase 1** (meses 1-3) | ZIAY (4 marcas) | 4 | $50M COP/mes |
 | **Fase 2** (meses 4-6) | Colombia, moda/textil | 20 marcas | $500M COP/mes |
 | **Fase 3** (meses 7-12) | LATAM (CO, MX, PE, CL) | 100 marcas | $5B COP/mes |
 | **Fase 4** (año 2) | LATAM + cross-industry | 500+ marcas | $50B COP/mes |
@@ -260,7 +260,7 @@ ZIAY se posiciona en un **espacio único** que ningún competidor cubre completa
 ## 8. Recomendaciones Estratégicas para ZIAY
 
 ### Inmediato (Q1 2026)
-1. **Launch beta con 4 marcas Indisutex** — validar product-market fit
+1. **Launch beta con 4 marcas ZIAY** — validar product-market fit
 2. **Integrar Agentic Commerce Protocol (ACP)** — preparar para agentes externos
 3. **Publicar APIs públicas con Schema.org** — ya hecho, optimizar para agentes
 4. **Cerrar 5 clientes piloto en Colombia** — moda, belleza, home
@@ -321,4 +321,4 @@ El comercio agéntico es **la próxima revolución del retail**, comparable a lo
 
 ---
 
-*Investigación realizada: Julio 2026 · ZIAY · Indisutex SAS · Bogotá, Colombia*
+*Investigación realizada: Julio 2026 · ZIAY · ZIAY SAS · Bogotá, Colombia*

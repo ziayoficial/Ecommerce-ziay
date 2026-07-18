@@ -346,7 +346,7 @@ interface OrchestratorState {
 POST /api/orchestrate
 {
   "tenantId": "ten-saramantha",
-  "scenario": "indisutex_wa_catalog",
+  "scenario": "ziay_wa_catalog",
   "mode": "step"
 }
 
@@ -354,7 +354,7 @@ POST /api/orchestrate
 POST /api/orchestrate
 {
   "tenantId": "ten-saramantha",
-  "scenario": "indisutex_wa_catalog",
+  "scenario": "ziay_wa_catalog",
   "mode": "full"
 }
 ```
@@ -365,9 +365,9 @@ POST /api/orchestrate
 
 El documento Saramantha §12 define 4 escenarios end-to-end que el orquestador debe soportar. Cada uno corresponde a una combinación de `plataformaCatalogo` + `bdCatalogo` + `proveedorLogistico` diferente.
 
-### 1. `indisutex_wa_catalog` (§12.1)
+### 1. `ziay_wa_catalog` (§12.1)
 
-**Label**: Indisutex (WhatsApp Catalog)
+**Label**: ZIAY (WhatsApp Catalog)
 **Descripción**: Catálogo nativo WhatsApp, logística Dropi.
 
 **Configuración del tenant**:

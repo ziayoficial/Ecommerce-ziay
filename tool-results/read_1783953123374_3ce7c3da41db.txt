@@ -319,7 +319,7 @@
    319→  const tenant = await db.tenant.findUnique({ where: { id: ctx.tenantId } })
    320→  if (!tenant) throw new Error('Tenant not found')
    321→  const system = `Eres el analista de comportamiento de compra de ${tenant.slug} (plataforma ZIAY,
-   322→contexto Saramantha / Indisutex). Recibes el historial de mensajes y eventos del lead y produces un
+   322→contexto Saramantha / ZIAY). Recibes el historial de mensajes y eventos del lead y produces un
    323→diagnóstico estructurado. Tu única salida es JSON con esta forma:
    324→{"intencion": "alta|media|baja|fraude_potencial", "signals": [...], "siguiente_accion":
    325→"cotizar|enviar_catalogo|pedir_datos|escalar_humano|esperar", "confianza": 0.0-1.0,

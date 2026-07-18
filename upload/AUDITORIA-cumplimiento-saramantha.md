@@ -43,7 +43,7 @@
 | 1.11 | NocoDB tablero operativo | ❌ | **NO implementado** |
 | 1.12 | Docker + Coolify sobre VPS | ❌ | **NO hay docker-compose.yml** ni manifiestos de deploy |
 | 1.13 | Uptime Kuma monitoreo | ❌ | **NO implementado** |
-| 1.14 | Corrección §1.2: catálogo real Indisutex en WhatsApp Catalog | ✅ | Seed de Saramantha usa `fuenteSincronizacion='whatsapp_catalog'` |
+| 1.14 | Corrección §1.2: catálogo real ZIAY en WhatsApp Catalog | ✅ | Seed de Saramantha usa `fuenteSincronizacion='whatsapp_catalog'` |
 
 **Subtotal sección 1:** 4 ✅ · 2 ⚠️ · 8 ❌
 
@@ -210,7 +210,7 @@
 
 | # | Escenario | Estado |
 |---|---|---|
-| 12.1 | Indisutex (WA Catalog) | ⚠️ El flujo conversacional funciona (probé agentes individualmente), pero **no hay orquestación automática** que pase de perfilamiento → discurso → catálogo → cotización → objeción → dirección → logística → checkout en secuencia. Cada agente se invoca manualmente desde el dropdown |
+| 12.1 | ZIAY (WA Catalog) | ⚠️ El flujo conversacional funciona (probé agentes individualmente), pero **no hay orquestación automática** que pase de perfilamiento → discurso → catálogo → cotización → objeción → dirección → logística → checkout en secuencia. Cada agente se invoca manualmente desde el dropdown |
 | 12.2 | Cliente con WooCommerce | ❌ No se probó — el adaptador Woo es stub |
 | 12.3 | Cliente con Shopify | ❌ No se probó — adaptador Shopify es stub |
 | 12.4 | Cliente sin catálogo (Supabase nuestro) | ⚠️ Funciona con `SupabaseCatalogAdapter` modo 'nuestro' pero leyendo de `Product` interna |
@@ -226,7 +226,7 @@ El doc define 8 fases (0-7). Estado:
 | Fase | Estado |
 |---|---|
 | Fase 0 (modelo datos + RLS) | ⚠️ Modelo ✅, RLS ❌ |
-| Fase 1 (migrar Indisutex 4 marcas) | ✅ 4 tenants en seed |
+| Fase 1 (migrar ZIAY 4 marcas) | ✅ 4 tenants en seed |
 | Fase 2 (EcommerceAdapter + piloto Woo) | ⚠️ Adaptador ✅, piloto real ❌ |
 | Fase 3 (Shopify) | ⚠️ Stub ✅, piloto real ❌ |
 | Fase 4 (Supabase propio + Oracle) | ⚠️ Supabase ✅, Oracle ❌ |
@@ -376,7 +376,7 @@ El doc define 8 fases (0-7). Estado:
 
 ## ✅ LO QUE SÍ CUMPLE AL 100%
 
-1. **Multi-tenant con `tenantId` en 28 modelos** + switcher UI funcional (5 tenants: 4 Indisutex + INTL)
+1. **Multi-tenant con `tenantId` en 28 modelos** + switcher UI funcional (5 tenants: 4 ZIAY + INTL)
 2. **Los 10 agentes con prompts exactos** del §6, consultando tablas filtradas por tenant (regla de oro §2 cumplida)
 3. **EcommerceAdapter + LogisticsAdapter** con interfaces exactas del §8.6 y 7 implementaciones (4 catálogo + 3 logística)
 4. **Carrier normalization** para las 6 variantes de "Interrapidísimo" (§15.2)
@@ -474,7 +474,7 @@ De **~43% → ~92%** de cumplimiento del documento Saramantha. Las 8% restantes 
 - n8n corriendo físicamente — requiere Docker (no disponible en sandbox)
 - pgvector neuronal — requiere migrar a Postgres
 
-Todo lo demás está implementado y verificado. La plataforma es funcional end-to-end con los 4 tenants Indisutex + tenant INTL, 10 agentes con prompts exactos, 5 rutas de catálogo, 3 proveedores logísticos, 4 proveedores IA, pipeline de visión OCR+CLIP, monetización con comisión escalonada, Kanban con drag&drop, orquestador de 9 pasos, y deploy con docker-compose listo.
+Todo lo demás está implementado y verificado. La plataforma es funcional end-to-end con los 4 tenants ZIAY + tenant INTL, 10 agentes con prompts exactos, 5 rutas de catálogo, 3 proveedores logísticos, 4 proveedores IA, pipeline de visión OCR+CLIP, monetización con comisión escalonada, Kanban con drag&drop, orquestador de 9 pasos, y deploy con docker-compose listo.
 
 ---
 

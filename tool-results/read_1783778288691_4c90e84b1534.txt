@@ -632,7 +632,7 @@
    632→| RLS readiness | ✅ | Pass | `src/lib/rls.ts` created with 10 PostgreSQL CREATE POLICY statements + Prisma `$extends` interceptor |
    633→| Cross-tenant data leak test | ✅ | Pass | 16 API routes return 400/403 on missing/mismatched tenantId |
    634→| Public SSR scoped | ✅ | Pass | `/t/saramantha` HTML contains only Saramantha products |
-   635→| Seed tenants (5) | ✅ | Pass | Saramantha, Sublimados Majestic, Lovely Pijamas, Sueño de Reina, Indisutex Intl |
+   635→| Seed tenants (5) | ✅ | Pass | Saramantha, Sublimados Majestic, Lovely Pijamas, Sueño de Reina, ZIAY Intl |
    636→| Per-tenant socket rooms | ✅ | Pass | `tenant:<id>` + `conv:<id>` room joins in chat-service |
    637→
    638→**Total: 7/7 pass.**
@@ -936,7 +936,7 @@
    936→
    937→| Check | Value |
    938→|---|---|
-   939→| Tenants in seed | 5 (Saramantha, Sublimados Majestic, Lovely Pijamas, Sueño de Reina, Indisutex Intl) |
+   939→| Tenants in seed | 5 (Saramantha, Sublimados Majestic, Lovely Pijamas, Sueño de Reina, ZIAY Intl) |
    940→| Channels in seed | 9 |
    941→| Products in seed | 7 |
    942→| Customers in seed | 15 |

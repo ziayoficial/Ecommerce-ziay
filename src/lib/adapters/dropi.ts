@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // DropiAdapter — Dropi (Saramantha §9.6, §8.6)
 // Plataforma multitransportadora colombiana + marketplace de dropshipping
-// (+160k productos). Integración ya existente con Indisutex SAS.
+// (+160k productos). Integración ya existente con ZIAY SAS.
 // ─────────────────────────────────────────────────────────────────────────────
 //
 // IMPLEMENTED (real HTTP integration via Dropi API v1):

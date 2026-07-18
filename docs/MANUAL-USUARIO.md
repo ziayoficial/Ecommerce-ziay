@@ -1107,4 +1107,4 @@ skip-link ✅ · h1 sr-only ✅ · `role=alert` en 12 vistas ✅ · `prefers-red
 
 ---
 
-*ZIAY v0.3.0 "Comercio Agéntico" · Indisutex SAS © 2026 · Bogotá, Colombia*
+*ZIAY v0.3.0 "Comercio Agéntico" · ZIAY SAS © 2026 · Bogotá, Colombia*

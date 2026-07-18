@@ -1109,7 +1109,7 @@ Ejecuta el orquestador de 9 pasos (Saramantha §12).
 | Campo | Tipo | Requerido | Descripción |
 |-------|------|-----------|-------------|
 | `tenantId` | string | ✅ | Tenant |
-| `scenario` | string | ✅ | `indisutex_wa_catalog` \| `client_woocommerce` \| `client_shopify` \| `client_supabase_nuestro` |
+| `scenario` | string | ✅ | `ziay_wa_catalog` \| `client_woocommerce` \| `client_shopify` \| `client_supabase_nuestro` |
 | `conversationId` | string | ❌ | Si existe conversación previa |
 | `customerId` | string | ❌ | Si existe customer previo |
 | `mode` | string | ❌ | `step` (un paso, default) \| `full` (los 9) |
@@ -1120,7 +1120,7 @@ Ejecuta el orquestador de 9 pasos (Saramantha §12).
 {
   "state": {
     "tenantId": "ten-saramantha",
-    "scenario": "indisutex_wa_catalog",
+    "scenario": "ziay_wa_catalog",
     "step": 2,
     "perfil": "mayorista",
     "history": [

@@ -390,7 +390,7 @@ Cada propuesta enterprise debe incluir:
 
 | Trimestre | Qué | Impacto enterprise |
 |---|---|---|
-| **Q1 2026** | Piloto con 5 marcas Indisutex | Caso de éxito demostrable |
+| **Q1 2026** | Piloto con 5 marcas ZIAY | Caso de éxito demostrable |
 | **Q2 2026** | PostgreSQL + Redis + multi-instancia | Escala a 50+ marcas |
 | **Q2 2026** | Voice agents (Vapi AI) | Nuevo canal (llamadas) |
 | **Q3 2026** | SSO/SAML + SAP/Oracle adapters | Enterprise-ready |
@@ -448,5 +448,5 @@ ZIAY vende **control, integración, seguridad, escalabilidad y evidencia de ROI*
 
 ---
 
-*Plan estratégico: Julio 2026 · ZIAY · Indisutex SAS · Bogotá, Colombia*
+*Plan estratégico: Julio 2026 · ZIAY · ZIAY SAS · Bogotá, Colombia*
 *Fuentes: Salesforce, SAP, Forbes, McKinsey, Digital Commerce 360, LinkedIn, HubSpot*

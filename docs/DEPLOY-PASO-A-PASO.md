@@ -144,7 +144,7 @@ Docker Compose version v2.x.x
 
 ```bash
 cd /opt
-sudo git clone https://github.com/indisutex/ziay.git
+sudo git clone https://github.com/ziay/ziay.git
 sudo chown -R $USER:$USER ziay
 cd ziay
 ```
@@ -456,7 +456,7 @@ docker compose exec app bunx prisma db seed
 **Output esperado:**
 ```
 🌱 Seeded database with:
-  - 1 tenant (ten-saramantha — Indisutex demo)
+  - 1 tenant (ten-saramantha — ZIAY demo)
   - 3 users (admin@ziay.com, agent@ziay.com, finance@ziay.com)
   - 47 products (pijamasfamilia)
   - 4 scenarios (mayorista_familia, detal_stitch, regalo_hello_kitty, cancelacion_inventario)

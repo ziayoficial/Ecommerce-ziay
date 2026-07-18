@@ -88,7 +88,7 @@ export async function identifyImage(
     catalogForAudit = products.map((p) => ({ sku: p.sku, name: p.name, diseno: p.diseno }))
   }
 
-  const systemPrompt = `Eres el agente de visión de ZIAY (tenant ${tenantId ?? 'desconocido'}, contexto Saramantha / Indisutex). Identificas productos del catálogo real a partir de imágenes enviadas por el cliente.
+  const systemPrompt = `Eres el agente de visión de ZIAY (tenant ${tenantId ?? 'desconocido'}, contexto Saramantha / ZIAY). Identificas productos del catálogo real a partir de imágenes enviadas por el cliente.
 
 Reglas estrictas:
 1. La franja de metadata visible en cada imagen del catálogo contiene SKU, diseño y precio de referencia.

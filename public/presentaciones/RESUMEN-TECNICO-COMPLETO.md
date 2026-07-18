@@ -11,7 +11,7 @@
 |---|---|
 | **Nombre del producto** | ZIAY |
 | **Tagline** | Comercio Conversacional + Atribución Inteligente |
-| **Empresa** | Indisutex SAS |
+| **Empresa** | ZIAY SAS |
 | **Mercado** | LATAM (Colombia, México, Perú, Chile, Argentina) |
 | **Marcas demo** | Saramantha, Sublimados Majestic, Lovely Pijamas, Sueño de Reina |
 | **Dominio planificado** | ziay.co |
@@ -655,5 +655,5 @@ ZIAY está en **Nivel 1-2**: los 26 agentes hacen el 95% del trabajo (investigan
 
 ---
 
-*Documento generado: Julio 2026 · ZIAY · Indisutex SAS · Bogotá, Colombia*
+*Documento generado: Julio 2026 · ZIAY · ZIAY SAS · Bogotá, Colombia*
 *78 commits · 370 archivos src/ · 19,276 líneas worklog · 891 tests en 48 files · 0 lint/tsc errors · score 10.0/10*

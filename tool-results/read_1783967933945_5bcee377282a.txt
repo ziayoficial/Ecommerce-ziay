@@ -77,7 +77,7 @@
     77→<span class="badge badge-primary">Sin tecnicismos</span>
     78→<span class="badge badge-accent">Cómo ganar dinero</span>
     79→</div>
-    80→<p class="muted" style="margin-top:40px;font-size:.85em">Indisutex SAS · Saramantha · Sublimados Majestic · Lovely Pijamas · Sueño de Reina</p>
+    80→<p class="muted" style="margin-top:40px;font-size:.85em">ZIAY SAS · Saramantha · Sublimados Majestic · Lovely Pijamas · Sueño de Reina</p>
     81→</section>
     82→
     83→<!-- Slide 2: El problema que vives -->
@@ -320,7 +320,7 @@
    320→<div class="money-title">💰 Forma 3: Cobras comisión (si eres plataforma)</div>
    321→<div class="grid grid-2">
    322→<div>
-   323→<p>Si eres Indisutex (matriz con 4 marcas), cobras comisión sobre el GMV de cada marca:</p>
+   323→<p>Si eres ZIAY (matriz con 4 marcas), cobras comisión sobre el GMV de cada marca:</p>
    324→<ul>
    325→<li>GMV &lt; $10M/mes → <strong>4.5%</strong></li>
    326→<li>GMV $10M-$40M/mes → <strong>3.0%</strong></li>
@@ -681,7 +681,7 @@
    681→<div style="margin-top:36px;padding:20px 30px;background:var(--surface2);border-radius:14px;border:1px solid var(--border)">
    682→<p style="font-size:1.1em;margin:0">📧 <strong>ventas@commerceflow.app</strong></p>
    683→<p style="margin:8px 0 0">📍 Bogotá, Colombia · LATAM</p>
-   684→<p class="muted" style="margin:4px 0 0;font-size:.9em">Indisutex SAS · Saramantha · Majestic · Lovely · Reina</p>
+   684→<p class="muted" style="margin:4px 0 0;font-size:.9em">ZIAY SAS · Saramantha · Majestic · Lovely · Reina</p>
    685→</div>
    686→<p class="muted" style="margin-top:30px;font-size:.82em">ZIAY · Comercio Conversacional + Atribución de Pauta<br>No es magia. Es tecnología que trabaja para ti.</p>
    687→</section>

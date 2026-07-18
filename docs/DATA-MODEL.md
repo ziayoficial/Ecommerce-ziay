@@ -111,7 +111,7 @@ Documentación de los **31 modelos Prisma** de CommerceFlow OS, organizados por 
 |-------|------|---------|-------------|
 | `id` | String @id | cuid | Identificador único |
 | `slug` | String @unique | — | Slug usado en URLs y como `tenantId` FK. Ej: `saramantha` |
-| `nombreNegocio` | String | — | Razón social. Ej: "Indisutex SAS" |
+| `nombreNegocio` | String | — | Razón social. Ej: "ZIAY SAS" |
 | `marca` | String | — | Nombre comercial. Ej: "Saramantha" |
 | `plataformaCatalogo` | String | `whatsapp_catalog` | `whatsapp_catalog` \| `woocommerce` \| `shopify` \| `catalogo_propio_cliente` \| `catalogo_nuestro` |
 | `bdCatalogo` | String? | `supabase_nuestro` | `supabase_cliente` \| `supabase_nuestro` \| `oracle_nuestro` |

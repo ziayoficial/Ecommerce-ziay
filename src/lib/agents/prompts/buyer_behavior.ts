@@ -11,7 +11,7 @@ export async function buildBuyerBehaviorPrompt(ctx: AgentContext): Promise<{ sys
   const tenant = await db.tenant.findUnique({ where: { id: ctx.tenantId } })
   if (!tenant) throw new Error('Tenant not found')
   const system = `Eres el analista de comportamiento de compra de ${tenant.slug} (plataforma ZIAY,
-contexto Saramantha / Indisutex). Recibes el historial de mensajes y eventos del lead y produces un
+contexto Saramantha / ZIAY). Recibes el historial de mensajes y eventos del lead y produces un
 diagnóstico estructurado. Tu única salida es JSON con esta forma:
 {"intencion": "alta|media|baja|fraude_potencial", "signals": [...], "siguiente_accion":
 "cotizar|enviar_catalogo|pedir_datos|escalar_humano|esperar", "confianza": 0.0-1.0,

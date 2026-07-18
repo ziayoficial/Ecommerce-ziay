@@ -1,6 +1,6 @@
 # Onboarding Completo — ZIAY
 
-> **La guía definitiva para operar, desarrollar y administrar ZIAY** — el centro de mando de commerce conversacional + atribución de pauta para LATAM, construido por y para **Indisutex SAS** (Saramantha, Sublimados Majestic, Lovely Pijamas, Sueño de Reina).
+> **La guía definitiva para operar, desarrollar y administrar ZIAY** — el centro de mando de commerce conversacional + atribución de pauta para LATAM, construido por y para **ZIAY SAS** (Saramantha, Sublimados Majestic, Lovely Pijamas, Sueño de Reina).
 >
 > **Versión 2.0** — sincronizada con `worklog.md` tras `AUTOFIX-A + REPORT-001`. Reemplaza la versión 1.0.
 > **Audiencia:** admin tenant, agente de ventas, operador logístico, trafficker, marketing, desarrolladores, dueños de marca.
@@ -34,7 +34,7 @@ Bienvenido al equipo de **ZIAY**. Esta es la plataforma que conecta los chats de
 
 ### Por qué existe
 
-Indisutex SAS opera cuatro marcas en Colombia (Saramantha, Sublimados Majestic, Lovely Pijamas, Sueño de Reina) y atiende también a clientes externos con catálogos propios. Cada marca vende por WhatsApp y hace pauta en Meta/Google/TikTok. Antes de ZIAY, no había manera de reconciliar las conversiones que reportan las plataformas (Meta cuenta un "lead" como conversión) con la caja real del cliente (el pedido se confirma 2 días después por WhatsApp). El resultado: traffickers escalando anuncios que no vendían, financistas sin visibilidad del GMV real, y operadores ahogados en 3 bandejas de chat distintas.
+ZIAY SAS opera cuatro marcas en Colombia (Saramantha, Sublimados Majestic, Lovely Pijamas, Sueño de Reina) y atiende también a clientes externos con catálogos propios. Cada marca vende por WhatsApp y hace pauta en Meta/Google/TikTok. Antes de ZIAY, no había manera de reconciliar las conversiones que reportan las plataformas (Meta cuenta un "lead" como conversión) con la caja real del cliente (el pedido se confirma 2 días después por WhatsApp). El resultado: traffickers escalando anuncios que no vendían, financistas sin visibilidad del GMV real, y operadores ahogados en 3 bandejas de chat distintas.
 
 ZIAY resuelve esto unificando todo en un dashboard multi-tenant, capturando el `fbclid` / `gclid` / `ttclid` en el primer contacto, propagándolo por el embudo conversacional, y escribiendo un `Attribution` row al cerrar el pedido.
 
@@ -818,7 +818,7 @@ ZIAY tiene **5 rutas SSR** para SEO y presencia pública. Estas páginas se rend
 
 **21. ¿Puedo usar ZIAY sin n8n?** Sí, pero pierdes los 11 workflows externos (orquestación avanzada, integraciones con tools externos). El dashboard y los 26 agentes funcionan sin n8n.
 
-**22. ¿El código es open-source?** Sí, bajo licencia MIT. Los prompts de agentes y la configuración de tenants son propiedad de Indisutex SAS.
+**22. ¿El código es open-source?** Sí, bajo licencia MIT. Los prompts de agentes y la configuración de tenants son propiedad de ZIAY SAS.
 
 ---
 
@@ -879,5 +879,5 @@ ZIAY tiene **5 rutas SSR** para SEO y presencia pública. Estas páginas se rend
 
 ---
 
-**Construido con cuidado por y para Indisutex SAS · 2025–2026.**
+**Construido con cuidado por y para ZIAY SAS · 2025–2026.**
 **Versión del documento:** 2.0 · **Última actualización:** sincronizada con `worklog.md` tras `AUTOFIX-A + REPORT-001`.

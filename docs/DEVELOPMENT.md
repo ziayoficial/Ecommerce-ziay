@@ -53,7 +53,7 @@ bun --version
 ### 1. Clonar el repo
 
 ```bash
-git clone https://github.com/indisutex/commerceflow-os.git
+git clone https://github.com/ziay/commerceflow-os.git
 cd commerceflow-os
 ```
 
@@ -160,7 +160,7 @@ Luego accede al dashboard vía `http://localhost:81` (en vez de `:3000`). Esto t
 
 ## Cargar datos demo
 
-### Seed base — 4 marcas Indisutex + tenant INTL
+### Seed base — 4 marcas ZIAY + tenant INTL
 
 ```bash
 bun run prisma/seed.ts

@@ -44,7 +44,7 @@
 /home/z/my-project/agent-ctx/HARDENING-001-senior-devops-security-engineer.md:9:CommerceFlow OS went from ~85% to ~95% production-ready. All 7 hardening
 /home/z/my-project/agent-ctx/HARDENING-001-senior-devops-security-engineer.md:129:  `bun run db:restore backups/commerceflow_YYYYMMDD_HHMMSS.db.gz` restores
 /home/z/my-project/agent-ctx/BUILD-AGENTS-LIB-001-senior-fullstack-developer.md:12:Extended the CommerceFlow OS agent layer from 10 → 26 conversational agents and created 9 production-grade lib modules for HMAC verification, rate limiting, TOTP 2FA, multi-tenant RLS, LLM provider abstraction, vision pipeline, and embeddings. Zero TypeScript errors in owned files. Zero ESLint errors.
-/home/z/my-project/agent-ctx/BUILD-AGENTS-LIB-001-senior-fullstack-developer.md:54:   - References Saramantha / Indisutex / CommerceFlow OS context where relevant.
+/home/z/my-project/agent-ctx/BUILD-AGENTS-LIB-001-senior-fullstack-developer.md:54:   - References Saramantha / ZIAY / CommerceFlow OS context where relevant.
 /home/z/my-project/agent-ctx/BUILD-AGENTS-LIB-001-senior-fullstack-developer.md:85:- Issuer: `CommerceFlow OS`. Algorithm: SHA1 (widest authenticator compatibility). Digits: 6. Period: 30s.
 /home/z/my-project/agent-ctx/AUTH-001-senior-security-engineer.md:6:- Scope: Implement complete authentication + RBAC for CommerceFlow OS
 /home/z/my-project/agent-ctx/AUTH-001-senior-security-engineer.md:128:- Existing 3 users (valentina/camila/sebastian @commerceflow.co) — `update`
@@ -102,7 +102,7 @@
 /home/z/my-project/src/app/api/shipping/quote/route.ts:1:// CommerceFlow OS — API /api/shipping/quote
 /home/z/my-project/src/app/api/shipping/guide/route.ts:1:// CommerceFlow OS — API /api/shipping/guide
 /home/z/my-project/src/app/login/page.tsx:127:          <span className="font-semibold text-lg tracking-tight">CommerceFlow OS</span>
-/home/z/my-project/src/app/login/page.tsx:157:          © {new Date().getFullYear()} CommerceFlow OS · Indisutex SAS
+/home/z/my-project/src/app/login/page.tsx:157:          © {new Date().getFullYear()} CommerceFlow OS · ZIAY SAS
 /home/z/my-project/src/app/login/page.tsx:169:            <span className="font-semibold text-lg tracking-tight">CommerceFlow OS</span>
 /home/z/my-project/src/components/dashboard/settings-view.tsx:280:            { label: 'Verify token', url: 'commerceflow_verify (configurable en .env)' },
 /home/z/my-project/src/components/dashboard/sidebar.tsx:39:          <div className="font-semibold text-sm truncate">CommerceFlow OS</div>
@@ -120,7 +120,7 @@
 /home/z/my-project/src/lib/rls.ts:1:// CommerceFlow OS — Row-Level Security (RLS) helpers
 /home/z/my-project/src/lib/rls.ts:152:-- CommerceFlow OS — Row-Level Security policies (PostgreSQL prod)
 /home/z/my-project/src/lib/vision/pipeline.ts:1:// CommerceFlow OS — Vision Pipeline
-/home/z/my-project/src/lib/vision/pipeline.ts:88:  const systemPrompt = `Eres el agente de visión de CommerceFlow OS (tenant ${tenantId ?? 'desconocido'}, contexto Saramantha / Indisutex). Identificas productos del catálogo real a partir de imágenes enviadas por el cliente.
+/home/z/my-project/src/lib/vision/pipeline.ts:88:  const systemPrompt = `Eres el agente de visión de CommerceFlow OS (tenant ${tenantId ?? 'desconocido'}, contexto Saramantha / ZIAY). Identificas productos del catálogo real a partir de imágenes enviadas por el cliente.
 /home/z/my-project/src/lib/vision/pipeline.ts:175:  const systemPrompt = `Eres el enriquecedor de catálogo de CommerceFlow OS (tenant ${tenantId ?? 'desconocido'}). Para la imagen del producto provista, generas:
 /home/z/my-project/src/lib/llm/adapter.ts:1:// CommerceFlow OS — LLM Provider Adapter
 /home/z/my-project/src/lib/llm/index.ts:1:// CommerceFlow OS — LLM Provider public API
@@ -146,7 +146,7 @@
 /home/z/my-project/src/lib/totp.ts:15:const ISSUER = 'CommerceFlow OS'
 /home/z/my-project/src/lib/orchestrator/constants.ts:1:// CommerceFlow OS — Orchestrator constants
 /home/z/my-project/upload/REVISION-saramantha-vs-commerceflow.md:1:# Revisión cruzada: Documento Saramantha vs CommerceFlow OS (lo construido)
-/home/z/my-project/upload/REVISION-saramantha-vs-commerceflow.md:4:> **Propósito:** revisar al 100% el documento `PROYECTO_saramantha_agentes_whatsapp.md` (Indisutex SAS — Saramantha · Sublimados Majestic · Lovely Pijamas · Sueño de Reina), compararlo contra lo que ya construimos (CommerceFlow OS), identificar brechas críticas, conflictos y complementariedades, y proponer un plan concreto de evolución.
+/home/z/my-project/upload/REVISION-saramantha-vs-commerceflow.md:4:> **Propósito:** revisar al 100% el documento `PROYECTO_saramantha_agentes_whatsapp.md` (ZIAY SAS — Saramantha · Sublimados Majestic · Lovely Pijamas · Sueño de Reina), compararlo contra lo que ya construimos (CommerceFlow OS), identificar brechas críticas, conflictos y complementariedades, y proponer un plan concreto de evolución.
 /home/z/my-project/upload/REVISION-saramantha-vs-commerceflow.md:12:**Lo que yo construí** (CommerceFlow OS) es la **capa de operación + dashboard + atribución**: Next.js 16 + Prisma + Socket.io + LLM de smart reply + motor CPA/ROAS/ROI + mensajería omnicanal (WhatsApp + Messenger + IG) + estrategia de pago configurable.
 /home/z/my-project/upload/REVISION-saramantha-vs-commerceflow.md:26:| Tema | Documento Saramantha | CommerceFlow OS (construido) | Estado |
 /home/z/my-project/upload/REVISION-saramantha-vs-commerceflow.md:45:- **CommerceFlow OS:** WhatsApp (CO primario + MX), Messenger (internacional), Instagram DM. Bandeja unificada con badges por canal.

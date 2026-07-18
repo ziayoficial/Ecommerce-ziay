@@ -288,4 +288,4 @@ Casos complejos → LangGraph (Python microservice)
 
 ---
 
-*Investigación: Julio 2026 · ZIAY · Indisutex SAS*
+*Investigación: Julio 2026 · ZIAY · ZIAY SAS*

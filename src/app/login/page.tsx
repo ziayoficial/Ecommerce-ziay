@@ -176,7 +176,7 @@ function LoginInner() {
         </div>
 
         <div className="relative z-10 text-xs text-emerald-100/80">
-          © {new Date().getFullYear()} ZIAY · Indisutex SAS
+          © {new Date().getFullYear()} ZIAY · ZIAY SAS
         </div>
       </aside>
 

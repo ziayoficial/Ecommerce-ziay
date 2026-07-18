@@ -394,7 +394,7 @@ Todas las fases del roadmap enterprise original están completas. ZIAY v0.3.0 es
 
 | Trimestre | Qué | Estado |
 |---|---|---|
-| **Q1 2026** | Piloto con 5 marcas Indisutex | ✅ Completado |
+| **Q1 2026** | Piloto con 5 marcas ZIAY | ✅ Completado |
 | **Q2 2026** | PostgreSQL + Redis + multi-instancia | ✅ Completado (Sprint 4, 7) |
 | **Q2 2026** | Voice agents (Vapi AI) | Pendiente (post v0.3.0) |
 | **Q3 2026** | SSO/SAML + SAP/Oracle adapters | Pendiente (post v0.3.0) |
@@ -486,6 +486,6 @@ ZIAY vende **control, integración, seguridad, escalabilidad y evidencia de ROI*
 
 ---
 
-*Plan estratégico: 2026-07-15 · ZIAY v0.3.0 · Indisutex SAS · Bogotá, Colombia*
+*Plan estratégico: 2026-07-15 · ZIAY v0.3.0 · ZIAY SAS · Bogotá, Colombia*
 *Score: 10.0/10 · 891 tests · 71 modelos · 94 rutas · 21 ADRs · 5 protocolos · Next.js 16.2.10 · build 30.2s · 0 lint/tsc/redocly errors*
 *Fuentes: Salesforce, SAP, Forbes, McKinsey, Digital Commerce 360, LinkedIn, HubSpot*

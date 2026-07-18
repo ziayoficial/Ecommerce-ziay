@@ -19,12 +19,12 @@ export const dynamic = 'force-dynamic'
 export const metadata: Metadata = {
   title: 'Términos de Servicio',
   description:
-    'Términos y condiciones del servicio ZIAY — plataforma de comercio conversacional operada por Indisutex SAS.',
+    'Términos y condiciones del servicio ZIAY — plataforma de comercio conversacional operada por ZIAY SAS.',
   alternates: { canonical: `${BASE_URL}/terms` },
   openGraph: {
     title: 'Términos de Servicio · ZIAY',
     description:
-      'Términos y condiciones del servicio ZIAY — plataforma de comercio conversacional operada por Indisutex SAS.',
+      'Términos y condiciones del servicio ZIAY — plataforma de comercio conversacional operada por ZIAY SAS.',
     url: `${BASE_URL}/terms`,
     type: 'article',
     locale: 'es_CO',
@@ -42,7 +42,7 @@ export default function TermsPage() {
             Términos de Servicio
           </h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            Última actualización: Julio 2026 · Indisutex SAS
+            Última actualización: Julio 2026 · ZIAY SAS
           </p>
         </header>
 
@@ -52,7 +52,7 @@ export default function TermsPage() {
             <p>
               Estos Términos de Servicio (&laquo;Términos&raquo;) regulan el
               acceso y uso de la plataforma ZIAY (la &laquo;Plataforma&raquo;),
-              operada por Indisutex SAS (&laquo;ZIAY&raquo;, &laquo;nosotros&raquo;).
+              operada por ZIAY SAS (&laquo;ZIAY&raquo;, &laquo;nosotros&raquo;).
               Al registrarte, iniciar sesión, navegar o utilizar la Plataforma
               — ya sea como comerciante (&laquo;Tenant&raquo;), agente, traficante
               o usuario final (&laquo;Cliente&raquo;) — aceptas quedar vinculado
@@ -146,7 +146,7 @@ export default function TermsPage() {
             </h2>
             <p>
               La Plataforma, su código fuente, diseño, marcas, logotipos y
-              documentación son propiedad de Indisutex SAS y están protegidos
+              documentación son propiedad de ZIAY SAS y están protegidos
               por la legislación colombiana sobre propiedad intelectual (Ley 23
               de 1982, Decisión Andina 351) y los tratados internacionales
               suscritos por Colombia. El Tenant conserva la titularidad sobre
@@ -268,7 +268,7 @@ export default function TermsPage() {
               >
                 datos@ziay.co
               </a>{' '}
-              — Indisutex SAS, Bogotá D.C., Colombia.
+              — ZIAY SAS, Bogotá D.C., Colombia.
             </p>
           </section>
         </article>

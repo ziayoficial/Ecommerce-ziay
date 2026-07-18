@@ -338,4 +338,4 @@ Consulta las 46 reglas NUNCA/SIEMPRE (29 prohibidas + 17 obligatorias).
 
 ---
 
-*ZIAY v0.3.0 · Indisutex SAS © 2026 · Bogotá, Colombia*
+*ZIAY v0.3.0 · ZIAY SAS © 2026 · Bogotá, Colombia*

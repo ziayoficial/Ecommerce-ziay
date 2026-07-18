@@ -1,5 +1,5 @@
      1→     1→// CommerceFlow OS — Seed v2 (multi-tenant + Saramantha real data)
-     2→     2→// 4 tenants Indisutex: Saramantha, Sublimados Majestic, Lovely Pijamas, Sueño de Reina
+     2→     2→// 4 tenants ZIAY: Saramantha, Sublimados Majestic, Lovely Pijamas, Sueño de Reina
      3→     3→// Run: bun run db:seed
      4→     4→import { db } from '../src/lib/db'
      5→     5→
@@ -15,7 +15,7 @@
     15→    15→async function main() {
     16→    16→  console.log('🌱 Seeding CommerceFlow OS v2 (multi-tenant + Saramantha real data)...')
     17→    17→
-    18→    18→  // ── 4 Tenants (Indisutex SAS brands) ─────────────────────────────
+    18→    18→  // ── 4 Tenants (ZIAY SAS brands) ─────────────────────────────
     19→    19→  const saramantha = await db.tenant.upsert({
     20→    20→    where: { slug: 'saramantha' }, update: {},
     21→    21→    create: {
@@ -434,7 +434,7 @@
    434→   434→    create: { id: 'rule-kill', tenantId: saramantha.id, name: 'Pausar anuncios con ROAS < 0.8', trigger: 'ad_underperforming', condition: '{"roas_lt":0.8,"spend_gt":50000}', action: 'pause_ad', active: true }})
    435→   435→
    436→   436→  console.log('✅ Seed v2 complete.')
-   437→   437→  console.log(`   Tenants: 5 (4 Indisutex + 1 INTL) | Channels: 9 | Products: 7 Saramantha`)
+   437→   437→  console.log(`   Tenants: 5 (4 ZIAY + 1 INTL) | Channels: 9 | Products: 7 Saramantha`)
    438→   438→  console.log(`   Customers: 15 | Conversations: 6 | Orders: 16 (Saramantha embudo 73% pending)`)
    439→   439→  console.log(`   Ads: 9 | Carriers canonical: 5 (Interrapidísimo + 6 variants)`)
    440→   440→  console.log(`   Commission entries: ${['despachado', 'datos_completados'].length}`)

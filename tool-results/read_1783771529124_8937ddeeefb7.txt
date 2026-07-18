@@ -18,7 +18,7 @@
     18→| Code surface | 146 TS/TSX files in `src/`, 44 API routes, 66 components (48 shadcn + 16 dashboard + 2 misc), 26 lib files (18 adapters), 62 Prisma models, 1324-line `schema.prisma`, 443-line `seed.ts` |
     19→| Mini-service | `mini-services/chat-service/index.ts` (Socket.io on port 3003, 89 lines) |
     20→| SSR public surface | `/t/[slug]`, `/t/[slug]/p/[sku]`, `sitemap.ts`, `robots.ts` |
-    21→| Multi-tenant tenants | 5 seed: Saramantha, Sublimados Majestic, Lovely Pijamas, Sueño de Reina, Indisutex Intl |
+    21→| Multi-tenant tenants | 5 seed: Saramantha, Sublimados Majestic, Lovely Pijamas, Sueño de Reina, ZIAY Intl |
     22→| Real data | 238 real CRM orders loaded; 6 "Interrapidísimo" carrier variants normalized; §15.1 funnel exact; 20.5% devolvedores; 50% confiables |
     23→| Planning artifact | This document (`AUDIT-PLAN.md`) |
     24→| Evidence root | `/home/z/my-project/audit/` (folders `evidence/`, `findings/`, `reports/`, `fixes/`) |
@@ -486,7 +486,7 @@
    486→| RLS readiness | Postgres policies drafted | SQLite → no RLS (documented) | SQL file or schema annotation | policies exist for prod migration |
    487→| Cross-tenant data leak test | Query orders with tenantA session, expect 0 rows from tenantB | — | API probe | 0 rows leaked |
    488→| Public SSR scoped | /t/saramantha shows only Saramantha products | — | curl + DB grep | no cross-tenant Product in HTML |
-   489→| Seed tenants (5) | Saramantha, Sublimados Majestic, Lovely Pijamas, Sueño de Reina, Indisutex Intl | — | DB query | 5 rows, all activo=true |
+   489→| Seed tenants (5) | Saramantha, Sublimados Majestic, Lovely Pijamas, Sueño de Reina, ZIAY Intl | — | DB query | 5 rows, all activo=true |
    490→
    491→### 3.8 Real-Time Features — Owner: WS-7
    492→
@@ -648,7 +648,7 @@
    648→5. [ ] Verify `@@unique([tenantId, slug])` on Product SKU, Channel accountId.
    649→6. [ ] Verify `onDelete: Cascade` is intentional (not default) on every relation.
    650→7. [ ] Verify no `Json` field lacks documented schema (find all `Json` usages).
-   651→8. [ ] Verify `prisma/seed.ts` creates exactly 5 tenants (Saramantha, Sublimados Majestic, Lovely Pijamas, Sueño de Reina, Indisutex Intl).
+   651→8. [ ] Verify `prisma/seed.ts` creates exactly 5 tenants (Saramantha, Sublimados Majestic, Lovely Pijamas, Sueño de Reina, ZIAY Intl).
    652→9. [ ] Verify seed loads 238 real orders (worklog says 238, RE-AUDITORIA says 239 — confirm truth).
    653→10. [ ] Verify 6 "Interrapidísimo" carrier variants normalized to 1 canonical `Carrier` row (or 6 with `canonicalId`).
    654→11. [ ] Verify seed is idempotent (`upsert` not `create`).

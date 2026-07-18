@@ -11,7 +11,7 @@
     11→|---|---|
     12→| **Nombre del producto** | ZIAY |
     13→| **Tagline** | Comercio Conversacional + Atribución Inteligente |
-    14→| **Empresa** | Indisutex SAS |
+    14→| **Empresa** | ZIAY SAS |
     15→| **Mercado** | LATAM (Colombia, México, Perú, Chile, Argentina) |
     16→| **Marcas demo** | Saramantha, Sublimados Majestic, Lovely Pijamas, Sueño de Reina |
     17→| **Dominio planificado** | ziay.co |
@@ -654,6 +654,6 @@
    654→
    655→---
    656→
-   657→*Documento generado: Julio 2026 · ZIAY · Indisutex SAS · Bogotá, Colombia*
+   657→*Documento generado: Julio 2026 · ZIAY · ZIAY SAS · Bogotá, Colombia*
    658→*45 commits · 238 archivos src/ · 2,810 líneas worklog · 108 tests · 0 lint/tsc errors*
    659→

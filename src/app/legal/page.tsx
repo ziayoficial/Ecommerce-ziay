@@ -19,7 +19,7 @@ export const dynamic = 'force-dynamic'
 export const metadata: Metadata = {
   title: 'Índice Legal',
   description:
-    'Documentos legales de ZIAY — Política de Privacidad, Términos de Servicio, Política de Cookies. Indisutex SAS.',
+    'Documentos legales de ZIAY — Política de Privacidad, Términos de Servicio, Política de Cookies. ZIAY SAS.',
   alternates: { canonical: `${BASE_URL}/legal` },
   openGraph: {
     title: 'Índice Legal · ZIAY',
@@ -64,7 +64,7 @@ export default function LegalIndexPage() {
         <header className="mb-10 border-b pb-6">
           <h1 className="text-3xl font-bold tracking-tight">Índice Legal</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            Indisutex SAS · Bogotá D.C., Colombia ·{' '}
+            ZIAY SAS · Bogotá D.C., Colombia ·{' '}
             <a
               href="mailto:datos@ziay.co"
               className="font-medium text-primary underline-offset-4 hover:underline"
@@ -121,7 +121,7 @@ export default function LegalIndexPage() {
           <h2 className="text-lg font-semibold mb-2">Datos del Responsable</h2>
           <dl className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
             <dt className="text-muted-foreground">Razón social</dt>
-            <dd>Indisutex SAS</dd>
+            <dd>ZIAY SAS</dd>
             <dt className="text-muted-foreground">Domicilio</dt>
             <dd>Bogotá D.C., Colombia</dd>
             <dt className="text-muted-foreground">Correo de contacto (DPO)</dt>

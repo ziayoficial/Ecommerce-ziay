@@ -16,7 +16,7 @@
   7570→- Minors: ZERO matches for `age.*verif|menor.*edad|minor|parental.consent`. No age gate at checkout. COPPA (US) and Colombian Código de la Infancia y Adolescencia (Ley 1098/2006) Art 17 — enhanced PII protection for minors — entirely unaddressed.
   7571→- Marketing consent: ConsentRecord model exists (`/api/compliance/consent`) with purpose enum including 'marketing'. BUT remarketing endpoint (`/api/remarketing`) does NOT check consent before scheduling WhatsApp abandoned-cart / no-response / post-purchase messages. No WhatsApp opt-in flow per Meta Cloud API policy (marketing templates require explicit opt-in outside 24h customer-service window). No unsubscribe keyword handling ("STOP", "BAJA"). No opt-out link in messages.
   7572→- Tax: `src/lib/i18n/tax.ts` computes IVA correctly per country (CO 19%, MX 16%, BR 17%, PE 18%, CL 19%, AR 21%, US Sales Tax). No retefuente / reteica / impuesto al consumo calculations. No DIAN integration (electronic invoicing — mandatory since 2019 for Colombia). No régimen tributario selection (simplificado vs común). No PDF generation.
-  7573→- Privacy policy + terms of service: ZERO legal pages — no `/privacy`, `/terms`, `/legal` directories in `src/app/`. No public privacy policy URL (required by Ley 1581 Art 10 — right to be informed about data processing). No terms of service (required for B2B SaaS). No cookie policy. Storefront footer (`/t/[slug]/page.tsx`) renders empty `<footer>`. Login footer (`/login/page.tsx`) has only `© 2025 ZIAY · Indisutex SAS` — no links to legal documents.
+  7573→- Privacy policy + terms of service: ZERO legal pages — no `/privacy`, `/terms`, `/legal` directories in `src/app/`. No public privacy policy URL (required by Ley 1581 Art 10 — right to be informed about data processing). No terms of service (required for B2B SaaS). No cookie policy. Storefront footer (`/t/[slug]/page.tsx`) renders empty `<footer>`. Login footer (`/login/page.tsx`) has only `© 2025 ZIAY · ZIAY SAS` — no links to legal documents.
   7574→
   7575→Stage Summary:
   7576→
@@ -44,9 +44,9 @@
   7598→### P0 — Hard blockers for production launch
   7599→
   7600→**P0-1 — No privacy policy, no terms of service (Ley 1581 Art 10)**
-  7601→`src/app/` has ZERO routes under `/privacy`, `/terms`, `/legal`. Storefront footer (`src/app/t/[slug]/page.tsx`) renders an empty `<footer>` element. Login footer has only `© 2025 ZIAY · Indisutex SAS` with no links. Ley 1581 Art 10 requires that data subjects be informed about: (a) the data being collected, (b) the purpose, (c) the legal basis, (d) the retention period, (e) the rights they have, (f) how to exercise them. None of this is publicly available. This is also a hard blocker for any B2B SaaS contract (no enforceable ToS).
+  7601→`src/app/` has ZERO routes under `/privacy`, `/terms`, `/legal`. Storefront footer (`src/app/t/[slug]/page.tsx`) renders an empty `<footer>` element. Login footer has only `© 2025 ZIAY · ZIAY SAS` with no links. Ley 1581 Art 10 requires that data subjects be informed about: (a) the data being collected, (b) the purpose, (c) the legal basis, (d) the retention period, (e) the rights they have, (f) how to exercise them. None of this is publicly available. This is also a hard blocker for any B2B SaaS contract (no enforceable ToS).
   7602→
-  7603→**Fix:** Create `src/app/privacy/page.tsx`, `src/app/terms/page.tsx`, `src/app/legal/page.tsx` (or `cookies/page.tsx`). Content drafted by Colombian counsel (Indisutex SAS is the operating entity per `src/app/layout.tsx:legalName`). Link from login footer + storefront footer + dashboard sidebar. Estimated: 1 day (legal review + i18n + footer wiring).
+  7603→**Fix:** Create `src/app/privacy/page.tsx`, `src/app/terms/page.tsx`, `src/app/legal/page.tsx` (or `cookies/page.tsx`). Content drafted by Colombian counsel (ZIAY SAS is the operating entity per `src/app/layout.tsx:legalName`). Link from login footer + storefront footer + dashboard sidebar. Estimated: 1 day (legal review + i18n + footer wiring).
   7604→
   7605→**P0-2 — No data retention policy (Ley 1581 Art 11)**
   7606→Zero references to `retention|purge|delete.after`. No cron job, no `deleteMany({ where: { createdAt: { lt: now - X days } } })` pattern anywhere in src/. The platform retains forever: messages (PII textual), audit logs, customer profiles, abandoned carts, expired consent records, expired KYC verifications. Ley 1581 Art 11 mandates deletion when the data is no longer necessary for the purpose for which it was collected.
@@ -112,7 +112,7 @@
   7666→| Cross-border transfer DPAs | 0 documented | ❌ Gap |
   7667→| Cookie banner | 0 | ⚠️ Exempt today, mandatory if client-side pixels added |
   7668→| Tax calculation coverage | IVA only (no retefuente/reteica/consumo) | ⚠️ Partial |
-  7669→| Legal entity disclosed | "Indisutex SAS" (`layout.tsx:legalName`) | ✅ Disclosed but not in legal pages |
+  7669→| Legal entity disclosed | "ZIAY SAS" (`layout.tsx:legalName`) | ✅ Disclosed but not in legal pages |
   7670→
   7671→## RECOMMENDED NEXT SPRINT (legal-compliance, ~2 weeks)
   7672→

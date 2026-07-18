@@ -127,7 +127,7 @@ interface EstadoPedidoResult {
 - `actualizarInventario`: write-through a la tabla `Product.stock`.
 - `obtenerEstadoPedido`: lee `Order.status` local.
 
-**Cuándo se usa**: para los 4 tenants Indisutex (Saramantha, Majestic, Lovely, Reina) que gestionan su catálogo nativamente en WhatsApp Commerce Manager.
+**Cuándo se usa**: para los 4 tenants ZIAY (Saramantha, Majestic, Lovely, Reina) que gestionan su catálogo nativamente en WhatsApp Commerce Manager.
 
 #### 2. `WooCommerceAdapter`
 

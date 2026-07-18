@@ -1177,7 +1177,7 @@ Antes de go-live en producción seria:
 | Bitácora | `worklog.md` (~19,300 líneas en v0.3.0) |
 | Health endpoint | `https://tu-dominio/api/health` |
 | Issues | GitHub Issues del repo |
-| Security disclosures | `security@indisutex.com` (privado) |
+| Security disclosures | `security@ziay.co` (privado) |
 
 ---
 

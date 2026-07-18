@@ -1,7 +1,7 @@
 # Revisión cruzada: Documento Saramantha vs ZIAY (lo construido)
 
 > **Fecha:** Julio 2026
-> **Propósito:** revisar al 100% el documento `PROYECTO_saramantha_agentes_whatsapp.md` (Indisutex SAS — Saramantha · Sublimados Majestic · Lovely Pijamas · Sueño de Reina), compararlo contra lo que ya construimos (ZIAY), identificar brechas críticas, conflictos y complementariedades, y proponer un plan concreto de evolución.
+> **Propósito:** revisar al 100% el documento `PROYECTO_saramantha_agentes_whatsapp.md` (ZIAY SAS — Saramantha · Sublimados Majestic · Lovely Pijamas · Sueño de Reina), compararlo contra lo que ya construimos (ZIAY), identificar brechas críticas, conflictos y complementariedades, y proponer un plan concreto de evolución.
 
 ---
 
@@ -65,7 +65,7 @@ Estas son las tres piezas que yo añadí por tu instrucción explícita del prim
 Estas son las 8 brechas que sí hay que cerrar. Las ordeno por prioridad operativa (no por dificultad técnica).
 
 ### 3.1 ❌ Multi-tenant (`tenant_id` + aislamiento) — **CRÍTICO**
-- **Tu documento:** §2, §16 — `tenant_id` en TODA tabla + Row-Level Security en Postgres. Es la base del modelo multi-cliente (Indisutex 4 marcas + clientes externos).
+- **Tu documento:** §2, §16 — `tenant_id` en TODA tabla + Row-Level Security en Postgres. Es la base del modelo multi-cliente (ZIAY 4 marcas + clientes externos).
 - **ZIAY:** single-tenant. No hay `tenant_id` en ningún modelo.
 - **Impacto:** sin esto no se puede aceptar un segundo cliente. Es la base de tu modelo de monetización (§17).
 - **Plan:** añadir `tenantId String` a los 18 modelos Prisma + middleware que filtre por sesión/usuario → tenant. SQLite no tiene RLS pero el patrón Prisma `where: { tenantId }` aplica. Al migrar a Postgres, activar RLS nativo.

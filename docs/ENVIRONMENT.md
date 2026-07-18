@@ -47,10 +47,10 @@ Todas las variables se cargan vía `process.env` en el servidor. Las variables c
 ### Ejemplo
 
 ```bash
-DOMAIN=commerceflow.indisutex.com
-NEXTAUTH_URL=https://commerceflow.indisutex.com
+DOMAIN=ziay.co
+NEXTAUTH_URL=https://ziay.co
 N8N_PROTOCOL=https
-WEBHOOK_URL=https://commerceflow.indisutex.com/n8n
+WEBHOOK_URL=https://ziay.co/n8n
 ```
 
 **Habilita**: HTTPS en Caddy, webhooks absolutos, NextAuth callbacks.
@@ -112,8 +112,8 @@ Estos tokens se configuran en el dashboard de Meta (developers.facebook.com) y d
 ### Ejemplo
 
 ```bash
-WA_VERIFY_TOKEN=indisutex_wa_token_2026_xyz
-META_VERIFY_TOKEN=indisutex_meta_token_2026_abc
+WA_VERIFY_TOKEN=ziay_wa_token_2026_xyz
+META_VERIFY_TOKEN=ziay_meta_token_2026_abc
 META_APP_SECRET=abc123def456ghi789jkl012mno345pqr678
 ```
 
@@ -270,9 +270,9 @@ NocoDB se usa como capa de visualización y edición de pedidos para operadores 
 ### Ejemplo
 
 ```bash
-NOCODB_PUBLIC_URL=https://commerceflow.indisutex.com/nocodb
-NOCODB_WEBHOOK_URL=https://commerceflow.indisutex.com/nocodb/api/v1/db/data/noco/commerceflow/orders
-NOCODB_WEBHOOK_SECRET=indisutex_nocodb_secret_xyz_2026
+NOCODB_PUBLIC_URL=https://ziay.co/nocodb
+NOCODB_WEBHOOK_URL=https://ziay.co/nocodb/api/v1/db/data/noco/commerceflow/orders
+NOCODB_WEBHOOK_SECRET=ziay_nocodb_secret_xyz_2026
 ```
 
 **Habilita**: sync bidireccional Kanban ↔ NocoDB. Sin esto, los endpoints `/api/webhooks/nocodb-in` y `/api/webhooks/nocodb-out` rechazan payloads con 403.
@@ -379,13 +379,13 @@ META_VERIFY_TOKEN=commerceflow_verify_dev
 
 ```bash
 # .env (staging)
-DOMAIN=staging.commerceflow.indisutex.com
-NEXTAUTH_URL=https://staging.commerceflow.indisutex.com
+DOMAIN=staging.ziay.co
+NEXTAUTH_URL=https://staging.ziay.co
 DATABASE_URL=postgresql://commerceflow:pass@postgres:5432/commerceflow
 NEXTAUTH_SECRET=$(openssl rand -hex 32)
 N8N_ENCRYPTION_KEY=$(openssl rand -hex 32)
-WA_VERIFY_TOKEN=indisutex_staging_wa_xyz
-META_VERIFY_TOKEN=indisutex_staging_meta_abc
+WA_VERIFY_TOKEN=ziay_staging_wa_xyz
+META_VERIFY_TOKEN=ziay_staging_meta_abc
 META_APP_SECRET=staging_app_secret
 NOCODB_WEBHOOK_SECRET=staging_nocodb_secret
 POSTGRES_PASSWORD=staging_strong_password

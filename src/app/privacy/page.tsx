@@ -43,7 +43,7 @@ export default function PrivacyPage() {
             Política de Privacidad
           </h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            Última actualización: Julio 2026 · Indisutex SAS
+            Última actualización: Julio 2026 · ZIAY SAS
           </p>
         </header>
 
@@ -53,7 +53,7 @@ export default function PrivacyPage() {
               1. Responsable del Tratamiento
             </h2>
             <p>
-              Indisutex SAS, con NIT en trámite, domiciliada en Bogotá D.C.,
+              ZIAY SAS, con NIT en trámite, domiciliada en Bogotá D.C.,
               Colombia, en su calidad de responsable del tratamiento de datos
               personales en los términos del artículo 3 de la Ley 1581 de 2012
               y el Decreto Reglamentario 1377 de 2013. Contacto del
@@ -147,7 +147,7 @@ export default function PrivacyPage() {
               Como titular de los datos personales tienes derecho a:
             </p>
             <ul className="list-disc pl-6 space-y-1.5">
-              <li>Acceso a tus datos personales tratados por Indisutex SAS.</li>
+              <li>Acceso a tus datos personales tratados por ZIAY SAS.</li>
               <li>Rectificación de datos inexactos o incompletos.</li>
               <li>Supresión de datos en los casos previstos por la ley.</li>
               <li>
@@ -286,7 +286,7 @@ export default function PrivacyPage() {
               >
                 datos@ziay.co
               </a>{' '}
-              — Indisutex SAS, Bogotá D.C., Colombia.
+              — ZIAY SAS, Bogotá D.C., Colombia.
             </p>
           </section>
         </article>

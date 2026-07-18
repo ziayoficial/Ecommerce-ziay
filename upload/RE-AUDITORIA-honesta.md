@@ -47,7 +47,7 @@
 | 1.11 | NocoDB | ❌ No corre | 🟡 |
 | 1.12 | Docker + Coolify | ❌ docker-compose.yml existe pero Docker no instalado | 🟡 |
 | 1.13 | Uptime Kuma | ❌ No implementado | ❌ |
-| 1.14 | Catálogo real Indisutex en WA Catalog | ✅ Seed Saramantha usa `fuenteSincronizacion='whatsapp_catalog'` | ✅ |
+| 1.14 | Catálogo real ZIAY en WA Catalog | ✅ Seed Saramantha usa `fuenteSincronizacion='whatsapp_catalog'` | ✅ |
 
 **§1: 2 ✅ · 11 🟡 · 1 ❌**
 
@@ -218,7 +218,7 @@ Verificación: `grep "build.*Prompt" src/lib/agents/prompts.ts` → **10 funcion
 
 | # | Escenario | Verificación | Estado |
 |---|---|---|---|
-| 12.1 | Indisutex WA Catalog | 🟡 Orquestador funciona (probado 4 pasos), pero NO corre los 9 completos en una sola llamada (timeout) | 🟡 |
+| 12.1 | ZIAY WA Catalog | 🟡 Orquestador funciona (probado 4 pasos), pero NO corre los 9 completos en una sola llamada (timeout) | 🟡 |
 | 12.2 | Cliente WooCommerce | ❌ No probable (stub) | ❌ |
 | 12.3 | Cliente Shopify | ❌ No probable (stub) | ❌ |
 | 12.4 | Cliente Supabase nuestro | 🟡 Funciona con stub | 🟡 |
@@ -232,7 +232,7 @@ Verificación: `grep "build.*Prompt" src/lib/agents/prompts.ts` → **10 funcion
 | Fase | Estado |
 |---|---|
 | 0 (modelo + RLS) | 🟡 Modelo ✅, RLS ❌ |
-| 1 (4 marcas Indisutex) | ✅ |
+| 1 (4 marcas ZIAY) | ✅ |
 | 2 (Woo piloto) | 🟡 stub |
 | 3 (Shopify) | 🟡 stub |
 | 4 (Supabase+Oracle) | 🟡 stubs |

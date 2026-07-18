@@ -101,7 +101,7 @@ const masterWorkflow = {
           parameters: [
             { name: 'action', 'value': 'full' },
             { name: 'tenantId', 'value': '={{ $json.body.tenantId }}' },
-            { name: 'scenario', 'value': '={{ $json.body.scenario || "indisutex_wa_catalog" }}' },
+            { name: 'scenario', 'value': '={{ $json.body.scenario || "ziay_wa_catalog" }}' },
             { name: 'customerId', 'value': '={{ $json.body.customerId }}' },
             { name: 'conversationId', 'value': '={{ $json.body.conversationId }}' },
           ],
@@ -131,7 +131,7 @@ const masterWorkflow = {
   _notes: [
     'Master Orchestrator — ejecuta los 10 agentes en secuencia (§12.1 narrative).',
     'Endpoint: POST http://app:3000/api/orchestrate con action=full',
-    '4 escenarios: indisutex_wa_catalog | client_woocommerce | client_shopify | client_supabase_nuestro',
+    '4 escenarios: ziay_wa_catalog | client_woocommerce | client_shopify | client_supabase_nuestro',
     'Importar: n8n → Workflows → Import from File → seleccionar este JSON',
   ],
 }

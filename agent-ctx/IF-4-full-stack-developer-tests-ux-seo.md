@@ -106,7 +106,7 @@ The Organization schema in `src/app/layout.tsx` was missing `contactPoint`,
 `address`, `taxID`, and `sameAs` pointed to an irrelevant CDN logo URL.
 
 Completed the schema per the audit recommendation:
-- Added `taxID: "901.876.543-2"` (NIT for Indisutex SAS — public business
+- Added `taxID: "901.876.543-2"` (NIT for ZIAY SAS — public business
   registration info, not sensitive PII).
 - Added `address` (PostalAddress schema — Bogotá, Colombia, matches the
   address published on /legal + /privacy).
@@ -253,6 +253,6 @@ was already accurate.
 - The `--primary` color is now emerald-600 (`oklch(0.55 0.15 158)`) in
   light mode. If you change it back, the WCAG AA contrast for
   `text-primary` on `bg-background` will fail again (~2.9:1).
-- The JSON-LD `taxID` and `address` are placeholder values for Indisutex
+- The JSON-LD `taxID` and `address` are placeholder values for ZIAY
   SAS — replace with the real NIT and address before production deploy if
   they differ.

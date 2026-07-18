@@ -36,9 +36,9 @@ fbq('track', 'PageView');
 <script>
 (function(){
   try {
-    if (!localStorage.getItem('indisutex_access_granted')) {
-      localStorage.setItem('indisutex_access_granted', 'true');
-      localStorage.setItem('indisutex_user_email', 'usuario@local.com');
+    if (!localStorage.getItem('ziay_access_granted')) {
+      localStorage.setItem('ziay_access_granted', 'true');
+      localStorage.setItem('ziay_user_email', 'usuario@local.com');
     }
   } catch(e) {
     // localStorage no disponible en file:// — continuar sin él
@@ -47,7 +47,7 @@ fbq('track', 'PageView');
 </script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Generador de Prompts · Indisutex</title>
+<title>Generador de Prompts · ZIAY</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -274,7 +274,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--rose);bo
 
 <header>
   <div class="hinner">
-    <div class="logo">Indisutex <span style="opacity:.5">·</span> Generador
+    <div class="logo">ZIAY <span style="opacity:.5">·</span> Generador
       <small id="h-user-email">Prompts para ChateaPro</small>
     </div>
     <div class="hlinks" id="h-links-dynamic">
@@ -323,7 +323,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--rose);bo
         <div class="hint">Ej: Laura, Valentina, Sara</div>
       </div>
       <div class="fg"><label>Empresa <span class="req">*</span></label>
-        <input id="s-empresa" placeholder="Indisutex SAS" oninput="autoSave()">
+        <input id="s-empresa" placeholder="ZIAY SAS" oninput="autoSave()">
       </div>
       <div class="fg"><label>Años de experiencia</label>
         <input id="s-anos" placeholder="8" oninput="autoSave()">
@@ -436,7 +436,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--rose);bo
     <div style="margin-bottom:10px">
       <div style="font-size:.72rem;font-weight:700;color:#0369a1;margin-bottom:5px">📤 Cómo exportar (guardar respaldo en tu PC):</div>
       <div class="tutorial-step"><div class="tutorial-num">1</div><div class="tutorial-text">Llena el formulario con todos tus datos y haz clic en <strong>"Exportar configuración"</strong> (arriba o abajo en esta pestaña).</div></div>
-      <div class="tutorial-step"><div class="tutorial-num">2</div><div class="tutorial-text">Se descarga un archivo <code>.json</code> con nombre automático, ej: <code>config_indisutex_2026-04-15.json</code>. Renómbralo si trabajas con varias marcas: <code>config_saramantha_laura.json</code>.</div></div>
+      <div class="tutorial-step"><div class="tutorial-num">2</div><div class="tutorial-text">Se descarga un archivo <code>.json</code> con nombre automático, ej: <code>config_ziay_2026-04-15.json</code>. Renómbralo si trabajas con varias marcas: <code>config_saramantha_laura.json</code>.</div></div>
       <div class="tutorial-step"><div class="tutorial-num">3</div><div class="tutorial-text">Guárdalo en una carpeta de tu PC. Puedes tener un archivo por marca o por vendedora — no se sobreescriben entre sí.</div></div>
     </div>
     <div style="margin-bottom:10px">
@@ -461,13 +461,13 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--rose);bo
   <!-- DROPI QUICK ACCESS PANEL -->
   <div class="card" style="border:1.5px solid #93c5fd;background:linear-gradient(135deg,#eff6ff,#f0f9ff)">
     <div class="ct" style="color:#1d4ed8">🛍 Acceso rápido — Dropi &amp; Registro</div>
-    <div class="cd" style="color:#2563eb">Accede al catálogo de Indisutex en Dropi o invita a nuevos dropshippers con tu enlace de afiliado.</div>
+    <div class="cd" style="color:#2563eb">Accede al catálogo de ZIAY en Dropi o invita a nuevos dropshippers con tu enlace de afiliado.</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
-      <a href="https://app.dropi.co/dashboard/provider/807272/greisy?isFavorite=true" target="_blank" class="bblue" style="text-decoration:none;display:inline-flex;align-items:center;gap:5px">🛍 Ver catálogo Indisutex en Dropi →</a>
+      <a href="https://app.dropi.co/dashboard/provider/807272/greisy?isFavorite=true" target="_blank" class="bblue" style="text-decoration:none;display:inline-flex;align-items:center;gap:5px">🛍 Ver catálogo ZIAY en Dropi →</a>
       <a href="https://app.dropi.co/auth/register?afl=807272" target="_blank" class="bgreen" style="text-decoration:none;display:inline-flex;align-items:center;gap:5px">✅ Registrar nuevo dropshipper →</a>
     </div>
     <div class="al ainfo" style="margin-top:10px;font-size:.68rem">
-      💡 <strong>Tip:</strong> Comparte el enlace de registro con tus clientes mayoristas para que se registren directamente en Dropi como dropshippers de Indisutex.
+      💡 <strong>Tip:</strong> Comparte el enlace de registro con tus clientes mayoristas para que se registren directamente en Dropi como dropshippers de ZIAY.
     </div>
   </div>
 
@@ -493,7 +493,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--rose);bo
       <div class="dropi-cta-icon">🛍️</div>
       <div class="dropi-cta-body">
         <div class="dropi-cta-title">¡Vende en Dropi — el marketplace #1 para dropshippers!</div>
-        <div class="dropi-cta-desc">Accede al catálogo completo de Indisutex con precios de fábrica, envíos gestionados y seguimiento en tiempo real. <strong>⚠️ Importante: antes de abrir el catálogo Dropi, asegúrate de estar logueado en tu cuenta Dropi en otra pestaña</strong> — así podrás acceder directo a nuestros productos sin redirigirte al login.</div>
+        <div class="dropi-cta-desc">Accede al catálogo completo de ZIAY con precios de fábrica, envíos gestionados y seguimiento en tiempo real. <strong>⚠️ Importante: antes de abrir el catálogo Dropi, asegúrate de estar logueado en tu cuenta Dropi en otra pestaña</strong> — así podrás acceder directo a nuestros productos sin redirigirte al login.</div>
       </div>
       <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">
         <a href="https://app.dropi.co/dashboard/provider/807272/greisy?isFavorite=true" target="_blank" class="dropi-cta-btn">🛍 Ver en Dropi →</a>
@@ -503,7 +503,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--rose);bo
 
     <!-- PRECIOS CATÁLOGO DROPI INFO -->
     <div class="al ainfo" style="margin-top:10px;font-size:.69rem">
-      💰 <strong>¿Cuánto puedes ganar?</strong> Los precios que ves en cada producto son los precios de fábrica Indisutex configurados en el prompt. El margen que ves es lo que te queda al vender al precio de referencia del mercado. Estos datos aparecerán en el prompt generado para que tu bot lo comunique a cada cliente mayorista de forma automática.
+      💰 <strong>¿Cuánto puedes ganar?</strong> Los precios que ves en cada producto son los precios de fábrica ZIAY configurados en el prompt. El margen que ves es lo que te queda al vender al precio de referencia del mercado. Estos datos aparecerán en el prompt generado para que tu bot lo comunique a cada cliente mayorista de forma automática.
     </div>
 
     <!-- BRAND SOCIAL LINKS PANEL -->
@@ -600,9 +600,9 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--rose);bo
   <!-- DROPI AFFILIATE CALLOUT IN PROMPT TAB -->
   <div class="al ainfo" style="margin-top:10px;border:1.5px solid #93c5fd;background:linear-gradient(135deg,#eff6ff,#f0f9ff)">
     <div style="font-size:.75rem;font-weight:700;color:#1d4ed8;margin-bottom:5px">🛍 Siguiente paso — Configura Dropi</div>
-    <div style="font-size:.69rem;color:#2563eb;line-height:1.6;margin-bottom:8px">Con tu prompt listo, el siguiente paso es vincular tu asistente con el catálogo de Indisutex en Dropi para gestionar pedidos y despachos automáticamente.</div>
+    <div style="font-size:.69rem;color:#2563eb;line-height:1.6;margin-bottom:8px">Con tu prompt listo, el siguiente paso es vincular tu asistente con el catálogo de ZIAY en Dropi para gestionar pedidos y despachos automáticamente.</div>
     <div style="display:flex;gap:7px;flex-wrap:wrap">
-      <a href="https://app.dropi.co/dashboard/provider/807272/greisy?isFavorite=true" target="_blank" class="bblue" style="text-decoration:none;font-size:.7rem">🛍 Ver catálogo Indisutex →</a>
+      <a href="https://app.dropi.co/dashboard/provider/807272/greisy?isFavorite=true" target="_blank" class="bblue" style="text-decoration:none;font-size:.7rem">🛍 Ver catálogo ZIAY →</a>
       <a href="https://app.dropi.co/auth/register?afl=807272" target="_blank" class="bgreen" style="text-decoration:none;font-size:.7rem">✅ Registrarse en Dropi gratis →</a>
     </div>
   </div>
@@ -730,10 +730,10 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--rose);bo
 // ════════════════════════════════════════
 // STATE
 // ════════════════════════════════════════
-const STORE_KEY = 'indisutex_gen_v7';
+const STORE_KEY = 'ziay_gen_v7';
 
 const DEFAULT_BRANDS = [
-  {id:'saramantha', name:'Saramantha', nombreIA:'Laura', empresaIA:'Indisutex SAS',
+  {id:'saramantha', name:'Saramantha', nombreIA:'Laura', empresaIA:'ZIAY SAS',
    waUrl:'https://chat.whatsapp.com/H2OCX4VYBJ93SRMcdN9qcQ?mode=gi_t',
    catWa:'https://wa.me/c/573235753226',
    maps:'https://maps.app.goo.gl/wsrgxhU6B7xYZ61M7',
@@ -741,13 +741,13 @@ const DEFAULT_BRANDS = [
    dropiAfl:'https://app.dropi.co/auth/register?afl=807272',
    atencionUrl:'', dir:'Cl.14 #7-95 Centro Cali | CC Shangai LOC 125-126 | LUN-DOM 9am-6pm',
    telefono:'', instagram:'https://www.instagram.com/saramanthaboutique/', facebook:'', tiktok:'https://www.tiktok.com/@saramantha63'},
-  {id:'majestic',   name:'Sublimados Majestic', nombreIA:'Valentina', empresaIA:'Indisutex SAS',
+  {id:'majestic',   name:'Sublimados Majestic', nombreIA:'Valentina', empresaIA:'ZIAY SAS',
    waUrl:'', catWa:'', maps:'', dropiUrl:'https://app.dropi.co/dashboard/provider/807272/greisy?isFavorite=true', dropiAfl:'https://app.dropi.co/auth/register?afl=807272',
    atencionUrl:'', dir:'', telefono:'', instagram:'', facebook:'', tiktok:''},
-  {id:'lovely',     name:'Lovely',   nombreIA:'Sofia', empresaIA:'Indisutex SAS',
+  {id:'lovely',     name:'Lovely',   nombreIA:'Sofia', empresaIA:'ZIAY SAS',
    waUrl:'', catWa:'', maps:'', dropiUrl:'https://app.dropi.co/dashboard/provider/807272/greisy?isFavorite=true', dropiAfl:'https://app.dropi.co/auth/register?afl=807272',
    atencionUrl:'', dir:'', telefono:'', instagram:'', facebook:'', tiktok:''},
-  {id:'sueno',      name:'Sueño de Reina', nombreIA:'Sara', empresaIA:'Indisutex SAS',
+  {id:'sueno',      name:'Sueño de Reina', nombreIA:'Sara', empresaIA:'ZIAY SAS',
    waUrl:'', catWa:'', maps:'', dropiUrl:'https://app.dropi.co/dashboard/provider/807272/greisy?isFavorite=true', dropiAfl:'https://app.dropi.co/auth/register?afl=807272',
    atencionUrl:'', dir:'', telefono:'', instagram:'', facebook:'', tiktok:''},
 ];
@@ -755,7 +755,7 @@ const DEFAULT_BRANDS = [
 const DEFAULT_STATE = {
   store: {
     nombre: 'Laura',
-    empresa: 'Indisutex SAS',
+    empresa: 'ZIAY SAS',
     anos: '8',
     tiendas: '+5 tiendas',
     dir: 'Cl.14 #7-95 Centro Cali | CC Shangai LOC 125-126 | LUN-DOM 9am-6pm',
@@ -765,7 +765,7 @@ const DEFAULT_STATE = {
     atencion: 'https://wa.me/573222475957',
     tppal: '1-4d',
     tmuni: '5-8d',
-    pagos: [{tipo:'Bancolombia',detalle:'Ahorros | Cta: 80300004229 | Titular: Indisutex SAS'}],
+    pagos: [{tipo:'Bancolombia',detalle:'Ahorros | Cta: 80300004229 | Titular: ZIAY SAS'}],
     fletes: [
       {rango:'1u',valor:'$22.000'},
       {rango:'2-3u',valor:'$22.000'},
@@ -781,7 +781,7 @@ const DEFAULT_STATE = {
 };
 
 // ════════════════════════════════════════
-// CATALOG DE PRODUCTOS INDISUTEX
+// CATALOG DE PRODUCTOS ZIAY
 // ════════════════════════════════════════
 const DEFAULT_PRODUCTS = [
   {
@@ -950,7 +950,7 @@ const LS = {
 };
 
 function init() {
-  const email = LS.get('indisutex_user_email') || '';
+  const email = LS.get('ziay_user_email') || '';
   if (email) {
     const emailEl = document.getElementById('h-user-email');
     if (emailEl) emailEl.textContent = email;
@@ -978,7 +978,7 @@ function init() {
           dropiUrl: 'https://app.dropi.co/dashboard/provider/807272/greisy?isFavorite=true',
           dropiAfl: 'https://app.dropi.co/auth/register?afl=807272',
           nombreIA: b.name === 'Saramantha' ? 'Laura' : 'Laura',
-          empresaIA: 'Indisutex SAS',
+          empresaIA: 'ZIAY SAS',
           ...b
         }));
       }
@@ -1014,7 +1014,7 @@ function init() {
   updateCharBar();
   populateBrandSelect();
   // Show user email in header
-  const _uemail = LS.get('indisutex_user_email') || '';
+  const _uemail = LS.get('ziay_user_email') || '';
   const _uEl = document.getElementById('h-user-email');
   if (_uEl && _uemail) _uEl.textContent = _uemail;
 }
@@ -1145,8 +1145,8 @@ function renderBrandsConfig() {
             <div class="hint">Así se presentará la IA de esta marca en WhatsApp.</div>
           </div>
           <div class="fg"><label>🏢 Empresa IA (para esta marca)</label>
-            <input value="${esc(b.empresaIA||'Indisutex SAS')}" placeholder="Indisutex SAS" oninput="state.store.brands[${i}].empresaIA=this.value;autoSave()">
-            <div class="hint">Ej: Indisutex SAS o el nombre comercial de la línea.</div>
+            <input value="${esc(b.empresaIA||'ZIAY SAS')}" placeholder="ZIAY SAS" oninput="state.store.brands[${i}].empresaIA=this.value;autoSave()">
+            <div class="hint">Ej: ZIAY SAS o el nombre comercial de la línea.</div>
           </div>
         </div>
         <div class="g2" style="margin-bottom:8px">
@@ -1219,7 +1219,7 @@ function toggleBrandCfg(i) {
 
 function addBrandGroup() {
   if (!state.store.brands) state.store.brands = [];
-  state.store.brands.push({id:'brand_'+Date.now(), name:'', nombreIA:'', empresaIA:'Indisutex SAS', waUrl:'', catWa:'', maps:'', dropiUrl:'https://app.dropi.co/dashboard/provider/807272/greisy?isFavorite=true', dropiAfl:'https://app.dropi.co/auth/register?afl=807272', atencionUrl:'', dir:'', telefono:'', instagram:'', facebook:'', tiktok:''});
+  state.store.brands.push({id:'brand_'+Date.now(), name:'', nombreIA:'', empresaIA:'ZIAY SAS', waUrl:'', catWa:'', maps:'', dropiUrl:'https://app.dropi.co/dashboard/provider/807272/greisy?isFavorite=true', dropiAfl:'https://app.dropi.co/auth/register?afl=807272', atencionUrl:'', dir:'', telefono:'', instagram:'', facebook:'', tiktok:''});
   renderBrandsConfig();
   updateHeaderLinks();
   populateBrandSelect();
@@ -1291,7 +1291,7 @@ function toggleRule(id, val) {
 }
 
 function resetRules() {
-  if (!confirm('¿Restaurar TODAS las reglas al estándar Indisutex?')) return;
+  if (!confirm('¿Restaurar TODAS las reglas al estándar ZIAY?')) return;
   absRules = JSON.parse(JSON.stringify(ABS_RULES_DEFAULT));
   renderAbsRules();
   autoSave();
@@ -2222,7 +2222,7 @@ function exportConfig() {
   const blob = new Blob([json], {type: 'application/json'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  const nombre = (state.store.empresa || 'indisutex').toLowerCase().replace(/\s+/g,'_');
+  const nombre = (state.store.empresa || 'ziay').toLowerCase().replace(/\s+/g,'_');
   a.href = url;
   a.download = `config_${nombre}_${new Date().toISOString().slice(0,10)}.json`;
   a.click();
@@ -2273,12 +2273,12 @@ function importConfig(input) {
 // BREVO CONTACT SYNC
 // ════════════════════════════════════════
 function syncBrevoWithNegocio() {
-  const email = LS.get('indisutex_user_email') || '';
+  const email = LS.get('ziay_user_email') || '';
   if (!email) return;
   // Solo sincronizar si tiene empresa definida y no se ha hecho aún con negocio
   const empresa = gv('s-empresa') || state.store.empresa || '';
-  const yaConNegocio = LS.get('indisutex_brevo_negocio_synced');
-  if (empresa && empresa !== 'Indisutex SAS' && !yaConNegocio) {
+  const yaConNegocio = LS.get('ziay_brevo_negocio_synced');
+  if (empresa && empresa !== 'ZIAY SAS' && !yaConNegocio) {
     fetch('/.netlify/functions/brevo-contact', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -2288,7 +2288,7 @@ function syncBrevoWithNegocio() {
         negocio: empresa
       })
     }).then(() => {
-      LS.set('indisutex_brevo_negocio_synced', '1');
+      LS.set('ziay_brevo_negocio_synced', '1');
     }).catch(() => {}); // silencioso
   }
 }
@@ -2367,7 +2367,7 @@ function buildPrompt() {
 
   // Resolver identidad de la marca del primer producto
   let nombre  = s.nombre  || 'Laura';
-  let empresa = s.empresa || 'Indisutex SAS';
+  let empresa = s.empresa || 'ZIAY SAS';
   const firstBrandId = prods[0].brand;
   const brandCfg = brands.find(b => (b.id||b.name) === firstBrandId);
   if (brandCfg) {
@@ -2609,14 +2609,14 @@ function buildPrompt() {
 IRP Colombia: 1u=$22mil|2-3=$22mil|4-6=$24mil|7-11=$27mil|12+=$27mil. Ppales 1-4d|Municipios 5-8d.
 INTL: P1:"Confirmame ciudad y pais. 😊" P2:cotizar producto+flete juntos→"Son $[X]+$[Y] a [CIUDAD]. ¿Arrancamos? 😊"
 NUNCA tabla Colombia a intl. NUNCA inventar flete. Contra entrega Colombia siempre.
-Cuenta:"Pagas al recibir. Bancolombia Ahorros Cta 80300004229 Indisutex SAS 😊"`
+Cuenta:"Pagas al recibir. Bancolombia Ahorros Cta 80300004229 ZIAY SAS 😊"`
     } else {
       fletesSection =
 `# FLETES Y PAGO
 IRP Colombia: 1u=$22mil|2-3=$22mil|4-6=$24mil|7-11=$27mil|12+=$27mil. Ppales 1-4d|Municipios 5-8d.
 INTL: P1:"Confirmame ciudad y pais. 😊" P2:cotizar producto+flete juntos→"Son $[X]+$[Y] a [CIUDAD]. ¿Arrancamos? 😊"
 NUNCA tabla Colombia a intl. NUNCA inventar flete. Contra entrega Colombia siempre.
-Cuenta:"Pagas al recibir. Bancolombia Ahorros Cta 80300004229 Indisutex SAS 😊"`
+Cuenta:"Pagas al recibir. Bancolombia Ahorros Cta 80300004229 ZIAY SAS 😊"`
     }
 
     // ── FLUJO textos específicos ─────────────
@@ -2721,7 +2721,7 @@ MSG4→"Short Tira. Ref.mcdo $39.000 — con 12: pagas $198mil, te sobran $270mi
 Empresa: ${empresa}|${anos} anos|+5 tiendas/mes
 Local: Cl.14 #7-95 Centro Cali|CC Shangai LOC 125-126|LUN-DOM 9am-6pm
 Maps: ${mapUrl}
-Bancolombia: Ahorros|Cta:80300004229|Titular:Indisutex SAS
+Bancolombia: Ahorros|Cta:80300004229|Titular:ZIAY SAS
 Atencion: ${att}
 Producto: PIJAMA BATOLA TALLA UNICA|Tela:Suave sublimada|Talla unica cubre S a L
 Disenos actuales: Stitch(morada),Aguacate(negra),Pig(rosada)`;
@@ -2764,7 +2764,7 @@ PRECIO EN IMAGEN: identificar REF→aplicar tramo tabla→cotizar. NUNCA usar pr
 IRP Colombia: 1u=$22mil|2-3=$22mil|4-6=$24mil|7-11=$27mil|12+=$27mil. Ppales 1-4d|Municipios 5-8d.
 INTL: P1:"Confirmame ciudad y pais. 😊" P2:cotizar producto+flete juntos→"Son $[X]+$[Y] a [CIUDAD]. ¿Arrancamos? 😊"
 NUNCA tabla Colombia a intl. NUNCA inventar flete. Contra entrega Colombia siempre.
-Cuenta:"Pagas al recibir. Bancolombia Ahorros Cta 80300004229 Indisutex SAS 😊"`;
+Cuenta:"Pagas al recibir. Bancolombia Ahorros Cta 80300004229 ZIAY SAS 😊"`;
 
       flujoBlock = `# FLUJO
 I1:"vender"/"negocio"/"emprender"/"surtir"→I2 MAYOR. Sin perfil→"¿Para surtir tu tienda, para ti o regalo? 😊"
@@ -2844,7 +2844,7 @@ MSG4→"Short Tira. Ref.mcdo $39.000 — con 12: pagas $198mil, te sobran $270mi
 Empresa: ${empresa}|${anos} anos|+5 tiendas/mes
 Local: Cl.14 #7-95 Centro Cali|CC Shangai LOC 125-126|LUN-DOM 9am-6pm
 Maps: ${mapUrl}
-Bancolombia: Ahorros|Cta:80300004229|Titular:Indisutex SAS
+Bancolombia: Ahorros|Cta:80300004229|Titular:ZIAY SAS
 Att: ${att}
 Producto: PIJAMA PANTALON TIRAS|Tela:Piel de durazno|Talla unica cubre S a L
 Disenos actuales: Stitch-Ohana,Mafalda,HelloKitty,SpongeBob,Labubu,Pig`;
@@ -2887,7 +2887,7 @@ PRECIO EN IMAGEN: identificar REF→aplicar tramo tabla→cotizar. NUNCA usar pr
 IRP Colombia: 1u=$22mil|2-3=$22mil|4-6=$24mil|7-11=$27mil|12+=$27mil. Ppales 1-4d|Municipios 5-8d.
 INTL: P1:"Confirmame ciudad y pais. 😊" P2:cotizar producto+flete juntos→"Son $[X]+$[Y] a [CIUDAD]. ¿Arrancamos? 😊"
 NUNCA tabla Colombia a intl. NUNCA inventar flete. Contra entrega Colombia siempre.
-Cuenta:"Pagas al recibir. Bancolombia Ahorros Cta 80300004229 Indisutex SAS 😊"`
+Cuenta:"Pagas al recibir. Bancolombia Ahorros Cta 80300004229 ZIAY SAS 😊"`
 
       flujoBlock = `# FLUJO
 I1:"vender"/"negocio"/"emprender"/"surtir"→I2 MAYOR. Sin perfil→"¿Para surtir tu tienda, para ti o regalo? 😊"
@@ -2967,7 +2967,7 @@ MSG4→"Pantalon Tiras. Ref.mcdo $45.000 — con 12: pagas $318mil, te sobran $2
 Empresa: ${empresa}|${anos} anos|+5 tiendas/mes
 Local: Cl.14 #7-95 Centro Cali|CC Shangai LOC 125-126|LUN-DOM 9am-6pm
 Maps: ${mapUrl}
-Bancolombia: Ahorros|Cta:80300004229|Titular:Indisutex SAS
+Bancolombia: Ahorros|Cta:80300004229|Titular:ZIAY SAS
 Atencion: ${att}
 Producto: SHORT TIRA TALLA UNICA (top+short)|Tela:Suave sublimada|Talla unica cubre S a L
 Disenos actuales: Rosa,Multicolor,Azul`;
@@ -3010,7 +3010,7 @@ PRECIO EN IMAGEN: identificar REF→aplicar tramo tabla→cotizar. NUNCA usar pr
 IRP Colombia: 1u=$22mil|2-3=$22mil|4-6=$24mil|7-11=$27mil|12+=$27mil. Ppales 1-4d|Municipios 5-8d.
 INTL: P1:"Confirmame ciudad y pais. 😊" P2:cotizar producto+flete juntos→"Son $[X]+$[Y] a [CIUDAD]. ¿Arrancamos? 😊"
 NUNCA tabla Colombia a intl. NUNCA inventar flete. Contra entrega Colombia siempre.
-Cuenta:"Pagas al recibir. Bancolombia Ahorros Cta 80300004229 Indisutex SAS 😊"`;
+Cuenta:"Pagas al recibir. Bancolombia Ahorros Cta 80300004229 ZIAY SAS 😊"`;
 
       flujoBlock = `# FLUJO
 I1:"vender"/"negocio"/"emprender"/"surtir"→I2 MAYOR. Sin perfil→"¿Para surtir tu tienda, para ti o regalo? 😊"
@@ -3261,7 +3261,7 @@ NUNCA:[N48]${n48lines2}
 ${siempStr2}`;
 
   // ── CONTEXTO ──
-  const cuentaPago2 = pagos.length?`${pagos[0].tipo}: ${pagos[0].detalle.replace(/\|/g,' ').replace(/  +/g,' ')}`:'Bancolombia: Ahorros|Cta:80300004229|Titular:Indisutex SAS';
+  const cuentaPago2 = pagos.length?`${pagos[0].tipo}: ${pagos[0].detalle.replace(/\|/g,' ').replace(/  +/g,' ')}`:'Bancolombia: Ahorros|Cta:80300004229|Titular:ZIAY SAS';
   const attLbl2 = _isPantalon2(mp)?'Att':'Atencion';
   // Productos: línea compacta por cada uno
   const ctxProdsLines2 = prods.map(p=>{
@@ -3398,7 +3398,7 @@ REGLA: cada REF=su tabla. NUNCA cruzar. MARGEN:"[n]u a $[pu]/u\u2192pagas $[tota
   }
 
   // ── FLETES ──
-  const cta2 = pagos.length?`${pagos[0].tipo} ${pagos[0].detalle.replace(/\|/g,' ').replace(/  +/g,' ')}`:'Bancolombia Ahorros Cta 80300004229 Indisutex SAS';
+  const cta2 = pagos.length?`${pagos[0].tipo} ${pagos[0].detalle.replace(/\|/g,' ').replace(/  +/g,' ')}`:'Bancolombia Ahorros Cta 80300004229 ZIAY SAS';
   const fletes2 = `# FLETES Y PAGO
 IRP Colombia: ${IRP2}. Ppales 1-4d|Municipios 5-8d.
 INTL: P1:"Confirmame ciudad y pais. \ud83d\ude0a" P2:cotizar producto+flete juntos\u2192"Son $[X]+$[Y] a [CIUDAD]. \u00bfArrancamos? \ud83d\ude0a"
@@ -3658,7 +3658,7 @@ function toast(msg) {
 // ════════════════════════════════════════
 function logoutUser() {
   if (!confirm('¿Cerrar sesión? Tus datos guardados se conservarán.')) return;
-  LS.del('indisutex_access_granted');
+  LS.del('ziay_access_granted');
   window.location.href = 'index.html';
 }
 

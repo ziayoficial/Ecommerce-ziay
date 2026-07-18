@@ -625,7 +625,7 @@ ZIAY pasó de ser una capa de operación (dashboard + motor de atribución + mul
 - **Capa de operación** (original): dashboard omnicanal, motor CPA/ROAS/ROI, estrategia de pago configurable, kill-switch de pauta, IA smart reply.
 - **Capa de ejecución de agentes** (Saramantha §6): 10 agentes especializados con prompts exactos, multi-tenant con `tenantId` en cada modelo, adaptadores de catálogo (4 rutas) y logística (3 proveedores), monetización por comisión escalonada sobre GMV con reconocimiento en 2 momentos.
 
-La plataforma ahora opera con las **4 marcas reales de Indisutex SAS** (Saramantha, Sublimados Majestic, Lovely Pijamas, Sueño de Reina) + un tenant internacional para el caso Messenger/IG. Los datos del seed reflejan el embudo real del §15.1 (73% en "Llamar para confirmar", 1.3% en "Despachado"), las 6 variantes de "Interrapidísimo" del §15.2, y los productos reales (Short Tira, Pantalón, Batola + Stitch/Hello Kitty).
+La plataforma ahora opera con las **4 marcas reales de ZIAY SAS** (Saramantha, Sublimados Majestic, Lovely Pijamas, Sueño de Reina) + un tenant internacional para el caso Messenger/IG. Los datos del seed reflejan el embudo real del §15.1 (73% en "Llamar para confirmar", 1.3% en "Despachado"), las 6 variantes de "Interrapidísimo" del §15.2, y los productos reales (Short Tira, Pantalón, Batola + Stitch/Hello Kitty).
 
 > **Verificado end-to-end con Agent Browser + VLM + API smoke tests.** La app está lista para conectar APIs reales y cargar datos de producción.
 

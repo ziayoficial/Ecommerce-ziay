@@ -12,7 +12,7 @@
 |---|---|
 | **Nombre del producto** | ZIAY |
 | **Tagline** | Revenue Operations para Comercio Agéntico |
-| **Empresa** | Indisutex SAS |
+| **Empresa** | ZIAY SAS |
 | **Mercado** | LATAM (Colombia, México, Perú, Chile, Argentina, Brasil) |
 | **Marcas demo** | Saramantha, Sublimados Majestic, Lovely Pijamas, Sueño de Reina |
 | **Dominio planificado** | ziay.co |
@@ -713,7 +713,7 @@ ZIAY está en **Nivel 1-2**: los 26 agentes hacen el 95% del trabajo (investigan
 
 ---
 
-*Documento generado: 2026-07-15 · ZIAY v0.3.0 · Indisutex SAS · Bogotá, Colombia*
+*Documento generado: 2026-07-15 · ZIAY v0.3.0 · ZIAY SAS · Bogotá, Colombia*
 *Score: 10.0/10 · 891 tests · 71 modelos · 94 rutas · 21 ADRs · 5 protocolos · Next.js 16.2.10 · build 30.2s*
 
 ---
@@ -940,5 +940,5 @@ promtail (log shipper: pino → Loki)
 
 ---
 
-*Documento generado: 2026-07-15 · ZIAY v0.3.0 · Indisutex SAS · Bogotá, Colombia*
+*Documento generado: 2026-07-15 · ZIAY v0.3.0 · ZIAY SAS · Bogotá, Colombia*
 *Score: 10.0/10 · 891 tests · 71 modelos · 94 rutas · 21 ADRs · 5 protocolos · Next.js 16.2.10 · build 30.2s*

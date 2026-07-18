@@ -1,7 +1,7 @@
      1→   649→   649→
      2→   650→   650→## 12. Flujo end-to-end (4 escenarios narrados)
      3→   651→   651→
-     4→   652→   652→### 12.1 Escenario Indisutex (catálogo nativo de WhatsApp)
+     4→   652→   652→### 12.1 Escenario ZIAY (catálogo nativo de WhatsApp)
      5→   653→   653→
      6→   654→   654→1. Un cliente hace clic en un anuncio de Meta de "pijama familia" y llega a WhatsApp de Saramantha — `tenant_id` se resuelve por el WABA que recibió el mensaje.
      7→   655→   655→2. El agente de perfilamiento (6.1) pregunta el perfil si hace falta. El cliente responde "para surtir mi tienda" → perfil `mayorista`.
@@ -36,7 +36,7 @@
     36→   684→   684→## 13. Plan de implementación por fases
     37→   685→   685→
     38→   686→   686→**Fase 0** — Modelo de datos con `tenant_id` y RLS desde el inicio; levantar Ollama solo si se anticipa un tenant que lo requiera.
-    39→   687→   687→**Fase 1** — Migrar Indisutex (sus 4 marcas) como los primeros 4 tenants, sincronizando cada catálogo desde WhatsApp Catalog.
+    39→   687→   687→**Fase 1** — Migrar ZIAY (sus 4 marcas) como los primeros 4 tenants, sincronizando cada catálogo desde WhatsApp Catalog.
     40→   688→   688→**Fase 2** — Construir la capa `EcommerceAdapter` y validar con un cliente piloto externo que use WooCommerce.
     41→   689→   689→**Fase 3** — Adaptador Shopify vía app privada, con un segundo cliente piloto.
     42→   690→   690→**Fase 4** — Adaptador de catálogo propio del cliente (Supabase) y catálogo propio nuestro (Supabase, luego Oracle) con un tercer cliente piloto que no tenga WooCommerce ni Shopify.
@@ -96,7 +96,7 @@
     96→   744→   744→## 16. Arquitectura multi-tenant y multi-plataforma
     97→   745→   745→
     98→   746→   746→### 16.1 Qué cambia al aceptar clientes externos
-    99→   747→   747→El sistema deja de ser una herramienta interna de Indisutex para convertirse en una plataforma que otros negocios pueden conectar con su propio WooCommerce, Shopify, catálogo propio en Supabase, o adoptando nuestro catálogo desarrollado a la medida. Implica cuatro cambios estructurales: `tenant_id` + RLS (sección 2), prompts generalizados (sección 6), capa de adaptadores (sección 8), y proveedor de IA elegible por tenant (16.8).
+    99→   747→   747→El sistema deja de ser una herramienta interna de ZIAY para convertirse en una plataforma que otros negocios pueden conectar con su propio WooCommerce, Shopify, catálogo propio en Supabase, o adoptando nuestro catálogo desarrollado a la medida. Implica cuatro cambios estructurales: `tenant_id` + RLS (sección 2), prompts generalizados (sección 6), capa de adaptadores (sección 8), y proveedor de IA elegible por tenant (16.8).
    100→   748→   748→
    101→   749→   749→### 16.2 Aislamiento de datos (seguridad multi-tenant)
    102→   750→   750→- `tenant_id` en cada tabla, incluidos `mensajes` y sus embeddings.
@@ -139,7 +139,7 @@
    139→   787→   787→
    140→   788→   788→Igual que con el proveedor de IA, el proveedor de logística no está atado a Dropi — cada tenant elige en `clientes_plataforma.proveedor_logistico` (sección 2) cuál de los tres usar, y el `LogisticsAdapter` (sección 8.6) resuelve la diferencia sin que ningún agente conversacional lo note. Consideraciones al elegir:
    141→   789→   789→- Un cliente que ya opera con Dropi como marketplace de dropshipping (no solo como transportadora) probablemente deba quedarse en Dropi para no romper su cadena de abastecimiento.
-   142→   790→   790→- Un cliente que solo necesita cotizar/despachar (ya tiene su propio inventario, como Indisutex) puede evaluar 99envios o Aveonline igual de bien, comparando tarifa, cobertura y velocidad de pago del recaudo contra entrega.
+   142→   790→   790→- Un cliente que solo necesita cotizar/despachar (ya tiene su propio inventario, como ZIAY) puede evaluar 99envios o Aveonline igual de bien, comparando tarifa, cobertura y velocidad de pago del recaudo contra entrega.
    143→   791→   791→- Si el cliente ya usa el módulo de confirmación/novedades por WhatsApp de 99envios o Aveonline (AveChat), acordar explícitamente con el cliente si esa función la sigue el agente propio (6.7) o el del proveedor logístico, para no duplicar mensajes.
    144→   792→   792→
    145→   793→   793→### 16.10 El límite real de escalar el LLM cuando el cliente elige Ollama
@@ -263,7 +263,7 @@
    263→   911→   911→
    264→   912→   912→## 19. Glosario
    265→   913→   913→
-   266→   914→   914→- **Tenant**: una marca interna de Indisutex o un cliente externo completo, identificado por `tenant_id`.
+   266→   914→   914→- **Tenant**: una marca interna de ZIAY o un cliente externo completo, identificado por `tenant_id`.
    267→   915→   915→- **WABA**: WhatsApp Business Account, la cuenta verificada de Meta que atiende a un tenant.
    268→   916→   916→- **GMV**: Gross Merchandise Value — el valor total de venta procesado, en este proyecto igual a la suma de `pedidos.valor_de_compra` con `origen = "agente_whatsapp"`.
    269→   917→   917→- **RLS**: Row-Level Security, mecanismo de Postgres que aísla los datos de cada tenant a nivel de fila.

@@ -2,7 +2,7 @@
    281→
    282→Work Log:
    283→- Fase 1: Schema Prisma reescrito con modelo `Tenant` (clientes_plataforma) + tenantId en 18 modelos + tablas Saramantha (VolumePrice, SalesSpeech, Objection, ThemeDesign, CategoryCombo, DeliveryHistory, ImageIdentification, Carrier, Shipment, CommissionEntry, Invoice). db:push --force-reset.
-   284→- Fase 2: Seed con 4 marcas Indisutex (Saramantha, Majestic, Lovely, Reina) + tenant INTL. Catálogo real Saramantha (Short Tira, Pantalón, Batola + Stitch/Hello Kitty). Volume prices por tramo (mayorista 6-11, 12-35, 36+). SalesSpeech por 4 perfiles. 5 objection types. 2 themes. CategoryCombo 'familia'. 5 carriers canónicos con 6 variantes de Interrapidísimo. 15 orders simulando embudo §15.1 (73% pendiente_confirmacion, 1.3% despachado). Invoice del período.
+   284→- Fase 2: Seed con 4 marcas ZIAY (Saramantha, Majestic, Lovely, Reina) + tenant INTL. Catálogo real Saramantha (Short Tira, Pantalón, Batola + Stitch/Hello Kitty). Volume prices por tramo (mayorista 6-11, 12-35, 36+). SalesSpeech por 4 perfiles. 5 objection types. 2 themes. CategoryCombo 'familia'. 5 carriers canónicos con 6 variantes de Interrapidísimo. 15 orders simulando embudo §15.1 (73% pendiente_confirmacion, 1.3% despachado). Invoice del período.
    285→- Fase 3: 10 agentes conversacionales en src/lib/agents/prompts.ts con system prompts EXACTOS del §6 Saramantha. API route /api/agents/[agentName] con LLM (z-ai-web-dev-sdk). Cada agente consulta tablas de negocio filtradas por tenantId (regla de oro §2: NUNCA business data en prompt). Side-effects: profile persiste perfilConversacion, vision persiste ImageIdentification.
    286→- Fase 4 (subagente): 14 archivos creados — EcommerceAdapter interfaz + 4 implementaciones (WhatsApp Catalog, WooCommerce, Shopify, Supabase), LogisticsAdapter + 3 (Dropi, 99envios, Aveonline), registry, carrier normalization, 3 API routes (/api/shipping/quote, /api/shipping/guide, /api/catalog/sync). Stubs con datos realistas (Bogotá $8k, Pasto $15.5k, Madrid $54 USD). Lint clean. Smoke tests verificados.
    287→- Fase 5: API routes de monetización (/api/monetization/gmv, /api/monetization/commission) con lógica de 2 momentos de reconocimiento (50% datos_completados, 100% despachado) y tramos escalonados (4.5%/3%/1.75%). /api/tenants para el switcher. Queries existentes (overview, conversations, orders, ads) actualizadas con tenantId opcional.
@@ -20,7 +20,7 @@
    299→
    300→Stage Summary:
    301→- 8 brechas críticas del documento Saramantha cerradas: multi-tenant ✓, 10 agentes ✓, EcommerceAdapter ✓, LogisticsAdapter ✓, identificación visual (VLM) ✓, NocoDB (pendiente — vista Kanban interna como siguiente paso), monetización ✓, tenant config ✓.
-   302→- App ahora opera con 4 marcas Indisutex reales + datos del embudo §15.1 (73% pendiente confirmación).
+   302→- App ahora opera con 4 marcas ZIAY reales + datos del embudo §15.1 (73% pendiente confirmación).
    303→- 6 módulos en el dashboard: Resumen, Mensajería, Pedidos & Pagos, Atribución de Pauta, Monetización, Configuración.
    304→- Adaptadores + carrier normalization listos para conectar APIs reales (Dropi/Woo/Shopify/Supabase) cuando haya credenciales.
    305→

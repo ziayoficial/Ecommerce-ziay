@@ -270,7 +270,7 @@ El `matcher` del middleware excluye `_next/static`, `_next/image`, `favicon.ico`
 {
   "@type": "Organization",
   "name": "ZIAY",
-  "legalName": "Indisutex SAS",
+  "legalName": "ZIAY SAS",
   "url": "...",
   "logo": ".../logo.svg",
   "description": "...",
@@ -666,7 +666,7 @@ En prod se necesitará un cron externo (system cron, Vercel Cron, GitHub Actions
 | 3 | 🔴 CRITICAL | SEO | SEO-2 | `/og-default.svg`, `/icon.svg`, `/manifest.json`, `/sw.js` regresan 307 → /login | Agregar estos paths al `matcher` exclusion en `src/middleware.ts` | 10 min |
 | 4 | 🔴 CRITICAL | Docs/Deploy | DOC-1 / DEPLOY-2 | `.env.example` inexistente — README, CONTRIBUTING y SECURITY.md lo referencian pero no existe | Generar `.env.example` con 117 variables (placeholders vacíos + comentarios) basado en `docs/ENVIRONMENT.md` | 1 h |
 | 5 | 🟡 HIGH | SEO | SEO-3 | OG image en formato SVG — Twitter/Facebook/LinkedIn/Slack no renderizan SVG | Generar `/og-default.png` (1200×630) con `@vercel/og` o `sharp`, actualizar `metadata.openGraph.images` | 2 h |
-| 6 | 🟡 HIGH | SEO | SEO-4 | JSON-LD Organization incompleto — sin `contactPoint`, `address`, `taxID`; `sameAs` apunta a CDN chino irrelevante | Completar con datos reales de Indisutex SAS + redes sociales | 30 min |
+| 6 | 🟡 HIGH | SEO | SEO-4 | JSON-LD Organization incompleto — sin `contactPoint`, `address`, `taxID`; `sameAs` apunta a CDN chino irrelevante | Completar con datos reales de ZIAY SAS + redes sociales | 30 min |
 | 7 | 🟡 HIGH | UX | UX-1 | `text-primary` sobre `bg-background` cae bajo 4.5:1 WCAG AA — emerald `#10b981` sobre blanco = ~2.9:1 | Subir `--primary` a `oklch(0.55 0.15 158)` (~`#0d9668`) o usar `text-emerald-700` para texto | 1 h |
 | 8 | 🟡 HIGH | UX | UX-2 | ~12 inputs en `settings-view.tsx` sin `<Label htmlFor>` asociado | Agregar `<Label htmlFor="cfg-X">` por cada input | 1 h |
 | 9 | 🟡 HIGH | Docs | DOC-2 | ADR-0021 (escrow) no indexado en `docs/adr/README.md` | Agregar fila a la tabla en `docs/adr/README.md:24` | 5 min |

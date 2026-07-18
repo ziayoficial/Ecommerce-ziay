@@ -200,7 +200,7 @@ Existen muchas herramientas de WhatsApp, CRMs, y plataformas de pauta. Pero **ni
 
 #### 🏆 9. Multi-tenant real (varias marcas en un panel, aisladas)
 
-**El problema:** Si tienes 4 marcas (como Indisutex), saltas entre 4 WhatsApps, 4 Excel, 4 sistemas. Ineficiente.
+**El problema:** Si tienes 4 marcas (como ZIAY), saltas entre 4 WhatsApps, 4 Excel, 4 sistemas. Ineficiente.
 
 **Lo que hacen otros:** Te venden 4 licencias separadas. O un sistema compartido donde una marca ve los datos de otra.
 
@@ -407,7 +407,7 @@ Este es el módulo que **más dinero te ahorra**. Imagina que tienes un contador
 
 #### 💵 8. Monetización — La contabilidad
 
-Si eres plataforma (como Indisutex con 4 marcas), aquí ves cuánta comisión cobras a cada marca este mes.
+Si eres plataforma (como ZIAY con 4 marcas), aquí ves cuánta comisión cobras a cada marca este mes.
 
 **¿Qué puedes ver?**
 - GMV del mes (cuánto vendió la marca)
@@ -1318,9 +1318,9 @@ La IA empieza a atender. Tú ves los resultados en el dashboard:
 
 ---
 
-### Sobre Indisutex SAS
+### Sobre ZIAY SAS
 
-ZIAY fue construido por y para **Indisutex SAS**, que opera 4 marcas en Colombia:
+ZIAY fue construido por y para **ZIAY SAS**, que opera 4 marcas en Colombia:
 
 - **Saramantha** — Pijamas & ropa interior
 - **Sublimados Majestic** — Sublimados personalizados

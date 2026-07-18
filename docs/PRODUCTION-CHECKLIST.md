@@ -42,8 +42,8 @@ Cada ítem tiene:
 
 ### DNS y red
 
-- [ ] ⚠️ Registro DNS A/AAAA apuntando al servidor para el dominio (`commerceflow.indisutex.com`)
-- [ ] ⚠️ Registro DNS A/AAAA apuntando al servidor para el subdominio wildcard (`*.commerceflow.indisutex.com`) si se usan subdominios por tenant
+- [ ] ⚠️ Registro DNS A/AAAA apuntando al servidor para el dominio (`ziay.co`)
+- [ ] ⚠️ Registro DNS A/AAAA apuntando al servidor para el subdominio wildcard (`*.ziay.co`) si se usan subdominios por tenant
 - [ ] Puerto 80 abierto en el firewall (para HTTP → HTTPS redirect)
 - [ ] Puerto 443 abierto en el firewall (para HTTPS)
 - [ ] Puertos 22 (SSH), 80, 443 son los ÚNICOS abiertos al público
@@ -52,8 +52,8 @@ Cada ítem tiene:
 ### SSL / TLS
 
 - [ ] ⚠️ Caddy obtuvo certificados automáticamente (Let's Encrypt / ZeroSSL)
-- [ ] HTTPS responde con cert válido en `https://commerceflow.indisutex.com`
-- [ ] HTTP → HTTPS redirect funciona (`curl http://commerceflow.indisutex.com` devuelve 301 a `https://`)
+- [ ] HTTPS responde con cert válido en `https://ziay.co`
+- [ ] HTTP → HTTPS redirect funciona (`curl http://ziay.co` devuelve 301 a `https://`)
 - [ ] HSTS habilitado en `Caddyfile.prod`
 - [ ] TLS 1.2+ únicamente (TLS 1.0/1.1 deshabilitados)
 - [ ] Cipher suites modernas (verificar con `https://www.ssllabs.com/ssltest/`)
@@ -118,7 +118,7 @@ Cada ítem tiene:
 
 ### Seed inicial
 
-- [ ] Seed base ejecutado: `bun run prisma/seed.ts` (4 marcas Indisutex + tenant INTL)
+- [ ] Seed base ejecutado: `bun run prisma/seed.ts` (4 marcas ZIAY + tenant INTL)
 - [ ] 5 tenants activos visibles en `GET /api/tenants`
 - [ ] Catálogo Saramantha cargado (7 productos con imágenes)
 - [ ] Volume prices por tramo cargados
@@ -155,7 +155,7 @@ Cada ítem tiene:
 
 ### n8n workflows
 
-- [ ] Contenedor n8n accesible en `https://commerceflow.indisutex.com/n8n/`
+- [ ] Contenedor n8n accesible en `https://ziay.co/n8n/`
 - [ ] Login admin de n8n configurado con password fuerte
 - [ ] Los 11 workflows importados (ver `n8n-workflows/README.md`):
   - [ ] `10-agentes-conversacionales.json` (master)
@@ -175,7 +175,7 @@ Cada ítem tiene:
 
 ### NocoDB
 
-- [ ] Contenedor NocoDB accesible en `https://commerceflow.indisutex.com/nocodb/`
+- [ ] Contenedor NocoDB accesible en `https://ziay.co/nocodb/`
 - [ ] Proyecto `commerceflow` creado
 - [ ] Tabla `orders` creada con columnas mapeadas al schema Prisma
 - [ ] Webhook saliente de NocoDB → CommerceFlow configurado con header `X-NocoDB-Secret`
@@ -188,8 +188,8 @@ Cada ítem tiene:
 - [ ] ⚠️ App de Meta creada en developers.facebook.com
 - [ ] ⚠️ WhatsApp Business API verificada (subir documentos de empresa)
 - [ ] ⚠️ `META_APP_SECRET` configurado en `.env` (habilita HMAC verification)
-- [ ] Webhook WhatsApp suscrito a URL `https://commerceflow.indisutex.com/api/webhooks/whatsapp`
-- [ ] Webhook Meta (Messenger+Instagram) suscrito a URL `https://commerceflow.indisutex.com/api/webhooks/meta`
+- [ ] Webhook WhatsApp suscrito a URL `https://ziay.co/api/webhooks/whatsapp`
+- [ ] Webhook Meta (Messenger+Instagram) suscrito a URL `https://ziay.co/api/webhooks/meta`
 - [ ] Verify tokens (`WA_VERIFY_TOKEN`, `META_VERIFY_TOKEN`) coinciden con Meta dashboard
 - [ ] Webhook handshake verificado (Meta dashboard muestra "Active")
 - [ ] Permisos aprobados: `whatsapp_business_messaging`, `pages_messaging`, `instagram_manage_messages`
@@ -224,7 +224,7 @@ Para cada tenant con plataforma/BD/proveedor externo:
 
 - [ ] Contenedor `uptime-kuma` levantado (profile `monitoring`)
 - [ ] Uptime Kuma accesible (idealmente en una URL interna o detrás de auth)
-- [ ] Monitor HTTP configurado apuntando a `https://commerceflow.indisutex.com/api/health/uptime`
+- [ ] Monitor HTTP configurado apuntando a `https://ziay.co/api/health/uptime`
 - [ ] Intervalo de check: 60s
 - [ ] Notificaciones configuradas (email / Slack / Telegram)
 - [ ] Probar downtime: detener app, verificar que Uptime Kuma alerta en <2min
@@ -296,14 +296,14 @@ Ejecutar en orden. Si algo falla, NO continuar con el cutover.
 
 ### Smoke tests críticos
 
-- [ ] `curl https://commerceflow.indisutex.com/api/health/uptime` → 200 OK con `dbLatencyMs < 50`
-- [ ] `curl https://commerceflow.indisutex.com/api/health` → 200 OK con `summary.error == 0`
-- [ ] `curl https://commerceflow.indisutex.com/api/tenants` → 200 OK con 5 tenants
-- [ ] `curl "https://commerceflow.indisutex.com/api/overview?tenantId=ten-saramantha"` → 200 OK con KPIs coherentes
-- [ ] `curl "https://commerceflow.indisutex.com/api/orders?tenantId=ten-saramantha&limit=5"` → 200 OK
-- [ ] `curl "https://commerceflow.indisutex.com/api/ads?tenantId=ten-saramantha"` → 200 OK con verdicts
-- [ ] `curl "https://commerceflow.indisutex.com/api/monetization/gmv?tenantId=ten-saramantha"` → 200 OK con GMV $32M+
-- [ ] `curl "https://commerceflow.indisutex.com/api/metrics?tenantId=ten-saramantha"` → 200 OK con margen 60%+
+- [ ] `curl https://ziay.co/api/health/uptime` → 200 OK con `dbLatencyMs < 50`
+- [ ] `curl https://ziay.co/api/health` → 200 OK con `summary.error == 0`
+- [ ] `curl https://ziay.co/api/tenants` → 200 OK con 5 tenants
+- [ ] `curl "https://ziay.co/api/overview?tenantId=ten-saramantha"` → 200 OK con KPIs coherentes
+- [ ] `curl "https://ziay.co/api/orders?tenantId=ten-saramantha&limit=5"` → 200 OK
+- [ ] `curl "https://ziay.co/api/ads?tenantId=ten-saramantha"` → 200 OK con verdicts
+- [ ] `curl "https://ziay.co/api/monetization/gmv?tenantId=ten-saramantha"` → 200 OK con GMV $32M+
+- [ ] `curl "https://ziay.co/api/metrics?tenantId=ten-saramantha"` → 200 OK con margen 60%+
 
 ### Webhook verification
 
@@ -314,13 +314,13 @@ Ejecutar en orden. Si algo falla, NO continuar con el cutover.
 
 ### Socket.io verification
 
-- [ ] Browser se conecta a `wss://commerceflow.indisutex.com/?XTransformPort=3003`
+- [ ] Browser se conecta a `wss://ziay.co/?XTransformPort=3003`
 - [ ] Mensaje enviado desde Mensajería → broadcast a otros clientes conectados
 - [ ] Auto-reply simulado deshabilitado en prod (solo dev)
 
 ### Agentes IA
 
-- [ ] `curl https://commerceflow.indisutex.com/api/agents` → 200 OK con 10 agentes
+- [ ] `curl https://ziay.co/api/agents` → 200 OK con 10 agentes
 - [ ] Llamar a `POST /api/agents/speech` con `tenantId=ten-saramantha` → 200 OK en <5s con reply coherente
 - [ ] Llamar a `POST /api/agents/quote` con items → 200 OK con formato "pagas $X → vendes $Y → margen $Z"
 - [ ] Llamar a `POST /api/agents/vision` con imageUrl → 200 OK con JSON `{sku, confianza, metodo}`
@@ -340,7 +340,7 @@ Ejecutar en orden. Si algo falla, NO continuar con el cutover.
 
 ### Orquestador
 
-- [ ] `POST /api/orchestrate` con `mode=full` y `scenario=indisutex_wa_catalog` → 200 OK en <30s con history de 9 entries
+- [ ] `POST /api/orchestrate` con `mode=full` y `scenario=ziay_wa_catalog` → 200 OK en <30s con history de 9 entries
 - [ ] Cada step tiene reply no vacío (no fallback de timeout)
 
 ### Conciliación
@@ -451,8 +451,8 @@ Si algo crítico falla después del cutover:
 
 ## 📞 Contactos de emergencia
 
-- **Equipo de ops (Indisutex)**: `ops@indisutex.com` / +57 XXX XXX XXXX
-- **Security incidents**: `security@indisutex.com` (ver [`../SECURITY.md`](../SECURITY.md))
+- **Equipo de ops (ZIAY)**: `ops@ziay.co` / +57 XXX XXX XXXX
+- **Security incidents**: `security@ziay.co` (ver [`../SECURITY.md`](../SECURITY.md))
 - **Meta WhatsApp Business**: a través de Business Support Center
 - **n8n community**: https://community.n8n.io
 - **Prisma support**: via GitHub issues para problemas del ORM

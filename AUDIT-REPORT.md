@@ -632,7 +632,7 @@ The audit uses a five-tier severity scale aligned to `AUDIT-PLAN.md §1.4`:
 | RLS readiness | ✅ | Pass | `src/lib/rls.ts` created with 10 PostgreSQL CREATE POLICY statements + Prisma `$extends` interceptor |
 | Cross-tenant data leak test | ✅ | Pass | 16 API routes return 400/403 on missing/mismatched tenantId |
 | Public SSR scoped | ✅ | Pass | `/t/saramantha` HTML contains only Saramantha products |
-| Seed tenants (5) | ✅ | Pass | Saramantha, Sublimados Majestic, Lovely Pijamas, Sueño de Reina, Indisutex Intl |
+| Seed tenants (5) | ✅ | Pass | Saramantha, Sublimados Majestic, Lovely Pijamas, Sueño de Reina, ZIAY Intl |
 | Per-tenant socket rooms | ✅ | Pass | `tenant:<id>` + `conv:<id>` room joins in chat-service |
 
 **Total: 7/7 pass.**
@@ -936,7 +936,7 @@ These were the "glue" changes that wired the AUTOFIX-A backend guards into the A
 
 | Check | Value |
 |---|---|
-| Tenants in seed | 5 (Saramantha, Sublimados Majestic, Lovely Pijamas, Sueño de Reina, Indisutex Intl) |
+| Tenants in seed | 5 (Saramantha, Sublimados Majestic, Lovely Pijamas, Sueño de Reina, ZIAY Intl) |
 | Channels in seed | 9 |
 | Products in seed | 7 |
 | Customers in seed | 15 |

@@ -116,4 +116,4 @@ This project has undergone 3 iterations of audit → fix → re-audit across 7 d
 
 ## License
 
-Proprietary — Indisutex SAS © 2026
+Proprietary — ZIAY SAS © 2026

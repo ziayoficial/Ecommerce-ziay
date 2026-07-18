@@ -1,5 +1,5 @@
 # Proyecto: Plataforma de agentes de venta por WhatsApp — 100% documentado, multi-cliente y multi-plataforma
-### Indisutex SAS (Saramantha · Sublimados Majestic · Lovely Pijamas · Sueño de Reina) — versión canónica
+### ZIAY SAS (Saramantha · Sublimados Majestic · Lovely Pijamas · Sueño de Reina) — versión canónica
 
 Documento maestro único del proyecto. Reúne, sin duplicar entre archivos separados, todo lo necesario para que un ingeniero o una IA puedan construir, operar, vender y escalar el sistema de cero: arquitectura completa, modelo de datos campo por campo, los agentes con sus prompts exactos, contratos API entre agentes y motores, integraciones (WhatsApp, WooCommerce, Shopify, Supabase, Oracle, Dropi), onboarding paso a paso, flujo end-to-end narrado en varios escenarios, arquitectura multi-tenant, y el modelo de monetización recomendado con su justificación numérica.
 
@@ -112,7 +112,7 @@ Cliente final (WhatsApp)
 
 ### 1.2 Corrección de arquitectura vigente
 
-El catálogo real que hoy usan las 4 marcas de Indisutex vive nativamente en **WhatsApp Business Catalog** (confirmado en pijamaspormayor.com, links `wa.me/c/...`), no en WooCommerce. Para Indisutex, el agente de catálogo (6.4) sincroniza contra ese catálogo nativo. Para clientes externos, el sistema puede hablar con **cualquiera de las cuatro fuentes de catálogo** (sección 5) sin que el agente conversacional sepa cuál está detrás — de ahí la capa de adaptadores (sección 8).
+El catálogo real que hoy usan las 4 marcas de ZIAY vive nativamente en **WhatsApp Business Catalog** (confirmado en pijamaspormayor.com, links `wa.me/c/...`), no en WooCommerce. Para ZIAY, el agente de catálogo (6.4) sincroniza contra ese catálogo nativo. Para clientes externos, el sistema puede hablar con **cualquiera de las cuatro fuentes de catálogo** (sección 5) sin que el agente conversacional sepa cuál está detrás — de ahí la capa de adaptadores (sección 8).
 
 ---
 
@@ -206,7 +206,7 @@ Cada imagen del catálogo lleva una franja con SKU, diseño y precio de referenc
 
 El agente de catálogo (6.4) nunca necesita saber cuál de las cuatro rutas está detrás — todas sincronizan hacia la misma tabla `productos`, filtrada por `tenant_id`:
 
-1. **Catálogo nativo de WhatsApp Business** — el caso de Indisutex hoy; no requiere infraestructura adicional.
+1. **Catálogo nativo de WhatsApp Business** — el caso de ZIAY hoy; no requiere infraestructura adicional.
 2. **WooCommerce o Shopify del cliente** — sincronización vía el adaptador de esa plataforma (sección 8.2).
 3. **Interfaz de catálogo propia del cliente, con su propia Supabase** — el cliente ya construyó su catálogo; solo leemos de su Supabase (sección 8.3), sin migrar ni duplicar nada.
 4. **Catálogo propio que nosotros desarrollamos** — cuando el cliente no tiene catálogo propio, con base de datos en Supabase (más rápido y económico) u Oracle (si el cliente ya lo tiene o lo exige por gobernanza corporativa).
@@ -523,7 +523,7 @@ El agente de catálogo (6.4) y el resto de agentes conversacionales nunca hablan
 
 Las tres son plataformas colombianas de logística **multitransportadora**: cotizan y generan guía con varias transportadoras (TCC, Coordinadora, Interrapidísimo, Servientrega, Envía) desde un solo panel/API, en vez de integrar transportadora por transportadora. El `LogisticsAdapter` (sección 8.6) habla con la que tenga configurada cada tenant.
 
-- **Dropi**: además de logística, opera como marketplace de dropshipping (+160.000 productos de proveedores verificados); es la integración ya construida y en uso con Indisutex. API externa que alimenta `cotizaciones_flete` con tarifas reales por ciudad y cantidad de unidades.
+- **Dropi**: además de logística, opera como marketplace de dropshipping (+160.000 productos de proveedores verificados); es la integración ya construida y en uso con ZIAY. API externa que alimenta `cotizaciones_flete` con tarifas reales por ciudad y cantidad de unidades.
 - **99envios**: panel + API REST para cotizar y generar guía con las 5 transportadoras mencionadas, recaudo contra entrega automático, carga masiva de guías por Excel/CSV para alto volumen, e integraciones directas con Shopify/WooCommerce. Trae su propio agente de IA para resolver novedades de entrega — al conectarlo, definir si esa función la sigue haciendo el agente de logística propio (6.8) o se delega a 99envios, para no duplicar mensajes al cliente.
 - **Aveonline**: panel + API con cotización multitransportadora, recaudo protegido, anticipos de cartera antes de la liquidación de la transportadora, bodegaje/fulfillment propio (Medellín, Cali, Bogotá), e integración con Shopify/WooCommerce/Tiendanube. Su módulo AveChat automatiza confirmación y novedades por WhatsApp — mismo punto de atención que con 99envios: decidir por tenant cuál sistema posee esa conversación.
 - El agente de logística (6.8) nunca inventa un valor de flete — siempre consulta `cotizaciones_flete`, actualizada desde la API real del proveedor configurado para ese tenant.
@@ -561,9 +561,9 @@ services:
   postgres:
     image: pgvector/pgvector:pg16
     environment:
-      POSTGRES_USER: indisutex
+      POSTGRES_USER: ziay
       POSTGRES_PASSWORD: cambiar_esta_clave
-      POSTGRES_DB: indisutex_agentes
+      POSTGRES_DB: ziay_agentes
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
@@ -576,8 +576,8 @@ services:
       - N8N_PROTOCOL=https
       - DB_TYPE=postgresdb
       - DB_POSTGRESDB_HOST=postgres
-      - DB_POSTGRESDB_DATABASE=indisutex_agentes
-      - DB_POSTGRESDB_USER=indisutex
+      - DB_POSTGRESDB_DATABASE=ziay_agentes
+      - DB_POSTGRESDB_USER=ziay
       - DB_POSTGRESDB_PASSWORD=cambiar_esta_clave
     volumes:
       - n8n_data:/home/node/.n8n
@@ -599,7 +599,7 @@ services:
     image: minio/minio
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: indisutex
+      MINIO_ROOT_USER: ziay
       MINIO_ROOT_PASSWORD: cambiar_esta_clave
     volumes:
       - minio_data:/data
@@ -610,7 +610,7 @@ services:
   nocodb:
     image: nocodb/nocodb
     environment:
-      - NC_DB=pg://postgres:5432?u=indisutex&p=cambiar_esta_clave&d=nocodb
+      - NC_DB=pg://postgres:5432?u=ziay&p=cambiar_esta_clave&d=nocodb
     volumes:
       - nocodb_data:/usr/app/data
     ports:
@@ -649,7 +649,7 @@ Cada agente recibe su system prompt (sección 6) más el contexto dinámico del 
 
 ## 12. Flujo end-to-end (4 escenarios narrados)
 
-### 12.1 Escenario Indisutex (catálogo nativo de WhatsApp)
+### 12.1 Escenario ZIAY (catálogo nativo de WhatsApp)
 
 1. Un cliente hace clic en un anuncio de Meta de "pijama familia" y llega a WhatsApp de Saramantha — `tenant_id` se resuelve por el WABA que recibió el mensaje.
 2. El agente de perfilamiento (6.1) pregunta el perfil si hace falta. El cliente responde "para surtir mi tienda" → perfil `mayorista`.
@@ -684,7 +684,7 @@ Cada agente recibe su system prompt (sección 6) más el contexto dinámico del 
 ## 13. Plan de implementación por fases
 
 **Fase 0** — Modelo de datos con `tenant_id` y RLS desde el inicio; levantar Ollama solo si se anticipa un tenant que lo requiera.
-**Fase 1** — Migrar Indisutex (sus 4 marcas) como los primeros 4 tenants, sincronizando cada catálogo desde WhatsApp Catalog.
+**Fase 1** — Migrar ZIAY (sus 4 marcas) como los primeros 4 tenants, sincronizando cada catálogo desde WhatsApp Catalog.
 **Fase 2** — Construir la capa `EcommerceAdapter` y validar con un cliente piloto externo que use WooCommerce.
 **Fase 3** — Adaptador Shopify vía app privada, con un segundo cliente piloto.
 **Fase 4** — Adaptador de catálogo propio del cliente (Supabase) y catálogo propio nuestro (Supabase, luego Oracle) con un tercer cliente piloto que no tenga WooCommerce ni Shopify.
@@ -744,7 +744,7 @@ El campo `Transportadora` solo está diligenciado en 17 de 239 filas (7.1%), y e
 ## 16. Arquitectura multi-tenant y multi-plataforma
 
 ### 16.1 Qué cambia al aceptar clientes externos
-El sistema deja de ser una herramienta interna de Indisutex para convertirse en una plataforma que otros negocios pueden conectar con su propio WooCommerce, Shopify, catálogo propio en Supabase, o adoptando nuestro catálogo desarrollado a la medida. Implica cuatro cambios estructurales: `tenant_id` + RLS (sección 2), prompts generalizados (sección 6), capa de adaptadores (sección 8), y proveedor de IA elegible por tenant (16.8).
+El sistema deja de ser una herramienta interna de ZIAY para convertirse en una plataforma que otros negocios pueden conectar con su propio WooCommerce, Shopify, catálogo propio en Supabase, o adoptando nuestro catálogo desarrollado a la medida. Implica cuatro cambios estructurales: `tenant_id` + RLS (sección 2), prompts generalizados (sección 6), capa de adaptadores (sección 8), y proveedor de IA elegible por tenant (16.8).
 
 ### 16.2 Aislamiento de datos (seguridad multi-tenant)
 - `tenant_id` en cada tabla, incluidos `mensajes` y sus embeddings.
@@ -787,7 +787,7 @@ Ver sección 5 (catálogo) y 8 (adaptadores) — cuatro rutas posibles, ninguna 
 
 Igual que con el proveedor de IA, el proveedor de logística no está atado a Dropi — cada tenant elige en `clientes_plataforma.proveedor_logistico` (sección 2) cuál de los tres usar, y el `LogisticsAdapter` (sección 8.6) resuelve la diferencia sin que ningún agente conversacional lo note. Consideraciones al elegir:
 - Un cliente que ya opera con Dropi como marketplace de dropshipping (no solo como transportadora) probablemente deba quedarse en Dropi para no romper su cadena de abastecimiento.
-- Un cliente que solo necesita cotizar/despachar (ya tiene su propio inventario, como Indisutex) puede evaluar 99envios o Aveonline igual de bien, comparando tarifa, cobertura y velocidad de pago del recaudo contra entrega.
+- Un cliente que solo necesita cotizar/despachar (ya tiene su propio inventario, como ZIAY) puede evaluar 99envios o Aveonline igual de bien, comparando tarifa, cobertura y velocidad de pago del recaudo contra entrega.
 - Si el cliente ya usa el módulo de confirmación/novedades por WhatsApp de 99envios o Aveonline (AveChat), acordar explícitamente con el cliente si esa función la sigue el agente propio (6.7) o el del proveedor logístico, para no duplicar mensajes.
 
 ### 16.10 El límite real de escalar el LLM cuando el cliente elige Ollama
@@ -911,7 +911,7 @@ Ninguna de estas mitigaciones elimina el riesgo por completo — es inherente a 
 
 ## 19. Glosario
 
-- **Tenant**: una marca interna de Indisutex o un cliente externo completo, identificado por `tenant_id`.
+- **Tenant**: una marca interna de ZIAY o un cliente externo completo, identificado por `tenant_id`.
 - **WABA**: WhatsApp Business Account, la cuenta verificada de Meta que atiende a un tenant.
 - **GMV**: Gross Merchandise Value — el valor total de venta procesado, en este proyecto igual a la suma de `pedidos.valor_de_compra` con `origen = "agente_whatsapp"`.
 - **RLS**: Row-Level Security, mecanismo de Postgres que aísla los datos de cada tenant a nivel de fila.

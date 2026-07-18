@@ -73,7 +73,7 @@ export async function getLogisticsAdapter(tenantId: string): Promise<LogisticsAd
     case 'aveonline':
       return new AveonlineAdapter(tenantId)
     default:
-      // Fallback seguro — Dropi es la integración ya existente con Indisutex.
+      // Fallback seguro — Dropi es la integración ya existente con ZIAY.
       return new DropiAdapter(tenantId)
   }
 }

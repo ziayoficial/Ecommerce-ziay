@@ -112,7 +112,7 @@ Toda acción sensible escribe un `AuditLog` con `userId`, `tenantId`, `action`, 
 ### Proceso
 
 1. **NO abras un issue público** en GitHub.
-2. Envía un email a **security@indisutex.com** con:
+2. Envía un email a **security@ziay.co** con:
    - Asunto: `[SECURITY] CommerceFlow OS — <breve descripción>`
    - Cuerpo:
      - Descripción de la vulnerabilidad
@@ -221,7 +221,7 @@ Si estás desplegando CommerceFlow OS en producción, asegúrate de:
 
 ## Contacto
 
-- **Email de seguridad**: `security@indisutex.com`
+- **Email de seguridad**: `security@ziay.co`
 - **PGP key**: disponible bajo pedido (fingerprint en el footer del sitio)
 - **Response time SLA**: 48 horas hábiles para confirmación de recepción
 - **Languages**: Español, English

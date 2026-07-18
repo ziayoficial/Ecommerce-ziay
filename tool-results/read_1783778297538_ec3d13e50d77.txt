@@ -1,6 +1,6 @@
      1→# ONBOARDING COMPLETO — CommerceFlow OS
      2→
-     3→> **La guía definitiva, única y exhaustiva** para operar, desarrollar y administrar CommerceFlow OS — el centro de mando de commerce conversacional + atribución de pauta para LATAM (Indisutex SAS: Saramantha, Sublimados Majestic, Lovely Pijamas, Sueño de Reina).
+     3→> **La guía definitiva, única y exhaustiva** para operar, desarrollar y administrar CommerceFlow OS — el centro de mando de commerce conversacional + atribución de pauta para LATAM (ZIAY SAS: Saramantha, Sublimados Majestic, Lovely Pijamas, Sueño de Reina).
      4→>
      5→> **Este documento es la única fuente de verdad de onboarding.** Si estás leyendo otros docs al mismo tiempo, estás haciendo doble trabajo. Lee este de principio a fin y estarás listo para operar el sistema en producción.
      6→
@@ -39,7 +39,7 @@
     39→
     40→### Qué es CommerceFlow OS
     41→
-    42→CommerceFlow OS es un **centro de mando de commerce conversacional + atribución de pauta** construido por y para Indisutex SAS, que opera cuatro marcas (Saramantha, Sublimados Majestic, Lovely Pijamas y Sueño de Reina) y atiende también a clientes externos con sus propios catálogos. Unifica en un solo dashboard las tres conversaciones que te hacen dinero en LATAM — WhatsApp, Messenger e Instagram DM — y las conecta con los anuncios que trajeron a cada cliente (Meta, Google, TikTok), de modo que por primera vez sabes **con precisión pedidos-por-anuncio** cuál anuncio vende de verdad y cuál solo consume presupuesto.
+    42→CommerceFlow OS es un **centro de mando de commerce conversacional + atribución de pauta** construido por y para ZIAY SAS, que opera cuatro marcas (Saramantha, Sublimados Majestic, Lovely Pijamas y Sueño de Reina) y atiende también a clientes externos con sus propios catálogos. Unifica en un solo dashboard las tres conversaciones que te hacen dinero en LATAM — WhatsApp, Messenger e Instagram DM — y las conecta con los anuncios que trajeron a cada cliente (Meta, Google, TikTok), de modo que por primera vez sabes **con precisión pedidos-por-anuncio** cuál anuncio vende de verdad y cuál solo consume presupuesto.
     43→
     44→### Para quién es
     45→
@@ -221,7 +221,7 @@
    221→
    222→```bash
    223→# 1. Clonar el repo
-   224→git clone https://github.com/indisutex/commerceflow-os.git
+   224→git clone https://github.com/ziay/commerceflow-os.git
    225→cd commerceflow-os
    226→
    227→# 2. Instalar dependencias (85+ paquetes)
@@ -557,7 +557,7 @@
    557→
    558→### Módulo 5 — Orquestador (`⌘5`)
    559→
-   560→**Qué ver al abrirlo**: stepper visual de 9 pasos (profile → speech → catalog → theme → quote → objection → address → logistics → checkout). Cada paso muestra: agente, estado (pending / running / done / fallback), reply recibido, timestamp. Selector de escenario (`indisutex_wa_catalog`, `client_woocommerce`, `client_shopify`, `client_supabase_nuestro`). Botones "Step siguiente" y "Ejecutar full".
+   560→**Qué ver al abrirlo**: stepper visual de 9 pasos (profile → speech → catalog → theme → quote → objection → address → logistics → checkout). Cada paso muestra: agente, estado (pending / running / done / fallback), reply recibido, timestamp. Selector de escenario (`ziay_wa_catalog`, `client_woocommerce`, `client_shopify`, `client_supabase_nuestro`). Botones "Step siguiente" y "Ejecutar full".
    561→
    562→**3 acciones clave**:
    563→
@@ -568,7 +568,7 @@
    568→**Flujo de usuario completo (paso a paso)**:
    569→
    570→1. `⌘5` para abrir Orquestador.
-   571→2. Selecciona escenario "Indisutex (WhatsApp Catalog)".
+   571→2. Selecciona escenario "ZIAY (WhatsApp Catalog)".
    572→3. Click "Ejecutar full".
    573→4. Observa cómo cada paso se va completando: perfil detectado como "mayorista", discurso generado, catálogo traído, cotización con volume pricing, etc.
    574→5. Al final (step 9), el agente `checkout` crea el pedido + OrderItem + Attribution + Shipment + CommissionEntry + AuditLog (8 side-effects).
@@ -1829,7 +1829,7 @@
   1829→| **SalesSpeech** | Modelo Prisma con `aperturaTexto` y `pruebaSocial` por `tenantId_perfil`. |
   1830→| **Setting** | Modelo Prisma para configuración key-value del tenant (estrategia de pago, umbrales, etc.). |
   1831→| **Shipment** | Modelo Prisma que representa la guía de envío generada por `LogisticsAdapter`. |
-  1832→| **Saramantha** | Documento funcional de especificación de Indisutex SAS. Referencia del proyecto. |
+  1832→| **Saramantha** | Documento funcional de especificación de ZIAY SAS. Referencia del proyecto. |
   1833→| **ThemeDesign** | Modelo Prisma que agrupa productos por tema/personaje (Stitch, Hello Kitty, etc.). |
   1834→| **Tenant** | Modelo Prisma que representa una marca/empresa aislada. |
   1835→| **VolumePrice** | Modelo Prisma con precios por tramo (6-11, 12-35, 36+) y tipo de cliente. |
@@ -1867,13 +1867,13 @@
   1867→|----------------|-------|
   1868→| **Bug o problema técnico** | Abre un issue en GitHub con tag `bug` + template `Bug_Report.md`. |
   1869→| **Pregunta de uso** | Abre un issue con tag `question` o pregunta en el canal de Slack del equipo. |
-  1870→| **Vulnerabilidad de seguridad** | `security@indisutex.com` — **NO abras issue público**. Ver [`SECURITY.md`](../SECURITY.md). |
+  1870→| **Vulnerabilidad de seguridad** | `security@ziay.co` — **NO abras issue público**. Ver [`SECURITY.md`](../SECURITY.md). |
   1871→| **Onboarding de nuevo tenant** | Endpoint `POST /api/onboarding` con body del wizard. |
   1872→| **Soporte de Meta (WhatsApp Business)** | Meta Business Support Center. |
   1873→| **Soporte de n8n** | https://community.n8n.io |
   1874→| **Soporte de Prisma** | GitHub issues del repo `prisma/prisma`. |
   1875→| **Soporte de adaptadores externos** | Contactar al proveedor (WooCommerce, Shopify, Dropi, etc.). |
-  1876→| **Emergencias de producción** | `ops@indisutex.com` / +57 XXX XXX XXXX (on-call 24/7). |
+  1876→| **Emergencias de producción** | `ops@ziay.co` / +57 XXX XXX XXXX (on-call 24/7). |
   1877→
   1878→### Cómo reportar bugs
   1879→
@@ -1886,7 +1886,7 @@
   1886→- Tenant: ten-saramantha
   1887→- Módulo: Atribución de Pauta
   1888→- Browser: Chrome 121
-  1889→- ¿Dev o prod?: prod (https://commerceflow.indisutex.com)
+  1889→- ¿Dev o prod?: prod (https://ziay.co)
   1890→
   1891→**Pasos para reproducir**:
   1892→1. Ir a ⌘6 Atribución

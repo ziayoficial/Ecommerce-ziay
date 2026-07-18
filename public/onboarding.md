@@ -1,6 +1,6 @@
 # ONBOARDING COMPLETO — CommerceFlow OS
 
-> **La guía definitiva, única y exhaustiva** para operar, desarrollar y administrar CommerceFlow OS — el centro de mando de commerce conversacional + atribución de pauta para LATAM (Indisutex SAS: Saramantha, Sublimados Majestic, Lovely Pijamas, Sueño de Reina).
+> **La guía definitiva, única y exhaustiva** para operar, desarrollar y administrar CommerceFlow OS — el centro de mando de commerce conversacional + atribución de pauta para LATAM (ZIAY SAS: Saramantha, Sublimados Majestic, Lovely Pijamas, Sueño de Reina).
 >
 > **Este documento es la única fuente de verdad de onboarding.** Si estás leyendo otros docs al mismo tiempo, estás haciendo doble trabajo. Lee este de principio a fin y estarás listo para operar el sistema en producción.
 
@@ -39,7 +39,7 @@
 
 ### Qué es CommerceFlow OS
 
-CommerceFlow OS es un **centro de mando de commerce conversacional + atribución de pauta** construido por y para Indisutex SAS, que opera cuatro marcas (Saramantha, Sublimados Majestic, Lovely Pijamas y Sueño de Reina) y atiende también a clientes externos con sus propios catálogos. Unifica en un solo dashboard las tres conversaciones que te hacen dinero en LATAM — WhatsApp, Messenger e Instagram DM — y las conecta con los anuncios que trajeron a cada cliente (Meta, Google, TikTok), de modo que por primera vez sabes **con precisión pedidos-por-anuncio** cuál anuncio vende de verdad y cuál solo consume presupuesto.
+CommerceFlow OS es un **centro de mando de commerce conversacional + atribución de pauta** construido por y para ZIAY SAS, que opera cuatro marcas (Saramantha, Sublimados Majestic, Lovely Pijamas y Sueño de Reina) y atiende también a clientes externos con sus propios catálogos. Unifica en un solo dashboard las tres conversaciones que te hacen dinero en LATAM — WhatsApp, Messenger e Instagram DM — y las conecta con los anuncios que trajeron a cada cliente (Meta, Google, TikTok), de modo que por primera vez sabes **con precisión pedidos-por-anuncio** cuál anuncio vende de verdad y cuál solo consume presupuesto.
 
 ### Para quién es
 
@@ -221,7 +221,7 @@ Tres caminos, dependiendo de qué tan profundo quieres ir:
 
 ```bash
 # 1. Clonar el repo
-git clone https://github.com/indisutex/commerceflow-os.git
+git clone https://github.com/ziay/commerceflow-os.git
 cd commerceflow-os
 
 # 2. Instalar dependencias (85+ paquetes)
@@ -557,7 +557,7 @@ Cada módulo tiene:
 
 ### Módulo 5 — Orquestador (`⌘5`)
 
-**Qué ver al abrirlo**: stepper visual de 9 pasos (profile → speech → catalog → theme → quote → objection → address → logistics → checkout). Cada paso muestra: agente, estado (pending / running / done / fallback), reply recibido, timestamp. Selector de escenario (`indisutex_wa_catalog`, `client_woocommerce`, `client_shopify`, `client_supabase_nuestro`). Botones "Step siguiente" y "Ejecutar full".
+**Qué ver al abrirlo**: stepper visual de 9 pasos (profile → speech → catalog → theme → quote → objection → address → logistics → checkout). Cada paso muestra: agente, estado (pending / running / done / fallback), reply recibido, timestamp. Selector de escenario (`ziay_wa_catalog`, `client_woocommerce`, `client_shopify`, `client_supabase_nuestro`). Botones "Step siguiente" y "Ejecutar full".
 
 **3 acciones clave**:
 
@@ -568,7 +568,7 @@ Cada módulo tiene:
 **Flujo de usuario completo (paso a paso)**:
 
 1. `⌘5` para abrir Orquestador.
-2. Selecciona escenario "Indisutex (WhatsApp Catalog)".
+2. Selecciona escenario "ZIAY (WhatsApp Catalog)".
 3. Click "Ejecutar full".
 4. Observa cómo cada paso se va completando: perfil detectado como "mayorista", discurso generado, catálogo traído, cotización con volume pricing, etc.
 5. Al final (step 9), el agente `checkout` crea el pedido + OrderItem + Attribution + Shipment + CommissionEntry + AuditLog (8 side-effects).
@@ -1829,7 +1829,7 @@ Términos del proyecto organizados alfabéticamente. Si encuentras una palabra q
 | **SalesSpeech** | Modelo Prisma con `aperturaTexto` y `pruebaSocial` por `tenantId_perfil`. |
 | **Setting** | Modelo Prisma para configuración key-value del tenant (estrategia de pago, umbrales, etc.). |
 | **Shipment** | Modelo Prisma que representa la guía de envío generada por `LogisticsAdapter`. |
-| **Saramantha** | Documento funcional de especificación de Indisutex SAS. Referencia del proyecto. |
+| **Saramantha** | Documento funcional de especificación de ZIAY SAS. Referencia del proyecto. |
 | **ThemeDesign** | Modelo Prisma que agrupa productos por tema/personaje (Stitch, Hello Kitty, etc.). |
 | **Tenant** | Modelo Prisma que representa una marca/empresa aislada. |
 | **VolumePrice** | Modelo Prisma con precios por tramo (6-11, 12-35, 36+) y tipo de cliente. |
@@ -1867,13 +1867,13 @@ Términos del proyecto organizados alfabéticamente. Si encuentras una palabra q
 |----------------|-------|
 | **Bug o problema técnico** | Abre un issue en GitHub con tag `bug` + template `Bug_Report.md`. |
 | **Pregunta de uso** | Abre un issue con tag `question` o pregunta en el canal de Slack del equipo. |
-| **Vulnerabilidad de seguridad** | `security@indisutex.com` — **NO abras issue público**. Ver [`SECURITY.md`](../SECURITY.md). |
+| **Vulnerabilidad de seguridad** | `security@ziay.co` — **NO abras issue público**. Ver [`SECURITY.md`](../SECURITY.md). |
 | **Onboarding de nuevo tenant** | Endpoint `POST /api/onboarding` con body del wizard. |
 | **Soporte de Meta (WhatsApp Business)** | Meta Business Support Center. |
 | **Soporte de n8n** | https://community.n8n.io |
 | **Soporte de Prisma** | GitHub issues del repo `prisma/prisma`. |
 | **Soporte de adaptadores externos** | Contactar al proveedor (WooCommerce, Shopify, Dropi, etc.). |
-| **Emergencias de producción** | `ops@indisutex.com` / +57 XXX XXX XXXX (on-call 24/7). |
+| **Emergencias de producción** | `ops@ziay.co` / +57 XXX XXX XXXX (on-call 24/7). |
 
 ### Cómo reportar bugs
 
@@ -1886,7 +1886,7 @@ Template obligatorio:
 - Tenant: ten-saramantha
 - Módulo: Atribución de Pauta
 - Browser: Chrome 121
-- ¿Dev o prod?: prod (https://commerceflow.indisutex.com)
+- ¿Dev o prod?: prod (https://ziay.co)
 
 **Pasos para reproducir**:
 1. Ir a ⌘6 Atribución

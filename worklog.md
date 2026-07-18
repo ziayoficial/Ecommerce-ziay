@@ -281,7 +281,7 @@ Task: Ejecutar el plan de 5 fases para evolucionar CommerceFlow OS hacia el docu
 
 Work Log:
 - Fase 1: Schema Prisma reescrito con modelo `Tenant` (clientes_plataforma) + tenantId en 18 modelos + tablas Saramantha (VolumePrice, SalesSpeech, Objection, ThemeDesign, CategoryCombo, DeliveryHistory, ImageIdentification, Carrier, Shipment, CommissionEntry, Invoice). db:push --force-reset.
-- Fase 2: Seed con 4 marcas Indisutex (Saramantha, Majestic, Lovely, Reina) + tenant INTL. Catálogo real Saramantha (Short Tira, Pantalón, Batola + Stitch/Hello Kitty). Volume prices por tramo (mayorista 6-11, 12-35, 36+). SalesSpeech por 4 perfiles. 5 objection types. 2 themes. CategoryCombo 'familia'. 5 carriers canónicos con 6 variantes de Interrapidísimo. 15 orders simulando embudo §15.1 (73% pendiente_confirmacion, 1.3% despachado). Invoice del período.
+- Fase 2: Seed con 4 marcas ZIAY (Saramantha, Majestic, Lovely, Reina) + tenant INTL. Catálogo real Saramantha (Short Tira, Pantalón, Batola + Stitch/Hello Kitty). Volume prices por tramo (mayorista 6-11, 12-35, 36+). SalesSpeech por 4 perfiles. 5 objection types. 2 themes. CategoryCombo 'familia'. 5 carriers canónicos con 6 variantes de Interrapidísimo. 15 orders simulando embudo §15.1 (73% pendiente_confirmacion, 1.3% despachado). Invoice del período.
 - Fase 3: 10 agentes conversacionales en src/lib/agents/prompts.ts con system prompts EXACTOS del §6 Saramantha. API route /api/agents/[agentName] con LLM (z-ai-web-dev-sdk). Cada agente consulta tablas de negocio filtradas por tenantId (regla de oro §2: NUNCA business data en prompt). Side-effects: profile persiste perfilConversacion, vision persiste ImageIdentification.
 - Fase 4 (subagente): 14 archivos creados — EcommerceAdapter interfaz + 4 implementaciones (WhatsApp Catalog, WooCommerce, Shopify, Supabase), LogisticsAdapter + 3 (Dropi, 99envios, Aveonline), registry, carrier normalization, 3 API routes (/api/shipping/quote, /api/shipping/guide, /api/catalog/sync). Stubs con datos realistas (Bogotá $8k, Pasto $15.5k, Madrid $54 USD). Lint clean. Smoke tests verificados.
 - Fase 5: API routes de monetización (/api/monetization/gmv, /api/monetization/commission) con lógica de 2 momentos de reconocimiento (50% datos_completados, 100% despachado) y tramos escalonados (4.5%/3%/1.75%). /api/tenants para el switcher. Queries existentes (overview, conversations, orders, ads) actualizadas con tenantId opcional.
@@ -299,7 +299,7 @@ Work Log:
 
 Stage Summary:
 - 8 brechas críticas del documento Saramantha cerradas: multi-tenant ✓, 10 agentes ✓, EcommerceAdapter ✓, LogisticsAdapter ✓, identificación visual (VLM) ✓, NocoDB (pendiente — vista Kanban interna como siguiente paso), monetización ✓, tenant config ✓.
-- App ahora opera con 4 marcas Indisutex reales + datos del embudo §15.1 (73% pendiente confirmación).
+- App ahora opera con 4 marcas ZIAY reales + datos del embudo §15.1 (73% pendiente confirmación).
 - 6 módulos en el dashboard: Resumen, Mensajería, Pedidos & Pagos, Atribución de Pauta, Monetización, Configuración.
 - Adaptadores + carrier normalization listos para conectar APIs reales (Dropi/Woo/Shopify/Supabase) cuando haya credenciales.
 
@@ -5933,7 +5933,7 @@ Work Log:
   - Added `icons: { icon: [remote SVG, /favicon.ico], apple: '/apple-touch-icon.png' }` (#15).
   - Added `applicationName`, `creator`, `publisher`, `alternates.canonical`, `keywords` retained.
   - Set `display: 'swap'` explicitly on both Geist + Geist_Mono font configs (#18).
-  - Injected two root `<script type="application/ld+json">` blocks: `Organization` (legalName: Indisutex SAS, logo, areaServed: CO/MX/PE/CL/AR) + `WebSite` (with `potentialAction: SearchAction` targeting `/directorio?q={search_term_string}` for Google sitelinks search box) (#8).
+  - Injected two root `<script type="application/ld+json">` blocks: `Organization` (legalName: ZIAY SAS, logo, areaServed: CO/MX/PE/CL/AR) + `WebSite` (with `potentialAction: SearchAction` targeting `/directorio?q={search_term_string}` for Google sitelinks search box) (#8).
 - **Fix #11 + #12 (P2 sitemap)** — Edited `src/app/sitemap.ts`:
   - Removed `export const dynamic = 'force-dynamic'` (it was contradicting `revalidate = 3600` — `force-dynamic` wins and `revalidate` was silently ignored). Now pure ISR with 1h revalidation (#12).
   - Replaced `lastModified: now` for the homepage + `/directorio` entries with `latestTenantUpdate` resolved via `db.tenant.findFirst({ where: { activo: true }, orderBy: { updatedAt: 'desc' }, select: { updatedAt: true } })`, falling back to a build-time constant `new Date(process.env.NEXT_BUILD_TIME || '2025-01-01T00:00:00.000Z')` when the DB is unreachable (#11). This stops the lastmod signal from churning every fetch.
@@ -7570,7 +7570,7 @@ Work Log:
 - Minors: ZERO matches for `age.*verif|menor.*edad|minor|parental.consent`. No age gate at checkout. COPPA (US) and Colombian Código de la Infancia y Adolescencia (Ley 1098/2006) Art 17 — enhanced PII protection for minors — entirely unaddressed.
 - Marketing consent: ConsentRecord model exists (`/api/compliance/consent`) with purpose enum including 'marketing'. BUT remarketing endpoint (`/api/remarketing`) does NOT check consent before scheduling WhatsApp abandoned-cart / no-response / post-purchase messages. No WhatsApp opt-in flow per Meta Cloud API policy (marketing templates require explicit opt-in outside 24h customer-service window). No unsubscribe keyword handling ("STOP", "BAJA"). No opt-out link in messages.
 - Tax: `src/lib/i18n/tax.ts` computes IVA correctly per country (CO 19%, MX 16%, BR 17%, PE 18%, CL 19%, AR 21%, US Sales Tax). No retefuente / reteica / impuesto al consumo calculations. No DIAN integration (electronic invoicing — mandatory since 2019 for Colombia). No régimen tributario selection (simplificado vs común). No PDF generation.
-- Privacy policy + terms of service: ZERO legal pages — no `/privacy`, `/terms`, `/legal` directories in `src/app/`. No public privacy policy URL (required by Ley 1581 Art 10 — right to be informed about data processing). No terms of service (required for B2B SaaS). No cookie policy. Storefront footer (`/t/[slug]/page.tsx`) renders empty `<footer>`. Login footer (`/login/page.tsx`) has only `© 2025 ZIAY · Indisutex SAS` — no links to legal documents.
+- Privacy policy + terms of service: ZERO legal pages — no `/privacy`, `/terms`, `/legal` directories in `src/app/`. No public privacy policy URL (required by Ley 1581 Art 10 — right to be informed about data processing). No terms of service (required for B2B SaaS). No cookie policy. Storefront footer (`/t/[slug]/page.tsx`) renders empty `<footer>`. Login footer (`/login/page.tsx`) has only `© 2025 ZIAY · ZIAY SAS` — no links to legal documents.
 
 Stage Summary:
 
@@ -7598,9 +7598,9 @@ Stage Summary:
 ### P0 — Hard blockers for production launch
 
 **P0-1 — No privacy policy, no terms of service (Ley 1581 Art 10)**
-`src/app/` has ZERO routes under `/privacy`, `/terms`, `/legal`. Storefront footer (`src/app/t/[slug]/page.tsx`) renders an empty `<footer>` element. Login footer has only `© 2025 ZIAY · Indisutex SAS` with no links. Ley 1581 Art 10 requires that data subjects be informed about: (a) the data being collected, (b) the purpose, (c) the legal basis, (d) the retention period, (e) the rights they have, (f) how to exercise them. None of this is publicly available. This is also a hard blocker for any B2B SaaS contract (no enforceable ToS).
+`src/app/` has ZERO routes under `/privacy`, `/terms`, `/legal`. Storefront footer (`src/app/t/[slug]/page.tsx`) renders an empty `<footer>` element. Login footer has only `© 2025 ZIAY · ZIAY SAS` with no links. Ley 1581 Art 10 requires that data subjects be informed about: (a) the data being collected, (b) the purpose, (c) the legal basis, (d) the retention period, (e) the rights they have, (f) how to exercise them. None of this is publicly available. This is also a hard blocker for any B2B SaaS contract (no enforceable ToS).
 
-**Fix:** Create `src/app/privacy/page.tsx`, `src/app/terms/page.tsx`, `src/app/legal/page.tsx` (or `cookies/page.tsx`). Content drafted by Colombian counsel (Indisutex SAS is the operating entity per `src/app/layout.tsx:legalName`). Link from login footer + storefront footer + dashboard sidebar. Estimated: 1 day (legal review + i18n + footer wiring).
+**Fix:** Create `src/app/privacy/page.tsx`, `src/app/terms/page.tsx`, `src/app/legal/page.tsx` (or `cookies/page.tsx`). Content drafted by Colombian counsel (ZIAY SAS is the operating entity per `src/app/layout.tsx:legalName`). Link from login footer + storefront footer + dashboard sidebar. Estimated: 1 day (legal review + i18n + footer wiring).
 
 **P0-2 — No data retention policy (Ley 1581 Art 11)**
 Zero references to `retention|purge|delete.after`. No cron job, no `deleteMany({ where: { createdAt: { lt: now - X days } } })` pattern anywhere in src/. The platform retains forever: messages (PII textual), audit logs, customer profiles, abandoned carts, expired consent records, expired KYC verifications. Ley 1581 Art 11 mandates deletion when the data is no longer necessary for the purpose for which it was collected.
@@ -7666,7 +7666,7 @@ Currently 0/10 on GDPR. If ZIAY targets EU users (tenant merchants in Spain, Ger
 | Cross-border transfer DPAs | 0 documented | ❌ Gap |
 | Cookie banner | 0 | ⚠️ Exempt today, mandatory if client-side pixels added |
 | Tax calculation coverage | IVA only (no retefuente/reteica/consumo) | ⚠️ Partial |
-| Legal entity disclosed | "Indisutex SAS" (`layout.tsx:legalName`) | ✅ Disclosed but not in legal pages |
+| Legal entity disclosed | "ZIAY SAS" (`layout.tsx:legalName`) | ✅ Disclosed but not in legal pages |
 
 ## RECOMMENDED NEXT SPRINT (legal-compliance, ~2 weeks)
 
@@ -8138,9 +8138,9 @@ Work Log:
   - `src/lib/db.ts` + `src/lib/logger.ts` — confirmed `db` singleton + `logger` / `getLogger` exports.
 
 - L-1 (privacy policy + terms + legal pages + middleware):
-  - Created `src/app/privacy/page.tsx` — SSR page with Colombia-compliant privacy policy. 11 sections covering: responsable del tratamiento (Indisutex SAS, datos@ziay.co), datos recopilados (identificación, transaccionales, conversacionales, navegación), base legal (Ley 1581 Art 4: consentimiento / contrato / interés legítimo / obligación legal), finalidad, derechos del titular (Art 8: acceso, rectificación, supresión, revocación, queja SIC), retención (relación comercial + 5 años por Estatuto Tributario Art 632), transferencias transfronterizas (Art 26: Meta, Stripe, MercadoPago, Wompi, PayU, Google, ByteDance bajo SCC), seguridad (AES-256, TLS 1.3, HSTS, 2FA, HMAC), menores (Ley 1098/2006), cambios, contacto. Used explicit Tailwind classes (NOT `prose` — the project has no `@tailwindcss/typography` plugin; `prose` would have rendered unstyled).
+  - Created `src/app/privacy/page.tsx` — SSR page with Colombia-compliant privacy policy. 11 sections covering: responsable del tratamiento (ZIAY SAS, datos@ziay.co), datos recopilados (identificación, transaccionales, conversacionales, navegación), base legal (Ley 1581 Art 4: consentimiento / contrato / interés legítimo / obligación legal), finalidad, derechos del titular (Art 8: acceso, rectificación, supresión, revocación, queja SIC), retención (relación comercial + 5 años por Estatuto Tributario Art 632), transferencias transfronterizas (Art 26: Meta, Stripe, MercadoPago, Wompi, PayU, Google, ByteDance bajo SCC), seguridad (AES-256, TLS 1.3, HSTS, 2FA, HMAC), menores (Ley 1098/2006), cambios, contacto. Used explicit Tailwind classes (NOT `prose` — the project has no `@tailwindcss/typography` plugin; `prose` would have rendered unstyled).
   - Created `src/app/terms/page.tsx` — SSR Terms of Service. 14 sections: aceptación, descripción del servicio, elegibilidad, obligaciones del usuario, usos prohibidos, propiedad intelectual, agentes de IA y trazabilidad, pagos y comisiones, limitación de responsabilidad, suspensión y terminación, ley aplicable y jurisdicción (Colombia + conciliación Ley 640/2001 + jueces civiles del circuito de Bogotá), derecho de retracto (Ley 1480 Art 47), modificaciones, contacto.
-  - Created `src/app/legal/page.tsx` — SSR index linking to /privacy, /terms, and a cookies-policy section (strictly-necessary only — no banner required today). Includes datos del responsable (Indisutex SAS, Bogotá, datos@ziay.co, SIC).
+  - Created `src/app/legal/page.tsx` — SSR index linking to /privacy, /terms, and a cookies-policy section (strictly-necessary only — no banner required today). Includes datos del responsable (ZIAY SAS, Bogotá, datos@ziay.co, SIC).
   - `src/middleware.ts` — added `/^\/privacy(?:\/.*)?$/`, `/^\/terms(?:\/.*)?$/`, `/^\/legal(?:\/.*)?$/` to PUBLIC_PATTERNS so the legal pages are reachable without auth (crawlers + unauthenticated data subjects).
   - `src/app/sitemap.ts` — added the 3 legal URLs with `changeFrequency: 'monthly'`, `priority: 0.5`, `lastModified: SITE_BUILD_TIME` so search engines index them.
   - `src/app/robots.ts` — added `/privacy`, `/terms`, `/legal` to the `allow` list.
@@ -8195,7 +8195,7 @@ Stage Summary:
 
 ## What's now in place
 
-1. **Public legal pages** — `/privacy`, `/terms`, `/legal` are SSR-rendered, public (no auth), crawlable (sitemap + robots), and cross-linked. Indisutex SAS is identified as the data controller; `datos@ziay.co` is the DPO contact. Spanish (es-CO), Ley 1581 / Ley 1098 / Ley 1480 / Ley 640 references throughout.
+1. **Public legal pages** — `/privacy`, `/terms`, `/legal` are SSR-rendered, public (no auth), crawlable (sitemap + robots), and cross-linked. ZIAY SAS is identified as the data controller; `datos@ziay.co` is the DPO contact. Spanish (es-CO), Ley 1581 / Ley 1098 / Ley 1480 / Ley 640 references throughout.
 2. **Retention policy + enforcement** — 7 data types with explicit retention periods tied to specific Colombian legal articles. `runRetentionCleanup()` is idempotent, failure-isolated per phase, and admin-triggerable via `POST /api/compliance/retention`. GET returns the policy + current DB volumes. TODO: wire to a daily BullMQ recurring job (the queue infra exists in `src/lib/queue.ts` — the recurring-job registration is a follow-up).
 3. **Marketing consent enforcement** — `assertMarketingConsent()` gates every `schedule` and `auto_generate` call. Customers without a `ConsentRecord(purpose='marketing', granted=true, revokedAt=null)` are silently skipped + audit-logged (`remarketing.skipped_no_consent`). The `auto_generate` response now includes `skipped` count so the dashboard can surface the silent skips. Phones without a linked Customer row are also skipped + audit-logged (`remarketing.skipped_no_customer`).
 4. **Minors' data protection** — `Customer.birthDate` + `Customer.isMinor` columns are in the DB. `checkAgeGate(customerId)` is fail-closed. The UCP checkout PATCH `ready_for_complete` transition runs the age gate before the KYC gate; minors without parental consent are forced into `requires_escalation` with `continuationUrl=/compliance/parental-consent?customerId=...`. The `parental_consent_minor` ConsentRecord purpose is queried via Prisma (no schema enum change needed — `purpose` is a String).

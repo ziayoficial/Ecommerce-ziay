@@ -51,7 +51,7 @@ profile, speech, quote, catalog, theme, objection, address, logistics, vision, c
    - Fetches the Tenant + relevant DB rows filtered by `tenantId`.
    - Builds a Spanish (LATAM, Colombia-focused) system message defining the agent's role.
    - Builds a user message with real tenant-specific data (catalog, shipments, orders, etc.).
-   - References Saramantha / Indisutex / CommerceFlow OS context where relevant.
+   - References Saramantha / ZIAY / CommerceFlow OS context where relevant.
 4. `buildAgentPrompt()` switch — added 16 new cases.
 5. `AGENT_NAMES` array — extended to 26 entries.
 6. `AGENT_LABELS` map — extended with Spanish labels for the 16 new agents.

@@ -1,14 +1,64 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { db } from '@/lib/db'
+import { requireRole } from '@/lib/auth-helpers'
+import { rateLimit } from '@/lib/middleware/rate-limit'
 
 // POST /api/onboarding — self-service wizard to register a new tenant (Saramantha §13.6, §16.3)
 // Body: { slug, nombreNegocio, marca, plataformaCatalogo, proveedorLogistico, proveedorIa, tonoMarca, nombreAsesora, politicaPago, preguntaPerfil, planMonetizacion }
+//
+// SECURITY · IF-2 · S-8 — privilege escalation closed.
+//   - `requireRole(['admin'])` — only authenticated admins may provision a
+//     new tenant (was previously open to ANY authenticated user, including
+//     read-only `agent` / `marketing` roles, which let anyone create
+//     unlimited tenants and configure `feeBaseMensual` defaults).
+//   - Zod schema for the request body — slug MUST match `^[a-z0-9-]{3,40}$`,
+//     enums are validated, lengths capped. Was previously parsed with bare
+//     `await req.json()` + ad-hoc `if (!slug)` checks (S-14).
+//   - Rate-limit 5/hour/IP — defense-in-depth against a stolen admin token
+//     being used to flood the tenants table.
+const ONBOARDING_SCHEMA = z.object({
+  slug: z
+    .string()
+    .regex(/^[a-z0-9-]{3,40}$/, 'slug must be 3-40 chars of lowercase letters, digits or hyphens'),
+  nombreNegocio: z.string().min(1).max(120),
+  marca: z.string().min(1).max(120),
+  plataformaCatalogo: z
+    .enum(['whatsapp_catalog', 'woocommerce', 'shopify', 'catalogo_propio_cliente', 'catalogo_nuestro'])
+    .optional(),
+  bdCatalogo: z.enum(['supabase_cliente', 'supabase_nuestro', 'oracle_nuestro']).optional(),
+  proveedorIa: z.enum(['zai', 'chatgpt', 'xai', 'ollama']).optional(),
+  proveedorLogistico: z.enum(['dropi', '99envios', 'aveonline']).optional(),
+  tonoMarca: z.string().max(500).optional(),
+  nombreAsesora: z.string().max(120).optional(),
+  politicaPago: z.string().max(500).optional(),
+  preguntaPerfil: z.string().max(500).optional(),
+  planMonetizacion: z.enum(['conecta', 'catalogo_incluido', 'completo']).optional(),
+  feeBaseMensual: z.number().int().nonnegative().max(10_000_000).optional(),
+})
+
 export async function POST(req: NextRequest) {
-  const body = await req.json()
-  const { slug, nombreNegocio, marca } = body
-  if (!slug || !nombreNegocio || !marca) {
-    return NextResponse.json({ error: 'slug, nombreNegocio, marca required' }, { status: 400 })
+  // IF-2 · S-8 — only admins may provision new tenants.
+  const { error: roleError } = await requireRole(['admin'])
+  if (roleError) return roleError
+
+  // IF-2 · S-8 — rate-limit 5/hour/IP to defend against token abuse floods.
+  if (rateLimit(req, { max: 5, windowMs: 3_600_000 })) {
+    return NextResponse.json({ error: 'Too Many Requests' }, { status: 429 })
   }
+
+  const raw = await req.json().catch(() => null)
+  if (!raw) return NextResponse.json({ error: 'invalid JSON body' }, { status: 400 })
+
+  const parsed = ONBOARDING_SCHEMA.safeParse(raw)
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: 'invalid body', issues: parsed.error.flatten() },
+      { status: 400 },
+    )
+  }
+  const body = parsed.data
+  const { slug, nombreNegocio, marca } = body
 
   // Check slug is unique
   const existing = await db.tenant.findUnique({ where: { slug } })

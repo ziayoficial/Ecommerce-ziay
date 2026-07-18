@@ -164,13 +164,18 @@ describe('PSE webhook · signature verification', () => {
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ received: true })
 
-    // PSE state 'OK' → canonical 'approved', success=true
+    // PSE state 'OK' → canonical 'approved', success=true.
+    // AUDIT-FINTECH R-6 — the route now passes the gateway-reported
+    // amount/currency (extracted from the webhook body) so `applyPaymentUpdate`
+    // can defend against forged-amount webhooks.
     expect(paymentUtilsMock.applyPaymentUpdate).toHaveBeenCalledWith({
       gateway: 'pse',
       paymentId: 'tx-2',
       externalReference: 'ORD-2024-002',
       status: 'approved',
       success: true,
+      amount: 75000,
+      currency: 'COP',
     })
 
     // safeAudit recorded the inbound event with the webhookId.

@@ -4,6 +4,9 @@ export const metadata: Metadata = {
   title: 'Consentimiento de Padre/Madre/Tutor',
   description: 'Autorización para compra de menor de edad conforme a la Ley 1098 de 2006',
   robots: { index: false, follow: false },
+  // SEO-5 (IF-4) — canonical declared even on noindex pages so search
+  // engines consolidate any stray inbound links to the canonical URL.
+  alternates: { canonical: '/compliance/parental-consent' },
 }
 
 // SPRINT-ADOPT-ERRORHANDLER-001 — age-gate escalation target.

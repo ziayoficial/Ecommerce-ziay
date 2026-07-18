@@ -3,10 +3,16 @@ import { db } from '@/lib/db'
 import { buildAgentPrompt } from '@/lib/agents/prompts'
 import ZAI from 'z-ai-web-dev-sdk'
 import { rateLimit } from '@/lib/middleware/rate-limit'
+import { requireTenantAccess } from '@/lib/auth-helpers'
 
 // POST /api/address-analysis
 // Body: { tenantId, direccion, country, ciudad, departamento }
 // Returns: { result: "dirección correcta" | "falta que proporcione ...", country, address }
+//
+// SECURITY · IF-2 · S-5 — cross-tenant bypass closed. `requireTenantAccess`
+// runs BEFORE the LLM call + AuditLog write so an attacker can no longer
+// spend a victim tenant's LLM budget or inject audit-log rows. The 10/min
+// IP rate-limit stays as defense-in-depth but does NOT close the bypass.
 export async function POST(req: NextRequest) {
   // Rate-limit: 10 req/min per IP — LLM-backed route.
   if (rateLimit(req, { max: 10, windowMs: 60_000 })) {
@@ -16,6 +22,10 @@ export async function POST(req: NextRequest) {
   if (!tenantId || !direccion) {
     return NextResponse.json({ error: 'tenantId and direccion required' }, { status: 400 })
   }
+
+  // IF-2 · S-5 — verify the caller may access this tenant BEFORE the LLM call.
+  const { error } = await requireTenantAccess(tenantId)
+  if (error) return error
 
   try {
     const { system, user } = await buildAgentPrompt('address_analysis', {

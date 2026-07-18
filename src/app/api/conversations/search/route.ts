@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { searchSimilar } from '@/lib/embeddings/service'
+import { requireTenantAccess } from '@/lib/auth-helpers'
 
 // GET /api/conversations/search?tenantId=...&conversationId=...&q=...
 // Semantic search over message history (Saramantha §3).
@@ -12,6 +13,11 @@ import { searchSimilar } from '@/lib/embeddings/service'
 // onto the new `searchSimilar` signature (tenantId, kind='message',
 // conversationId, topK, minScore) and adapt the result shape back to the
 // old contract for backward compat with any callers still hitting this URL.
+//
+// SECURITY · IF-2 · S-1 — cross-tenant bypass closed. The `tenantId` query
+// param is now gated by `requireTenantAccess` so any authenticated user can
+// only search messages inside their own tenant (platform admins can pass any
+// tenantId explicitly).
 export async function GET(req: NextRequest) {
   const tenantId = req.nextUrl.searchParams.get('tenantId')
   const conversationId = req.nextUrl.searchParams.get('conversationId') || undefined
@@ -23,6 +29,10 @@ export async function GET(req: NextRequest) {
   if (!tenantId || !q) {
     return NextResponse.json({ error: 'tenantId and q required' }, { status: 400 })
   }
+
+  // IF-2 · S-1 — verify the caller may access this tenant before reading.
+  const { error } = await requireTenantAccess(tenantId)
+  if (error) return error
 
   const results = await searchSimilar(q, {
     tenantId,

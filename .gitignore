@@ -58,3 +58,6 @@ server.log
 /playwright/.cache/
 /test.db
 /test.db-journal
+tool-results/
+audit-screenshots/
+data/cold-storage/

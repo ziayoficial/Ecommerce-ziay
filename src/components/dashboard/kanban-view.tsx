@@ -253,7 +253,7 @@ function DroppableColumn({ stage, orders, collapsed, onToggleCollapse }: { stage
         style={{ maxHeight: 'calc(100vh - 16rem)' }}
       >
         {orders.length === 0 ? (
-          <div className="text-[11px] text-muted-foreground/70 text-center py-6">Soltar aquí</div>
+          <div className="text-[11px] text-muted-foreground text-center py-6">Soltar aquí</div>
         ) : (
           orders.map(o => <DraggableCard key={o.id} order={o} />)
         )}

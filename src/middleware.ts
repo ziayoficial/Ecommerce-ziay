@@ -134,6 +134,32 @@ const PUBLIC_PATTERNS: Array<RegExp | string> = [
   '/logo-white.svg',
   '/sitemap.xml',
   '/robots.txt',
+  // IF-1 · SEO-2 — public PWA / social-sharing assets MUST bypass the auth
+  // middleware. Previously they were redirected to /login (307) because they
+  // weren't in this list, which broke:
+  //   - social sharing previews (`og-default.svg` is referenced by
+  //     `metadata.openGraph.images` in the root layout)
+  //   - PWA install (`manifest.json` is linked from `<link rel="manifest">`)
+  //   - favicon (`icon.svg` is linked from `<link rel="icon">`)
+  //   - Service Worker registration (`sw.js`)
+  // Twitter/Facebook/LinkedIn/Slack crawlers + the SW installer don't carry
+  // a NextAuth session cookie, so they would have been 307-redirected to
+  // /login?callbackUrl=… on every request. Adding them here lets
+  // `isPublic(path)` short-circuit before the JWT check.
+  '/og-default.svg',
+  '/og-default.png',
+  // IF-3 · SEO-3 — dynamic PNG OG image route (`src/app/og/route.tsx`). Same
+  // rationale as `/og-default.*` above: social crawlers (Twitter, Facebook,
+  // LinkedIn, Slack) don't carry a session cookie, so without this entry
+  // they would be 307-redirected to /login and the OG card would render as
+  // a broken image. The route is intentionally public — it contains no
+  // sensitive data (just branded marketing copy).
+  '/og',
+  '/icon.svg',
+  '/icon.png',
+  '/apple-icon.png',
+  '/manifest.json',
+  '/sw.js',
   '/presentaciones',
 ]
 

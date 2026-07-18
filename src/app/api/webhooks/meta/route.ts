@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { verifyMetaSignature } from '@/lib/middleware/hmac'
 import { isDuplicateWebhook, isDuplicateWebhookDB, generateWebhookId } from '@/lib/middleware/idempotency'
 import { withWebhookErrorHandling } from '@/lib/middleware/webhook-error-handler'
+import { resolveMetaVerifyToken } from '@/lib/middleware/webhook-secrets'
 
 // Meta (Messenger + Instagram + WhatsApp) ad platform webhook + lead/attributions.
 
@@ -23,7 +24,15 @@ export async function GET(req: NextRequest) {
   const mode = url.searchParams.get('hub.mode')
   const token = url.searchParams.get('hub.verify_token')
   const challenge = url.searchParams.get('hub.challenge')
-  const expected = process.env.META_VERIFY_TOKEN || 'commerceflow_verify'
+  // IF-2 · S-12 — removed hardcoded `'commerceflow_verify'` fallback. In
+  // production, if `META_VERIFY_TOKEN` is missing, the handshake fails
+  // with 500 (so the operator notices the misconfig). In dev we warn + use
+  // a deterministic insecure default.
+  const expected = resolveMetaVerifyToken()
+  if (!expected) {
+    console.error('[webhooks/meta] META_VERIFY_TOKEN not set in production — rejecting webhook verification')
+    return NextResponse.json({ error: 'Webhook verify token not configured' }, { status: 500 })
+  }
   if (mode === 'subscribe' && token === expected) {
     return new NextResponse(challenge || '', { status: 200 })
   }

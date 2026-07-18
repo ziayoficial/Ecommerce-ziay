@@ -41,7 +41,12 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import dynamic from 'next/dynamic'
-import { NAV_ITEMS } from '@/components/dashboard/sidebar'
+// IF-1 · P0-1 — `NAV_ITEMS` MUST be imported from the shared non-`'use client'`
+// module (not from `sidebar.tsx`, which is a client component). Importing from
+// a `'use client'` module here would make Turbopack return a client reference
+// proxy that has no `.find()` method, throwing a TypeError and breaking the
+// entire dashboard. See `src/components/dashboard/nav-items.ts`.
+import { NAV_ITEMS } from '@/components/dashboard/nav-items'
 import { Zap, Github, BookOpen } from 'lucide-react'
 
 const DashboardClient = dynamic(() =>

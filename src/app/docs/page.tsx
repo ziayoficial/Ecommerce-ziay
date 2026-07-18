@@ -5,6 +5,9 @@ export const metadata: Metadata = {
   title: 'API Documentation',
   description: 'ZIAY API documentation',
   robots: { index: false, follow: false },
+  // SEO-5 (IF-4) — canonical declared even on noindex pages so search
+  // engines consolidate any stray inbound links to the canonical URL.
+  alternates: { canonical: '/docs' },
 }
 
 /**

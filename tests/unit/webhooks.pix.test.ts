@@ -175,13 +175,19 @@ describe('PIX webhook · signature verification', () => {
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ received: true })
 
-    // CONCLUIDA → approved, success=true
+    // CONCLUIDA → approved, success=true.
+    // AUDIT-FINTECH R-6 — the route now passes the gateway-reported
+    // amount/currency so `applyPaymentUpdate` can defend against forged-amount
+    // webhooks. PIX amounts come from `valor.original` (major BRL unit) and
+    // the currency is always BRL.
     expect(paymentUtilsMock.applyPaymentUpdate).toHaveBeenCalledWith({
       gateway: 'pix',
       paymentId: 'txid-123',
       externalReference: 'txid-123',
       status: 'approved',
       success: true,
+      amount: 99.9,
+      currency: 'BRL',
     })
 
     // safeAudit recorded the inbound event with the webhookId.

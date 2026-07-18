@@ -31,7 +31,12 @@
 import { useCallback, useEffect, useState } from 'react'
 import dynamic from 'next/dynamic'
 import type { Session } from 'next-auth'
-import { Sidebar, ViewId, NAV_ITEMS } from '@/components/dashboard/sidebar'
+// IF-1 · P0-1 — `Sidebar` is a client component (kept in `./sidebar`), but
+// `NAV_ITEMS` + `ViewId` MUST come from the shared non-`'use client'` module
+// `./nav-items` so they aren't wrapped in a client reference proxy when
+// re-imported by the Server Component in `src/app/page.tsx`.
+import { Sidebar } from '@/components/dashboard/sidebar'
+import { NAV_ITEMS, type ViewId } from '@/components/dashboard/nav-items'
 import { Topbar } from '@/components/dashboard/topbar'
 // OverviewView stays eager — it's the default view rendered on first paint.
 // The other 13 views are lazy-loaded via next/dynamic so recharts (~400KB),

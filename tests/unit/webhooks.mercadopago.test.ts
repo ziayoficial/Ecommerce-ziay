@@ -172,12 +172,21 @@ describe('MercadoPago webhook · signature verification', () => {
 
     // applyPaymentUpdate dispatched with the canonical status from the gateway
     // (NOT the raw webhook body — the gateway is the source of truth).
+    // I2-R3 — the route now also passes the gateway-reported amount/currency
+    // (defense-in-depth against forged-amount webhooks) + the CVV/AVS
+    // verification results extracted from `card.esc_status`. MercadoPago
+    // doesn't standardize AVS in the webhook payload, so avsResult is
+    // undefined unless the merchant extends it.
     expect(paymentUtilsMock.applyPaymentUpdate).toHaveBeenCalledWith({
       gateway: 'mercadopago',
       paymentId: '12345',
       externalReference: 'ORD-2024-001',
       status: 'approved',
       success: true,
+      amount: 15000,
+      currency: 'COP',
+      cvvResult: undefined,
+      avsResult: undefined,
     })
 
     // safeAudit recorded the inbound event with the webhookId for cross-instance dedup.

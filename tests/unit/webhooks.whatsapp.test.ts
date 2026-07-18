@@ -262,11 +262,15 @@ describe('WhatsApp webhook · GET handshake', () => {
     expect(res.status).toBe(403)
   })
 
-  it('falls back to default verify_token when WA_VERIFY_TOKEN is unset', async () => {
+  it('falls back to dev default verify_token when WA_VERIFY_TOKEN is unset (dev mode)', async () => {
+    // IF-2 · S-12 — the hardcoded `'commerceflow_verify'` fallback was
+    // removed. In dev mode, `resolveWaVerifyToken()` returns a deterministic
+    // insecure default (`dev-wa-verify-token-change-me`) and console.warns.
+    // In production, it returns null → 500 (handled by a separate test).
     vi.stubEnv('WA_VERIFY_TOKEN', '')
     const req = buildGetReq({
       'hub.mode': 'subscribe',
-      'hub.verify_token': 'commerceflow_verify',
+      'hub.verify_token': 'dev-wa-verify-token-change-me',
       'hub.challenge': 'default-wa-challenge',
     })
     const res = await GET(req)

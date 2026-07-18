@@ -38,6 +38,11 @@ export const metadata: Metadata = {
   title: 'Estado del Sistema | ZIAY',
   description: 'Estado en tiempo real de la plataforma ZIAY',
   robots: { index: true, follow: true },
+  // SEO-5 (IF-4) — explicit canonical URL so search engines don't index
+  // duplicate variants of /status (e.g. with query params from incident
+  // deep-links). The page is `force-dynamic` so without canonical, Google
+  // could see N slightly-different URLs.
+  alternates: { canonical: '/status' },
 }
 
 export const dynamic = 'force-dynamic'

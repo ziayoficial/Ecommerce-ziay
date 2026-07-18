@@ -434,7 +434,14 @@ describe('CAPI auto-fire · end-to-end Wompi webhook → CAPI enqueue', () => {
       number: 'ORD-2024-004',
       paymentStatus: 'unpaid',
       paidAt: null,
-      total: 60000,
+      // AUDIT-FINTECH R-6 — the Wompi webhook now passes the gateway-reported
+      // amount (8000000 cents → 80000 COP) to `applyPaymentUpdate`, which
+      // refuses to mark the order paid when the amount differs from
+      // `order.total` by >1%. The order total MUST match the wompi payload
+      // (wompiApprovedPayload uses amount_in_cents=8000000 → 80000 major
+      // unit), otherwise the test would exercise the payment_mismatch path
+      // instead of the no-pixels path it's meant to verify.
+      total: 80000,
       currency: 'COP',
       paymentRef: null,
       paymentGateway: null,
@@ -443,7 +450,7 @@ describe('CAPI auto-fire · end-to-end Wompi webhook → CAPI enqueue', () => {
       id: 'order-no-pixels',
       tenantId: 'ten-empty',
       number: 'ORD-2024-004',
-      total: 60000,
+      total: 80000,
       currency: 'COP',
       items: [],
       customer: null,

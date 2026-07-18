@@ -178,6 +178,15 @@ describe('PayU webhook · signature verification', () => {
 
   it('accepts a valid header signature + dispatches applyPaymentUpdate', async () => {
     payuAdapterMock.webhookVerify.mockReturnValue(true)
+    // AUDIT-FINTECH R-13 — the route now re-verifies the payment with PayU's
+    // API before marking the order paid (MD5 webhook signatures are weak to
+    // collision attacks). Mock the gateway re-check to return an approved
+    // status so the happy path runs end-to-end.
+    payuAdapterMock.verifyPayment.mockResolvedValue({
+      success: true,
+      status: 'approved',
+      paymentId: 'payu-tx-999',
+    })
 
     const req = buildReq(payuBody('ORD-2024-001', '4', 'payu-tx-999'), 'valid-md5')
     const res = await POST(req)
@@ -186,13 +195,23 @@ describe('PayU webhook · signature verification', () => {
     const data = await res.json()
     expect(data).toEqual({ received: true })
 
-    // state_pol=4 → APPROVED, success=true
+    // R-13 — verifyPayment was called with the transaction id (defense-in-depth
+    // against forged MD5 webhooks).
+    expect(payuAdapterMock.verifyPayment).toHaveBeenCalledWith('payu-tx-999')
+
+    // state_pol=4 → APPROVED, success=true. I2-R3 — the route now also passes
+    // the gateway-reported amount/currency + CVV/AVS results. The test body
+    // doesn't include cvv_response/avs_response, so both are undefined.
     expect(paymentUtilsMock.applyPaymentUpdate).toHaveBeenCalledWith({
       gateway: 'payu',
       paymentId: 'payu-tx-999',
       externalReference: 'ORD-2024-001',
       status: 'APPROVED',
       success: true,
+      amount: 150000,
+      currency: 'COP',
+      cvvResult: undefined,
+      avsResult: undefined,
     })
 
     // safeAudit recorded the inbound event with the webhookId for cross-instance dedup.

@@ -1,11 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { requireTenantAccess } from '@/lib/auth-helpers'
 
 // GET /api/conversational-cart?tenantId=...&conversationId=...
+//
+// SECURITY · IF-2 · S-3 — cross-tenant bypass closed. `requireTenantAccess`
+// gates every entry point (GET + every POST action) so authenticated users
+// can only read / mutate carts inside their own tenant.
 export async function GET(req: NextRequest) {
   const tenantId = req.nextUrl.searchParams.get('tenantId')
   const conversationId = req.nextUrl.searchParams.get('conversationId')
   if (!tenantId) return NextResponse.json({ error: 'tenantId required' }, { status: 400 })
+
+  // IF-2 · S-3 — verify the caller may access this tenant before reading.
+  const { error } = await requireTenantAccess(tenantId)
+  if (error) return error
 
   const cart = conversationId
     ? await db.conversationalCart.findFirst({ where: { tenantId, conversationId, status: 'building' }, include: { items: true } })
@@ -27,6 +36,10 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const { tenantId, conversationId, action, items } = await req.json()
   if (!tenantId) return NextResponse.json({ error: 'tenantId required' }, { status: 400 })
+
+  // IF-2 · S-3 — verify the caller may access this tenant before any write.
+  const { error } = await requireTenantAccess(tenantId)
+  if (error) return error
 
   if (action === 'add_items') {
     // Find or create cart

@@ -51,7 +51,17 @@
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.62 0.15 158);
+  /* UX-2 (IF-4) — `--primary` darkened from `oklch(0.62 0.15 158)` (~#10b981,
+   * emerald-500) to `oklch(0.55 0.15 158)` (~#0d9668, emerald-600). The
+   * previous value had ~2.9:1 contrast on white — failing WCAG AA 4.5:1 for
+   * the many `text-primary` usages on `bg-background` (icons, nav labels,
+   * status badges). Emerald-600 on white = ~4.5:1 (passes AA for normal
+   * text + passes 3:1 for UI components/icons per WCAG 1.4.11).
+   * `--primary-foreground` stays near-white → buttons (bg-primary
+   * text-primary-foreground) still pass AA at ~4.6:1.
+   * Dark-mode `--primary` (oklch(0.7 0.15 158) ≈ #34d399) was already
+   * compliant (light text on dark bg) — left unchanged. */
+  --primary: oklch(0.55 0.15 158);
   --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.97 0.01 158);
   --secondary-foreground: oklch(0.25 0.04 158);

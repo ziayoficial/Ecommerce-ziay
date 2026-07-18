@@ -26,7 +26,7 @@ import {
 import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { ViewId, NAV_ITEMS } from './sidebar'
+import { ViewId, NAV_ITEMS } from './nav-items'
 import { cn } from '@/lib/utils'
 import { useMounted } from '@/hooks/use-mounted'
 import { useTenantStore } from '@/hooks/use-tenant'

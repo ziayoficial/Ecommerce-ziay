@@ -1,30 +1,20 @@
 'use client'
+// IF-1 · P0-1 — `NAV_ITEMS` and `ViewId` were previously declared inline
+// in this file. They have been moved to a shared non-`'use client'`
+// module (`./nav-items`) so that Server Components (e.g. `src/app/page.tsx`)
+// can import the same constant without Turbopack returning a client
+// reference proxy (which broke `.find()` and rendered the entire
+// dashboard inaccessible). The Lucide icons imported below are only
+// used by the `Sidebar` component itself for the brand mark.
 import { cn } from '@/lib/utils'
-import {
-  LayoutDashboard, MessagesSquare, ShoppingCart, Target, Settings, Zap, DollarSign, Plug, KanbanSquare, Workflow, Grid3x3,
-  Wallet, AlertTriangle, Truck, Store, Shield,
-} from 'lucide-react'
+import { Zap } from 'lucide-react'
+import { NAV_ITEMS, type ViewId } from './nav-items'
 
-export type ViewId = 'overview' | 'messenger' | 'catalog' | 'orders' | 'kanban' | 'orchestrator' | 'ads' | 'monetization' | 'wallet' | 'logistics' | 'marketplace' | 'novedades' | 'integrations' | 'settings' | 'llm-costs' | 'governance'
-
-export const NAV_ITEMS: { id: ViewId; label: string; icon: typeof LayoutDashboard; hint: string }[] = [
-  { id: 'overview', label: 'Resumen', icon: LayoutDashboard, hint: 'KPIs · ROAS · CPA' },
-  { id: 'messenger', label: 'Mensajería', icon: MessagesSquare, hint: 'WhatsApp · Messenger · IG' },
-  { id: 'catalog', label: 'Catálogo Visual', icon: Grid3x3, hint: 'Ver + chatear con IA' },
-  { id: 'orders', label: 'Pedidos & Pagos', icon: ShoppingCart, hint: 'Anticipado · Contra entrega' },
-  { id: 'kanban', label: 'Kanban operativo', icon: KanbanSquare, hint: 'NocoDB · §10' },
-  { id: 'orchestrator', label: 'Orquestador', icon: Workflow, hint: '9 agentes · §12' },
-  { id: 'llm-costs', label: 'Costos de IA', icon: DollarSign, hint: 'Tokens · USD · Presupuesto' },
-  { id: 'ads', label: 'Atribución de Pauta', icon: Target, hint: 'CPA · ROAS · ROI' },
-  { id: 'monetization', label: 'Monetización', icon: DollarSign, hint: 'Comisión sobre GMV' },
-  { id: 'wallet', label: 'Wallet', icon: Wallet, hint: 'Balance · Retiros · 2FA' },
-  { id: 'logistics', label: 'Inteligencia Logística', icon: Truck, hint: 'Scores · Guías · Alertas' },
-  { id: 'marketplace', label: 'Marketplace', icon: Store, hint: 'Cross-brand · Lead sharing' },
-  { id: 'novedades', label: 'Novedades', icon: AlertTriangle, hint: 'Incidencias · Escalación' },
-  { id: 'governance', label: 'Gobernanza', icon: Shield, hint: 'Escalaciones · Trazabilidad §11' },
-  { id: 'integrations', label: 'Catálogo e Integraciones', icon: Plug, hint: 'Shopify · Woo · Dropi' },
-  { id: 'settings', label: 'Configuración', icon: Settings, hint: 'Estrategia de pago' },
-]
+// Re-export for backwards compatibility with any callers that still
+// import from './sidebar' (e.g. topbar.tsx, dashboard-client.tsx).
+// New code SHOULD import directly from './nav-items' instead.
+export type { ViewId } from './nav-items'
+export { NAV_ITEMS } from './nav-items'
 
 export function Sidebar({ active, onChange, badges }: {
   active: ViewId

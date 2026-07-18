@@ -648,12 +648,17 @@ describe('Webhook edge cases · PIX 3 payload envelopes', () => {
     }
     const res1 = await pixPOST(buildPixReq(topLevel))
     expect(res1.status).toBe(200)
+    // AUDIT-FINTECH R-6 — the route now passes the gateway-reported
+    // amount/currency (valor.original → major BRL unit; currency is always
+    // BRL for PIX).
     expect(paymentUtilsMock.applyPaymentUpdate).toHaveBeenNthCalledWith(1, {
       gateway: 'pix',
       paymentId: 'tx-top',
       externalReference: 'tx-top',
       status: 'approved',
       success: true,
+      amount: 99.9,
+      currency: 'BRL',
     })
 
     // data-nested: { data: { txid, status, valor: { original } } }
@@ -668,6 +673,8 @@ describe('Webhook edge cases · PIX 3 payload envelopes', () => {
       externalReference: 'tx-data',
       status: 'approved',
       success: true,
+      amount: 50,
+      currency: 'BRL',
     })
 
     // pix-nested: { pix: { txid, status } }
@@ -676,12 +683,17 @@ describe('Webhook edge cases · PIX 3 payload envelopes', () => {
     }
     const res3 = await pixPOST(buildPixReq(pixNested))
     expect(res3.status).toBe(200)
+    // pix-nested payload has no `valor.original` → amount resolves to
+    // undefined (the route guards `amount > 0` before passing it through).
+    // Currency is always BRL for PIX regardless of payload shape.
     expect(paymentUtilsMock.applyPaymentUpdate).toHaveBeenNthCalledWith(3, {
       gateway: 'pix',
       paymentId: 'tx-pix',
       externalReference: 'tx-pix',
       status: 'approved',
       success: true,
+      amount: undefined,
+      currency: 'BRL',
     })
   })
 })

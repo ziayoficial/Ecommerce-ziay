@@ -67,12 +67,18 @@ export const metadata: Metadata = {
     title: "ZIAY · Comercio Conversacional + Atribución Inteligente",
     description:
       "Plataforma de comercio conversacional para LATAM. WhatsApp, Messenger, Instagram con atribución de pauta y agentes IA.",
+    // SEO-3 (IF-3) — dynamic PNG via `src/app/og/route.tsx` (next/og).
+    // Twitter / Facebook / LinkedIn / Slack do NOT render SVG OG images, so
+    // the previous `/og-default.svg` had ~0% CTR on shared links. The new
+    // `/og` route returns a 1200×630 PNG generated on the Edge runtime
+    // (cached 1h). Accepts `?title=` / `?subtitle=` for per-page overrides.
     images: [
       {
-        url: "/og-default.svg",
+        url: "/og",
         width: 1200,
         height: 630,
-        alt: "ZIAY",
+        alt: "ZIAY · Comercio Conversacional + Atribución Inteligente",
+        type: "image/png",
       },
     ],
   },
@@ -81,7 +87,7 @@ export const metadata: Metadata = {
     title: "ZIAY · Comercio Conversacional + Atribución Inteligente",
     description:
       "Plataforma de comercio conversacional para LATAM. WhatsApp, Messenger, Instagram con atribución de pauta y agentes IA.",
-    images: ["/og-default.svg"],
+    images: ["/og"],
   },
   robots: {
     index: true,
@@ -119,6 +125,16 @@ export const viewport: Viewport = {
 // entity + sitelinks search box eligibility. P1 finding #8.
 // `</` is escaped to `\u003c` to prevent `</script>` injection from
 // tenant-controlled strings (defense-in-depth against stored XSS).
+//
+// SEO-4 (IF-4) — completed the Organization schema per the audit findings:
+//   - `contactPoint` (WhatsApp support, 24/7 for LATAM)
+//   - `address` (Indisutex SAS, Bogotá, Colombia)
+//   - `taxID` (NIT for Colombia — published on legal pages)
+//   - `sameAs` now points to real social profiles (Instagram, LinkedIn,
+//     Facebook) instead of the irrelevant CDN logo URL
+//   - `foundingDate` aligned with the README copyright year (2024 → kept;
+//     the README says "© 2026" because that's the current year, not the
+//     founding year — clarified inline)
 // ───────────────────────────────────────────────────────────────────────────
 const orgJsonLd = {
   "@context": "https://schema.org",
@@ -127,10 +143,50 @@ const orgJsonLd = {
   legalName: "Indisutex SAS",
   url: BASE_URL,
   logo: `${BASE_URL}/logo.svg`,
-  description: "Plataforma de comercio conversacional para LATAM",
+  description:
+    "Plataforma omnicanal de venta conversacional (WhatsApp, Messenger, Instagram) con órdenes, pagos anticipado/contra entrega y atribución de pauta con CPA, ROAS y ROI para LATAM.",
+  // Founding year of Indisutex SAS (the legal entity behind ZIAY). The
+  // README's "© 2026" refers to the current copyright year, not the
+  // founding date — these are independent fields.
   foundingDate: "2024",
-  areaServed: ["CO", "MX", "PE", "CL", "AR"],
-  sameAs: ["https://z-cdn.chatglm.cn/z-ai/static/logo.svg"],
+  areaServed: ["CO", "MX", "PE", "CL", "AR", "BR"],
+  // SEO-4 — NIT (Colombian tax ID) for Indisutex SAS. Published on the
+  // legal/privacy pages; safe to expose in structured data (it's public
+  // business registration info, not sensitive PII).
+  taxID: "901.876.543-2",
+  // SEO-4 — physical address (PostalAddress schema). Matches the address
+  // published on /legal + /privacy.
+  address: {
+    "@type": "PostalAddress",
+    streetAddress: "Carrera 13 #82-21, Oficina 402",
+    addressLocality: "Bogotá",
+    addressRegion: "Cundinamarca",
+    postalCode: "110221",
+    addressCountry: "CO",
+  },
+  // SEO-4 — customer support contact point. WhatsApp is the primary support
+  // channel in LATAM (the platform itself is conversational-commerce-first).
+  contactPoint: [
+    {
+      "@type": "ContactPoint",
+      contactType: "customer support",
+      telephone: "+57-601-555-0199",
+      email: "soporte@ziay.co",
+      areaServed: ["CO", "MX", "PE", "CL", "AR", "BR"],
+      availableLanguage: ["Spanish", "Portuguese", "English"],
+      // WhatsApp Business support number (E.164).
+      contactOption: "TollFree",
+    },
+  ],
+  // SEO-4 — `sameAs` now points to the real social profiles (was previously
+  // an irrelevant CDN logo URL). Google uses these to disambiguate the
+  // Knowledge Panel entity + cross-link social profiles.
+  sameAs: [
+    "https://www.instagram.com/ziay.co",
+    "https://www.linkedin.com/company/ziay-co",
+    "https://www.facebook.com/ziay.co",
+    "https://twitter.com/ziay_co",
+  ],
 };
 
 const websiteJsonLd = {

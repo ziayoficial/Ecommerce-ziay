@@ -18,6 +18,9 @@ export const metadata: Metadata = {
   description:
     'Panel del vendedor: KPIs, conversaciones activas, ventas recientes y acciones rápidas.',
   robots: { index: false, follow: false },
+  // SEO-5 (IF-4) — canonical declared even on noindex pages so search
+  // engines consolidate any stray inbound links to the canonical URL.
+  alternates: { canonical: '/vendedor' },
 }
 
 export const dynamic = 'force-dynamic'

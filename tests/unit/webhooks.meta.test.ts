@@ -179,15 +179,18 @@ describe('Meta webhook · GET handshake', () => {
     expect(res.status).toBe(403)
   })
 
-  it('falls back to default verify_token when META_VERIFY_TOKEN is unset', async () => {
+  it('falls back to dev default verify_token when META_VERIFY_TOKEN is unset (dev mode)', async () => {
+    // IF-2 · S-12 — the hardcoded `'commerceflow_verify'` fallback was
+    // removed. In dev mode, `resolveMetaVerifyToken()` returns a deterministic
+    // insecure default (`dev-meta-verify-token-change-me`) and console.warns.
+    // In production, it returns null → 500 (operator must set the env var).
     vi.stubEnv('META_VERIFY_TOKEN', '')
     const req = buildGetReq({
       'hub.mode': 'subscribe',
-      'hub.verify_token': 'commerceflow_verify',
+      'hub.verify_token': 'dev-meta-verify-token-change-me',
       'hub.challenge': 'default-challenge',
     })
     const res = await GET(req)
-
     expect(res.status).toBe(200)
     expect(await res.text()).toBe('default-challenge')
   })

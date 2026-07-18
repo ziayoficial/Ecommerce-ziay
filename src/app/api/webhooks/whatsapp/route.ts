@@ -8,6 +8,7 @@ import { emitToTenant } from '@/lib/chat-emit'
 import { getLogger } from '@/lib/logger'
 import { captureError } from '@/lib/capture-error'
 import { withWebhookErrorHandling } from '@/lib/middleware/webhook-error-handler'
+import { resolveWaVerifyToken } from '@/lib/middleware/webhook-secrets'
 
 const log = getLogger('webhook:whatsapp')
 
@@ -46,7 +47,15 @@ export async function GET(req: NextRequest) {
   const mode = url.searchParams.get('hub.mode')
   const token = url.searchParams.get('hub.verify_token')
   const challenge = url.searchParams.get('hub.challenge')
-  const expected = process.env.WA_VERIFY_TOKEN || 'commerceflow_verify'
+  // IF-2 · S-12 — removed hardcoded `'commerceflow_verify'` fallback. In
+  // production, if `WA_VERIFY_TOKEN` is missing, the handshake fails with
+  // 403 (so the operator notices the misconfig). In dev we warn + use a
+  // deterministic insecure default.
+  const expected = resolveWaVerifyToken()
+  if (!expected) {
+    log.error('WA_VERIFY_TOKEN not set in production — rejecting webhook verification')
+    return NextResponse.json({ error: 'Webhook verify token not configured' }, { status: 500 })
+  }
   if (mode === 'subscribe' && token === expected) {
     return new NextResponse(challenge || '', { status: 200 })
   }

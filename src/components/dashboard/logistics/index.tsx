@@ -314,7 +314,7 @@ function KpiCard({
         <div className="min-w-0">
           <div className="text-2xl font-bold tabular-nums leading-none">{value}</div>
           <div className="text-xs text-muted-foreground mt-1 truncate">{label}</div>
-          <div className="text-[10px] text-muted-foreground/70 truncate">{hint}</div>
+          <div className="text-[10px] text-muted-foreground truncate">{hint}</div>
         </div>
       </CardContent>
     </Card>

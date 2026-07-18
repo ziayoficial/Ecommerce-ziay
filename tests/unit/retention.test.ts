@@ -31,6 +31,12 @@ const { db } = vi.hoisted(() => {
     },
     auditLog: {
       deleteMany: vi.fn(),
+      // AUDIT-FINTECH R-14 — the source now fetches the rows about to be
+      // deleted via `findMany` (so they can be exported to cold storage
+      // BEFORE the delete). The mock must expose `findMany` or the audit-log
+      // phase silently fails (caught by the per-phase try/catch) and
+      // `auditLogsArchived` stays at 0.
+      findMany: vi.fn(),
     },
     consentRecord: {
       deleteMany: vi.fn(),
@@ -43,6 +49,20 @@ const { db } = vi.hoisted(() => {
 })
 
 vi.mock('@/lib/db', () => ({ db }))
+
+// ── Mock node:fs.promises ───────────────────────────────────────────────────
+// R-14 cold-storage export writes a JSONL file to `./data/cold-storage/`.
+// Mock the fs calls so the test doesn't write to disk + so we can assert the
+// export path runs without depending on the real filesystem.
+const { fsMock } = vi.hoisted(() => ({
+  fsMock: {
+    mkdir: vi.fn().mockResolvedValue(undefined),
+    writeFile: vi.fn().mockResolvedValue(undefined),
+  },
+}))
+vi.mock('node:fs', () => ({
+  promises: fsMock,
+}))
 
 // Stub logger.
 const { loggerMock } = vi.hoisted(() => {
@@ -82,6 +102,11 @@ function retentionMs(dataType: string): number | null {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  // R-14 — default: `auditLog.findMany` returns no rows. Tests that exercise
+  // the audit-log archive path override this with a non-empty array. The
+  // `fsMock.*` defaults (mkdir/writeFile → undefined) are set in the
+  // hoisted mock factory and don't need resetting.
+  db.auditLog.findMany.mockResolvedValue([])
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -197,7 +222,27 @@ describe('runRetentionCleanup', () => {
     db.conversation.deleteMany.mockResolvedValue({ count: 5 })
     // 3. Messages: 3 deleted.
     db.message.deleteMany.mockResolvedValue({ count: 3 })
-    // 4. Audit logs: 1 deleted.
+    // 4. Audit logs: 1 fetched → cold-storage exported → 1 deleted.
+    //    R-14 — the source now fetches the rows first (for the JSONL export),
+    //    THEN deletes by id. The findMany row must include all fields the
+    //    export-record builder reads (id, tenantId, userId, action, entity,
+    //    entityId, metadata, proofHash, proofSignature, credentialSchema,
+    //    createdAt as a Date — `r.createdAt.toISOString()` is called).
+    db.auditLog.findMany.mockResolvedValue([
+      {
+        id: 'al-1',
+        tenantId: 'ten-1',
+        userId: null,
+        action: 'test.action',
+        entity: 'Test',
+        entityId: 'ent-1',
+        metadata: 'test metadata',
+        proofHash: null,
+        proofSignature: null,
+        credentialSchema: null,
+        createdAt: new Date('2020-01-01T00:00:00Z'),
+      },
+    ])
     db.auditLog.deleteMany.mockResolvedValue({ count: 1 })
     // 5. Consents: 0 deleted.
     db.consentRecord.deleteMany.mockResolvedValue({ count: 0 })
@@ -233,8 +278,19 @@ describe('runRetentionCleanup', () => {
     expect(db.conversation.deleteMany).toHaveBeenCalledWith({
       where: { createdAt: { lt: expect.any(Date) } },
     })
-    expect(db.auditLog.deleteMany).toHaveBeenCalledWith({
+    // R-14 — audit logs are now fetched by `findMany` (with the cutoff
+    // filter) and then deleted by `id` (after the cold-storage export
+    // succeeds). The `deleteMany` is no longer called with the raw cutoff
+    // filter — it's called with `id: { in: [...] }` so only the exported
+    // rows are removed (fail-closed: if the export fails, nothing is
+    // deleted).
+    expect(db.auditLog.findMany).toHaveBeenCalledWith({
       where: { createdAt: { lt: expect.any(Date) } },
+      take: 5000,
+      orderBy: { createdAt: 'asc' },
+    })
+    expect(db.auditLog.deleteMany).toHaveBeenCalledWith({
+      where: { id: { in: ['al-1'] } },
     })
 
     // Consents are filtered to REVOKED only (granted=false).
@@ -274,6 +330,24 @@ describe('runRetentionCleanup', () => {
     db.customer.findMany.mockRejectedValue(new Error('customer table locked'))
     db.conversation.deleteMany.mockResolvedValue({ count: 5 })
     db.message.deleteMany.mockResolvedValue({ count: 3 })
+    // R-14 — the audit-log phase now requires `findMany` to return rows
+    // (otherwise the export path is skipped and `auditLogsArchived` stays 0).
+    // Mock 1 row so the cold-storage export runs + the delete returns 1.
+    db.auditLog.findMany.mockResolvedValue([
+      {
+        id: 'al-iso-1',
+        tenantId: 'ten-1',
+        userId: null,
+        action: 'test.action',
+        entity: 'Test',
+        entityId: 'ent-1',
+        metadata: 'iso-test',
+        proofHash: null,
+        proofSignature: null,
+        credentialSchema: null,
+        createdAt: new Date('2019-01-01T00:00:00Z'),
+      },
+    ])
     db.auditLog.deleteMany.mockResolvedValue({ count: 1 })
     db.consentRecord.deleteMany.mockResolvedValue({ count: 0 })
     db.decisionLog.deleteMany.mockResolvedValue({ count: 2 })

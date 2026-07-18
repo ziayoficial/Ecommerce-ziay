@@ -185,12 +185,21 @@ describe('Wompi webhook · signature verification', () => {
     expect(data).toEqual({ received: true })
 
     // applyPaymentUpdate was dispatched with the canonical Wompi shape.
+    // AUDIT-FINTECH R-6 — the route now passes the gateway-reported
+    // amount/currency (amount_in_cents → divided by 100 to match Order.total
+    // in the major unit). I2-R3 — CVV/AVS checks are extracted from
+    // `payment_method.extra.cvc` / `.address` (not present in this test body,
+    // so both are undefined).
     expect(paymentUtilsMock.applyPaymentUpdate).toHaveBeenCalledWith({
       gateway: 'wompi',
       paymentId: 'tx-123',
       externalReference: 'ORD-2024-001',
       status: 'APPROVED',
       success: true,
+      amount: 150000,
+      currency: 'COP',
+      cvvResult: undefined,
+      avsResult: undefined,
     })
 
     // safeAudit recorded the inbound event with the webhookId for cross-instance dedup.

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { identifyImage } from '@/lib/vision/pipeline'
+import { requireTenantAccess } from '@/lib/auth-helpers'
 
 // POST /api/vision-pipeline
 // Body: { tenantId, imageUrl, customerId?, conversationId? }
@@ -13,11 +14,21 @@ import { identifyImage } from '@/lib/vision/pipeline'
 // signature and map the result shape back to the old contract (sku, method,
 // confidence, shouldAskCustomer) for backward compat with any caller still
 // hitting this URL.
+//
+// SECURITY · IF-2 · S-4 — cross-tenant bypass closed. The `tenantId` body
+// param is gated by `requireTenantAccess` BEFORE the LLM call + AuditLog
+// write so an attacker can no longer burn LLM budget or inject audit rows
+// on a victim tenant.
 export async function POST(req: NextRequest) {
   const { tenantId, imageUrl, customerId, conversationId } = await req.json()
   if (!tenantId || !imageUrl) {
     return NextResponse.json({ error: 'tenantId and imageUrl required' }, { status: 400 })
   }
+
+  // IF-2 · S-4 — verify the caller may access this tenant BEFORE invoking the
+  // vision pipeline (closes LLM-cost abuse + audit-log injection).
+  const { error } = await requireTenantAccess(tenantId)
+  if (error) return error
 
   const result = await identifyImage(imageUrl, { tenantId, customerId, conversationId })
 

@@ -1,13 +1,26 @@
 name: Deploy
 
 on:
-  push:
-    branches: [main]
+  # Deploy is manual-only until production secrets (DEPLOY_HOST, DEPLOY_SSH_KEY)
+  # are configured. This prevents the workflow from failing on every push to main.
+  # To enable auto-deploy, add `push: branches: [main]` back to the trigger.
   workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    # Only run if the required secrets are configured
+    if: github.event_name == 'workflow_dispatch'
+    environment: ${{ github.event.inputs.environment }}
     steps:
       - uses: actions/checkout@v4
 

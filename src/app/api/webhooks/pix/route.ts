@@ -165,16 +165,18 @@ export const POST = withWebhookErrorHandling(async (req: NextRequest) => {
   try {
     if (txid) {
       const mapped = mapPixStatus(status)
-      // `applyPaymentUpdate` will look up the Order by paymentRef === txid
-      // (or by `number` when externalReference matches). On transition to
-      // `paid` it auto-fires the CAPI Purchase event per active pixel —
-      // closing the attribution loop (study §14.4) for PIX-driven orders.
+      // AUDIT-FINTECH R-6 — pass the gateway-reported amount/currency so
+      // `applyPaymentUpdate` can defend against forged-amount webhooks.
+      // PIX amounts come from `valor.original` (already extracted above as
+      // a Number in the major BRL unit). Currency is always BRL for PIX.
       await applyPaymentUpdate({
         gateway: 'pix',
         paymentId: txid,
         externalReference: txid,
         status: mapped.status,
         success: mapped.success,
+        amount: Number.isFinite(amount) && amount > 0 ? amount : undefined,
+        currency: 'BRL',
       })
     }
     await safeAudit(

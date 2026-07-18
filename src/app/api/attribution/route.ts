@@ -42,9 +42,10 @@ export async function POST(req: NextRequest) {
       tenantId,
       action: `attribution.recomputed.${model}`,
       entity: 'Attribution',
-      meta: JSON.stringify(result),
+      metadata: JSON.stringify(result),
     },
   })
 
   return NextResponse.json({ ...result, model })
 }
+

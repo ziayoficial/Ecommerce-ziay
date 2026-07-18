@@ -199,6 +199,16 @@ export const walletService = {
   /**
    * Create a WithdrawalRequest in `pending_2fa` (TOTP required, not yet
    * verified) or `pending_processing` (TOTP pre-verified by caller).
+   *
+   * AUDIT-FINTECH-V2 / R-20 — defense-in-depth amount validation. The API
+   * route already validates `amount > 0`, but a direct caller of the service
+   * (internal job, admin endpoint, migration script) could bypass the route
+   * and pass a negative amount, which would INCREASE the trafficker balance
+   * when `processWithdrawal` debits it (a negative debit = credit). The
+   * upper bound (1_000_000_000) is a sanity guard against typos in internal
+   * callers (e.g. passing cents instead of major units, or a missing decimal).
+   * Both guards throw — the route layer surfaces a 4xx; an internal caller
+   * surfaces a thrown Error. Either way, no WithdrawalRequest row is created.
    */
   async createWithdrawalRequest(input: {
     traffickerId: string
@@ -209,6 +219,15 @@ export const walletService = {
     totpRequired: boolean
     totpVerified: boolean
   }) {
+    // R-20 — service-layer positive amount validation (defense-in-depth).
+    if (!input.amount || !Number.isFinite(input.amount) || input.amount <= 0) {
+      throw new Error('Withdrawal amount must be positive')
+    }
+    if (input.amount > 1_000_000_000) {
+      // Sanity upper bound — protects against internal callers passing cents
+      // instead of major units, or a missing decimal point.
+      throw new Error('Withdrawal amount exceeds sanity bound')
+    }
     try {
       const withdrawal = await db.withdrawalRequest.create({
         data: {
@@ -251,6 +270,13 @@ export const walletService = {
    * record outbound WalletTransaction, mark WithdrawalRequest completed,
    * write AuditLog. The whole transaction MUST succeed or roll back so the
    * balance + transaction + withdrawal can never diverge.
+   *
+   * AUDIT-FINTECH-V2 / R-20 — defense-in-depth amount validation. The
+   * `createWithdrawalRequest` step already validates `amount > 0`, but a
+   * direct caller that bypasses creation (e.g. an admin endpoint that
+   * constructs `processWithdrawal` input from a row updated out-of-band)
+   * could pass a negative amount here. A negative amount debited from the
+   * trafficker balance would CREDIT it (theft vector). Validate again here.
    */
   async processWithdrawal(input: {
     withdrawalId: string
@@ -261,6 +287,13 @@ export const walletService = {
     balanceAfter: number
     externalReference?: string | null
   }) {
+    // R-20 — service-layer positive amount validation (defense-in-depth).
+    if (!input.amount || !Number.isFinite(input.amount) || input.amount <= 0) {
+      throw new Error('Withdrawal amount must be positive')
+    }
+    if (input.amount > 1_000_000_000) {
+      throw new Error('Withdrawal amount exceeds sanity bound')
+    }
     try {
       const result = await db.$transaction(async (tx) => {
         // 1. Decrement trafficker balance
@@ -336,8 +369,18 @@ export const walletService = {
 
   /**
    * Record an arbitrary wallet transaction + update the trafficker balance
-   * atomically. Both writes happen in parallel — neither commits before the
-   * other. The route pre-validates that the resulting balance is non-negative.
+   * atomically. Both writes commit together inside a single `db.$transaction`
+   * — if either fails, both roll back, so the ledger (`WalletTransaction`)
+   * and the balance (`Trafficker.walletBalance`) can never diverge.
+   *
+   * AUDIT-FINTECH R-5 — previously used `Promise.all([walletTransaction.create,
+   * trafficker.update])`, which is NOT atomic in Prisma: if the second write
+   * failed but the first succeeded, the ledger gained a row but the balance
+   * was never adjusted (double-spend risk). Now mirrors `processWithdrawal`
+   * (this same file) and `applyPaymentUpdate` (payment-webhook-utils.ts):
+   * both writes run inside `db.$transaction(async (tx) => { ... })`.
+   *
+   * The route pre-validates that the resulting balance is non-negative.
    */
   async recordTransaction(input: {
     traffickerId: string
@@ -352,8 +395,9 @@ export const walletService = {
     referenceType?: string | null
   }) {
     try {
-      const [txn] = await Promise.all([
-        db.walletTransaction.create({
+      const txn = await db.$transaction(async (tx) => {
+        // 1. Record the ledger entry.
+        const created = await tx.walletTransaction.create({
           data: {
             traffickerId: input.traffickerId,
             direction: input.direction,
@@ -367,12 +411,14 @@ export const walletService = {
             referenceType: input.referenceType || null,
             status: 'completed',
           },
-        }),
-        db.trafficker.update({
+        })
+        // 2. Apply the new balance to the trafficker row.
+        await tx.trafficker.update({
           where: { id: input.traffickerId },
           data: { walletBalance: input.balanceAfter },
-        }),
-      ])
+        })
+        return created
+      })
       return txn
     } catch (err) {
       captureError(err as Error, {

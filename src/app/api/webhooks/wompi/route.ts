@@ -131,12 +131,46 @@ export const POST = withWebhookErrorHandling(async (req: NextRequest) => {
       // Use the status reported in the webhook (Wompi lo incluye en `data`).
       const status = String(tx.status ?? 'UNKNOWN')
       const success = status === 'APPROVED'
+      // AUDIT-FINTECH R-6 — Wompi reports `amount_in_cents` + `currency` in
+      // the transaction object. Convert cents → major unit so the value
+      // matches `Order.total` (stored in the major unit).
+      const amountInCents = Number(tx.amount_in_cents ?? 0)
+      const amount =
+        Number.isFinite(amountInCents) && amountInCents > 0
+          ? amountInCents / 100
+          : undefined
+      const currency = tx.currency ? String(tx.currency).toUpperCase() : undefined
+
+      // I2-R3 — extract CVV/AVS verification results from the Wompi
+      // transaction payload. Wompi reports them under `payment_method.extra`:
+      //   - `cvc` / `security_code` → 'M' (match) / 'N' (no match) /
+      //     'P' (not processed) / 'S' (not supported)
+      //   - `address` / `address_line_1_check` → same codes
+      const paymentMethod = (tx.payment_method ?? {}) as Record<string, unknown>
+      const extra = (paymentMethod.extra ?? {}) as Record<string, unknown>
+      const cvvResult =
+        typeof extra.cvc === 'string'
+          ? extra.cvc
+          : typeof extra.security_code === 'string'
+            ? extra.security_code
+            : undefined
+      const avsResult =
+        typeof extra.address === 'string'
+          ? extra.address
+          : typeof extra.address_line_1_check === 'string'
+            ? extra.address_line_1_check
+            : undefined
+
       await applyPaymentUpdate({
         gateway: 'wompi',
         paymentId: txId,
         externalReference: reference,
         status,
         success,
+        amount,
+        currency,
+        cvvResult,
+        avsResult,
       })
     }
     await safeAudit('webhook.wompi.inbound', 'Webhook', rawBody.slice(0, 1000), webhookId)

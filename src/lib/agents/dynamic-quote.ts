@@ -149,23 +149,18 @@ export async function quoteFreight(
 
   // Si es internacional, usar Aveonline (único que soporta internacional)
   if (isInternational) {
-    const adapter = new AveonlineAdapter()
+    const adapter = new AveonlineAdapter(tenantId)
     try {
-      const result = await adapter.cotizarFlete({
-        ciudad: city,
-        pais: country,
-        unidades: units,
-        internacional: true,
-      } as any)
+      const result = await adapter.cotizarFlete(city, country, units)
 
-      if (result) {
+      if (result && result.tarifa > 0) {
         return {
-          carrier: 'Aveonline',
+          carrier: result.transportadora || 'Aveonline',
           city,
           country,
-          cost: result.costo,
+          cost: result.tarifa,
           currency: 'USD',
-          estimatedDays: result.tiempoEstimado || '7-15 días hábiles',
+          estimatedDays: `${result.tiempo_estimado_dias} días hábiles`,
           isInternational: true,
           quoted_at: new Date(),
         }
@@ -178,22 +173,22 @@ export async function quoteFreight(
 
   // Nacional: intentar Dropi primero, luego 99envios, luego Aveonline
   const adapters = [
-    { name: 'Dropi', fn: () => new DropiAdapter().cotizarFlete({ ciudad: city, unidades: units } as any) },
-    { name: '99envios', fn: () => new Envios99Adapter().cotizarFlete({ ciudad: city, unidades: units } as any) },
-    { name: 'Aveonline', fn: () => new AveonlineAdapter().cotizarFlete({ ciudad: city, pais: 'CO', unidades: units } as any) },
+    { name: 'Dropi', fn: () => new DropiAdapter(tenantId).cotizarFlete(city, 'CO', units) },
+    { name: '99envios', fn: () => new Envios99Adapter(tenantId).cotizarFlete(city, 'CO', units) },
+    { name: 'Aveonline', fn: () => new AveonlineAdapter(tenantId).cotizarFlete(city, 'CO', units) },
   ]
 
   for (const adapter of adapters) {
     try {
       const result = await adapter.fn()
-      if (result && result.costo > 0) {
+      if (result && result.tarifa > 0) {
         return {
           carrier: adapter.name,
           city,
           country: 'CO',
-          cost: result.costo,
+          cost: result.tarifa,
           currency: 'COP',
-          estimatedDays: result.tiempoEstimado || '2-5 días hábiles',
+          estimatedDays: `${result.tiempo_estimado_dias} días hábiles`,
           isInternational: false,
           quoted_at: new Date(),
         }

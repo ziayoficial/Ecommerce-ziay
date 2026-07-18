@@ -1,15 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { requireTenantAccess } from '@/lib/auth-helpers'
 
 // GET /api/conciliation?tenantId=...
 // Anti-fuga conciliation (Saramantha §17.9): compares GMV reported by the agent
 // (orders with origen='agente_whatsapp') against total sales the tenant reports
 // (passed as externalGmv in query, or 0 if not provided).
 // A sustained gap is the early signal of order leakage (fuga).
+//
+// AUDIT-FINTECH R-4 — the previous handler did NOT call `requireTenantAccess`,
+// so anyone with a `tenantId` could query the GMV of any tenant. Now we
+// authenticate + scope the request to the caller's tenant before touching
+// the DB. Mirrors the pattern used by every other tenant-scoped route
+// (e.g. `/api/payments/local`, `/api/payments/create-link`).
 export async function GET(req: NextRequest) {
   const tenantId = req.nextUrl.searchParams.get('tenantId')
   const externalGmv = Number(req.nextUrl.searchParams.get('externalGmv') || '0')
   if (!tenantId) return NextResponse.json({ error: 'tenantId required' }, { status: 400 })
+
+  // AUDIT-FINTECH R-4 — auth + tenant access check BEFORE any DB query so a
+  // caller without a valid session, or with a tenant mismatch, gets 401/403
+  // instead of leaking cross-tenant GMV.
+  const { error } = await requireTenantAccess(tenantId)
+  if (error) return error
 
   const agentOrders = await db.order.findMany({
     where: { tenantId, origen: 'agente_whatsapp' },

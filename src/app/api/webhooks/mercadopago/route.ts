@@ -124,12 +124,30 @@ export const POST = withWebhookErrorHandling(async (req: NextRequest) => {
       const result = await adapter.verifyPayment(paymentId)
       const raw = result.rawResponse as Record<string, unknown> | undefined
       const externalRef = String(raw?.external_reference ?? '')
+
+      // I2-R3 — extract CVV/AVS verification results from the MP payment
+      // payload. MercadoPago reports CVV via `card.esc_status` (0=fail,
+      // 1=pass, 2=not processed). MP doesn't standardize AVS in the webhook
+      // payload (it's not commonly used in LATAM), so we leave it
+      // undefined — the merchant can extend this when needed.
+      const card = (raw?.card ?? {}) as Record<string, unknown>
+      const escStatus = card.esc_status
+      // `esc_status === 0` is the only "explicit failure" code — 1 = pass,
+      // 2 = not processed, null/undefined = not reported.
+      const cvvResult =
+        escStatus === 0 ? 'N' : escStatus === 1 ? 'M' : undefined
+
+      // AUDIT-FINTECH R-6 — pass the gateway-reported amount/currency so
+      // `applyPaymentUpdate` can defend against forged-amount webhooks.
       await applyPaymentUpdate({
         gateway: 'mercadopago',
         paymentId,
         externalReference: externalRef,
         status: result.status,
         success: result.success,
+        amount: typeof result.amount === 'number' && result.amount > 0 ? result.amount : undefined,
+        currency: result.currency || undefined,
+        cvvResult,
       })
     }
     await safeAudit('webhook.mercadopago.inbound', 'Webhook', rawBody.slice(0, 1000), webhookId)

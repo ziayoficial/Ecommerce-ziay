@@ -10,8 +10,9 @@ import {
   getAvailableLocalPayments,
   type LocalPaymentMethod,
 } from '@/lib/adapters/local-payments'
-import { isCurrencyCode, getCurrencyForCountry } from '@/lib/i18n/currency'
+import { isCurrencyCode, getCurrencyForCountry, CURRENCIES } from '@/lib/i18n/currency'
 import { calculateTax } from '@/lib/i18n/tax'
+import { fraudService } from '@/lib/services/fraud.service'
 import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 
 const log = getLogger('api/payments/local')
@@ -146,6 +147,25 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     return NextResponse.json({ error: 'Amount must be a positive number' }, { status: 400 })
   }
 
+  // AUDIT-FINTECH-V2 / R-17 — validate amount against the currency's
+  // gateway-imposed minimum BEFORE the fraud check + Order creation. A
+  // COP 500 PSE/PIX/OXXO/SPEI link would be rejected by the gateway with
+  // a confusing error; surfacing it here as a 400 lets the client retry
+  // with a valid amount. Placed before the fraud check so we don't waste
+  // a FraudEvent row on invalid input (defense-in-depth on the reasons /
+  // PII audit trail).
+  if (isCurrencyCode(currency)) {
+    const currencyConfig = CURRENCIES[currency]
+    if (currencyConfig.minimumAmount && amount < currencyConfig.minimumAmount) {
+      return NextResponse.json(
+        {
+          error: `Amount ${amount} ${currency} is below minimum (${currencyConfig.minimumAmount})`,
+        },
+        { status: 400 },
+      )
+    }
+  }
+
   // Compute tax breakdown if items are provided.
   const shipping =
     typeof body.shipping === 'string' ? parseFloat(body.shipping) : (body.shipping ?? 0)
@@ -185,6 +205,78 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
       )
     }
 
+    // ── I2-R3 — Anti-fraud check (BEFORE creating the Order) ───────────
+    // Runs the layered fraud pipeline: blocklist, OFAC, velocity, sanctioned
+    // country, first-purchase high-value. Block → 402; review → flag the
+    // order with a `fraud_review` event AFTER it's created (we don't have
+    // an orderId yet at this point); allow → proceed. A `FraudEvent` row is
+    // always written for audit. Fail-open: a pipeline crash never blocks a
+    // legitimate payment (the blocklist/velocity stores are best-effort).
+    const customerIp =
+      req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+      req.headers.get('x-real-ip') ||
+      undefined
+    let fraudReviewNote: string | null = null
+    try {
+      const fraudResult = await fraudService.checkTransaction({
+        tenantId: body.tenantId,
+        customerId,
+        customerName: body.customerName,
+        customerPhone: body.customerPhone,
+        customerIp,
+        amount,
+        currency,
+        countryCode: body.countryCode,
+        paymentMethod: method,
+        isReturningCustomer: !!body.customerId,
+      })
+
+      if (fraudResult.decision === 'block') {
+        log.warn(
+          {
+            tenantId: body.tenantId,
+            customerId,
+            method,
+            riskScore: fraudResult.riskScore,
+            reasons: fraudResult.reasons,
+          },
+          'local payment blocked by fraud detection',
+        )
+        return NextResponse.json(
+          {
+            error: 'Transaction blocked by fraud detection',
+            reasons: fraudResult.reasons,
+            riskScore: fraudResult.riskScore,
+          },
+          { status: 402 },
+        )
+      }
+
+      if (fraudResult.decision === 'review') {
+        log.warn(
+          {
+            tenantId: body.tenantId,
+            customerId,
+            method,
+            riskScore: fraudResult.riskScore,
+            reasons: fraudResult.reasons,
+          },
+          'local payment flagged for fraud review — proceeding',
+        )
+        fraudReviewNote =
+          `riskScore=${fraudResult.riskScore} reasons=${fraudResult.reasons.join('; ')}`.slice(0, 500)
+      }
+    } catch (fraudErr) {
+      log.error(
+        {
+          tenantId: body.tenantId,
+          customerId,
+          err: fraudErr instanceof Error ? fraudErr.message : String(fraudErr),
+        },
+        'fraud check pipeline crashed — proceeding (fail-open)',
+      )
+    }
+
     // ── Create the Order (status=new, paymentStatus=unpaid) ─────────────
     // Generate a unique order number. Format: LP-<method>-<timestamp>-<rand>
     // to avoid colliding with the existing UCP- / ORD- prefixes.
@@ -217,6 +309,16 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
 
     // ── Call the adapter ────────────────────────────────────────────────
     const adapter = getLocalPaymentAdapter(method)
+    if (!adapter) {
+      await db.order.update({
+        where: { id: order.id },
+        data: { paymentStatus: 'rejected' },
+      })
+      return NextResponse.json(
+        { error: `Payment adapter not available for method: ${method}` },
+        { status: 400 },
+      )
+    }
     const result = await adapter.createPayment({
       amount,
       reference: body.reference,
@@ -260,6 +362,20 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
           note: `${method} payment created (reference=${result.reference})`,
         },
       }),
+      // I2-R3 — if the fraud pipeline flagged this transaction for review,
+      // write the `fraud_review` event atomically with the payment_ref
+      // stamping so fulfillment can hold for manual review.
+      ...(fraudReviewNote
+        ? [
+            db.orderEvent.create({
+              data: {
+                orderId: order.id,
+                type: 'fraud_review',
+                note: fraudReviewNote,
+              },
+            }),
+          ]
+        : []),
     ])
 
     log.info(

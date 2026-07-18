@@ -39,6 +39,30 @@ export const ORCHESTRATOR_STEPS: OrchestratorStep[] = [
 ]
 
 // ───────────────────────────────────────────────────────────────────────────
+// 1b. OrchestratorState — runtime state passed between steps of an
+//     orchestration scenario. Kept in `constants.ts` (next to the step list)
+//     so both the server-side orchestrator and any client-side UI that
+//     visualises an in-flight scenario import the same shape.
+// ───────────────────────────────────────────────────────────────────────────
+export interface OrchestratorState {
+  tenantId: string
+  conversationId?: string
+  customerId?: string
+  perfil?: string
+  items?: { sku: string; cantidad: number }[]
+  partialAddress?: Record<string, string>
+  /** Step index into ORCHESTRATOR_STEPS. */
+  step: number
+  /** Per-step trace so the UI can replay the conversation. */
+  history: Array<{ agent: string; reply: string; ts: string }>
+  /** Set to true once the checkout agent runs or the pipeline is exhausted. */
+  done: boolean
+  /** Filled in by the logistics step. */
+  freightQuote?: unknown
+}
+
+
+// ───────────────────────────────────────────────────────────────────────────
 // 2. Scenarios — used by the scenario selector in OrchestratorView
 // ───────────────────────────────────────────────────────────────────────────
 export type ScenarioId =

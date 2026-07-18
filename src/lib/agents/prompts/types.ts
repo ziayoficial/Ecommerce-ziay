@@ -23,6 +23,10 @@ export interface AgentContext {
   conversationId?: string
   customerId?: string
   perfil?: string // mayorista | emprendedor | detal | regalo
+  // ISO country code for country-specific agents (CO, MX, ES, DE, …).
+  // Used by `address_analysis` and other locale-aware agents to pick the
+  // right address-validation rules / carrier set.
+  country?: string
   // For vision agent: incoming image URL
   imageUrl?: string
   // For quote agent: items to quote

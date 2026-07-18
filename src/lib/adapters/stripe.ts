@@ -105,6 +105,19 @@ export class StripeAdapter implements PaymentAdapter {
         client_reference_id: opts.reference,
         success_url: process.env.PAYMENT_RETURN_URL_SUCCESS ?? '',
         cancel_url: process.env.PAYMENT_RETURN_URL_FAILURE ?? '',
+        // I2-R3 — 3DS / SCA enforcement (BACEN Brazil + PSD2 EU compliance).
+        // `request_three_d_secure: 'any'` tells Stripe to challenge EVERY
+        // card payment with 3D Secure, even when the card's issuer doesn't
+        // strictly require it. This is mandated by:
+        //   - Brazil BACEN Resolução 4.658/2018 (Strong Customer Auth)
+        //   - EU PSD2 RTS Art. 18 (SCA for card-not-present)
+        // The 'any' value is the most defensive setting — it shifts fraud
+        // liability to the issuer for transactions where 3DS is available.
+        // For 'automatic' (the default), Stripe only challenges when the
+        // issuer mandates it, which leaves the merchant liable for some
+        // fraudulent chargebacks.
+        // @see https://stripe.com/docs/payments/3d-secure
+        'payment_method_options[card][request_three_d_secure]': 'any',
       })
       const res = await fetch(`${STRIPE_API_BASE}/checkout/sessions`, {
         method: 'POST',
@@ -187,10 +200,85 @@ export class StripeAdapter implements PaymentAdapter {
   async refund(paymentId: string, amount?: number): Promise<PaymentResult> {
     if (!this.hasCredentials()) return stubNoCredentials(this.name, amount ?? 0, '')
     try {
-      const body = formEncode({
-        payment_intent: paymentId,
-        ...(amount !== undefined ? { amount: this.toCents(amount) } : {}),
-      })
+      // ── AUDIT-FINTECH R-7 — resolve the right Stripe object for refund ──
+      // ZIAY stores the *Checkout Session* ID (`cs_...`) as `Order.paymentRef`
+      // for Stripe orders. `POST /v1/refunds` expects either a `payment_intent`
+      // (`pi_...`) or a `charge` (`ch_...`), NOT a Checkout Session — so the
+      // previous implementation (passing `paymentId` straight as
+      // `payment_intent`) failed for every Stripe refund.
+      //
+      // Strategy:
+      //   - `pi_*` → use as `payment_intent` (backward compat).
+      //   - `ch_*` → use as `charge` (legacy charge-based orders).
+      //   - `cs_*` → fetch the Checkout Session, read its `payment_intent`
+      //              field, then use that PI for the refund. If the session
+      //              has no PI yet (e.g. still pending), surface a clear error.
+      let paymentIntentId: string | undefined
+      let chargeId: string | undefined
+
+      if (paymentId.startsWith('pi_')) {
+        paymentIntentId = paymentId
+      } else if (paymentId.startsWith('ch_')) {
+        chargeId = paymentId
+      } else if (paymentId.startsWith('cs_')) {
+        const sessionRes = await fetch(
+          `${STRIPE_API_BASE}/checkout/sessions/${encodeURIComponent(paymentId)}`,
+          { headers: { Authorization: `Bearer ${this.secretKey}` } },
+        )
+        const sessionData = (await sessionRes.json()) as Record<string, unknown>
+        if (!sessionRes.ok) {
+          return {
+            success: false,
+            status: 'error',
+            amount: amount ?? 0,
+            currency: '',
+            message: `Stripe refund: failed to load checkout session ${paymentId} (${sessionRes.status})`,
+            rawResponse: sessionData,
+          }
+        }
+        // `payment_intent` is returned as a string for Checkout Sessions
+        // created with `mode=payment`. Expand if you need the full PI object,
+        // but the ID is enough for `POST /v1/refunds`.
+        const pi = sessionData.payment_intent
+        paymentIntentId = typeof pi === 'string' && pi.startsWith('pi_') ? pi : undefined
+        // Older sessions / `mode=payment` may report the charge instead.
+        const ch = sessionData.charges
+        if (!paymentIntentId && ch && typeof ch === 'object') {
+          const data = (ch as { data?: Array<{ id?: string }> }).data
+          const firstChargeId = data?.[0]?.id
+          if (typeof firstChargeId === 'string' && firstChargeId.startsWith('ch_')) {
+            chargeId = firstChargeId
+          }
+        }
+        if (!paymentIntentId && !chargeId) {
+          return {
+            success: false,
+            status: 'error',
+            amount: amount ?? 0,
+            currency: '',
+            message: `Stripe refund: checkout session ${paymentId} has no payment_intent/charge yet (payment not captured?)`,
+            rawResponse: sessionData,
+          }
+        }
+      } else {
+        // Unknown prefix — surface a clear error rather than sending a
+        // malformed refund request to Stripe. Backward-compat fallback for
+        // anything pre-existing that didn't follow the `cs_/pi_/ch_` rule.
+        return {
+          success: false,
+          status: 'error',
+          amount: amount ?? 0,
+          currency: '',
+          message: `Stripe refund: unsupported paymentId prefix '${paymentId.slice(0, 4)}' (expected cs_, pi_, or ch_)`,
+        }
+      }
+
+      const refundBody: Record<string, unknown> = {}
+      if (paymentIntentId) refundBody.payment_intent = paymentIntentId
+      if (chargeId) refundBody.charge = chargeId
+      if (amount !== undefined) refundBody.amount = this.toCents(amount)
+
+      const body = formEncode(refundBody)
       const res = await fetch(`${STRIPE_API_BASE}/refunds`, {
         method: 'POST',
         headers: {

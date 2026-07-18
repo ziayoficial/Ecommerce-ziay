@@ -3,7 +3,7 @@
 // Run: bun run scripts/fix-saramantha-messages.ts
 
 import { db } from '../src/lib/db'
-import { embedText, embedToBytes } from '../src/lib/embeddings/service'
+import { embed } from '../src/lib/embeddings/service'
 
 const TENANT_ID = 'ten-saramantha'
 
@@ -86,7 +86,10 @@ async function main() {
 
     for (const m of c.msgs) {
       const createdAt = new Date(Date.now() - m.t * 3600000)
-      const embeddingVec = await embedText(m.body)
+      const embeddingVec = embed(m.body)
+      // Match the encoding used by `embedAndStoreMessage` in
+      // src/lib/embeddings/service.ts: Float32 LE Buffer. Prisma 6's Bytes
+      // column accepts `Uint8Array<ArrayBuffer>` / `Buffer<ArrayBuffer>`.
       await db.message.create({
         data: {
           tenantId: TENANT_ID,
@@ -95,7 +98,7 @@ async function main() {
           body: m.body,
           type: 'text',
           status: m.dir === 'inbound' ? 'delivered' : 'read',
-          ...(embeddingVec ? { embedding: embedToBytes(embeddingVec) } : {}),
+          ...(embeddingVec ? { embedding: Buffer.from(new Float32Array(embeddingVec).buffer) } : {}),
           createdAt,
         }
       })

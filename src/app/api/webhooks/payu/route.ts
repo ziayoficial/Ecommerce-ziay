@@ -144,6 +144,77 @@ export const POST = withWebhookErrorHandling(async (req: NextRequest) => {
     const txId = String(body?.transaction_id ?? body?.transactionId ?? reference)
     const success = stateCanonical === 'APPROVED'
 
+    // AUDIT-FINTECH R-6 — PayU sends `value` as a string (e.g. "150000.00")
+    // and `currency` (COP/MXN/...) at the top level of the webhook body.
+    // Parse the value so `applyPaymentUpdate` can compare it to `order.total`.
+    const valueStr = String(body?.value ?? body?.amount ?? '')
+    const parsedValue = parseFloat(valueStr)
+    const amount = Number.isFinite(parsedValue) && parsedValue > 0 ? parsedValue : undefined
+    const currency = body?.currency ? String(body.currency).toUpperCase() : undefined
+
+    // I2-R3 — extract CVV/AVS verification results from the PayU payload.
+    // PayU reports them as `response_verification_pol` (a string of
+    // single-letter codes for AVS + CVV + 3DS) OR as separate top-level
+    // fields `avs_response` and `cvv_response` (depending on the
+    // integration mode). The codes are ISO 8583: 'N' = no match,
+    // 'M' = match, 'P' = not processed, etc.
+    const cvvResult =
+      typeof body?.cvv_response === 'string'
+        ? body.cvv_response
+        : typeof body?.cvc_response === 'string'
+          ? body.cvc_response
+          : undefined
+    const avsResult =
+      typeof body?.avs_response === 'string'
+        ? body.avs_response
+        : undefined
+
+    // AUDIT-FINTECH R-13 — Defense-in-depth: PayU uses MD5 for webhook
+    // signatures (gateway-imposed, not changeable). MD5 is weak to collision
+    // attacks. To mitigate, we re-verify the payment status by calling
+    // `verifyPayment` directly — the same pattern used in the MercadoPago
+    // webhook. This means an attacker who somehow forges a webhook (e.g. via
+    // a leaked secret) still cannot mark an order `paid` unless PayU's own
+    // API also reports the transaction as approved. The re-check is
+    // best-effort: if `verifyPayment` fails (network, auth), we fall back to
+    // the webhook's `state_pol` (the signature was already verified).
+    if (reference && success) {
+      try {
+        const verification = await adapter.verifyPayment(txId)
+        if (verification && verification.status !== 'approved' && verification.status !== 'paid') {
+          // PayU API disagrees with the webhook — refuse to mark paid.
+          await applyPaymentUpdate({
+            gateway: 'payu',
+            paymentId: txId,
+            externalReference: reference,
+            status: 'payment_mismatch',
+            success: false,
+            amount,
+            currency,
+            cvvResult,
+            avsResult,
+          })
+          await safeAudit(
+            'webhook.payu.mismatch',
+            'Webhook',
+            `verifyPayment returned ${verification?.status} but webhook said APPROVED for tx ${txId}`,
+            webhookId,
+          )
+          return NextResponse.json({ received: true, status: 'mismatch' })
+        }
+      } catch (verifyErr) {
+        // verifyPayment failed (network/auth) — fall back to webhook signature.
+        // The signature was already verified via webhookVerify above, so this
+        // is acceptable. Log for monitoring.
+        await safeAudit(
+          'webhook.payu.verify_skipped',
+          'Webhook',
+          `verifyPayment failed: ${verifyErr instanceof Error ? verifyErr.message : 'unknown'} — falling back to webhook signature`,
+          webhookId,
+        )
+      }
+    }
+
     if (reference) {
       await applyPaymentUpdate({
         gateway: 'payu',
@@ -151,6 +222,10 @@ export const POST = withWebhookErrorHandling(async (req: NextRequest) => {
         externalReference: reference,
         status: stateCanonical,
         success,
+        amount,
+        currency,
+        cvvResult,
+        avsResult,
       })
     }
 

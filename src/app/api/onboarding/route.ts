@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
       action: 'tenant.onboarded',
       entity: 'Tenant',
       entityId: tenant.id,
-      meta: JSON.stringify({ slug, plan: tenant.planMonetizacion, channel: channel.id }),
+      metadata: JSON.stringify({ slug, plan: tenant.planMonetizacion, channel: channel.id }),
     },
   })
 

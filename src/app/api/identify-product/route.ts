@@ -35,6 +35,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { identifyImage } from '@/lib/vision/pipeline'
+import type { ImageIdentificationResult, TenantVisionContext } from '@/lib/vision/pipeline'
 import { requireTenantAccess } from '@/lib/auth-helpers'
 import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 import { logger } from '@/lib/logger'
@@ -57,26 +58,35 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
 
   const { tenantId, imageUrl, customerMessage } = parseResult.data
 
-  const tenantError = requireTenantAccess(tenantId)
+  // `requireTenantAccess` returns `{ session, error }` — early-exit on error.
+  const { error: tenantError } = await requireTenantAccess(tenantId)
   if (tenantError) return tenantError
 
   // 1. Usar VLM para identificar el producto en la imagen
-  let vlmResult: { sku?: string; productName?: string; categoria?: string; confianza?: number } | null = null
+  // `identifyImage` returns `ImageIdentificationResult` (sku, confianza, metodo,
+  // pregunta_confirmacion, raw) — note there is no `productName` field; the
+  // VLM either pins the SKU directly or returns null and we fall back to a
+  // fuzzy search against `customerMessage`.
+  let vlmResult: ImageIdentificationResult | null = null
+  const tenantCtx: TenantVisionContext = { tenantId }
   try {
-    vlmResult = await identifyImage(imageUrl, tenantId)
+    vlmResult = await identifyImage(imageUrl, tenantCtx)
   } catch (e) {
     logger.warn({ err: e, tenantId, imageUrl }, 'VLM identification failed')
   }
 
-  // 2. Búsqueda fuzzy en catálogo por nombre/diseño/categoría
+  // 2. Búsqueda fuzzy en catálogo por SKU (SQLite doesn't support
+  //    `mode: 'insensitive'`; LIKE is case-insensitive by default for ASCII
+  //    on SQLite, so we drop the mode flag).
+  const skuHint = vlmResult?.sku
   let products = await db.product.findMany({
     where: {
       tenantId,
       active: true,
-      ...(vlmResult?.productName ? {
+      ...(skuHint ? {
         OR: [
-          { name: { contains: vlmResult.productName, mode: 'insensitive' } },
-          { diseno: { contains: vlmResult.productName, mode: 'insensitive' } },
+          { name: { contains: skuHint } },
+          { diseno: { contains: skuHint } },
         ],
       } : {}),
     },
@@ -86,7 +96,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
 
   // 3. Si VLM identificó un SKU, priorizar ese
   if (vlmResult?.sku) {
-    const exactMatch = products.find(p => p.sku === vlmResult.sku)
+    const exactMatch = products.find(p => p.sku === vlmResult!.sku)
     if (exactMatch) {
       products = [exactMatch, ...products.filter(p => p.sku !== vlmResult!.sku)]
     }
@@ -99,10 +109,10 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
         tenantId,
         active: true,
         OR: [
-          { name: { contains: customerMessage, mode: 'insensitive' } },
-          { diseno: { contains: customerMessage, mode: 'insensitive' } },
-          { categoria: { contains: customerMessage, mode: 'insensitive' } },
-          { description: { contains: customerMessage, mode: 'insensitive' } },
+          { name: { contains: customerMessage } },
+          { diseno: { contains: customerMessage } },
+          { categoria: { contains: customerMessage } },
+          { description: { contains: customerMessage } },
         ],
       },
       select: { id: true, sku: true, name: true, price: true, stock: true, imageUrl: true, diseno: true, categoria: true, description: true },

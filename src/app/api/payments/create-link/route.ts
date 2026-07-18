@@ -5,7 +5,10 @@ import { getPaymentAdapter } from '@/lib/adapters/payment-registry'
 import { rateLimit } from '@/lib/middleware/rate-limit'
 import { getLogger } from '@/lib/logger'
 import { orderService } from '@/lib/services'
+import { fraudService } from '@/lib/services/fraud.service'
 import { withErrorHandling } from '@/lib/middleware/api-error-handler'
+import { db } from '@/lib/db'
+import { CURRENCIES, isCurrencyCode } from '@/lib/i18n/currency'
 
 const log = getLogger('api/payments/create-link')
 
@@ -74,6 +77,25 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     return NextResponse.json({ error: 'Order not found' }, { status: 404 })
   }
 
+  // AUDIT-FINTECH-V2 / R-17 — validate amount against the currency's
+  // gateway-imposed minimum BEFORE the fraud check. A COP 500 link would
+  // be rejected by Wompi (min COP 2500) with a confusing gateway error;
+  // surfacing it here as a 400 lets the client retry with a valid amount.
+  // Placed before the fraud check so we don't waste a FraudEvent row on
+  // invalid input (defense-in-depth on the reasons/PII audit trail).
+  const resolvedCurrency = String(currency).toUpperCase()
+  if (isCurrencyCode(resolvedCurrency)) {
+    const currencyConfig = CURRENCIES[resolvedCurrency]
+    if (currencyConfig.minimumAmount && Number(amount) < currencyConfig.minimumAmount) {
+      return NextResponse.json(
+        {
+          error: `Amount ${amount} ${resolvedCurrency} is below minimum (${currencyConfig.minimumAmount})`,
+        },
+        { status: 400 },
+      )
+    }
+  }
+
   const adapter = getPaymentAdapter(String(gateway))
   if (!adapter) {
     return NextResponse.json(
@@ -81,6 +103,96 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
       { status: 400 },
     )
   }
+
+    // ── I2-R3 — Anti-fraud check (BEFORE creating the payment link) ──────
+    // Runs the layered fraud pipeline: blocklist, OFAC, velocity, sanctioned
+    // country, first-purchase high-value, test card BIN. Block → 402; review
+    // → flag the order with a `fraud_review` event but still proceed; allow
+    // → proceed normally. A `FraudEvent` row is always written for audit.
+    const customerIp =
+      req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+      req.headers.get('x-real-ip') ||
+      undefined
+    try {
+      const fraudResult = await fraudService.checkTransaction({
+        tenantId,
+        customerId: order.customerId,
+        customerName: order.customer?.name ?? undefined,
+        customerEmail: order.customer?.email ?? undefined,
+        customerPhone: order.customer?.phone ?? undefined,
+        customerIp,
+        amount: Number(amount),
+        currency: String(currency),
+        countryCode: order.countryCode ?? '',
+        paymentMethod: adapter.name,
+        isReturningCustomer:
+          (order.customer?.ordersCount ?? 0) > 0 ||
+          (order.customer?.lifetimeValue ?? 0) > 0,
+      })
+
+      if (fraudResult.decision === 'block') {
+        log.warn(
+          {
+            tenantId,
+            orderId,
+            riskScore: fraudResult.riskScore,
+            reasons: fraudResult.reasons,
+          },
+          'payment link blocked by fraud detection',
+        )
+        return NextResponse.json(
+          {
+            error: 'Transaction blocked by fraud detection',
+            reasons: fraudResult.reasons,
+            riskScore: fraudResult.riskScore,
+          },
+          { status: 402 },
+        )
+      }
+
+      if (fraudResult.decision === 'review') {
+        log.warn(
+          {
+            tenantId,
+            orderId,
+            riskScore: fraudResult.riskScore,
+            reasons: fraudResult.reasons,
+          },
+          'payment link flagged for fraud review — proceeding',
+        )
+        // Flag the order with a `fraud_review` event so fulfillment can
+        // hold for manual review. Atomic with no state change to the order
+        // itself — the link is still created below.
+        try {
+          await orderService.updateOrder(
+            order.id,
+            {},
+            {
+              type: 'fraud_review',
+              note: `riskScore=${fraudResult.riskScore} reasons=${fraudResult.reasons.join('; ')}`.slice(0, 500),
+            },
+            tenantId,
+          )
+        } catch (flagErr) {
+          log.error(
+            { orderId, err: flagErr instanceof Error ? flagErr.message : String(flagErr) },
+            'failed to write fraud_review event (non-blocking)',
+          )
+        }
+      }
+    } catch (fraudErr) {
+      // Fail-open: if the fraud pipeline itself crashes, do NOT block a
+      // legitimate payment. Log + proceed; the blocklist/velocity stores
+      // are best-effort and a DB outage shouldn't take checkout down.
+      log.error(
+        {
+          tenantId,
+          orderId,
+          err: fraudErr instanceof Error ? fraudErr.message : String(fraudErr),
+        },
+        'fraud check pipeline crashed — proceeding (fail-open)',
+      )
+    }
 
     const result = await adapter.createPaymentLink({
       amount: Number(amount),
@@ -104,6 +216,35 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
         },
         tenantId,
       )
+
+      // ── AUDIT-FINTECH R-8 — retracto notice (Ley 1480 Art 47) ──────────
+      // The customer is now receiving the checkout link — this is the formal
+      // moment we inform them of their 5-day retracto right for non-in-person
+      // sales (ventas no presenciales) per Colombia's Estatuto del Consumidor.
+      // We persist a separate `retracto_notice` OrderEvent so the audit trail
+      // clearly shows the customer was informed (compliance defense if the
+      // customer later disputes that they were unaware of the right). The
+      // `Order.retractoWindowUntil` field is the canonical deadline; this
+      // event is the proof of notification. Best-effort — a failure here is
+      // logged + swallowed so it doesn't block the payment-link flow.
+      try {
+        await db.orderEvent.create({
+          data: {
+            orderId: order.id,
+            type: 'retracto_notice',
+            note: 'Customer informed of 5-day retracto right per Ley 1480 Art 47 (Estatuto del Consumidor, Colombia). Ventas no presenciales — window expires on order.retractoWindowUntil.',
+          },
+        })
+      } catch (noticeErr) {
+        log.error(
+          {
+            orderId: order.id,
+            err: noticeErr instanceof Error ? noticeErr.message : String(noticeErr),
+          },
+          'retracto_notice: failed to persist OrderEvent (non-blocking)',
+        )
+      }
+
       log.info(
         { tenantId, orderId, gateway: adapter.name, ref: result.paymentId },
         'payment link created',

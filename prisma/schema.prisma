@@ -89,6 +89,13 @@ model Tenant {
   countryCode           String   @default("CO")
   // ISO 4217 currency code — COP/MXN/BRL/USD/PEN/CLP/ARS. Default COP.
   currency              String   @default("COP")
+  // ── AUDIT-FINTECH R-8 — DIAN emitter NIT (Decreto 745 de 2014) ──
+  // The tenant's tax ID (NIT in Colombia, RFC in Mexico, CPF/CNPJ in Brazil).
+  // Used as the `emitterNit` in `generateDianInvoice()`. Required for DIAN
+  // electronic invoicing in production — `generateDianInvoice()` throws if
+  // this is null/empty AND `NODE_ENV=production` (fail-loud rather than emit
+  // an invalid CUFE). Optional in dev so the local sandbox still works.
+  nit                   String?
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 
@@ -246,6 +253,13 @@ model Customer {
   country     String?
   city        String?
   address     String?
+  // ── AUDIT-FINTECH R-8 — customer tax ID for DIAN invoicing ──
+  // Colombia: NIT or cédula (for natural persons). Brazil: CPF/CNPJ.
+  // Mexico: RFC. Used as `receiverNit` in `generateDianInvoice()`. When
+  // null/empty, the invoice falls back to the standard DIAN placeholder
+  // `222222222` (consumeridor final / unregistered consumer) per Resolución
+  // DIAN 165 de 2023 — NOT the customer email (the previous broken behaviour).
+  documentNumber String?
   // Saramantha §2: perfil_detectado
   perfilDetectado String? // mayorista | emprendedor | detal | regalo
   notes       String?
@@ -482,6 +496,7 @@ model Order {
   events        OrderEvent[]
   shipments     Shipment[]
   commissionEntries CommissionEntry[]
+  refunds         Refund[]
 
   // FIX-1-DB-001 — previously zero @@index (KPIs, kanban, attribution, webhooks).
   // Hot paths: kanban (tenantId + status), KPI time series (tenantId + createdAt),
@@ -842,6 +857,21 @@ model Invoice {
   amount           Float? // total amount the invoice is for (DIAN total)
   issuedAt         DateTime? // when the DIAN invoice was generated
   metadata         String? // JSON — full DianInvoiceData payload for replay/PDF
+  // ── AUDIT-FINTECH R-8 — DIAN submission retry tracking ──
+  // Incremented every time `retryPendingDianInvoices()` attempts to
+  // re-submit a `pending_submission` invoice via Alegra + the attempt fails.
+  // After `MAX_DIAN_RETRIES` (5) attempts the invoice is marked
+  // `dianStatus='failed'` + an `AuditLog` row is created for manual review.
+  // `dianLastError` captures the most recent error message for diagnostics.
+  dianRetryCount   Int      @default(0)
+  dianLastError    String?
+  // AUDIT-FINTECH N-8 — `updatedAt` is used by `retryPendingDianInvoices()`
+  // to apply exponential backoff: an invoice is only re-attempted once
+  // `now() - updatedAt > backoff(dianRetryCount)` (5min, 10min, 20min, 40min,
+  // 80min, ... capped at 1440 min / 24h). Without this column every retry
+  // run would re-attempt all 50 oldest pending invoices in quick succession
+  // (~25 min) when Alegra is down, wasting requests + Alegra quota.
+  updatedAt        DateTime @default(now()) @updatedAt
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
   // FIX-1-DB-001 — previously zero @@index (billing/invoicing queries).
@@ -912,6 +942,20 @@ model AuditLog {
   @@index([createdAt])
   @@index([action])
   @@index([tenantId, createdAt])
+}
+
+// AUDIT-FINTECH R-14 — tracks AuditLog exports to cold storage before deletion.
+// Each row records a batch export (filePath, recordCount, SHA-256 checksum)
+// so we can prove tamper-evidence for disputes spanning beyond the 7-year
+// retention window. Production: replace local file path with S3/Glacier URI.
+model AuditLogExport {
+  id          String   @id @default(cuid())
+  filePath    String
+  recordCount Int
+  checksum    String   // SHA-256 of the exported JSONL payload
+  exportedAt  DateTime @default(now())
+  @@index([exportedAt])
+  @@map("audit_log_export")
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -1819,4 +1863,125 @@ model FxRate {
   fetchedAt DateTime @default(now())
 
   @@index([currency, fetchedAt])
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// ANTI-FRAUD LAYER — I2-R3 (CRITICAL RISK R-3 closure)
+// ───────────────────────────────────────────────────────────────────────────
+// Layered anti-fraud service: velocity windows, blocklist (chargeback feedback
+// loop), OFAC AML screening, fraud-event audit log. All tenant-scoped.
+//
+// Three new tables:
+//   1. `fraud_blocklist`      — entries are added when a chargeback is
+//      received (auto) or by an operator (manual) or by an OFAC match. The
+//      `checkTransaction` flow queries this table by `(tenantId, type, value)`
+//      for customer / email / ip / card_bin / device / phone identifiers
+//      before allowing a transaction.
+//   2. `fraud_event`          — every invocation of `fraudService.checkTransaction`
+//      writes one row for auditability (decision + riskScore + reasons +
+//      checksRun). Powers the fraud dashboard + KPIs.
+//   3. `velocity_window`      — counts per (tenant, identifierType, identifier,
+//      windowStart) tuple. Used to detect card-testing / burst attacks
+//      (e.g. 50 attempts from the same IP within 5 min).
+//
+// `Order.paymentStatus` is a `String` column (NOT an enum) so the new
+// `'payment_mismatch'` (CVV/AVS) value needs no migration.
+/// I2-R3 — Blocklist entry (chargeback / OFAC / manual / fraud report)
+model FraudBlocklistEntry {
+  id          String   @id @default(cuid())
+  tenantId    String
+  type        String   // 'customer' | 'email' | 'ip' | 'card_bin' | 'device' | 'phone'
+  value       String   // the blocked identifier
+  reason      String   // 'chargeback' | 'fraud_report' | 'ofac_match' | 'manual'
+  source      String?  // 'auto' | 'manual' | 'ofac'
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime? // optional TTL
+
+  @@unique([tenantId, type, value])
+  @@index([tenantId, type])
+  @@map("fraud_blocklist")
+}
+
+/// I2-R3 — Fraud decision audit log (one row per checkTransaction call)
+model FraudEvent {
+  id            String   @id @default(cuid())
+  tenantId      String
+  orderId       String?
+  customerId    String?
+  decision      String   // 'allow' | 'review' | 'block'
+  riskScore     Int
+  reasons       String   // JSON array as string
+  checksRun     String   // JSON array as string
+  amount        Float
+  currency      String
+  paymentMethod String
+  customerIp    String?
+  createdAt     DateTime @default(now())
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, decision])
+  @@index([orderId])
+  @@map("fraud_event")
+}
+
+/// I2-R3 — Velocity window counters (per-identifier, per-bucket)
+model VelocityWindow {
+  id              String   @id @default(cuid())
+  tenantId        String
+  identifier      String   // customer_id | ip | card_bin | device
+  identifierType  String   // 'customer' | 'ip' | 'card_bin' | 'device'
+  count           Int
+  windowStart     DateTime
+  updatedAt       DateTime @updatedAt
+
+  @@unique([tenantId, identifierType, identifier, windowStart])
+  @@index([tenantId, identifierType, identifier])
+  @@map("velocity_window")
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// REFUNDS — AUDIT-FINTECH R-11 / R-12
+//
+// Structured refund ledger — replaces the free-text `OrderEvent.note` audit
+// trail that previously was the ONLY record of a refund. The `Refund` model
+// captures the structured data (amount, reason, partial flag, gateway ref,
+// initiator, status) so finance reconciliation + consumer-protection audits
+// (Ley 1480 Art 47 retracto refunds) can query refunds directly instead of
+// grepping OrderEvent notes.
+//
+// `status` lifecycle:
+//   pending   — created by `/api/orders/[id]/refund` POST, gateway refund not yet confirmed
+//   processed — gateway returned success (or webhook confirmed via `gatewayRef`)
+//   failed    — gateway returned an error; `failureNote` has the reason
+//   cancelled — operator cancelled the refund before it was processed
+//
+// `gatewayRef` is the link back to the gateway-side refund ID. When the
+// gateway later fires a `refunded` webhook, `applyPaymentUpdate()` matches
+// the webhook's `paymentId` against `Refund.gatewayRef` + flips status to
+// `processed` (closes the loop between admin-initiated + gateway-initiated).
+// ───────────────────────────────────────────────────────────────────────────
+model Refund {
+  id          String   @id @default(cuid())
+  orderId     String
+  tenantId    String
+  amount      Float
+  currency    String
+  // 'retracto' | 'customer_request' | 'fraud' | 'duplicate' | 'product_issue' | 'other'
+  reason      String
+  partial     Boolean  @default(false)
+  // 'pending' | 'processed' | 'failed' | 'cancelled'
+  status      String   @default("pending")
+  gatewayRef  String?  // gateway-side refund ID
+  gatewayName String?  // 'mercadopago' | 'stripe' | 'wompi' | 'payu' | etc.
+  initiatedBy String   // user ID of admin/operator
+  initiatedAt DateTime @default(now())
+  processedAt DateTime?
+  failureNote String?
+
+  order Order @relation(fields: [orderId], references: [id])
+
+  @@index([tenantId, initiatedAt])
+  @@index([orderId])
+  @@index([gatewayRef])
+  @@map("refund")
 }

@@ -35,12 +35,16 @@ import { requireTenantAccess } from '@/lib/auth-helpers'
 import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 import { generateDynamicQuote, formatQuoteForWhatsApp, quoteFreight } from '@/lib/agents/dynamic-quote'
 import { identifyImage } from '@/lib/vision/pipeline'
+import type { ImageIdentificationResult, TenantVisionContext } from '@/lib/vision/pipeline'
 import { logger } from '@/lib/logger'
 
 const BridgeSchema = z.object({
   tenantId: z.string(),
   action: z.enum(['quote', 'identify', 'freight', 'payment', 'catalog']),
-  data: z.record(z.unknown()),
+  // zod v4 requires `z.record(keySchema, valueSchema)` (the single-arg form
+  // was removed). Keys are always strings in JSON objects, values are
+  // action-specific and validated at the call site.
+  data: z.record(z.string(), z.unknown()),
 })
 
 export const POST = withErrorHandling(async (req: NextRequest) => {
@@ -55,7 +59,8 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
 
   const { tenantId, action, data } = parseResult.data
 
-  const tenantError = requireTenantAccess(tenantId)
+  // `requireTenantAccess` returns `{ session, error }` — early-exit on error.
+  const { error: tenantError } = await requireTenantAccess(tenantId)
   if (tenantError) return tenantError
 
   switch (action) {
@@ -87,28 +92,34 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
         return NextResponse.json({ error: 'Se requiere imageUrl' }, { status: 400 })
       }
 
-      let vlmResult: { sku?: string; productName?: string; confianza?: number } | null = null
+      // `identifyImage` returns `ImageIdentificationResult` (sku, confianza,
+      // metodo, pregunta_confirmacion, raw) — there's no `productName` field;
+      // we drive the catalog search off `sku` and fall back to `customerMessage`.
+      let vlmResult: ImageIdentificationResult | null = null
+      const tenantCtx: TenantVisionContext = { tenantId }
       try {
-        vlmResult = await identifyImage(imageUrl, tenantId)
+        vlmResult = await identifyImage(imageUrl, tenantCtx)
       } catch (e) {
         logger.warn({ err: e }, 'VLM failed in bridge')
       }
 
-      // Búsqueda fuzzy en catálogo
-      let products = await db.product.findMany({
+      const skuHint = vlmResult?.sku
+      // Búsqueda fuzzy en catálogo. SQLite no soporta `mode: 'insensitive'`
+      // (LIKE ya es case-insensitive para ASCII por defecto en SQLite).
+      const products = await db.product.findMany({
         where: {
           tenantId,
           active: true,
-          ...(vlmResult?.productName ? {
+          ...(skuHint ? {
             OR: [
-              { name: { contains: vlmResult.productName, mode: 'insensitive' } },
-              { diseno: { contains: vlmResult.productName, mode: 'insensitive' } },
+              { name: { contains: skuHint } },
+              { diseno: { contains: skuHint } },
             ],
           } : customerMessage ? {
             OR: [
-              { name: { contains: customerMessage, mode: 'insensitive' } },
-              { diseno: { contains: customerMessage, mode: 'insensitive' } },
-              { categoria: { contains: customerMessage, mode: 'insensitive' } },
+              { name: { contains: customerMessage } },
+              { diseno: { contains: customerMessage } },
+              { categoria: { contains: customerMessage } },
             ],
           } : {}),
         },
@@ -168,10 +179,10 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
           active: true,
           ...(query ? {
             OR: [
-              { name: { contains: query, mode: 'insensitive' } },
-              { sku: { contains: query, mode: 'insensitive' } },
-              { diseno: { contains: query, mode: 'insensitive' } },
-              { categoria: { contains: query, mode: 'insensitive' } },
+              { name: { contains: query } },
+              { sku: { contains: query } },
+              { diseno: { contains: query } },
+              { categoria: { contains: query } },
             ],
           } : {}),
         },

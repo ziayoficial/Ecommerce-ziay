@@ -90,6 +90,17 @@ export {
 } from './credentials.service'
 export type { CredentialsService } from './credentials.service'
 
+// SPRINT-SEC-R9-001 — at-rest encryption helpers for `cred::*` Setting values.
+// Re-exported from the crypto module so callers don't need a second import.
+export {
+  encryptSecret,
+  decryptSecret,
+  isEncryptedSecret,
+  isLegacyPlaintextSecret,
+  ENC_PREFIX_V1,
+  ENC_PREFIX_V0,
+} from '@/lib/crypto/secret-encryption'
+
 export { agentsService } from './agents.service'
 export type { AgentsService } from './agents.service'
 

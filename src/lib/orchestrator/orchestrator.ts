@@ -9,7 +9,7 @@
 import { db } from '@/lib/db'
 import { buildAgentPrompt, AgentName } from '@/lib/agents/prompts'
 import { getLogisticsAdapter } from '@/lib/adapters/registry'
-import { getLLMAdapter } from '@/lib/llm/adapter'
+import { getLLMProvider } from '@/lib/llm/adapter'
 import { OrchestratorState, OrchestratorScenario, ORCHESTRATOR_STEPS } from './constants'
 
 // Re-export for server consumers
@@ -22,16 +22,21 @@ async function callAgentDirect(agentName: AgentName, ctx: Record<string, unknown
   const { system, user } = await buildAgentPrompt(agentName, ctx as unknown as Parameters<typeof buildAgentPrompt>[1])
   const tenantId = ctx.tenantId as string
   if (!tenantId) throw new Error('tenantId required in context')
-  const llm = await getLLMAdapter(tenantId)
+  // `getLLMProvider` is a synchronous registry lookup (no tenantId arg);
+  // the per-tenant provider preference is honoured by the tenant's
+  // `proveedorIa` field elsewhere — here we just need a working LLM.
+  const llm = getLLMProvider()
 
   // 15s timeout per agent call
   const timeoutPromise = new Promise<never>((_, reject) =>
     setTimeout(() => reject(new Error(`Agent ${agentName} timed out after 15s`)), 15000)
   )
-  const llmPromise = llm.complete([
+  // The LLMProvider interface exposes `.chat(messages, opts)` (not `.complete`).
+  // We map the agent prompt onto a two-message transcript and extract `.content`.
+  const llmPromise = llm.chat([
     { role: 'system', content: system },
     { role: 'user', content: user },
-  ])
+  ]).then((r) => r.content)
 
   try {
     return await Promise.race([llmPromise, timeoutPromise])

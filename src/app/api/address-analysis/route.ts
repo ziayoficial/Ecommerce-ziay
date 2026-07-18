@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
         tenantId,
         action: 'address_analysis.evaluated',
         entity: 'Address',
-        meta: JSON.stringify({ address: direccion.slice(0, 100), country, result: reply.slice(0, 100), isCorrect }),
+        metadata: JSON.stringify({ address: direccion.slice(0, 100), country, result: reply.slice(0, 100), isCorrect }),
       },
     })
 

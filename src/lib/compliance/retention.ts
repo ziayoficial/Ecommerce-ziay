@@ -1,5 +1,8 @@
 import { db } from '@/lib/db'
 import { getLogger } from '@/lib/logger'
+import { promises as fs } from 'node:fs'
+import path from 'node:path'
+import crypto from 'node:crypto'
 
 // ───────────────────────────────────────────────────────────────────────────
 // Data retention policy — Ley 1581 de 2012 Art 11.
@@ -88,6 +91,117 @@ function formatDuration(ms: number): string {
   if (ms % (30 * DAY_MS) === 0) return `${ms / (30 * DAY_MS)} months`
   if (ms % DAY_MS === 0) return `${ms / DAY_MS} days`
   return `${ms} ms`
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// AUDIT-FINTECH R-14 — Cold-storage export before AuditLog deletion.
+//
+// AuditLog rows are deleted after 7 years (Estatuto Tributario Art 632). For
+// dispute resolution that spans beyond 7 years (rare but possible — e.g.
+// tax audits reopening old periods, or class-action lawsuits), the raw
+// evidence must remain available.
+//
+// Strategy: BEFORE deleting old AuditLog rows, write them to a JSONL file in
+// `./data/cold-storage/auditlog-export-{YYYY-MM-DD}.jsonl`. Each line is a
+// full JSON object. A checksum (SHA-256) of the file is recorded so we can
+// prove the export was tamper-evident. An `AuditLogExport` Prisma model
+// tracks what was exported (date, recordCount, filePath, checksum).
+//
+// Production TODO: replace the local file write with an S3/Glacier upload
+// (the JSONL format is identical — just change the destination). The
+// `AuditLogExport` row makes the migration traceable.
+// ───────────────────────────────────────────────────────────────────────────
+
+const COLD_STORAGE_DIR = path.join(process.cwd(), 'data', 'cold-storage')
+
+interface AuditLogExportRecord {
+  id: string
+  tenantId: string | null
+  userId: string | null
+  action: string
+  entity: string
+  entityId: string | null
+  metadata: string | null
+  proofHash: string | null
+  proofSignature: string | null
+  credentialSchema: string | null
+  createdAt: string
+  exportedAt: string
+}
+
+/**
+ * Export a batch of AuditLog rows to a dated JSONL file in cold storage.
+ *
+ * @returns the export metadata (filePath, recordCount, checksum) or null
+ *          if the export failed (in which case the caller MUST NOT delete
+ *          the rows — fail-closed to preserve evidence).
+ */
+async function exportAuditLogsToColdStorage(
+  rows: AuditLogExportRecord[],
+): Promise<{ filePath: string; recordCount: number; checksum: string } | null> {
+  if (rows.length === 0) {
+    return { filePath: '', recordCount: 0, checksum: '' }
+  }
+
+  const dateStr = new Date().toISOString().slice(0, 10) // YYYY-MM-DD
+  const stamp = Date.now()
+  const fileName = `auditlog-export-${dateStr}-${stamp}.jsonl`
+  const filePath = path.join(COLD_STORAGE_DIR, fileName)
+
+  try {
+    await fs.mkdir(COLD_STORAGE_DIR, { recursive: true })
+
+    // Stream-safe JSONL build (one JSON object per line).
+    const lines = rows.map((r) => JSON.stringify(r))
+    const payload = lines.join('\n') + '\n'
+
+    await fs.writeFile(filePath, payload, 'utf8')
+
+    // SHA-256 checksum of the exported file (tamper-evidence).
+    const checksum = crypto.createHash('sha256').update(payload, 'utf8').digest('hex')
+
+    log.info(
+      { filePath, recordCount: rows.length, checksum: checksum.slice(0, 12) + '…' },
+      'retention: AuditLog cold-storage export written',
+    )
+
+    return { filePath, recordCount: rows.length, checksum }
+  } catch (err) {
+    log.error(
+      { err, filePath, recordCount: rows.length },
+      'retention: AuditLog cold-storage export FAILED — rows will NOT be deleted (fail-closed)',
+    )
+    return null
+  }
+}
+
+/**
+ * Record an AuditLog export in the DB for traceability.
+ * Best-effort: if the AuditLogExport table doesn't exist yet (migration
+ * pending), the export still succeeds — we just skip the metadata row.
+ */
+async function recordAuditLogExport(
+  filePath: string,
+  recordCount: number,
+  checksum: string,
+): Promise<void> {
+  try {
+    // AuditLogExport model is added in the same schema push. If it's not
+    // yet in the generated client, this call throws and we catch + warn.
+    await (db as unknown as { auditLogExport: { create: (d: unknown) => Promise<unknown> } }).auditLogExport.create({
+      data: {
+        filePath,
+        recordCount,
+        checksum,
+        exportedAt: new Date(),
+      },
+    })
+  } catch (err) {
+    log.warn(
+      { err: err instanceof Error ? err.message : String(err), filePath },
+      'retention: AuditLogExport row not recorded (model may not be migrated yet) — export file still valid',
+    )
+  }
 }
 
 /**
@@ -181,16 +295,62 @@ export async function runRetentionCleanup(): Promise<RetentionResult> {
   }
 
   // 4. Archive (delete) old audit logs (7 years — Estatuto Tributario Art
-  // 632 retention). Pre-step: in production this should be exported to cold
-  // storage (S3 Glacier / BigQuery) before deletion. For now we delete.
+  // 632 retention). R-14 fix: BEFORE deleting, export the rows to cold
+  // storage (JSONL file with SHA-256 checksum). If the export fails, we
+  // SKIP the deletion for this run (fail-closed — preserve evidence over
+  // cleanup). The exported rows are then deleted in batches.
   try {
     const auditCutoff = new Date(now.getTime() - RETENTION_PERIODS.audit_log)
-    const oldAudits = await db.auditLog.deleteMany({
+
+    // Fetch the rows about to be deleted (cap at 5000 per sweep to avoid
+    // memory blowup — subsequent sweeps will catch up).
+    const oldAuditRows = await db.auditLog.findMany({
       where: { createdAt: { lt: auditCutoff } },
+      take: 5000,
+      orderBy: { createdAt: 'asc' },
     })
-    results.auditLogsArchived = oldAudits.count ?? 0
+
+    if (oldAuditRows.length > 0) {
+      const exportRows: AuditLogExportRecord[] = oldAuditRows.map((r) => ({
+        id: r.id,
+        tenantId: r.tenantId,
+        userId: r.userId,
+        action: r.action,
+        entity: r.entity,
+        entityId: r.entityId,
+        metadata: r.metadata,
+        proofHash: r.proofHash,
+        proofSignature: r.proofSignature,
+        credentialSchema: r.credentialSchema,
+        createdAt: r.createdAt.toISOString(),
+        exportedAt: new Date().toISOString(),
+      }))
+
+      const exportMeta = await exportAuditLogsToColdStorage(exportRows)
+
+      if (exportMeta) {
+        // Export succeeded — safe to delete the exported rows.
+        const idsToDelete = oldAuditRows.map((r) => r.id)
+        const deleteResult = await db.auditLog.deleteMany({
+          where: { id: { in: idsToDelete } },
+        })
+        results.auditLogsArchived = deleteResult.count ?? 0
+
+        // Record the export metadata for traceability.
+        if (exportMeta.recordCount > 0) {
+          await recordAuditLogExport(
+            exportMeta.filePath,
+            exportMeta.recordCount,
+            exportMeta.checksum,
+          )
+        }
+      } else {
+        // Export failed — DO NOT delete. Logs already emitted by the helper.
+        results.auditLogsArchived = 0
+      }
+    }
   } catch (err) {
-    log.error({ err }, 'retention: failed to delete old audit logs')
+    log.error({ err }, 'retention: failed to archive old audit logs (cold-storage safeguard)')
   }
 
   // 5. Delete revoked consent records older than 5 years.

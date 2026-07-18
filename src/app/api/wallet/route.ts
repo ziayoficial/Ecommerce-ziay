@@ -30,6 +30,7 @@ import { captureError } from '@/lib/capture-error'
 import { getLogger } from '@/lib/logger'
 import { walletService, traffickerService } from '@/lib/services'
 import { withErrorHandling } from '@/lib/middleware/api-error-handler'
+import { db } from '@/lib/db'
 
 const log = getLogger('api:wallet')
 
@@ -157,11 +158,83 @@ async function resolveTrafficker(req: NextRequest) {
   }
 }
 
-const FEE_PCT = 0.01 // 1% withdrawal fee
-const FEE_MIN = 1000 // min COP fee
+// ───────────────────────────────────────────────────────────────────────────
+// Withdrawal fee schedule — AUDIT-FINTECH R-19
+// ───────────────────────────────────────────────────────────────────────────
+// Previously `FEE_PCT = 0.01` + `FEE_MIN = 1000` were hardcoded COP values.
+// Withdrawals in MXN/BRL/USD/etc. were charged the COP minimum (1000 COP ≈
+// $0.25 USD) — wrong for any non-COP wallet. The fee schedule is now keyed
+// by ISO 4217 currency code, with one entry per LATAM currency we support
+// (mirrors `CURRENCIES` in `src/lib/i18n/currency.ts`). The `pct` is the
+// percentage of the withdrawal amount; `min` is the absolute floor in the
+// currency's major unit (NOT cents — same convention as
+// `CURRENCIES[*].minimumAmount`). Lookups fall back to USD if the currency
+// isn't in the map (defense-in-depth — every supported currency IS listed,
+// but a future tenant with an exotic currency should not crash).
+const WITHDRAWAL_FEES: Record<string, { pct: number; min: number }> = {
+  COP: { pct: 0.01, min: 1000 }, // 1% · min $1.000 COP
+  MXN: { pct: 0.01, min: 10 },   // 1% · min $10 MXN
+  BRL: { pct: 0.01, min: 3 },    // 1% · min R$3 BRL
+  USD: { pct: 0.01, min: 1 },    // 1% · min $1 USD
+  PEN: { pct: 0.01, min: 5 },    // 1% · min S/5 PEN
+  CLP: { pct: 0.01, min: 500 },  // 1% · min $500 CLP
+  ARS: { pct: 0.01, min: 1000 }, // 1% · min $1.000 ARS
+}
 
-function computeFee(amount: number) {
-  return Math.max(amount * FEE_PCT, FEE_MIN)
+/**
+ * Compute the withdrawal fee for `amount` (in the currency's major unit)
+ * using the currency-specific fee schedule. Falls back to USD if the
+ * currency is unknown (defense-in-depth).
+ */
+function computeFee(amount: number, currency: string): number {
+  const schedule = WITHDRAWAL_FEES[currency] ?? WITHDRAWAL_FEES.USD
+  return Math.max(amount * schedule.pct, schedule.min)
+}
+
+/**
+ * Resolve the wallet currency for a withdrawal. The Trafficker row itself
+ * has no `currency` field, so the currency is determined by the tenant the
+ * wallet belongs to (`Tenant.currency`, ISO 4217, default COP). The tenant
+ * is resolved via the `WalletAccount.tenantId` if present; otherwise via
+ * the request's `tenantId` query param; otherwise defaults to COP (the
+ * schema default for both `Tenant.currency` and `Order.currency`).
+ *
+ * Returns `null` only when the lookup itself fails (DB error); callers
+ * fall back to 'COP' on `null`.
+ */
+async function resolveWalletCurrency(
+  walletAccountId: string,
+  fallbackTenantId: string | undefined,
+): Promise<string> {
+  try {
+    // 1. Resolve via the WalletAccount's tenantId (primary source).
+    if (walletAccountId) {
+      const account = await db.walletAccount.findUnique({
+        where: { id: walletAccountId },
+        select: { tenantId: true, tenant: { select: { currency: true } } },
+      })
+      if (account?.tenant?.currency) return account.tenant.currency
+      if (account?.tenantId) {
+        const tenant = await db.tenant.findUnique({
+          where: { id: account.tenantId },
+          select: { currency: true },
+        })
+        if (tenant?.currency) return tenant.currency
+      }
+    }
+    // 2. Fall back to the request's tenantId query param.
+    if (fallbackTenantId) {
+      const tenant = await db.tenant.findUnique({
+        where: { id: fallbackTenantId },
+        select: { currency: true },
+      })
+      if (tenant?.currency) return tenant.currency
+    }
+  } catch (err) {
+    captureError(err as Error, { action: 'wallet:resolveWalletCurrency' })
+  }
+  // 3. Final fallback — COP (the schema default).
+  return 'COP'
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -389,7 +462,13 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
           totpVerified = true
         }
 
-        const fee = computeFee(amt)
+        // AUDIT-FINTECH R-19 — currency-aware fee. Previously the fee was
+        // hardcoded in COP (`FEE_MIN = 1000` COP), so a $500 USD withdrawal
+        // got charged a $0.25 USD minimum fee. Now we resolve the wallet
+        // currency from the tenant and look up the per-currency minimum.
+        const tenantIdParam = req.nextUrl.searchParams.get('tenantId') || undefined
+        const currency = await resolveWalletCurrency(walletAccountId, tenantIdParam)
+        const fee = computeFee(amt, currency)
         const net = amt - fee
         const withdrawal = await walletService.createWithdrawalRequest({
           traffickerId: trafficker.id,
@@ -401,7 +480,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
           totpVerified,
         })
         log.info(
-          { traffickerId: trafficker.id, withdrawalId: withdrawal.id, amount: amt, fee, net, totpRequired, totpVerified },
+          { traffickerId: trafficker.id, withdrawalId: withdrawal.id, amount: amt, currency, fee, net, totpRequired, totpVerified },
           'withdrawal request created',
         )
         return NextResponse.json({ withdrawal })

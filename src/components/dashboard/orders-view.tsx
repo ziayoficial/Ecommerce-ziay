@@ -69,6 +69,43 @@ const platformMeta = (p?: string) => {
   }
 }
 
+// AUDIT-FINTECH N-7 — payment status badge metadata.
+// The order's `paymentStatus` field can hold these canonical values that
+// the audit found were silently dropped by the dashboard UI (the operator
+// never saw the alert). Each entry returns a Spanish label + Tailwind
+// classes + icon so the operator gets an unambiguous visual signal.
+//   - `payment_mismatch`  → red/amber "Mismatch" (CVV/AVS fail or amount diff)
+//   - `refunded`          → gray "Refunded" (full refund landed via webhook)
+//   - `partial_refunded`  → blue "Partial Refund" (partial refund landed)
+// `paid` + `cod_pending` + `unpaid` are the legacy cases already rendered
+// inline below — kept here for symmetry / future single-source-of-truth.
+type PaymentStatusMeta = { label: string; cls: string; icon: typeof Clock }
+const paymentStatusMeta = (s: string): PaymentStatusMeta | null => {
+  switch (s) {
+    case 'paid':
+      return { label: 'Cobrado', cls: 'text-emerald-600', icon: CheckCircle2 }
+    case 'cod_pending':
+      return { label: 'Pendiente cobro', cls: 'text-amber-600', icon: Clock }
+    case 'unpaid':
+      return { label: 'Sin pago', cls: 'text-muted-foreground', icon: Clock }
+    case 'pending_payment':
+      return { label: 'Pago pendiente', cls: 'text-amber-600', icon: Clock }
+    case 'payment_mismatch':
+      // CVV/AVS failure or >1% amount diff — strongest fraud/refund signal.
+      return { label: 'Mismatch', cls: 'text-rose-700 dark:text-rose-300 bg-rose-500/10 px-1.5 py-0.5 rounded', icon: AlertCircle }
+    case 'refunded':
+      // Full refund landed via webhook (charge.refunded) or admin endpoint.
+      return { label: 'Refunded', cls: 'text-slate-600 dark:text-slate-300 bg-slate-500/10 px-1.5 py-0.5 rounded', icon: RotateCcw }
+    case 'partial_refunded':
+      // Partial refund landed via webhook — order is still "paid" overall.
+      return { label: 'Partial Refund', cls: 'text-sky-700 dark:text-sky-300 bg-sky-500/10 px-1.5 py-0.5 rounded', icon: RotateCcw }
+    case 'rejected':
+      return { label: 'Rechazado', cls: 'text-rose-600', icon: XCircle }
+    default:
+      return null
+  }
+}
+
 // All possible statuses — used to render quick-filter chips with counts.
 const STATUS_OPTIONS = [
   { value: 'all', label: 'Todos' },
@@ -469,8 +506,21 @@ export function OrdersView() {
                           <Badge variant={o.paymentMode === 'advance' ? 'default' : 'secondary'} className="text-[10px] gap-1">
                             {o.paymentMode === 'advance' ? <><CreditCard className="size-3" /> Anticipado</> : <><Truck className="size-3" /> COD</>}
                           </Badge>
-                          {o.paymentStatus === 'cod_pending' && <div className="text-[10px] text-amber-600 mt-0.5">Pendiente cobro</div>}
-                          {o.paymentStatus === 'paid' && <div className="text-[10px] text-emerald-600 mt-0.5">Cobrado</div>}
+                          {/* AUDIT-FINTECH N-7 — render every known paymentStatus so
+                              the operator sees mismatches / refunds / partial refunds
+                              without having to inspect the order detail. Previously
+                              only `cod_pending` + `paid` were rendered, so a
+                              `payment_mismatch` (CVV/AVS fail) was invisible. */}
+                          {(() => {
+                            const pm = paymentStatusMeta(o.paymentStatus)
+                            if (!pm) return null
+                            const PmIcon = pm.icon
+                            return (
+                              <div className={cn('text-[10px] mt-0.5 inline-flex items-center gap-1', pm.cls)}>
+                                <PmIcon className="size-3" /> {pm.label}
+                              </div>
+                            )
+                          })()}
                         </TableCell>
                         <TableCell>
                           <div className="font-semibold tabular-nums text-sm">{formatCurrency(o.total, o.currency)}</div>

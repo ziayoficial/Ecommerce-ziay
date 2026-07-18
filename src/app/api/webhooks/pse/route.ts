@@ -138,12 +138,29 @@ export const POST = withWebhookErrorHandling(async (req: NextRequest) => {
   try {
     if (txId || reference) {
       const mapped = mapPseState(state)
+      // AUDIT-FINTECH R-6 — PSE callback carries `amount` + `currency`
+      // (per study §18 docs). Best-effort parse: numeric when present,
+      // `undefined` when absent (validation simply skips in that case).
+      const rawAmount =
+        data.amount ?? body.amount ?? data.value ?? body.value
+      const parsedAmount =
+        typeof rawAmount === 'number'
+          ? rawAmount
+          : typeof rawAmount === 'string'
+            ? parseFloat(rawAmount)
+            : NaN
+      const amount = Number.isFinite(parsedAmount) && parsedAmount > 0 ? parsedAmount : undefined
+      const currency = (data.currency ?? body.currency)
+        ? String(data.currency ?? body.currency).toUpperCase()
+        : undefined
       await applyPaymentUpdate({
         gateway: 'pse',
         paymentId: txId || reference,
         externalReference: reference || undefined,
         status: mapped.status,
         success: mapped.success,
+        amount,
+        currency,
       })
     }
     await safeAudit('webhook.pse.inbound', 'Webhook', rawBody.slice(0, 1000), webhookId)

@@ -63,7 +63,8 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
 
   const { tenantId, items, city, country, channelType } = parseResult.data
 
-  const tenantError = requireTenantAccess(tenantId)
+  // `requireTenantAccess` returns `{ session, error }` — early-exit on error.
+  const { error: tenantError } = await requireTenantAccess(tenantId)
   if (tenantError) return tenantError
 
   const quote = await generateDynamicQuote(tenantId, items, city, country, channelType)

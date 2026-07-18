@@ -180,12 +180,44 @@ export async function generateDianInvoice(
   const ivaAmount = Math.round(subtotal * IVA_RATE)
   const total = subtotal + ivaAmount
 
-  // NIT resolution: in production the emitter NIT comes from the tenant's
-  // DIAN resolution + the receiver NIT from the customer's KYC record. For
-  // now we fall back to tenant.id / customer.email — clearly marked so the
-  // provider integration step knows these are placeholders.
-  const emitterNit = order.tenant?.id || 'N/A'
-  const receiverNit = order.customer?.email || 'N/A'
+  // NIT resolution — AUDIT-FINTECH R-8 fix.
+  //
+  // PREVIOUS (broken): `emitterNit = order.tenant?.id` (a CUID — never a real
+  // NIT) and `receiverNit = order.customer?.email` (an email — never a NIT).
+  // The CUFE was computed with these placeholders so every locally-stamped
+  // invoice had an invalid CUFE the moment Alegra was not configured.
+  //
+  // NOW:
+  //   - `emitterNit` comes from `Tenant.nit` (the new optional column added
+  //     by this audit). In production we fail-loud when it's missing — a
+  //     missing NIT means DIAN would reject the invoice anyway, so emitting
+  //     one with a placeholder CUFE is worse than refusing to generate.
+  //     In dev we fall back to a placeholder + warn so the local sandbox
+  //     still works end-to-end.
+  //   - `receiverNit` comes from `Customer.documentNumber` (the new optional
+  //     column — NIT/cédula in CO, CPF/CNPJ in BR, RFC in MX). When the
+  //     customer has no document on file, we use `'222222222'` — the
+  //     standard DIAN placeholder for "consumidor final" (unregistered
+  //     consumer) per Resolución DIAN 165 de 2023 Anexo Técnico §4.1.3.
+  //     NEVER the email.
+  const tenantNit = order.tenant?.nit?.trim() || ''
+  const isProd = process.env.NODE_ENV === 'production'
+  if (!tenantNit) {
+    if (isProd) {
+      throw new Error(
+        'Tenant NIT required for DIAN invoicing in production. ' +
+          'Configure Tenant.nit before generating electronic invoices.',
+      )
+    }
+    log.warn(
+      { tenantId, orderId },
+      'Tenant.nit not configured — using placeholder NIT for local DIAN invoice (dev only)',
+    )
+  }
+  const emitterNit = tenantNit || '000000000'
+
+  const customerDoc = order.customer?.documentNumber?.trim() || ''
+  const receiverNit = customerDoc || '222222222'
 
   const issueDate = new Date()
   const cufe = calculateCUFE({
@@ -288,22 +320,38 @@ export async function generateDianInvoice(
  *      onto the Invoice row (overwrites the local CUFE — Alegra's is
  *      the authoritative one post-submission).
  *   5. Best-effort: send the PDF to the customer via `adapter.sendByEmail`.
- *   6. Return `{ accepted, message, cufe? }` so the caller can render
+ *   6. Return `{ accepted, message, cufe?, submitted? }` so the caller can render
  *      the result + persist the CUFE on the client side if needed.
  *
  * Non-fatal failures (Alegra not configured, network error, 4xx/5xx)
  * return `accepted: false` with a descriptive message — the Invoice row
  * is left in its previous state (`pending_submission` or whatever it
  * was) so the caller can retry.
+ *
+ * AUDIT-FINTECH R-8 — added `submitted` flag for the retry function:
+ *   - `submitted: true`  — Alegra was configured AND `createInvoice()`
+ *     returned a non-null result. The submission reached Alegra (DIAN's
+ *     async validation may still be pending). The retry function treats
+ *     this as success and DOES NOT increment the retry counter.
+ *   - `submitted: false` — Alegra was not configured, the API call
+ *     failed (network/4xx/5xx), or the invoice/metadata was missing.
+ *     The retry function increments the retry counter.
+ * Also persists `dianLastError` on the Invoice row when `submitted: false`
+ * so the retry function + ops dashboards can read the failure reason
+ * without parsing the return value.
  */
 export async function submitToDian(
   invoiceId: string,
-): Promise<{ accepted: boolean; message: string; cufe?: string }> {
+): Promise<{ accepted: boolean; message: string; cufe?: string; submitted?: boolean }> {
   const adapter = getAlegraDianAdapter()
 
   if (!adapter.isConfigured()) {
+    // Persist the failure reason so the retry function + ops dashboard can
+    // see WHY the invoice is still pending without re-running the submission.
+    await safeUpdateDianError(invoiceId, 'Alegra no configurado')
     return {
       accepted: false,
+      submitted: false,
       message:
         'Alegra no configurado. Configurar ALEGRA_TOKEN y ALEGRA_USERNAME para envío a DIAN.',
     }
@@ -312,15 +360,17 @@ export async function submitToDian(
   // Fetch the invoice + its structured data payload.
   const invoice = await db.invoice.findUnique({ where: { id: invoiceId } })
   if (!invoice) {
-    return { accepted: false, message: 'Factura no encontrada' }
+    return { accepted: false, submitted: false, message: 'Factura no encontrada' }
   }
 
   const invoiceData = invoice.metadata
     ? (JSON.parse(invoice.metadata) as DianInvoiceData)
     : null
   if (!invoiceData) {
+    await safeUpdateDianError(invoiceId, 'Datos de factura no encontrados (metadata vacía)')
     return {
       accepted: false,
+      submitted: false,
       message: 'Datos de factura no encontrados (metadata vacía)',
     }
   }
@@ -365,6 +415,9 @@ export async function submitToDian(
         cufe: result.cufe,
         dianStatus: result.dianStatus,
         dianValidationUrl: result.dianValidationUrl,
+        // Submission reached Alegra — clear the last-error so a subsequent
+        // retry attempt doesn't show a stale failure reason.
+        dianLastError: null,
       },
     })
 
@@ -388,6 +441,7 @@ export async function submitToDian(
 
     return {
       accepted: result.dianStatus === 'accepted',
+      submitted: true,
       message:
         result.dianStatus === 'accepted'
           ? `Factura aceptada por DIAN. CUFE: ${result.cufe.slice(0, 16)}...`
@@ -398,11 +452,262 @@ export async function submitToDian(
 
   // `createInvoice` returned null — Alegra was configured but the call
   // failed (network, 4xx, 5xx). The adapter already logged the error.
+  const failMsg = 'Error al enviar factura a DIAN via Alegra. Revisar logs del servidor.'
+  await safeUpdateDianError(invoiceId, failMsg)
   log.warn({ invoiceId }, 'Alegra createInvoice returned null — submission failed')
 
   return {
     accepted: false,
-    message:
-      'Error al enviar factura a DIAN via Alegra. Revisar logs del servidor.',
+    submitted: false,
+    message: failMsg,
   }
+}
+
+/**
+ * Best-effort persist of `dianLastError` on an Invoice row. Wrapped in
+ * try/catch so a DB failure here doesn't mask the original submission
+ * error reported by the caller.
+ */
+async function safeUpdateDianError(invoiceId: string, message: string): Promise<void> {
+  try {
+    await db.invoice.update({
+      where: { id: invoiceId },
+      data: { dianLastError: message },
+    })
+  } catch (err) {
+    log.error(
+      { invoiceId, err: err instanceof Error ? err.message : String(err) },
+      'safeUpdateDianError: failed to persist dianLastError',
+    )
+  }
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// AUDIT-FINTECH R-8 — DIAN submission retry job
+//
+// Background: when Alegra is not configured at the time the order is paid
+// (or Alegra is briefly down), `submitToDian()` returns `accepted: false`
+// and the Invoice row stays `dianStatus = 'pending_submission'` FOREVER.
+// There was no retry mechanism — the invoice was effectively lost.
+//
+// `retryPendingDianInvoices()` walks the `pending_submission` backlog and
+// re-submits each invoice via `submitToDian()`. It is exposed as the
+// admin endpoint `POST /api/compliance/dian-retry` (manual trigger for
+// now — TODO: wire to BullMQ cron in a follow-up sprint).
+//
+// Retry policy:
+//   - Max 50 invoices per run (overload protection — Alegra has rate
+//     limits).
+//   - Max 5 retries per invoice (`MAX_DIAN_RETRIES`). After that the
+//     invoice is marked `dianStatus='failed'` + an `AuditLog` entry is
+//     created so ops can pick it up for manual review.
+//   - `submitted: true` from `submitToDian()` resets the retry counter
+//     (the submission reached Alegra — even if DIAN's async validation
+//     is still pending, the work is done from our side).
+//   - `submitted: false` increments `dianRetryCount` + sets `dianLastError`.
+//
+// AUDIT-FINTECH N-8 — Exponential backoff between retries.
+//   Previously the retry filter was a flat `createdAt < now() - 5min`, so
+//   if Alegra was down, all 5 retries for the same invoice ran within
+//   ~25 minutes (5 cron ticks × 5 min). Now an invoice is only re-attempted
+//   once `now() - updatedAt > backoff(dianRetryCount)` where `backoff(n) =
+//   min(5 * 2^n, 1440)` minutes:
+//     retry 0 → wait 5 min  (initial — same as the old cutoff)
+//     retry 1 → wait 10 min
+//     retry 2 → wait 20 min
+//     retry 3 → wait 40 min
+//     retry 4 → wait 80 min  (cap reached at 24h on retry 9)
+//   The total worst-case elapsed for 5 failures is now ~2h35min instead
+//   of ~25min, giving Alegra time to recover. `updatedAt` is bumped on
+//   every `db.invoice.update` (Prisma `@updatedAt` decorator) so the
+//   clock restarts after each attempt.
+// ───────────────────────────────────────────────────────────────────────────
+
+/** Maximum retry attempts before an invoice is marked as permanently failed. */
+const MAX_DIAN_RETRIES = 5
+
+/** Base backoff window (minutes) — first retry waits this long. */
+const RETRY_BASE_BACKOFF_MIN = 5
+
+/** Hard cap on a single backoff window (minutes) — 24h. */
+const RETRY_MAX_BACKOFF_MIN = 1440
+
+/** Max invoices processed per run — Alegra rate-limit protection. */
+const MAX_INVOICES_PER_RUN = 50
+
+/**
+ * Compute the per-invoice backoff window in milliseconds, based on the
+ * number of failed retries already recorded on the invoice.
+ *
+ * `n` is `dianRetryCount` BEFORE the next attempt — i.e. 0 means "this
+ * would be the first retry" (wait 5 min after the original submission),
+ * 1 means "one failed retry already, wait 10 min", etc. Capped at 24h.
+ */
+function dianBackoffMs(retryCount: number): number {
+  const minutes = Math.min(
+    RETRY_BASE_BACKOFF_MIN * Math.pow(2, retryCount),
+    RETRY_MAX_BACKOFF_MIN,
+  )
+  return minutes * 60 * 1000
+}
+
+export interface DianRetryResult {
+  processed: number
+  submitted: number
+  failed: number
+  permanentlyFailed: number
+  skipped: number
+}
+
+/**
+ * Walk the `pending_submission` invoice backlog + re-submit each via
+ * `submitToDian()`. See file-level comment for the retry policy.
+ *
+ * AUDIT-FINTECH N-8 — exponential backoff. An invoice is eligible for
+ * retry only if `now() - updatedAt > backoff(dianRetryCount)`. This
+ * means each failed attempt pushes the next attempt further into the
+ * future (5 → 10 → 20 → 40 → 80 min, capped at 24h), so a sustained
+ * Alegra outage no longer burns all 5 retries in 25 minutes.
+ *
+ * @param tenantId Optional — scope to a single tenant. When omitted, all
+ *                 tenants' pending invoices are processed (used by the
+ *                 platform admin endpoint).
+ */
+export async function retryPendingDianInvoices(
+  tenantId?: string,
+): Promise<DianRetryResult> {
+  const now = Date.now()
+
+  // Pull every pending invoice older than the *minimum* backoff (5 min)
+  // so the loop can apply per-invoice backoff based on `dianRetryCount`.
+  // The flat 5-min floor avoids racing with a fresh order's synchronous
+  // submission attempt (same guard as before N-8); per-invoice backoff
+  // is then enforced inside the loop.
+  const minCutoff = new Date(now - dianBackoffMs(0))
+
+  const invoices = await db.invoice.findMany({
+    where: {
+      dianStatus: 'pending_submission',
+      updatedAt: { lt: minCutoff },
+      ...(tenantId ? { tenantId } : {}),
+    },
+    select: { id: true, tenantId: true, dianRetryCount: true, updatedAt: true },
+    orderBy: { updatedAt: 'asc' },
+    take: MAX_INVOICES_PER_RUN,
+  })
+
+  // Apply per-invoice exponential backoff. An invoice is eligible only
+  // if `now - updatedAt > backoff(dianRetryCount)` — i.e. the per-invoice
+  // clock (reset by every Prisma `update`) has elapsed the backoff window
+  // for its current retry count.
+  const eligible = invoices.filter((inv) => {
+    const lastTouchedAt = inv.updatedAt.getTime()
+    const waitMs = dianBackoffMs(inv.dianRetryCount ?? 0)
+    return now - lastTouchedAt >= waitMs
+  })
+
+  log.info(
+    {
+      candidates: invoices.length,
+      eligible: eligible.length,
+      skippedByBackoff: invoices.length - eligible.length,
+      tenantId: tenantId ?? 'all',
+    },
+    'retryPendingDianInvoices: starting batch (exponential backoff applied)',
+  )
+
+  let submitted = 0
+  let failed = 0
+  let permanentlyFailed = 0
+  let skipped = invoices.length - eligible.length
+
+  for (const inv of eligible) {
+    try {
+      const result = await submitToDian(inv.id)
+
+      if (result.submitted) {
+        // Submission reached Alegra — reset the retry counter + clear
+        // dianLastError (already done inside submitToDian on success).
+        // `updatedAt` is bumped automatically by Prisma `@updatedAt`,
+        // which restarts the backoff clock for any future failure.
+        await db.invoice.update({
+          where: { id: inv.id },
+          data: { dianRetryCount: 0 },
+        })
+        submitted++
+        continue
+      }
+
+      // Submission failed — increment retry counter + persist last error
+      // (dianLastError already set inside submitToDian). Check if we've
+      // exhausted the retry budget; if so, mark as permanently failed +
+      // create an AuditLog entry for manual review.
+      const newCount = (inv.dianRetryCount ?? 0) + 1
+      if (newCount >= MAX_DIAN_RETRIES) {
+        await db.$transaction(async (tx) => {
+          await tx.invoice.update({
+            where: { id: inv.id },
+            data: {
+              dianRetryCount: newCount,
+              dianStatus: 'failed',
+              dianLastError: result.message,
+            },
+          })
+          await tx.auditLog.create({
+            data: {
+              tenantId: inv.tenantId,
+              action: 'compliance.dian.submission_failed',
+              entity: 'invoice',
+              entityId: inv.id,
+              metadata: JSON.stringify({
+                retryCount: newCount,
+                lastError: result.message,
+                reason: 'Exceeded max DIAN submission retries — manual review required',
+              }),
+            },
+          })
+        })
+        permanentlyFailed++
+        log.error(
+          { invoiceId: inv.id, retryCount: newCount, lastError: result.message },
+          'retryPendingDianInvoices: invoice permanently failed (max retries exceeded)',
+        )
+      } else {
+        await db.invoice.update({
+          where: { id: inv.id },
+          data: { dianRetryCount: newCount },
+        })
+        failed++
+        log.warn(
+          {
+            invoiceId: inv.id,
+            retryCount: newCount,
+            nextBackoffMin: Math.min(RETRY_BASE_BACKOFF_MIN * Math.pow(2, newCount), RETRY_MAX_BACKOFF_MIN),
+            lastError: result.message,
+          },
+          'retryPendingDianInvoices: submission failed (will retry after backoff)',
+        )
+      }
+    } catch (err) {
+      // Defensive — submitToDian should never throw (it catches its own
+      // errors), but if something unexpected happens we still want to
+      // continue the batch rather than abort.
+      failed++
+      skipped++
+      log.error(
+        { invoiceId: inv.id, err: err instanceof Error ? err.message : String(err) },
+        'retryPendingDianInvoices: unexpected exception for invoice (skipped)',
+      )
+    }
+  }
+
+  const result: DianRetryResult = {
+    processed: eligible.length,
+    submitted,
+    failed,
+    permanentlyFailed,
+    skipped,
+  }
+  log.info(result, 'retryPendingDianInvoices: batch complete')
+  return result
 }

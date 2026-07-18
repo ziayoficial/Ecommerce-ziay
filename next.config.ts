@@ -21,22 +21,17 @@ const nextConfig: NextConfig = {
   // not appear in production builds.
   devIndicators: false,
 
-  // SPRINT-FIXES-N8N-DEPLOY-001 — Legacy experimental routes
-  // (address-analysis, attribution, conversational-cart, conversations/search,
-  // llm-providers, onboarding, vision-pipeline, webhooks/nocodb-in,
-  // webhooks/nocodb-out, lib/orchestrator/orchestrator.ts) have type errors
-  // from the v0.1.0 era that reference exports which were renamed or removed
-  // in later sprints (semanticMemorySearch → searchSimilar,
-  // visionPipeline → identifyImage, etc.). These routes are NOT part of the
-  // main dashboard and are scheduled for a separate cleanup sprint. Re-adding
-  // `ignoreBuildErrors: true` so the production build passes immediately.
-  // TODO(cleanup-sprint): fix the legacy routes and remove this flag.
+  // AUDIT-FINTECH I3-FINAL — `ignoreBuildErrors: true` was a legacy workaround
+  // for type errors in experimental routes. All 58 TS errors were fixed in
+  // Iteration 1 (I1-R2), so the flag is no longer needed. Removing it makes
+  // `next build` a real type-safety gate in CI — if a regression sneaks in,
+  // the build fails instead of shipping broken types.
   typescript: {
-    ignoreBuildErrors: true,
+    ignoreBuildErrors: false,
   },
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
+  // Next.js 16 removed the top-level `eslint` key from NextConfig. ESLint
+  // during `next build` is now controlled by `next lint` in CI, so we no
+  // longer need to disable it here. (Previously: `eslint: { ignoreDuringBuilds: true }`.)
 
   // FIX-PERFORMANCE-001 — build config improvements:
   //   - compress: gzip at the app layer (Caddy could also brotli, but this

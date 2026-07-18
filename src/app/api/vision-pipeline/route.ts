@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
       action: 'vision.pipeline.executed',
       entity: 'ImageIdentification',
       entityId: identification.id,
-      meta: JSON.stringify({
+      metadata: JSON.stringify({
         sku: result.sku,
         method: result.metodo,
         confidence: result.confianza,

@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
       action: 'nocodb.in.order_moved',
       entity: 'Order',
       entityId: orderId,
-      meta: JSON.stringify({ newStatus }),
+      metadata: JSON.stringify({ newStatus }),
     },
   })
 

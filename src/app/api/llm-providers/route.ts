@@ -78,7 +78,7 @@ export async function PATCH(req: NextRequest) {
       action: `tenant.llm_provider_changed`,
       entity: 'Tenant',
       entityId: tenantId,
-      meta: JSON.stringify({ proveedorIa }),
+      metadata: JSON.stringify({ proveedorIa }),
     },
   })
 

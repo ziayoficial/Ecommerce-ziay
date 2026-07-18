@@ -181,7 +181,7 @@ async function signIn(page: Page): Promise<void> {
   await page.goto('/login')
   await page.locator('input[type="email"], input[name="email"]').fill(TEST_EMAIL)
   await page.locator('input[type="password"], input[name="password"]').fill(TEST_PASSWORD)
-  await page.getByRole('button', { name: /iniciar sesi|sign in|entrar/i }).click()
+  await page.locator('button[type="submit"]').click()
   await page.waitForURL('**/', { timeout: 30_000 })
 
   // Wait for the topbar to load: the user menu button must be visible, AND

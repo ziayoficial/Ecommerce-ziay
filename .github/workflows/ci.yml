@@ -165,7 +165,7 @@ jobs:
         run: bun run build
 
       - name: Seed database
-        run: bunx prisma db seed
+        run: bun run db:seed
 
       - name: Run Playwright E2E tests
         run: bunx playwright test

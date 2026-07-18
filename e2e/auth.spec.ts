@@ -38,7 +38,7 @@ test.describe('Authentication flows', () => {
     await expect(page.locator('input[type="password"], input[name="password"]')).toBeVisible()
 
     // Submit button.
-    await expect(page.getByRole('button', { name: /iniciar sesi|sign in|entrar/i })).toBeVisible()
+    await expect(page.locator('button[type="submit"]')).toBeVisible()
 
     // Demo credentials hint is rendered (helps QA) — use .first() since the
     // login page mentions it multiple times (header, footer, code hint).
@@ -50,7 +50,7 @@ test.describe('Authentication flows', () => {
 
     await page.locator('input[type="email"], input[name="email"]').fill(TEST_EMAIL)
     await page.locator('input[type="password"], input[name="password"]').fill(TEST_PASSWORD)
-    await page.getByRole('button', { name: /iniciar sesi|sign in|entrar/i }).click()
+    await page.locator('button[type="submit"]').click()
 
     // Should land on the dashboard.
     await page.waitForURL('**/', { timeout: 30_000 })
@@ -61,7 +61,7 @@ test.describe('Authentication flows', () => {
     await page.goto('/login')
     await page.locator('input[type="email"], input[name="email"]').fill(TEST_EMAIL)
     await page.locator('input[type="password"], input[name="password"]').fill('this-is-wrong')
-    await page.getByRole('button', { name: /iniciar sesi|sign in|entrar/i }).click()
+    await page.locator('button[type="submit"]').click()
 
     // Error message shown on the login page.
     await expect(page.getByText(/incorrect|invalid|no pudimos|verifica/i)).toBeVisible({ timeout: 15_000 })
@@ -129,5 +129,5 @@ async function signInViaForm(page: Page): Promise<void> {
   await page.goto('/login')
   await page.locator('input[type="email"], input[name="email"]').fill(TEST_EMAIL)
   await page.locator('input[type="password"], input[name="password"]').fill(TEST_PASSWORD)
-  await page.getByRole('button', { name: /iniciar sesi|sign in|entrar/i }).click()
+  await page.locator('button[type="submit"]').click()
 }

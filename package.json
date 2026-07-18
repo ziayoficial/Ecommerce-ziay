@@ -17,6 +17,7 @@
     "eval": "bun run scripts/eval-live.ts",
     "eval:vlm": "bun run scripts/eval-vlm.ts",
     "db:push": "bun run scripts/db-push.ts",
+    "db:seed": "bun run scripts/db-seed.ts",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate deploy",
     "db:migrate:dev": "prisma migrate dev",

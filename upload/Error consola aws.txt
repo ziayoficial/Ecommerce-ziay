@@ -1,0 +1,475 @@
+0
+
+2026-07-18T04:41:17.185Z [INFO]: # Build environment configured with Standard build compute type: 8GiB Memory, 4vCPUs, 128GB Disk Space
+
+1
+
+2026-07-18T04:41:17.626Z [INFO]: # Cloning repository: git@github.com:ziayoficial/Ecommerce-ziay.git
+
+2
+
+2026-07-18T04:41:20.015Z [INFO]: 
+
+3
+
+2026-07-18T04:41:20.015Z [INFO]: Cloning into 'Ecommerce-ziay'...
+
+4
+
+2026-07-18T04:41:20.015Z [INFO]: # Checking for Git submodules at: /codebuild/output/src1832218044/src/Ecommerce-ziay/.gitmodules
+
+5
+
+2026-07-18T04:41:20.023Z [INFO]: # Retrieving environment cache...
+
+6
+
+2026-07-18T04:41:20.065Z [WARNING]: ! Unable to write cache: {"code":"ERR_BAD_REQUEST","message":"Request failed with status code 404"})}
+
+7
+
+2026-07-18T04:41:20.065Z [INFO]: ---- Setting Up SSM Secrets ----
+
+8
+
+2026-07-18T04:41:20.065Z [INFO]: SSM params {"Path":"/amplify/d2eri4cr4mrfbg/main/","WithDecryption":true}
+
+9
+
+2026-07-18T04:41:20.106Z [WARNING]: !Failed to set up process.env.secrets
+
+10
+
+2026-07-18T04:41:20.873Z [INFO]: # No package override configuration found.
+
+11
+
+2026-07-18T04:41:20.952Z [INFO]: # Retrieving cache...
+
+12
+
+2026-07-18T04:41:20.993Z [INFO]: # Retrieved cache
+
+13
+
+2026-07-18T04:41:24.564Z [INFO]: ## Starting Backend Build
+
+14
+
+                                 ## Checking for associated backend environment...
+
+15
+
+                                 ## No backend environment association found, continuing...
+
+16
+
+                                 ## Completed Backend Build
+
+17
+
+2026-07-18T04:41:24.569Z [INFO]: ## Starting Frontend Build
+
+18
+
+                                 # Starting phase: preBuild
+
+19
+
+2026-07-18T04:41:24.569Z [INFO]: # Executing command: npm ci --cache .npm --prefer-offline
+
+20
+
+2026-07-18T04:41:46.375Z [WARNING]: npm warn deprecated @types/bcryptjs@3.0.0: This is a stub types definition. bcryptjs provides its own type definitions, so you do not need this installed.
+
+21
+
+2026-07-18T04:42:24.284Z [INFO]: added 977 packages, and audited 978 packages in 56s
+
+22
+
+2026-07-18T04:42:24.289Z [INFO]: 219 packages are looking for funding
+
+23
+
+                                 run `npm fund` for details
+
+24
+
+2026-07-18T04:42:24.330Z [INFO]: 13 vulnerabilities (1 low, 7 moderate, 5 high)
+
+25
+
+                                 To address issues that do not require attention, run:
+
+26
+
+                                 npm audit fix
+
+27
+
+                                 To address all issues (including breaking changes), run:
+
+28
+
+                                 npm audit fix --force
+
+29
+
+                                 Run `npm audit` for details.
+
+30
+
+2026-07-18T04:42:24.358Z [INFO]: # Completed phase: preBuild
+
+31
+
+                                 # Starting phase: build
+
+32
+
+                                 # Executing command: npm run build
+
+33
+
+2026-07-18T04:42:24.520Z [INFO]: > nextjs_tailwind_shadcn_ts@0.2.0 build
+
+34
+
+                                 > next build && cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/
+
+35
+
+2026-07-18T04:42:24.616Z [WARNING]: ⚠ You are using a non-standard "NODE_ENV" value in your environment. This creates inconsistencies in the project and is strongly advised against. Read more: https://nextjs.org/docs/messages/non-standard-node-env
+
+36
+
+2026-07-18T04:42:25.152Z [INFO]: ⚠ No build cache found. Please configure build caching for faster rebuilds. Read more: https://nextjs.org/docs/messages/no-cache
+
+37
+
+2026-07-18T04:42:25.163Z [INFO]: Attention: Next.js now collects completely anonymous telemetry regarding usage.
+
+38
+
+2026-07-18T04:42:25.164Z [INFO]: This information is used to shape Next.js' roadmap and prioritize features.
+
+39
+
+                                 You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
+40
+
+                                 https://nextjs.org/telemetry
+
+41
+
+2026-07-18T04:42:25.177Z [INFO]: ▲ Next.js 16.2.10 (Turbopack)
+
+42
+
+2026-07-18T04:42:25.177Z [INFO]: - Experiments (use with caution):
+
+43
+
+2026-07-18T04:42:25.177Z [INFO]: · clientTraceMetadata
+
+44
+
+                                 · optimizePackageImports
+
+45
+
+2026-07-18T04:42:25.179Z [WARNING]: ⚠ The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
+
+46
+
+2026-07-18T04:42:25.253Z [INFO]: Creating an optimized production build ...
+
+47
+
+2026-07-18T04:42:44.585Z [INFO]: ✓ Compiled successfully in 18.9s
+
+48
+
+2026-07-18T04:42:44.592Z [INFO]: Running next.config.js provided runAfterProductionCompile ...
+
+49
+
+2026-07-18T04:42:45.028Z [INFO]: ✓ Completed runAfterProductionCompile in 442ms
+
+50
+
+2026-07-18T04:42:45.030Z [INFO]: Running TypeScript ...
+
+51
+
+2026-07-18T04:43:05.076Z [INFO]: Finished TypeScript in 20.0s ...
+
+52
+
+2026-07-18T04:43:05.081Z [INFO]: Collecting page data using 3 workers ...
+
+53
+
+2026-07-18T04:43:05.935Z [INFO]: {"level":30,"time":"2026-07-18T04:43:05.933Z","service":"ziay","env":"production","component":"queue","jobType":"capi-fire","msg":"Job handler registered"}
+
+54
+
+2026-07-18T04:43:05.935Z [INFO]: {"level":30,"time":"2026-07-18T04:43:05.934Z","service":"ziay","env":"production","component":"queue","jobType":"catalog-sync","msg":"Job handler registered"}
+
+55
+
+                                 {"level":30,"time":"2026-07-18T04:43:05.934Z","service":"ziay","env":"production","component":"queue","jobType":"remarketing-send","msg":"Job handler registered"}
+
+56
+
+                                 {"level":30,"time":"2026-07-18T04:43:05.934Z","service":"ziay","env":"production","component":"queue","jobType":"seed-data","msg":"Job handler registered"}
+
+57
+
+                                 {"level":30,"time":"2026-07-18T04:43:05.935Z","service":"ziay","env":"production","component":"queue","jobType":"retention-cleanup","msg":"Job handler registered"}
+59
+
+2026-07-18T04:43:05.957Z [INFO]: {"level":30,"time":"2026-07-18T04:43:05.957Z","service":"ziay","env":"production","component":"queue","jobType":"catalog-sync","msg":"Job handler registered"}
+
+60
+
+                                 {"level":30,"time":"2026-07-18T04:43:05.957Z","service":"ziay","env":"production","component":"queue","jobType":"remarketing-send","msg":"Job handler registered"}
+
+61
+
+                                 {"level":30,"time":"2026-07-18T04:43:05.957Z","service":"ziay","env":"production","component":"queue","jobType":"seed-data","msg":"Job handler registered"}
+
+62
+
+                                 {"level":30,"time":"2026-07-18T04:43:05.957Z","service":"ziay","env":"production","component":"queue","jobType":"retention-cleanup","msg":"Job handler registered"}
+
+63
+
+2026-07-18T04:43:06.044Z [INFO]: {"level":30,"time":"2026-07-18T04:43:06.040Z","service":"ziay","env":"production","component":"queue","jobType":"capi-fire","msg":"Job handler registered"}
+
+64
+
+                                 {"level":30,"time":"2026-07-18T04:43:06.041Z","service":"ziay","env":"production","component":"queue","jobType":"catalog-sync","msg":"Job handler registered"}
+
+65
+
+                                 {"level":30,"time":"2026-07-18T04:43:06.041Z","service":"ziay","env":"production","component":"queue","jobType":"remarketing-send","msg":"Job handler registered"}
+
+66
+
+                                 {"level":30,"time":"2026-07-18T04:43:06.041Z","service":"ziay","env":"production","component":"queue","jobType":"seed-data","msg":"Job handler registered"}
+
+67
+
+                                 {"level":30,"time":"2026-07-18T04:43:06.041Z","service":"ziay","env":"production","component":"queue","jobType":"retention-cleanup","msg":"Job handler registered"}
+
+68
+
+2026-07-18T04:43:06.129Z [WARNING]: ⚠ Using edge runtime on a page currently disables static generation for that page
+
+69
+
+2026-07-18T04:43:06.191Z [INFO]: prisma:error
+
+70
+
+                                 Invalid `b.findFirst()` invocation in
+
+71
+
+                                 /codebuild/output/src1832218044/src/Ecommerce-ziay/.next/server/chunks/ssr/[root-of-the-server]__0ur6-xf._.js:3:1552
+
+72
+
+                                 1 module.exports=[193695,(a,b,c)=>{b.exports=a.x("next/dist/shared/lib/no-fallback-error.external.js",()=>require("next/dist/shared/lib/no-fallback-error.external.js"))},463021,(a,b,c)=>{b.exports=a.x("@prisma/client-2c3a283f134fdcb6",()=>require("@prisma/client-2c3a283f134fdcb6"))},971306,(a,b,c)=>{b.exports=a.r(918622)},179847,a=>{a.n(a.i(403343))},9185,a=>{a.n(a.i(729432))},872842,a=>{a.n(a.i(275164))},454897,a=>{a.n(a.i(330106))},856157,a=>{a.n(a.i(118970))},594331,a=>{a.n(a.i(860644))},715988,a=>{a.n(a.i(856952))},625766,a=>{a.n(a.i(777341))},529725,a=>{a.n(a.i(994290))},190833,a=>{a.n(a.i(746994))},605785,a=>{a.n(a.i(790588))},874793,a=>{a.n(a.i(633169))},285826,a=>{a.n(a.i(437111))},721565,a=>{a.n(a.i(741763))},465911,a=>{a.n(a.i(708950))},225128,a=>{a.n(a.i(891562))},740781,a=>{a.n(a.i(449670))},69411,a=>{a.n(a.i(675700))},263081,a=>{a.n(a.i(200276))},862837,a=>{a.n(a.i(640795))},134607,a=>{a.n(a.i(611614))},296338,a=>{a.n(a.i(521751))},550642,a=>{a.n(a.i(512213))},232242,a=>{a.n(a.i(22693))},988530,a=>{a.n(a.i(10531))},508583,a=>{a.n(a.i(901082))},38534,a=>{a.n(a.i(698175))},670408,a=>{a.n(a.i(409095))},722922,a=>{a.n(a.i(496772))},578294,a=>{a.n(a.i(971717))},216625,a=>{a.n(a.i(585034))},488648,a=>{a.n(a.i(368113))},451914,a=>{a.n(a.i(466482))},725466,a=>{a.n(a.i(91505))},761469,a=>{"use strict";var b=a.i(463021);let c=globalThis.prisma??new b.PrismaClient({log:["error"]});a.s(["db",0,c])},527164,(a,b,c)=>{"use strict";c._=function(a){return a&&a.__esModule?a:{default:a}}},643116,a=>{"use strict";a.s(["formatCurrency",0,function(a,b="COP",c){return"COP"===b?c?.compact&&Math.abs(a)>=1e6?`$${(a/1e6).toFixed(1)}M`:c?.compact&&Math.abs(a)>=1e3?`$${(a/1e3).toFixed(0)}k`:new Intl.NumberFormat("es-CO",{style:"currency",currency:"COP",maximumFractionDigits:0}).format(a):new Intl.NumberFormat("en-US",{style:"currency",currency:b}).format(a)},"formatNumber",0,function(a,b){return b?.compact&&Math.abs(a)>=1e6?`${(a/1e6).toFixed(1)}M`:b?.compact&&Math.abs(a)>=1e3?`${(a/1e3).toFixed(1)}k`:new Intl.NumberFormat("es-CO").format(a)},"timeAgo",0,function(a){let b="string"==typeof a?new Date(a):a,c=Math.floor((Date.now()-b.getTime())/1e3);return c<60?"ahora":c<3600?`hace ${Math.floor(c/60)} min`:c<86400?`hace ${Math.floor(c/3600)} h`:`hace ${Math.floor(c/86400)} d`}])},116426,(a,b,c)=>{"use strict";Object.defineProperty(c,"__esModule",{value:!0}),Object.defineProperty(c,"warnOnce",{enumerable:!0,get:function(){return d}});let d=a=>{}},229945,(a,b,c)=>{"use strict";let d;Object.defineProperty(c,"__esModule",{value:!0});var e={getAssetToken:function(){return i},getAssetTokenQuery:function(){return j},getDeploymentId:function(){return g},getDeploymentIdQuery:function(){return h}};for(var f in e)Object.defineProperty(c,f,{enumerable:!0,get:e[f]});function g(){return d}function h(a=!1){return d?`${a?"&":"?"}dpl=${d}`:""}function i(){return!1}function j(a=!1){return""}d=void 0},301359,(a,b,c)=>{"use strict";function d({widthInt:a,heightInt:b,blurWidth:c,blurHeight:e,blurDataURL:f,objectFit:g}){let h=c?40*c:a,i=e?40*e:b,j=h&&i?`viewBox='0 0 ${h} ${i}'`:"";return`%3Csvg xmlns='http://www.w3.org/2000/svg' ${j}%3E%3Cfilter id='b' color-interpolation-filters='sRGB'%3E%3CfeGaussianBlur stdDeviation='20'/%3E%3CfeColorMatrix values='1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 100 -1' result='s'/%3E%3CfeFlood x='0' y='0' width='100%25' height='100%25'/%3E%3CfeComposite operator='out' in='s'/%3E%3CfeComposite in2='SourceGraphic'/%3E%3CfeGaussianBlur stdDeviation='20'/%3E%3C/filter%3E%3Cimage width='100%25' height='100%25' x='0' y='0' preserveAspectRatio='${j?"none":"contain"===g?"xMidYMid":"cover"===g?"xMidYMid slice":"none"}' style='filter: url(%23b);' href='${f}'/%3E%3C/svg%3E`}Object.defineProperty(c,"__esModule",{value:!0}),Object.defineProperty(c,"getImageBlurSvg",{enumerable:!0,get:function(){return d}})},853549,(a,b,c)=>{"use strict";Object.defineProperty(c,"__esModule",{value:!0});var d={VALID_LOADERS:function(){return f},imageConfigDefault:function(){return g}};for(var e in d)Object.defineProperty(c,e,{enumerable:!0,get:d[e]});let f=["default","imgix","cloudinary","akamai","custom"],g={deviceSizes:[640,750,828,1080,1200,1920,2048,3840],imageSizes:[32,48,64,96,128,256,384],path:"/_next/image",loader:"default",loaderFile:"",domains:[],disableStaticImages:!1,minimumCacheTTL:14400,formats:["image/webp"],maximumDiskCacheSize:void 0,maximumRedirects:3,maximumResponseBody:5e7,dangerouslyAllowLocalIP:!1,dangerouslyAllowSVG:!1,contentSecurityPolicy:"script-src 'none'; frame-src 'none'; sandbox;",contentDispositionType:"attachment",localPatterns:void 0,remotePatterns:[],qualities:[75],unoptimized:!1,customCacheHandler:!1}},487713,(a,b,c)=>{"use strict";Object.defineProperty(c,"__esModule",{value:!0}),Object.defineProperty(c,"getImgProps",{enumerable:!0,get:function(){return j}}),a.r(116426);let d=a.r(229945),e=a.r(301359),f=a.r(853549),g=["-moz-initial","fill","none","scale-down",void 0];function h(a){return void 0!==a.default}function i(a){return void 0===a?a:"number"==typeof a?Number.isFinite(a)?a:NaN:"string"==typeof a&&/^[0-9]+$/.test(a)?parseInt(a,10):NaN}function j({src:a,sizes:b,unoptimized:c=!1,priority:k=!1,preload:l=!1,loading:m,className:n,quality:o,width:p,height:q,fill:r=!1,style:s,overrideSrc:t,onLoad:u,onLoadingComplete:v,placeholder:w="empty",blurDataURL:x,fetchPriority:y,decoding:z="async",layout:A,objectFit:B,objectPosition:C,lazyBoundary:D,lazyRoot:E,...F},G){var H;let I,J,K,{imgConf:L,showAltText:M,blurComplete:N,defaultLoader:O}=G,P=L||f.imageConfigDefault;if("allSizes"in P)I=P;else{let a=[...P.deviceSizes,...P.imageSizes].sort((a,b)=>a-b),b=P.deviceSizes.sort((a,b)=>a-b),c=P.qualities?.sort((a,b)=>a-b);I={...P,allSizes:a,deviceSizes:b,qualities:c}}if(void 0===O)throw Object.defineProperty(Error("images.loaderFile detected but the file is missing default export.\nRead more: https://nextjs.org/docs/messages/invalid-images-config"),"__NEXT_ERROR_CODE",{value:"E163",enumerable:!1,configurable:!0});let Q=F.loader||O;delete F.loader,delete F.srcSet;let R="__next_img_default"in Q;if(R){if("custom"===I.loader)throw Object.defineProperty(Error(`Image with src "${a}" is missing "loader" prop.
+
+73
+
+                                 2 Read more: https://nextjs.org/docs/messages/next-image-missing-loader`),"__NEXT_ERROR_CODE",{value:"E252",enumerable:!1,configurable:!0})}else{let a=Q;Q=b=>{let{config:c,...d}=b;return a(d)}}if(A){"fill"===A&&(r=!0);let a={intrinsic:{maxWidth:"100%",height:"auto"},responsive:{width:"100%",height:"auto"}}[A];a&&(s={...s,...a});let c={responsive:"100vw",fill:"100vw"}[A];c&&!b&&(b=c)}let S="",T=i(p),U=i(q);if((H=a)&&"object"==typeof H&&(h(H)||void 0!==H.src)){let b=h(a)?a.default:a;if(!b.src)throw Object.defineProperty(Error(`An object should only be passed to the image component src parameter if it comes from a static image import. It must include src. Received ${JSON.stringify(b)}`),"__NEXT_ERROR_CODE",{value:"E460",enumerable:!1,configurable:!0});if(!b.height||!b.width)throw Object.defineProperty(Error(`An object should only be passed to the image component src parameter if it comes from a static image import. It must include height and width. Received ${JSON.stringify(b)}`),"__NEXT_ERROR_CODE",{value:"E48",enumerable:!1,configurable:!0});if(J=b.blurWidth,K=b.blurHeight,x=x||b.blurDataURL,S=b.src,!r)if(T||U){if(T&&!U){let a=T/b.width;U=Math.round(b.height*a)}else if(!T&&U){let a=U/b.height;T=Math.round(b.width*a)}}else T=b.width,U=b.height}let V=!k&&!l&&("lazy"===m||void 0===m);(!(a="string"==typeof a?a:S)||a.startsWith("data:")||a.startsWith("blob:"))&&(c=!0,V=!1),I.unoptimized&&(c=!0),R&&!I.dangerouslyAllowSVG&&a.split("?",1)[0].endsWith(".svg")&&(c=!0);let W=i(o),X=Object.assign(r?{position:"absolute",height:"100%",width:"100%",left:0,top:0,right:0,bottom:0,objectFit:B,objectPosition:C}:{},M?{}:{color:"transparent"},s),Y=N||"empty"===w?null:"blur"===w?`url("data:image/svg+xml;charset=utf-8,${(0,e.getImageBlurSvg)({widthInt:T,heightInt:U,blurWidth:J,blurHeight:K,blurDataURL:x||"",objectFit:X.objectFit})}")`:`url("${w}")`,Z=g.includes(X.objectFit)?"fill"===X.objectFit?"100% 100%":"cover":X.objectFit,$=Y?{backgroundSize:Z,backgroundPosition:X.objectPosition||"50% 50%",backgroundRepeat:"no-repeat",backgroundImage:Y}:{},_=function({config:a,src:b,unoptimized:c,width:e,quality:f,sizes:g,loader:h}){if(c){if(b.startsWith("/")&&!b.startsWith("//")){let a=(0,d.getDeploymentId)();if(a){let c=b.indexOf("?");if(-1!==c){let d=new URLSearchParams(b.slice(c+1));d.get("dpl")||(d.append("dpl",a),b=b.slice(0,c)+"?"+d.toString())}else b+=`?dpl=${a}`}}return{src:b,srcSet:void 0,sizes:void 0}}let{widths:i,kind:j}=function({deviceSizes:a,allSizes:b},c,d){if(d){let c=/(^|\s)(1?\d?\d)vw/g,e=[];for(let a;a=c.exec(d);)e.push(parseInt(a[2]));if(e.length){let c=.01*Math.min(...e);return{widths:b.filter(b=>b>=a[0]*c),kind:"w"}}return{widths:b,kind:"w"}}return"number"!=typeof c?{widths:a,kind:"w"}:{widths:[...new Set([c,2*c].map(a=>b.find(b=>b>=a)||b[b.length-1]))],kind:"x"}}(a,e,g),k=i.length-1;return{sizes:g||"w"!==j?g:"100vw",srcSet:i.map((c,d)=>`${h({config:a,src:b,quality:f,width:c})} ${"w"===j?c:d+1}${j}`).join(", "),src:h({config:a,src:b,quality:f,width:i[k]})}}({config:I,src:a,unoptimized:c,width:T,quality:W,sizes:b,loader:Q}),aa=V?"lazy":m;return{props:{...F,loading:aa,fetchPriority:y,width:T,height:U,decoding:z,className:n,style:{...X,...$},sizes:_.sizes,srcSet:_.srcSet,src:t||_.src},meta:{unoptimized:c,preload:l||k,placeholder:w,fill:r}}}},442377,(a,b,c)=>{let{createClientModuleProxy:d}=a.r(211857);a.n(d("[project]/node_modules/next/dist/client/image-component.js <module evaluation>"))},843489,(a,b,c)=>{let{createClientModuleProxy:d}=a.r(211857);a.n(d("[project]/node_modules/next/dist/client/image-component.js"))},418409,a=>{"use strict";a.i(442377);var b=a.i(843489);a.n(b)},353200,(a,b,c)=>{"use strict";function d(a,b){let c=a||75;return b?.qualities?.length?b.qualities.reduce((a,b)=>Math.abs(b-c)<Math.abs(a-c)?b:a,b.qualities[0]):c}Object.defineProperty(c,"__esModule",{value:!0}),Object.defineProperty(c,"findClosestQuality",{enumerable:!0,get:function(){return d}})},37763,(a,b,c)=>{"use strict";Object.defineProperty(c,"__esModule",{value:!0}),Object.defineProperty(c,"default",{enumerable:!0,get:function(){return g}});let d=a.r(353200),e=a.r(229945);function f({config:a,src:b,width:c,quality:g}){let h=(0,e.getDeploymentId)();if(b.startsWith("/")&&!b.startsWith("//")){let a=b.indexOf("?");if(-1!==a){let c=new URLSearchParams(b.slice(a+1)),d=c.get("dpl");if(d){h=d,c.delete("dpl");let e=c.toString();b=b.slice(0,a)+(e?"?"+e:"")}}}if(b.startsWith("/")&&b.includes("?")&&a.localPatterns?.length===1&&"**"===a.localPatterns[0].pathname&&""===a.localPatterns[0].search)throw Object.defineProperty(Error(`Image with src "${b}" is using a query string which is not configured in images.localPatterns.
+
+74
+
+                                 → 3 Read more: https://nextjs.org/docs/messages/next-image-unconfigured-localpatterns`),"__NEXT_ERROR_CODE",{value:"E871",enumerable:!1,configurable:!0});let i=(0,d.findClosestQuality)(g,a);return`${a.path}?url=${encodeURIComponent(b)}&w=${c}&q=${i}${b.startsWith("/")&&h?`&dpl=${h}`:""}`}f.__next_img_default=!0;let g=f},250858,(a,b,c)=>{"use strict";Object.defineProperty(c,"__esModule",{value:!0});var d={default:function(){return k},getImageProps:function(){return j}};for(var e in d)Object.defineProperty(c,e,{enumerable:!0,get:d[e]});let f=a.r(527164),g=a.r(487713),h=a.r(418409),i=f._(a.r(37763));function j(a){let{props:b}=(0,g.getImgProps)(a,{defaultLoader:i.default,imgConf:{deviceSizes:[640,750,828,1080,1200,1920,2048,3840],imageSizes:[32,48,64,96,128,256,384],qualities:[75],path:"/_next/image",loader:"default",dangerouslyAllowSVG:!1,unoptimized:!1}});for(let[a,c]of Object.entries(b))void 0===c&&delete b[a];return{props:b}}let k=h.Image},503236,(a,b,c)=>{b.exports=a.r(250858)},504869,a=>{"use strict";a.s(["safeJsonLd",0,function(a){return JSON.stringify(a).replace(/</g,"\\u003c").replace(/>/g,"\\u003e").replace(/&/g,"\\u0026").replace(/\u2028/g,"\\u2028").replace(/\u2029/g,"\\u2029")}])},825979,a=>{"use strict";var b=a.i(907997);a.i(570396);var c=a.i(673727),d=a.i(503236),e=a.i(761469),f=a.i(643116),g=a.i(504869);let h="http://localhost:3000";async function i(a){try{let b=e.db.sEOConfig;if(!b?.findFirst)return null;return await b.findFirst(
+
+75
+
+                                 Error querying the database: Error code 14: Unable to open the database file
+
+76
+
+2026-07-18T04:43:06.191Z [INFO]: prisma:error
+
+77
+
+                                 Invalid `e.db.tenant.findMany()` invocation in
+
+78
+
+                                 /codebuild/output/src1832218044/src/Ecommerce-ziay/.next/server/chunks/ssr/[root-of-the-server]__1cnuk7n._.js:3:1411
+
+79
+
+                                 1 module.exports=[193695,(a,b,c)=>{b.exports=a.x("next/dist/shared/lib/no-fallback-error.external.js",()=>require("next/dist/shared/lib/no-fallback-error.external.js"))},463021,(a,b,c)=>{b.exports=a.x("@prisma/client-2c3a283f134fdcb6",()=>require("@prisma/client-2c3a283f134fdcb6"))},971306,(a,b,c)=>{b.exports=a.r(918622)},179847,a=>{a.n(a.i(403343))},9185,a=>{a.n(a.i(729432))},872842,a=>{a.n(a.i(275164))},454897,a=>{a.n(a.i(330106))},856157,a=>{a.n(a.i(118970))},594331,a=>{a.n(a.i(860644))},715988,a=>{a.n(a.i(856952))},625766,a=>{a.n(a.i(777341))},529725,a=>{a.n(a.i(994290))},190833,a=>{a.n(a.i(746994))},605785,a=>{a.n(a.i(790588))},874793,a=>{a.n(a.i(633169))},285826,a=>{a.n(a.i(437111))},721565,a=>{a.n(a.i(741763))},465911,a=>{a.n(a.i(708950))},225128,a=>{a.n(a.i(891562))},740781,a=>{a.n(a.i(449670))},69411,a=>{a.n(a.i(675700))},263081,a=>{a.n(a.i(200276))},862837,a=>{a.n(a.i(640795))},134607,a=>{a.n(a.i(611614))},296338,a=>{a.n(a.i(521751))},550642,a=>{a.n(a.i(512213))},232242,a=>{a.n(a.i(22693))},988530,a=>{a.n(a.i(10531))},508583,a=>{a.n(a.i(901082))},38534,a=>{a.n(a.i(698175))},670408,a=>{a.n(a.i(409095))},722922,a=>{a.n(a.i(496772))},578294,a=>{a.n(a.i(971717))},216625,a=>{a.n(a.i(585034))},488648,a=>{a.n(a.i(368113))},451914,a=>{a.n(a.i(466482))},725466,a=>{a.n(a.i(91505))},761469,a=>{"use strict";var b=a.i(463021);let c=globalThis.prisma??new b.PrismaClient({log:["error"]});a.s(["db",0,c])},527164,(a,b,c)=>{"use strict";c._=function(a){return a&&a.__esModule?a:{default:a}}},643116,a=>{"use strict";a.s(["formatCurrency",0,function(a,b="COP",c){return"COP"===b?c?.compact&&Math.abs(a)>=1e6?`$${(a/1e6).toFixed(1)}M`:c?.compact&&Math.abs(a)>=1e3?`$${(a/1e3).toFixed(0)}k`:new Intl.NumberFormat("es-CO",{style:"currency",currency:"COP",maximumFractionDigits:0}).format(a):new Intl.NumberFormat("en-US",{style:"currency",currency:b}).format(a)},"formatNumber",0,function(a,b){return b?.compact&&Math.abs(a)>=1e6?`${(a/1e6).toFixed(1)}M`:b?.compact&&Math.abs(a)>=1e3?`${(a/1e3).toFixed(1)}k`:new Intl.NumberFormat("es-CO").format(a)},"timeAgo",0,function(a){let b="string"==typeof a?new Date(a):a,c=Math.floor((Date.now()-b.getTime())/1e3);return c<60?"ahora":c<3600?`hace ${Math.floor(c/60)} min`:c<86400?`hace ${Math.floor(c/3600)} h`:`hace ${Math.floor(c/86400)} d`}])},116426,(a,b,c)=>{"use strict";Object.defineProperty(c,"__esModule",{value:!0}),Object.defineProperty(c,"warnOnce",{enumerable:!0,get:function(){return d}});let d=a=>{}},229945,(a,b,c)=>{"use strict";let d;Object.defineProperty(c,"__esModule",{value:!0});var e={getAssetToken:function(){return i},getAssetTokenQuery:function(){return j},getDeploymentId:function(){return g},getDeploymentIdQuery:function(){return h}};for(var f in e)Object.defineProperty(c,f,{enumerable:!0,get:e[f]});function g(){return d}function h(a=!1){return d?`${a?"&":"?"}dpl=${d}`:""}function i(){return!1}function j(a=!1){return""}d=void 0},301359,(a,b,c)=>{"use strict";function d({widthInt:a,heightInt:b,blurWidth:c,blurHeight:e,blurDataURL:f,objectFit:g}){let h=c?40*c:a,i=e?40*e:b,j=h&&i?`viewBox='0 0 ${h} ${i}'`:"";return`%3Csvg xmlns='http://www.w3.org/2000/svg' ${j}%3E%3Cfilter id='b' color-interpolation-filters='sRGB'%3E%3CfeGaussianBlur stdDeviation='20'/%3E%3CfeColorMatrix values='1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 100 -1' result='s'/%3E%3CfeFlood x='0' y='0' width='100%25' height='100%25'/%3E%3CfeComposite operator='out' in='s'/%3E%3CfeComposite in2='SourceGraphic'/%3E%3CfeGaussianBlur stdDeviation='20'/%3E%3C/filter%3E%3Cimage width='100%25' height='100%25' x='0' y='0' preserveAspectRatio='${j?"none":"contain"===g?"xMidYMid":"cover"===g?"xMidYMid slice":"none"}' style='filter: url(%23b);' href='${f}'/%3E%3C/svg%3E`}Object.defineProperty(c,"__esModule",{value:!0}),Object.defineProperty(c,"getImageBlurSvg",{enumerable:!0,get:function(){return d}})},853549,(a,b,c)=>{"use strict";Object.defineProperty(c,"__esModule",{value:!0});var d={VALID_LOADERS:function(){return f},imageConfigDefault:function(){return g}};for(var e in d)Object.defineProperty(c,e,{enumerable:!0,get:d[e]});let f=["default","imgix","cloudinary","akamai","custom"],g={deviceSizes:[640,750,828,1080,1200,1920,2048,3840],imageSizes:[32,48,64,96,128,256,384],path:"/_next/image",loader:"default",loaderFile:"",domains:[],disableStaticImages:!1,minimumCacheTTL:14400,formats:["image/webp"],maximumDiskCacheSize:void 0,maximumRedirects:3,maximumResponseBody:5e7,dangerouslyAllowLocalIP:!1,dangerouslyAllowSVG:!1,contentSecurityPolicy:"script-src 'none'; frame-src 'none'; sandbox;",contentDispositionType:"attachment",localPatterns:void 0,remotePatterns:[],qualities:[75],unoptimized:!1,customCacheHandler:!1}},487713,(a,b,c)=>{"use strict";Object.defineProperty(c,"__esModule",{value:!0}),Object.defineProperty(c,"getImgProps",{enumerable:!0,get:function(){return j}}),a.r(116426);let d=a.r(229945),e=a.r(301359),f=a.r(853549),g=["-moz-initial","fill","none","scale-down",void 0];function h(a){return void 0!==a.default}function i(a){return void 0===a?a:"number"==typeof a?Number.isFinite(a)?a:NaN:"string"==typeof a&&/^[0-9]+$/.test(a)?parseInt(a,10):NaN}function j({src:a,sizes:b,unoptimized:c=!1,priority:k=!1,preload:l=!1,loading:m,className:n,quality:o,width:p,height:q,fill:r=!1,style:s,overrideSrc:t,onLoad:u,onLoadingComplete:v,placeholder:w="empty",blurDataURL:x,fetchPriority:y,decoding:z="async",layout:A,objectFit:B,objectPosition:C,lazyBoundary:D,lazyRoot:E,...F},G){var H;let I,J,K,{imgConf:L,showAltText:M,blurComplete:N,defaultLoader:O}=G,P=L||f.imageConfigDefault;if("allSizes"in P)I=P;else{let a=[...P.deviceSizes,...P.imageSizes].sort((a,b)=>a-b),b=P.deviceSizes.sort((a,b)=>a-b),c=P.qualities?.sort((a,b)=>a-b);I={...P,allSizes:a,deviceSizes:b,qualities:c}}if(void 0===O)throw Object.defineProperty(Error("images.loaderFile detected but the file is missing default export.\nRead more: https://nextjs.org/docs/messages/invalid-images-config"),"__NEXT_ERROR_CODE",{value:"E163",enumerable:!1,configurable:!0});let Q=F.loader||O;delete F.loader,delete F.srcSet;let R="__next_img_default"in Q;if(R){if("custom"===I.loader)throw Object.defineProperty(Error(`Image with src "${a}" is missing "loader" prop.
+80
+
+                                 2 Read more: https://nextjs.org/docs/messages/next-image-missing-loader`),"__NEXT_ERROR_CODE",{value:"E252",enumerable:!1,configurable:!0})}else{let a=Q;Q=b=>{let{config:c,...d}=b;return a(d)}}if(A){"fill"===A&&(r=!0);let a={intrinsic:{maxWidth:"100%",height:"auto"},responsive:{width:"100%",height:"auto"}}[A];a&&(s={...s,...a});let c={responsive:"100vw",fill:"100vw"}[A];c&&!b&&(b=c)}let S="",T=i(p),U=i(q);if((H=a)&&"object"==typeof H&&(h(H)||void 0!==H.src)){let b=h(a)?a.default:a;if(!b.src)throw Object.defineProperty(Error(`An object should only be passed to the image component src parameter if it comes from a static image import. It must include src. Received ${JSON.stringify(b)}`),"__NEXT_ERROR_CODE",{value:"E460",enumerable:!1,configurable:!0});if(!b.height||!b.width)throw Object.defineProperty(Error(`An object should only be passed to the image component src parameter if it comes from a static image import. It must include height and width. Received ${JSON.stringify(b)}`),"__NEXT_ERROR_CODE",{value:"E48",enumerable:!1,configurable:!0});if(J=b.blurWidth,K=b.blurHeight,x=x||b.blurDataURL,S=b.src,!r)if(T||U){if(T&&!U){let a=T/b.width;U=Math.round(b.height*a)}else if(!T&&U){let a=U/b.height;T=Math.round(b.width*a)}}else T=b.width,U=b.height}let V=!k&&!l&&("lazy"===m||void 0===m);(!(a="string"==typeof a?a:S)||a.startsWith("data:")||a.startsWith("blob:"))&&(c=!0,V=!1),I.unoptimized&&(c=!0),R&&!I.dangerouslyAllowSVG&&a.split("?",1)[0].endsWith(".svg")&&(c=!0);let W=i(o),X=Object.assign(r?{position:"absolute",height:"100%",width:"100%",left:0,top:0,right:0,bottom:0,objectFit:B,objectPosition:C}:{},M?{}:{color:"transparent"},s),Y=N||"empty"===w?null:"blur"===w?`url("data:image/svg+xml;charset=utf-8,${(0,e.getImageBlurSvg)({widthInt:T,heightInt:U,blurWidth:J,blurHeight:K,blurDataURL:x||"",objectFit:X.objectFit})}")`:`url("${w}")`,Z=g.includes(X.objectFit)?"fill"===X.objectFit?"100% 100%":"cover":X.objectFit,$=Y?{backgroundSize:Z,backgroundPosition:X.objectPosition||"50% 50%",backgroundRepeat:"no-repeat",backgroundImage:Y}:{},_=function({config:a,src:b,unoptimized:c,width:e,quality:f,sizes:g,loader:h}){if(c){if(b.startsWith("/")&&!b.startsWith("//")){let a=(0,d.getDeploymentId)();if(a){let c=b.indexOf("?");if(-1!==c){let d=new URLSearchParams(b.slice(c+1));d.get("dpl")||(d.append("dpl",a),b=b.slice(0,c)+"?"+d.toString())}else b+=`?dpl=${a}`}}return{src:b,srcSet:void 0,sizes:void 0}}let{widths:i,kind:j}=function({deviceSizes:a,allSizes:b},c,d){if(d){let c=/(^|\s)(1?\d?\d)vw/g,e=[];for(let a;a=c.exec(d);)e.push(parseInt(a[2]));if(e.length){let c=.01*Math.min(...e);return{widths:b.filter(b=>b>=a[0]*c),kind:"w"}}return{widths:b,kind:"w"}}return"number"!=typeof c?{widths:a,kind:"w"}:{widths:[...new Set([c,2*c].map(a=>b.find(b=>b>=a)||b[b.length-1]))],kind:"x"}}(a,e,g),k=i.length-1;return{sizes:g||"w"!==j?g:"100vw",srcSet:i.map((c,d)=>`${h({config:a,src:b,quality:f,width:c})} ${"w"===j?c:d+1}${j}`).join(", "),src:h({config:a,src:b,quality:f,width:i[k]})}}({config:I,src:a,unoptimized:c,width:T,quality:W,sizes:b,loader:Q}),aa=V?"lazy":m;return{props:{...F,loading:aa,fetchPriority:y,width:T,height:U,decoding:z,className:n,style:{...X,...$},sizes:_.sizes,srcSet:_.srcSet,src:t||_.src},meta:{unoptimized:c,preload:l||k,placeholder:w,fill:r}}}},442377,(a,b,c)=>{let{createClientModuleProxy:d}=a.r(211857);a.n(d("[project]/node_modules/next/dist/client/image-component.js <module evaluation>"))},843489,(a,b,c)=>{let{createClientModuleProxy:d}=a.r(211857);a.n(d("[project]/node_modules/next/dist/client/image-component.js"))},418409,a=>{"use strict";a.i(442377);var b=a.i(843489);a.n(b)},353200,(a,b,c)=>{"use strict";function d(a,b){let c=a||75;return b?.qualities?.length?b.qualities.reduce((a,b)=>Math.abs(b-c)<Math.abs(a-c)?b:a,b.qualities[0]):c}Object.defineProperty(c,"__esModule",{value:!0}),Object.defineProperty(c,"findClosestQuality",{enumerable:!0,get:function(){return d}})},37763,(a,b,c)=>{"use strict";Object.defineProperty(c,"__esModule",{value:!0}),Object.defineProperty(c,"default",{enumerable:!0,get:function(){return g}});let d=a.r(353200),e=a.r(229945);function f({config:a,src:b,width:c,quality:g}){let h=(0,e.getDeploymentId)();if(b.startsWith("/")&&!b.startsWith("//")){let a=b.indexOf("?");if(-1!==a){let c=new URLSearchParams(b.slice(a+1)),d=c.get("dpl");if(d){h=d,c.delete("dpl");let e=c.toString();b=b.slice(0,a)+(e?"?"+e:"")}}}if(b.startsWith("/")&&b.includes("?")&&a.localPatterns?.length===1&&"**"===a.localPatterns[0].pathname&&""===a.localPatterns[0].search)throw Object.defineProperty(Error(`Image with src "${b}" is using a query string which is not configured in images.localPatterns.
+
+81
+
+                                 → 3 Read more: https://nextjs.org/docs/messages/next-image-unconfigured-localpatterns`),"__NEXT_ERROR_CODE",{value:"E871",enumerable:!1,configurable:!0});let i=(0,d.findClosestQuality)(g,a);return`${a.path}?url=${encodeURIComponent(b)}&w=${c}&q=${i}${b.startsWith("/")&&h?`&dpl=${h}`:""}`}f.__next_img_default=!0;let g=f},250858,(a,b,c)=>{"use strict";Object.defineProperty(c,"__esModule",{value:!0});var d={default:function(){return k},getImageProps:function(){return j}};for(var e in d)Object.defineProperty(c,e,{enumerable:!0,get:d[e]});let f=a.r(527164),g=a.r(487713),h=a.r(418409),i=f._(a.r(37763));function j(a){let{props:b}=(0,g.getImgProps)(a,{defaultLoader:i.default,imgConf:{deviceSizes:[640,750,828,1080,1200,1920,2048,3840],imageSizes:[32,48,64,96,128,256,384],qualities:[75],path:"/_next/image",loader:"default",dangerouslyAllowSVG:!1,unoptimized:!1}});for(let[a,c]of Object.entries(b))void 0===c&&delete b[a];return{props:b}}let k=h.Image},503236,(a,b,c)=>{b.exports=a.r(250858)},504869,a=>{"use strict";a.s(["safeJsonLd",0,function(a){return JSON.stringify(a).replace(/</g,"\\u003c").replace(/>/g,"\\u003e").replace(/&/g,"\\u0026").replace(/\u2028/g,"\\u2028").replace(/\u2029/g,"\\u2029")}])},101895,a=>{"use strict";var b=a.i(907997);a.i(570396);var c=a.i(673727),d=a.i(503236),e=a.i(761469),f=a.i(643116),g=a.i(504869);let h="http://localhost:3000";async function i(){try{let a=await e.db.tenant.findMany(
+
+82
+
+                                 Error querying the database: Error code 14: Unable to open the database file
+
+83
+
+2026-07-18T04:43:06.206Z [INFO]: Generating static pages using 3 workers (0/108) ...
+
+84
+
+2026-07-18T04:43:06.268Z [INFO]: Generating static pages using 3 workers (27/108)
+
+85
+
+2026-07-18T04:43:06.304Z [INFO]: Generating static pages using 3 workers (54/108)
+
+86
+
+2026-07-18T04:43:06.416Z [WARNING]: Each child in a list should have a unique "key" prop.
+
+87
+
+                                    Check the top-level render call using <__next_viewport_boundary__>. See https://react.dev/link/warning-keys for more information.
+
+88
+
+2026-07-18T04:43:06.420Z [WARNING]: Each child in a list should have a unique "key" prop. See https://react.dev/link/warning-keys for more information.
+
+89
+
+2026-07-18T04:43:06.426Z [WARNING]: Each child in a list should have a unique "key" prop.
+
+90
+
+                                    Check the top-level render call using <meta>. See https://react.dev/link/warning-keys for more information.
+
+91
+
+2026-07-18T04:43:06.427Z [WARNING]: Each child in a list should have a unique "key" prop.
+
+92
+
+                                    Check the top-level render call using <head>. See https://react.dev/link/warning-keys for more information.
+
+93
+
+2026-07-18T04:43:06.443Z [WARNING]: Each child in a list should have a unique "key" prop.
+
+94
+
+                                    Check the top-level render call using <meta>. See https://react.dev/link/warning-keys for more information.
+
+95
+
+2026-07-18T04:43:06.445Z [WARNING]: Each child in a list should have a unique "key" prop.
+
+96
+
+                                    Check the top-level render call using <head>. See https://react.dev/link/warning-keys for more information.
+
+97
+
+2026-07-18T04:43:06.462Z [WARNING]: Each child in a list should have a unique "key" prop.
+
+98
+
+                                    Check the top-level render call using <meta>. See https://react.dev/link/warning-keys for more information.
+
+99
+
+                                    Each child in a list should have a unique "key" prop.
+
+100
+
+                                    Check the top-level render call using <head>. See https://react.dev/link/warning-keys for more information.
+
+101
+
+2026-07-18T04:43:06.468Z [WARNING]: Each child in a list should have a unique "key" prop.
+
+102
+
+                                    Check the top-level render call using <meta>. See https://react.dev/link/warning-keys for more information.
+
+103
+
+2026-07-18T04:43:06.469Z [WARNING]: Each child in a list should have a unique "key" prop.
+
+104
+
+                                    Check the top-level render call using <head>. See https://react.dev/link/warning-keys for more information.
+
+105
+
+2026-07-18T04:43:06.489Z [WARNING]: Error occurred prerendering page "/compliance/parental-consent". Read more: https://nextjs.org/docs/messages/prerender-error
+
+106
+
+2026-07-18T04:43:06.493Z [WARNING]: TypeError: Cannot read properties of null (reading 'use')
+
+107
+
+                                    at ignore-listed frames {
+
+108
+
+                                    digest: '1132898961'
+
+109
+
+                                    }
+
+110
+
+2026-07-18T04:43:06.494Z [WARNING]: Export encountered an error on /compliance/parental-consent/page: /compliance/parental-consent, exiting the build.
+
+111
+
+2026-07-18T04:43:06.502Z [WARNING]: Each child in a list should have a unique "key" prop.
+
+112
+
+                                    Check the top-level render call using <meta>. See https://react.dev/link/warning-keys for more information.
+
+113
+
+2026-07-18T04:43:06.502Z [WARNING]: Each child in a list should have a unique "key" prop.
+
+114
+
+                                    Check the top-level render call using <head>. See https://react.dev/link/warning-keys for more information.
+
+115
+
+2026-07-18T04:43:06.539Z [WARNING]: ⨯ Next.js build worker exited with code: 1 and signal: null
+
+116
+
+2026-07-18T04:43:06.597Z [ERROR]: !!! Build failed
+
+117
+
+2026-07-18T04:43:06.597Z [INFO]: Please read more about Amplify Hosting's support for SSR frameworks to find if your build failure is related to an unsupported feature: https://docs.aws.amazon.com/amplify/latest/userguide/amplify-ssr-framework-support.html. You may also find this troubleshooting guide useful: https://docs.aws.amazon.com/amplify/latest/userguide/troubleshooting-ssr-deployment.html
+118
+
+2026-07-18T04:43:06.597Z [ERROR]: !!! Error: Command failed with exit code 1
+
+119
+
+2026-07-18T04:43:06.597Z [INFO]: # Starting environment caching...
+
+120
+
+2026-07-18T04:43:06.598Z [INFO]: # Environment caching completed

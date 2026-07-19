@@ -58,7 +58,16 @@ import { getModelForAgent, estimateCost } from '@/lib/agents/model-router'
 // returns 0 tools → runToolLoop short-circuits to a single LLM call.
 // The wiring is in place so future tools added with allowedAgents
 // including 'ai_reply' light up automatically.
-import { toolRegistry, runToolLoop } from '@/lib/agents/tools'
+// IA-6A (Gap 1 + Gap 2) — `runToolLoopWithResilience` wraps the tool
+// loop with `withRetry` (Gap 1) for transient failures + a model
+// fallback chain (Gap 2) for persistent primary-model failures.
+import { toolRegistry, runToolLoopWithResilience } from '@/lib/agents/tools'
+// IA-6A (Gap 3) — PII redactor applied to the final reply before
+// returning. Whitelists the current customer's own PII (already loaded
+// in `conv.customer`) so the agent can echo back the customer's email
+// without it being masked — while still catching PII from OTHER
+// customers that may leak via CustomerMemory recall.
+import { redactPII, buildCustomerWhitelist } from '@/lib/agents/pii-redactor'
 // IA-4 (P1-2 / P1-3 / P1-4) — agent prompt builders + schemas for the
 // sentiment-triggered retention agent invocation (sales_retainer /
 // remarketing). The retention agent is invoked AFTER the reply is
@@ -377,28 +386,67 @@ Tono: ${tone}, cálido, cercano (estilo LATAM), emojis moderados. Máximo 2 mens
     // los bloques ```tool_call + alimenta los resultados de vuelta al
     // LLM. Hoy 'ai_reply' no está en TOOL_PERMISSIONS → listForAgent
     // retorna [] → runToolLoop short-circuits a una sola llamada LLM.
+    //
+    // IA-6A (Gap 1 + Gap 2) — `runToolLoopWithResilience` wraps the
+    // tool loop with `withRetry` (Gap 1) for transient failures + a
+    // model fallback chain (Gap 2). The 15s per-attempt timeout is
+    // enforced INSIDE the helper (no need for the outer Promise.race).
     const aiReplyTools = toolRegistry.listForAgent('ai_reply')
     let toolCallCount = 0
-    const toolLoopResult = await Promise.race([
-      runToolLoop({
-        messages,
-        tools: aiReplyTools,
-        ctx: {
-          tenantId: conv.tenantId,
-          conversationId: conv.id,
-          customerId: conv.customerId,
-          __agentName: 'ai_reply',
-        },
-        provider: tenant?.proveedorIa,
-        model: tierInfo.model,
-      }),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('LLM timeout (15s)')), 15_000),
-      ),
-    ])
+    const toolLoopResult = await runToolLoopWithResilience({
+      messages,
+      tools: aiReplyTools,
+      ctx: {
+        tenantId: conv.tenantId,
+        conversationId: conv.id,
+        customerId: conv.customerId,
+        __agentName: 'ai_reply',
+      },
+      provider: tenant?.proveedorIa,
+      primaryModel: tierInfo.model,
+      timeoutMs: 15_000,
+    })
     llmResult = toolLoopResult.llmResult
     toolCallCount = toolLoopResult.toolCallCount
-    const reply = (llmResult.content || '').trim()
+    if (toolLoopResult.fellBack) {
+      log.warn(
+        {
+          tenantId: conv.tenantId,
+          conversationId: conv.id,
+          primaryModel: tierInfo.model,
+          actualModel: toolLoopResult.actualModel,
+        },
+        'LLM call used fallback model (primary failed after retries)',
+      )
+    }
+    let reply = (llmResult.content || '').trim()
+
+    // IA-6A (Gap 3) — PII redaction on the final reply. The customer's
+    // own PII (email, phone, documentNumber) is whitelisted so the agent
+    // can echo it back without being masked. PII from OTHER customers
+    // (which could leak via CustomerMemory recall) is redacted.
+    if (reply.length > 0) {
+      const whitelist = conv.customer
+        ? buildCustomerWhitelist({
+            email: conv.customer.email,
+            phone: conv.customer.phone,
+            documentNumber: conv.customer.documentNumber,
+          })
+        : []
+      const redaction = redactPII(reply, { whitelist })
+      if (redaction.hadRedactions) {
+        log.warn(
+          {
+            tenantId: conv.tenantId,
+            conversationId: conv.id,
+            redactedTypes: redaction.found.map((f) => `${f.type}:${f.count}`).join(','),
+            total: redaction.totalRedacted,
+          },
+          'PII redacted from ai-reply output',
+        )
+        reply = redaction.redacted
+      }
+    }
     // FIX-AI-AGENTS-001 §A-3: confidence real — esta ruta devuelve texto
     // libre (no JSON), no hay esquema Zod que validar → 0.6.
     // (Antes era 0.9 hardcodeado en cada éxito.)
@@ -425,6 +473,8 @@ Tono: ${tone}, cálido, cercano (estilo LATAM), emojis moderados. Máximo 2 mens
       costUsd,
       'ai_reply',
       llmResult.model ?? tierInfo.model,
+      // IA-6B (Gap 7) — per-customer cost attribution.
+      conv.customerId ?? undefined,
     )
 
     // SPRINT-AI-LLM-ADAPTER-001 §A-6 — persistir tokens/costo/latencia
@@ -524,6 +574,8 @@ Tono: ${tone}, cálido, cercano (estilo LATAM), emojis moderados. Máximo 2 mens
         _errCostUsd,
         'ai_reply',
         llmResult?.model ?? tierInfo.model,
+        // IA-6B (Gap 7) — per-customer cost attribution (error path).
+        conv.customerId ?? undefined,
       )
     }
 

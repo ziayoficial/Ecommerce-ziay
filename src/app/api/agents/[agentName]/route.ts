@@ -5,7 +5,10 @@ import { buildAgentPrompt, AGENT_NAMES, AGENT_LABELS, AgentName } from '@/lib/ag
 // SPRINT-AI-LLM-ADAPTER-001 — reemplazo de la llamada directa al SDK de ZAI por el
 // adapter pluggable. Resuelve el provider vía `tenant.proveedorIa` y
 // unifica la superficie de llamada para los 4 providers (zai/openai/xai/ollama).
-import { chat, type LLMChatResult } from '@/lib/llm/adapter'
+// IA-6A (Gap 1 + Gap 2) — `chat` ya no se invoca directamente en la
+// ruta; `runToolLoopWithResilience` la llama internamente. Mantenemos
+// el import del tipo `LLMChatResult` para tipar el resultado.
+import { type LLMChatResult } from '@/lib/llm/adapter'
 // FIX-AI-AGENTS-001 — defensas y validación de salida para los agentes ZIAY
 // (20 agentes tras la consolidación IA-3 de v0.4.1).
 import { parseAgentOutput, hasOutputSchema } from '@/lib/agents/schemas'
@@ -65,7 +68,13 @@ import { getModelForAgent, estimateCost } from '@/lib/agents/model-router'
 // injected into the LLM call as a system-prompt block; the LLM can
 // emit tool_call blocks which `runToolLoop` parses + executes + feeds
 // back to the LLM. Capped at 5 tool calls per turn.
-import { toolRegistry, runToolLoop } from '@/lib/agents/tools'
+// IA-6A (Gap 1 + Gap 2) — `runToolLoopWithResilience` wraps the tool
+// loop with `withRetry` (Gap 1) for transient failures + a model
+// fallback chain (Gap 2) for persistent primary-model failures.
+import { toolRegistry, runToolLoopWithResilience } from '@/lib/agents/tools'
+// IA-6A (Gap 3) — PII redactor applied to the final reply before
+// returning. Catches hallucinated PII from other customers' data.
+import { redactPII } from '@/lib/agents/pii-redactor'
 
 // FIX-AI-AGENTS-001 §A-3 — tabla de fallbacks movida a module-scope para
 // que sea accesible tanto del bloque try (cuando la validación de salida
@@ -333,28 +342,40 @@ export const POST = withErrorHandling(
     // sola llamada LLM (comportamiento idéntico al `chat()` directo).
     const agentTools = toolRegistry.listForAgent(agentName)
     let toolCallCount = 0
-    const toolLoopResult = await Promise.race([
-      runToolLoop({
-        messages: [
-          { role: 'system', content: ANTI_INJECTION_PREFIX + system },
-          { role: 'user', content: wrapUserInput(user) },
-        ],
-        tools: agentTools,
-        ctx: {
-          tenantId: ctx.tenantId,
-          conversationId: ctx.conversationId,
-          customerId: ctx.customerId,
-          __agentName: agentName,
-        },
-        provider: tenant?.proveedorIa,
-        model: tierInfo.model,
-      }),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('LLM timeout (15s)')), 15_000),
-      ),
-    ])
+    // IA-6A (Gap 1 + Gap 2) — `runToolLoopWithResilience` wraps the
+    // tool loop with `withRetry` (Gap 1) for transient failures + a
+    // model fallback chain (Gap 2) for persistent primary-model
+    // failures. The 15s per-attempt timeout is enforced INSIDE the
+    // helper (no need for the outer Promise.race anymore).
+    const toolLoopResult = await runToolLoopWithResilience({
+      messages: [
+        { role: 'system', content: ANTI_INJECTION_PREFIX + system },
+        { role: 'user', content: wrapUserInput(user) },
+      ],
+      tools: agentTools,
+      ctx: {
+        tenantId: ctx.tenantId,
+        conversationId: ctx.conversationId,
+        customerId: ctx.customerId,
+        __agentName: agentName,
+      },
+      provider: tenant?.proveedorIa,
+      primaryModel: tierInfo.model,
+      timeoutMs: 15_000,
+    })
     llmResult = toolLoopResult.llmResult
     toolCallCount = toolLoopResult.toolCallCount
+    if (toolLoopResult.fellBack) {
+      logger.warn(
+        {
+          agentName,
+          tenantId: ctx.tenantId,
+          primaryModel: tierInfo.model,
+          actualModel: toolLoopResult.actualModel,
+        },
+        'LLM call used fallback model (primary failed after retries)',
+      )
+    }
     const reply = (llmResult.content || '').trim()
 
     // IA-4 — finalize the tracing span with token usage + cost + model
@@ -383,6 +404,8 @@ export const POST = withErrorHandling(
       _costUsd,
       agentName,
       llmResult.model ?? tierInfo.model,
+      // IA-6B (Gap 7) — per-customer cost attribution.
+      ctx.customerId,
     )
 
     // FIX-AI-AGENTS-001 §A-2: validar la salida contra el esquema Zod
@@ -485,15 +508,22 @@ export const POST = withErrorHandling(
     })
 
     // ── IA-1 (agent-builder) — QA Reviewer on revenue-critical agents ──
-    // After `quote`, `novedades`, `address`, `checkout` produce their
-    // output, the QA Reviewer (Reflexion: critique → revise) runs to
-    // catch hallucinations before they reach the customer. If the
-    // reviewer returns `approved: false`, the `revisedOutput` replaces
-    // the original `finalReply`. Best-effort: failure is logged but
-    // never blocks the response.
+    // After `quote`, `novedades`, `address`, `checkout` (and IA-6B Gap 8:
+    // `objection`, `speech`, `logistics`, `scoring`) produce their output,
+    // the QA Reviewer (Reflexion: critique → revise) runs to catch
+    // hallucinations before they reach the customer. If the reviewer
+    // returns `approved: false`, the `revisedOutput` replaces the original
+    // `finalReply`. Best-effort: failure is logged but never blocks the
+    // response.
+    //
+    // IA-6B (Gap 8) — confidence-threshold fast path: pass the route's
+    // computed `confidence` so the QA Reviewer is SKIPPED when the output
+    // is already high-confidence (schema-validated JSON, > 0.7). This
+    // saves an 8s + frontier-model call on the common path; QA still
+    // runs on the risky low-confidence path (free-text output, ≤ 0.7).
     let qaReviewed = false
     let qaIssues: string[] = []
-    if (shouldReviewAgent(agentName)) {
+    if (shouldReviewAgent(agentName, confidence)) {
       try {
         const qaResult = await runQAReview({
           tenantId: ctx.tenantId,
@@ -514,6 +544,35 @@ export const POST = withErrorHandling(
           { err: err instanceof Error ? err.message : String(err), agentName },
           'QA Reviewer failed (non-blocking) — using original reply',
         )
+      }
+    }
+
+    // IA-6A (Gap 3) — PII redaction on the FINAL agent output (after
+    // QA review, after rules validation, after side-effects). This is
+    // the last step before returning to the caller — the redactor sees
+    // the exact text the customer will receive.
+    //
+    // The agent route doesn't fetch the customer record (just IDs in
+    // `ctx`), so the whitelist is empty — every PII match is redacted.
+    // This is the safe default: a false-positive redaction (customer
+    // sees [EMAIL] instead of their own email) is a minor UX issue,
+    // while a false-negative (PII from ANOTHER customer reaching this
+    // customer) is a privacy breach. The ai-reply route builds a proper
+    // whitelist from its already-loaded `conv.customer` record.
+    if (finalReply && finalReply.length > 0) {
+      const redaction = redactPII(finalReply)
+      if (redaction.hadRedactions) {
+        logger.warn(
+          {
+            agentName,
+            tenantId: ctx.tenantId,
+            conversationId: ctx.conversationId,
+            redactedTypes: redaction.found.map((f) => `${f.type}:${f.count}`).join(','),
+            total: redaction.totalRedacted,
+          },
+          'PII redacted from agent output',
+        )
+        finalReply = redaction.redacted
       }
     }
 
@@ -554,6 +613,10 @@ export const POST = withErrorHandling(
         _errCostUsd,
         agentName,
         llmResult?.model ?? tierInfo.model,
+        // IA-6B (Gap 7) — per-customer cost attribution (error path
+        // still debits the partial tokens the LLM consumed before
+        // timing out — keep the customer attribution honest).
+        ctx.customerId,
       )
     }
 

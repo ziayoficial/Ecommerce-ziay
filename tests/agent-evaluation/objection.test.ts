@@ -56,6 +56,8 @@ import {
   assertTestCase,
   scoreRubric,
   computeOverallScore,
+  evaluateWithLLMJudge,
+  JUDGE_CRITERIA,
   type AgentTestCase,
 } from '@/lib/agents/evaluation'
 
@@ -226,5 +228,80 @@ describe.skipIf(!process.env.LLM_API_KEY)('Agent evaluation — objection (live 
       100,
     )
     expect(errors).toEqual([])
+  })
+})
+
+// ── IA-6B (Gap 6) — LLM-as-judge tests (skipped in CI without LLM_API_KEY) ──
+describe.skipIf(!process.env.LLM_API_KEY)('Agent evaluation — objection (LLM-as-judge)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    chatMock.mockResolvedValue({
+      content: JSON.stringify({
+        scores: {
+          relevance: 0.9,
+          accuracy: 0.85,
+          tone: 0.95,
+          completeness: 0.8,
+          safety: 0.9,
+        },
+        reasoning: 'Persuasion reply addresses the price objection without using "descuento".',
+      }),
+      model: 'glm-4.6-plus',
+      provider: 'zai',
+      usage: { promptTokens: 450, completionTokens: 70, totalTokens: 520 },
+    })
+  })
+
+  it('parses the judge JSON response and returns per-criterion scores', async () => {
+    const { chat } = await import('@/lib/llm/adapter')
+    const judgeResult = await evaluateWithLLMJudge(
+      CASES[0],
+      'El precio refleja la calidad del tejido y la durabilidad de la prenda',
+      {
+        callJudge: async (system, user) => {
+          const result = await chat(
+            [
+              { role: 'system', content: system },
+              { role: 'user', content: user },
+            ],
+            { model: 'glm-4.6-plus' },
+          )
+          return { content: result.content, usage: result.usage }
+        },
+      },
+    )
+
+    expect(judgeResult.parsed).toBe(true)
+    expect(judgeResult.score).toBeGreaterThan(0)
+    expect(judgeResult.score).toBeLessThanOrEqual(1)
+    expect(judgeResult.rubricScores).toHaveLength(JUDGE_CRITERIA.length)
+    // Equal-weight average: (0.9 + 0.85 + 0.95 + 0.8 + 0.9) / 5 = 0.88
+    expect(judgeResult.score).toBeCloseTo(0.88, 1)
+    expect(judgeResult.reasoning.length).toBeGreaterThan(0)
+  })
+
+  it('returns parsed=false when the judge response is unparseable', async () => {
+    chatMock.mockResolvedValueOnce({
+      content: 'Cannot evaluate.',
+      model: 'glm-4.6-plus',
+      provider: 'zai',
+    })
+    const { chat } = await import('@/lib/llm/adapter')
+    const judgeResult = await evaluateWithLLMJudge(CASES[0], 'test output', {
+      callJudge: async (system, user) => {
+        const result = await chat(
+          [
+            { role: 'system', content: system },
+            { role: 'user', content: user },
+          ],
+          { model: 'glm-4.6-plus' },
+        )
+        return { content: result.content }
+      },
+    })
+
+    expect(judgeResult.parsed).toBe(false)
+    expect(judgeResult.score).toBe(0)
+    expect(judgeResult.rubricScores).toEqual([])
   })
 })

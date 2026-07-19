@@ -108,6 +108,13 @@ export interface ToolResult {
   /** When the tool timed out — surfaced distinctly so the LLM can retry
    *  with different params instead of giving up. */
   timedOut?: boolean
+  /**
+   * IA-6A (Gap 4) — True when this result was served from the tool
+   * cache (no handler invocation). Surfaced for observability so the
+   * caller / tracing layer can record "this tool call hit the cache"
+   * and the LLM gets feedback that the result is fresh-within-TTL.
+   */
+  cached?: boolean
 }
 
 /**
@@ -134,8 +141,57 @@ export interface AgentTool {
 // ToolRegistry
 // ───────────────────────────────────────────────────────────────────────────
 
+/**
+ * IA-6A (Gap 4) — Cache entry for tool results. The cache is a simple
+ * Map<key, entry> with TTL-based expiry + LRU-style eviction. The key
+ * is `${toolName}:${tenantId}:${stableParamsHash}` so:
+ *   - Different tenants get isolated cache namespaces (a tenant's
+ *     product catalog never leaks to another tenant).
+ *   - Same tool + same params within TTL → served from cache.
+ *   - Same tool + different params → cache miss (different key).
+ *
+ * `expiresAt` is `Date.now() + CACHE_TTL_MS` at insertion time. Lazy
+ * expiry: stale entries are evicted on read (when `cache.get(key)`
+ * returns an entry with `expiresAt <= now`, the entry is deleted and
+ * treated as a miss). This avoids needing a background sweep timer.
+ */
+interface ToolCacheEntry {
+  value: ToolResult
+  expiresAt: number
+}
+
+/**
+ * Tool names whose results are safe to cache. Read-only "GET-like"
+ * tools (search, get, check, recall) — calling them twice with the
+ * same params returns the same result within a short window, so
+ * caching saves a DB / logistics-API roundtrip.
+ *
+ * Write/mutation tools (create_order) are NOT in this list — their
+ * result depends on the current state of the system, so caching would
+ * hide side effects from the LLM.
+ *
+ * The list is intentionally explicit (not a regex on the tool name)
+ * so adding a new cacheable tool requires a deliberate code change +
+ * review. This prevents accidentally caching a tool that has side
+ * effects.
+ */
+const CACHEABLE_TOOLS = new Set<string>([
+  'search_catalog',
+  'get_product',
+  'check_stock',
+  'recall_memory',
+  'get_customer_history',
+  'check_budget',
+])
+
 export class ToolRegistry {
   private tools = new Map<string, AgentTool>()
+
+  // IA-6A (Gap 4) — tool result cache. See `ToolCacheEntry` for the
+  // entry shape + eviction strategy.
+  private cache = new Map<string, ToolCacheEntry>()
+  private readonly CACHE_TTL_MS = 60_000 // 1 minute — short, products/prices can change.
+  private readonly CACHE_MAX_SIZE = 200  // LRU eviction kicks in above this.
 
   /**
    * Register a tool. Idempotent — re-registering with the same name is
@@ -184,6 +240,15 @@ export class ToolRegistry {
    *   3. Params validate against the tool's Zod schema (if provided).
    *   4. The handler completes within `tool.timeout` ms (else
    *      `error: 'timeout'`, `timedOut: true`).
+   *
+   * IA-6A (Gap 4) — for cacheable tools (search_catalog, get_product,
+   * check_stock, recall_memory, get_customer_history, check_budget),
+   * the result is cached for `CACHE_TTL_MS` (1 minute) keyed by
+   * `toolName:tenantId:stableParamsHash`. A cache HIT returns the
+   * cached result with `cached: true` flag added (the LLM + tracing
+   * layer can see "this came from cache"). Only successful results are
+   * cached — errors + timeouts bypass the cache (otherwise a
+   * transient DB error would freeze the tool's response for a minute).
    *
    * NEVER throws — every failure path returns a `ToolResult` so the
    * calling LLM conversation loop can keep going with the error as
@@ -234,8 +299,39 @@ export class ToolRegistry {
           latencyMs: Date.now() - start,
         }
       }
-      // Replace `params` with the validated + defaulted version.
+      // Replace `params` with the validated + defaulted version. This
+      // normalises the params for BOTH the handler AND the cache key
+      // (so `{ sku: 'ABC' }` and `{ sku: 'ABC', qty: undefined }` hit
+      // the same cache entry).
       params = parsed.data
+    }
+
+    // IA-6A (Gap 4) — cache lookup for GET-like tools.
+    const cacheable = CACHEABLE_TOOLS.has(name)
+    if (cacheable) {
+      const cacheKey = this.buildCacheKey(name, ctx.tenantId, params)
+      const cached = this.cache.get(cacheKey)
+      if (cached) {
+        if (cached.expiresAt > Date.now()) {
+          // Cache HIT — fresh entry. Return a shallow copy with the
+          // `cached: true` flag so the caller knows this didn't hit
+          // the handler. We don't mutate the cached `value` itself
+          // (it's shared by reference + the LLM loop might mutate
+          // the result it receives).
+          log.debug(
+            { tool: name, tenantId: ctx.tenantId, cacheKey },
+            'tool cache HIT',
+          )
+          // LRU touch: re-insert so the entry moves to the end of the
+          // Map's insertion-order iteration (most-recently-used last).
+          // Cheap on V8's Map (~O(1) for re-insert).
+          this.cache.delete(cacheKey)
+          this.cache.set(cacheKey, cached)
+          return { ...cached.value, cached: true }
+        }
+        // Cache MISS (stale entry) — evict + fall through to handler.
+        this.cache.delete(cacheKey)
+      }
     }
 
     // Handler execution with timeout.
@@ -259,6 +355,31 @@ export class ToolRegistry {
       if (result.latencyMs === undefined) {
         result.latencyMs = Date.now() - start
       }
+
+      // IA-6A (Gap 4) — cache successful results from GET-like tools.
+      // Errors + timeouts are NOT cached (otherwise a transient DB
+      // failure would freeze the tool's response for the TTL window).
+      if (cacheable && result.success) {
+        const cacheKey = this.buildCacheKey(name, ctx.tenantId, params)
+        this.cache.set(cacheKey, {
+          value: result,
+          expiresAt: Date.now() + this.CACHE_TTL_MS,
+        })
+        // LRU eviction: if we're over the max size, evict the
+        // oldest entry (Map iteration is insertion-order, so
+        // `keys().next().value` is the least-recently-used entry).
+        if (this.cache.size > this.CACHE_MAX_SIZE) {
+          const oldestKey = this.cache.keys().next().value
+          if (oldestKey !== undefined) {
+            this.cache.delete(oldestKey)
+          }
+        }
+        log.debug(
+          { tool: name, tenantId: ctx.tenantId, cacheSize: this.cache.size },
+          'tool result cached',
+        )
+      }
+
       return result
     } catch (err) {
       captureError(err as Error, {
@@ -276,12 +397,64 @@ export class ToolRegistry {
   }
 
   /**
+   * IA-6A (Gap 4) — Build a deterministic cache key for a tool call.
+   *
+   * The key is `${toolName}:${tenantId}:${stableParamsHash}`:
+   *   - `toolName` namespaces per tool (search_catalog vs get_product).
+   *   - `tenantId` isolates per tenant (no cross-tenant cache leaks).
+   *   - `stableParamsHash` is a stable JSON serialization of `params`
+   *     (sorted object keys) so `{ a: 1, b: 2 }` and `{ b: 2, a: 1 }`
+   *     produce the same key. The hash is the JSON string itself (not
+   *     a cryptographic hash) — short cache keys are fine here since
+   *     the Map is bounded at `CACHE_MAX_SIZE` and the JSON string is
+   *     typically <500 bytes.
+   */
+  private buildCacheKey(
+    toolName: string,
+    tenantId: string,
+    params: Record<string, unknown>,
+  ): string {
+    // Stable JSON: sort object keys at every depth so key order doesn't
+    // fragment the cache. Arrays preserve order (they're semantically
+    // ordered).
+    const stableParams = JSON.stringify(params, (_key, value) => {
+      if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+        // Sort keys of plain objects.
+        return Object.keys(value).sort().reduce<Record<string, unknown>>((acc, k) => {
+          acc[k] = (value as Record<string, unknown>)[k]
+          return acc
+        }, {})
+      }
+      return value
+    })
+    return `${toolName}:${tenantId}:${stableParams}`
+  }
+
+  /**
+   * IA-6A (Gap 4) — Test-only: clear the tool result cache. Used by
+   * the test suite to isolate test runs. Not part of the public API.
+   */
+  clearCacheForTesting(): void {
+    this.cache.clear()
+  }
+
+  /**
+   * IA-6A (Gap 4) — Test-only: inspect the current cache size. Used
+   * by the test suite to assert eviction behaviour. Not part of the
+   * public API.
+   */
+  cacheSizeForTesting(): number {
+    return this.cache.size
+  }
+
+  /**
    * Test-only: clear all registered tools. Used by the test suite to
    * isolate test runs from the production built-ins. Not part of the
    * public API — exported for tests.
    */
   clearForTesting(): void {
     this.tools.clear()
+    this.cache.clear()
   }
 }
 

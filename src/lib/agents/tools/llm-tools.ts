@@ -463,3 +463,156 @@ export async function runToolLoop(params: {
     iterations,
   }
 }
+
+// ───────────────────────────────────────────────────────────────────────────
+// IA-6A (Gap 1 + Gap 2) — runToolLoopWithResilience
+// ───────────────────────────────────────────────────────────────────────────
+
+/**
+ * Wraps `runToolLoop` with retry (Gap 1) + model fallback (Gap 2).
+ *
+ *   - Gap 1: each `runToolLoop` invocation is wrapped in `withRetry` —
+ *     transient LLM API failures (network, 5xx, 429) get 3 retries with
+ *     exponential backoff before surfacing.
+ *   - Gap 2: if the primary model fails after retries, walk down the
+ *     `MODEL_FALLBACKS` chain (frontier → standard → cheap) trying each
+ *     cheaper model with the same `runToolLoop` call. The first model
+ *     that succeeds wins. If all models fail, throws the LAST error so
+ *     the caller's catch block can run its own fallback reply logic.
+ *
+ * The function preserves the `ToolLoopResult` shape — callers don't
+ * need to change their destructuring. The `llmResult.model` field
+ * reflects whichever model actually served the call (primary or
+ * fallback) so the budget ledger + tracing layer attribute cost to the
+ * right model.
+ *
+ * The `fellBack` flag in the returned metadata lets the caller log /
+ * surface "this agent's primary model failed, used fallback" for
+ * observability.
+ */
+export interface ResilientToolLoopResult extends ToolLoopResult {
+  /** True when a fallback model was used (the primary failed after retries). */
+  fellBack: boolean
+  /** The primary model that was attempted first. */
+  primaryModel: string
+  /** The model that actually served the call (primary or a fallback). */
+  actualModel: string
+  /** Number of fallback attempts (0 when the primary succeeded). */
+  fallbackAttempts: number
+}
+
+/**
+ * Run `runToolLoop` with retry + model fallback. See
+ * `ResilientToolLoopResult` for the extended return shape.
+ *
+ * The `timeoutMs` (default 15_000) is applied per-attempt via
+ * `Promise.race` — the worst-case total latency is bounded by
+ *   (models in chain) × (timeoutMs + retry backoff)
+ * = 3 × (15s + ~8s) = ~69s in the absolute worst case. In practice
+ * retries fail fast on non-retryable errors and the chain short-circuits.
+ */
+export async function runToolLoopWithResilience(params: {
+  messages: ChatMessage[]
+  tools: AgentTool[]
+  ctx: ToolContext & { __agentName: string }
+  provider?: string
+  /** Primary model to try first (resolved by the caller via getModelForAgent). */
+  primaryModel: string
+  parentSpanId?: string
+  /** Per-attempt timeout, in ms. Default 15_000. */
+  timeoutMs?: number
+  /** Optional override of the LLM call (used in tests to mock the adapter). */
+  chatFn?: typeof chat
+}): Promise<ResilientToolLoopResult> {
+  // Lazy imports to avoid a circular dependency at module-load time:
+  // `retry.ts` imports `getLogger` + `captureError` only; `model-router.ts`
+  // has no internal imports. The lazy import defers resolution to call-time.
+  const { withRetry } = await import('../retry')
+  const { resolveFallbackChain } = await import('../model-router')
+  const { getLogger } = await import('@/lib/logger')
+  const resLog = getLogger('agent:tools:resilience')
+
+  const chain = resolveFallbackChain(params.primaryModel)
+  const timeoutMs = params.timeoutMs ?? 15_000
+  let primaryError: string | undefined
+  let fallbackAttempts = 0
+
+  for (let i = 0; i < chain.length; i++) {
+    const model = chain[i]
+    const isPrimary = i === 0
+    if (!isPrimary) {
+      resLog.warn(
+        {
+          agentName: params.ctx.__agentName,
+          primaryModel: params.primaryModel,
+          fallbackModel: model,
+          attempt: i,
+          primaryError,
+          tenantId: params.ctx.tenantId,
+        },
+        'runToolLoop primary model failed — falling back to cheaper model',
+      )
+    }
+    try {
+      // Gap 1 — wrap each model attempt in `withRetry`. Transient
+      // failures get 3 retries with exponential backoff before we
+      // escalate to the model fallback.
+      const result = await withRetry(
+        () =>
+          Promise.race([
+            runToolLoop({
+              messages: params.messages,
+              tools: params.tools,
+              ctx: params.ctx,
+              provider: params.provider,
+              model,
+              parentSpanId: params.parentSpanId,
+              chatFn: params.chatFn,
+            }),
+            new Promise<never>((_, reject) =>
+              setTimeout(
+                () => reject(new Error(`LLM timeout (${timeoutMs / 1000}s)`)),
+                timeoutMs,
+              ),
+            ),
+          ]),
+        // Default retry config (3 retries, 500ms-5s backoff) is tuned
+        // for LLM API calls.
+        undefined,
+      )
+      return {
+        ...result,
+        fellBack: !isPrimary,
+        primaryModel: params.primaryModel,
+        actualModel: result.llmResult.model ?? model,
+        fallbackAttempts,
+      }
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err)
+      if (isPrimary) {
+        primaryError = errMsg
+      }
+      fallbackAttempts++
+      if (i === chain.length - 1) {
+        // Last model in the chain failed — rethrow so the caller can
+        // run its own fallback reply logic + DecisionLog persistence.
+        resLog.error(
+          {
+            agentName: params.ctx.__agentName,
+            primaryModel: params.primaryModel,
+            attemptedModels: chain,
+            lastError: errMsg,
+            tenantId: params.ctx.tenantId,
+          },
+          'runToolLoop all fallback models exhausted — surfacing error to caller',
+        )
+        throw err
+      }
+    }
+  }
+  // Unreachable — the for loop either returns on success or throws on
+  // the last failure.
+  throw new Error(
+    `runToolLoopWithResilience: unreachable state for agent ${params.ctx.__agentName}`,
+  )
+}

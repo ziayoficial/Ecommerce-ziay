@@ -24,7 +24,9 @@ export {
   extractToolCalls,
   stripToolCalls,
   runToolLoop,
+  runToolLoopWithResilience,
   MAX_TOOL_CALLS_PER_TURN,
   type ToolLoopResult,
+  type ResilientToolLoopResult,
   type ParsedToolCall,
 } from './llm-tools'

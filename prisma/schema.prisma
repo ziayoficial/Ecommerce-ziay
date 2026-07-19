@@ -2071,6 +2071,12 @@ model TokenUsage {
   id              String   @id @default(cuid())
   tenantId        String
   conversationId  String?
+  // IA-6B (Gap 7) — per-customer cost attribution. Optional (not every
+  // agent call has a customer attached — e.g. the orchestrator's first
+  // turn before a customer match is established). Indexed so the
+  // per-customer cost roll-up in `BudgetManager.getCustomerCosts()` is
+  // a single index range scan, not a full-table scan.
+  customerId      String?
   agentName       String
   model           String
   tokensIn        Int
@@ -2083,5 +2089,94 @@ model TokenUsage {
   @@index([tenantId, createdAt])
   @@index([tenantId, agentName, createdAt])
   @@index([conversationId])
+  // IA-6B (Gap 7) — powers `/api/agents/budget/[customerId]` admin
+  // endpoint + `BudgetManager.getCustomerCosts()` date-range queries.
+  @@index([tenantId, customerId, createdAt])
   @@map("token_usage")
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// IA-6B (Gap 5) — Prompt Versioning ledger.
+//
+// Stores every versioned system+user prompt template per agent so the
+// `PromptVersionManager` can A/B test prompt variations, roll back bad
+// versions, and track per-version success metrics from the QA Reviewer
+// + customer feedback loops.
+//
+//   - One row per (agentName, version) tuple. `version` is a semver
+//     string ("1.0.0", "1.1.0-experiment", etc.) — kept as String so
+//     the same schema compiles on SQLite + PostgreSQL.
+//   - `status` is 'active' | 'experiment' | 'archived'. Only ONE row
+//     per `agentName` may be 'active' at any time (enforced in code by
+//     `PromptVersionManager.promote()` which atomically flips the
+//     previous active to 'archived' before flipping the new one to
+//     'active'). The DB doesn't enforce this with a partial unique
+//     index (SQLite limitation) — the manager class is the source of
+//     truth.
+//   - `trafficPct` (0-100) — for A/B testing, the percentage of
+//     `tenantId`s (via deterministic hash) that should see this
+//     experiment version instead of the active one. Only meaningful
+//     when `status = 'experiment'`.
+//   - `metrics` — a JSON blob `{ successRate, avgLatencyMs, sampleSize }`
+//     updated periodically by the QA Reviewer feedback loop. Used by
+//     the promotion gate: an experiment can only be promoted to active
+//     if `successRate >= 0.85 && sampleSize >= 50`.
+// ───────────────────────────────────────────────────────────────────────────
+model PromptVersion {
+  id                  String   @id @default(cuid())
+  agentName           String
+  // semver: "1.0.0", "1.1.0", "2.0.0-experiment". The default version
+  // for every `.ts` prompt file is "1.0.0" (see PromptVersionManager).
+  version             String
+  // 'active' | 'experiment' | 'archived'. See model doc above.
+  status              String   @default("active")
+  // 0-100. Only meaningful when status = 'experiment'.
+  trafficPct          Int?
+  systemPrompt        String
+  userPromptTemplate  String
+  // JSON: { successRate: number, avgLatencyMs: number, sampleSize: number }
+  metrics             String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@unique([agentName, version])
+  @@index([agentName, status])
+  @@map("prompt_version")
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// IA-6B (Gap 8) — QA Reviewer feedback loop.
+//
+// Every time the QA Reviewer finds issues with an agent's output, a row
+// is written here so prompt authors can spot recurring failure patterns
+// and improve future prompt versions. The `PromptVersionManager.metrics`
+// field is the aggregate view; this table is the per-incident detail.
+//
+//   - `issues` is a JSON-encoded string[] (SQLite has no array type).
+//   - `severity` is 'low' | 'medium' | 'high' — derived from
+//     `issues.length` (≥3 → 'high', else 'medium'; 'low' reserved for
+//     future use).
+//   - `resolvedAt` — set when a new prompt version is promoted that
+//     addresses the pattern (manual operator action for now; an
+//     auto-resolver is a follow-up).
+// ───────────────────────────────────────────────────────────────────────────
+model QAFeedback {
+  id            String   @id @default(cuid())
+  tenantId      String
+  agentName     String
+  // JSON-encoded string[] of issues found by the QA Reviewer.
+  issues        String
+  // 'low' | 'medium' | 'high'
+  severity      String   @default("medium")
+  // Optional context for the feedback — the conversationId + the agent
+  // version that produced the flawed output (so we can correlate
+  // patterns to a specific prompt version).
+  conversationId String?
+  promptVersion String?
+  resolvedAt    DateTime?
+  createdAt     DateTime @default(now())
+
+  @@index([agentName, severity, createdAt])
+  @@index([tenantId, createdAt])
+  @@map("qa_feedback")
 }

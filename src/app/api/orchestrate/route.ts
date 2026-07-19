@@ -38,7 +38,10 @@ import { getLogger } from '@/lib/logger'
 // SPRINT-AI-LLM-ADAPTER-001 — reemplazo de la llamada directa al SDK de ZAI por el
 // adapter pluggable. El provider se resuelve desde `tenant.proveedorIa`
 // (leído una vez en el POST handler y pasado a callAgent).
-import { chat, type LLMChatResult } from '@/lib/llm/adapter'
+// IA-6A (Gap 1 + Gap 2) — `chat` ya no se invoca directamente en la
+// ruta; `runToolLoopWithResilience` la llama internamente. Mantenemos
+// el import del tipo `LLMChatResult` para tipar el resultado.
+import { type LLMChatResult } from '@/lib/llm/adapter'
 import type { TokenUsage } from '@/lib/llm/costs'
 // FIX-AI-AGENTS-001 — defensas y validación de salida para los 9 agentes
 // del pipeline de orquestación.
@@ -92,7 +95,16 @@ import type { SentimentResult } from '@/lib/agents/sentiment.service'
 // injected into the LLM call as a system-prompt block; the LLM can
 // emit tool_call blocks which `runToolLoop` parses + executes + feeds
 // back to the LLM. Capped at 5 tool calls per turn.
-import { toolRegistry, runToolLoop } from '@/lib/agents/tools'
+// IA-6A (Gap 1 + Gap 2) — `runToolLoopWithResilience` wraps `runToolLoop`
+// with `withRetry` (Gap 1) for transient failures + model fallback chain
+// (Gap 2) for persistent primary-model failures. Replaces the prior
+// `runToolLoop + Promise.race(timeout)` pattern with a single helper.
+import { toolRegistry, runToolLoopWithResilience } from '@/lib/agents/tools'
+// IA-6A (Gap 3) — PII redactor applied to every agent output before it
+// reaches the customer. Catches hallucinated PII from other customers'
+// data (e.g. the quote agent pulling the wrong row from CustomerMemory
+// and surfacing a different customer's phone number).
+import { redactPII } from '@/lib/agents/pii-redactor'
 // IA-5 — Planner (ReAct loop). Decomposes the customer's message into
 // a multi-step plan, executes the steps (parallel when independent),
 // and revises the plan if a step fails. Falls back to the linear
@@ -301,27 +313,42 @@ async function callAgent(
   let llmResult: LLMChatResult
   let toolCallCount = 0
   let toolCallsExhausted = false
+  let _modelFallbackUsed = false
   try {
-    const toolLoopResult = await Promise.race([
-      runToolLoop({
-        messages,
-        tools: agentTools,
-        ctx: {
-          tenantId: ctx.tenantId,
-          conversationId: ctx.conversationId,
-          customerId: ctx.customerId,
-          __agentName: agentName,
-        },
-        provider: providerName,
-        model: tierInfo.model,
-      }),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('LLM timeout (15s)')), 15_000),
-      ),
-    ])
+    // IA-6A (Gap 1 + Gap 2) — `runToolLoopWithResilience` wraps the
+    // tool loop with `withRetry` (Gap 1) for transient failures + a
+    // model fallback chain (Gap 2) for persistent primary-model
+    // failures. The 15s per-attempt timeout is enforced INSIDE the
+    // helper (no need for the outer Promise.race anymore).
+    const toolLoopResult = await runToolLoopWithResilience({
+      messages,
+      tools: agentTools,
+      ctx: {
+        tenantId: ctx.tenantId,
+        conversationId: ctx.conversationId,
+        customerId: ctx.customerId,
+        __agentName: agentName,
+      },
+      provider: providerName,
+      primaryModel: tierInfo.model,
+      timeoutMs: 15_000,
+    })
     llmResult = toolLoopResult.llmResult
     toolCallCount = toolLoopResult.toolCallCount
     toolCallsExhausted = toolLoopResult.toolCallsExhausted
+    _modelFallbackUsed = toolLoopResult.fellBack
+    if (_modelFallbackUsed) {
+      log.warn(
+        {
+          tenantId: ctx.tenantId,
+          agentName,
+          primaryModel: tierInfo.model,
+          actualModel: toolLoopResult.actualModel,
+          conversationId: ctx.conversationId,
+        },
+        'LLM call used fallback model (primary failed after retries)',
+      )
+    }
   } catch (err) {
     // Propagar el error con el metadata del LLM (vacío — no hubo usage)
     // para que el caller pueda persistirlo en el DecisionLog.
@@ -366,6 +393,8 @@ async function callAgent(
     costUsd,
     agentName,
     llmResult.model ?? tierInfo.model,
+    // IA-6B (Gap 7) — per-customer cost attribution.
+    ctx.customerId,
   )
   // IA-5 — log tool usage summary for observability (non-blocking).
   if (toolCallCount > 0) {
@@ -389,6 +418,30 @@ async function callAgent(
     reply = FALLBACKS[agentName]
   } else {
     confidence = 0.6
+  }
+
+  // IA-6A (Gap 3) — PII redaction on agent output. The orchestrator
+  // doesn't fetch the customer record (just IDs), so the whitelist is
+  // empty — every PII match is redacted. This is the safe default: a
+  // false-positive redaction (customer sees [EMAIL] instead of their
+  // own email) is a minor UX issue, while a false-negative (PII from
+  // ANOTHER customer reaching this customer) is a privacy breach.
+  // The ai-reply route builds a proper whitelist from `conv.customer`.
+  if (reply && reply.length > 0) {
+    const redaction = redactPII(reply)
+    if (redaction.hadRedactions) {
+      log.warn(
+        {
+          tenantId: ctx.tenantId,
+          agentName,
+          conversationId: ctx.conversationId,
+          redactedTypes: redaction.found.map((f) => `${f.type}:${f.count}`).join(','),
+          total: redaction.totalRedacted,
+        },
+        'PII redacted from agent output',
+      )
+      reply = redaction.redacted
+    }
   }
 
   return {
@@ -951,20 +1004,28 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
       })
 
       // ── IA-1 (agent-builder) — QA Reviewer on revenue-critical agents ──
-      // After `quote`, `novedades`, `address`, `checkout` produce their
-      // output, the QA Reviewer (Reflexion: critique → revise) runs to
-      // catch hallucinations before they reach the customer. If the
-      // reviewer returns `approved: false`, the `revisedOutput` replaces
-      // the original `reply` (the timeline entry below records the
-      // revision + issues for audit). Uses a FRONTIER LLM (glm-4.6) —
-      // critique is harder than generation.
+      // After `quote`, `novedades`, `address`, `checkout` (and IA-6B Gap 8:
+      // `objection`, `speech`, `logistics`, `scoring`) produce their output,
+      // the QA Reviewer (Reflexion: critique → revise) runs to catch
+      // hallucinations before they reach the customer. If the reviewer
+      // returns `approved: false`, the `revisedOutput` replaces the original
+      // `reply` (the timeline entry below records the revision + issues for
+      // audit). Uses a FRONTIER LLM (glm-4.6) — critique is harder than
+      // generation.
       //
-      // Best-effort: if the QA Reviewer itself fails (timeout/parse
-      // error), the original `reply` is used unchanged (fail-closed =
-      // approve original — never block the conversation on QA tooling).
+      // Best-effort: if the QA Reviewer itself fails (timeout/parse error),
+      // the original `reply` is used unchanged (fail-closed = approve
+      // original — never block the conversation on QA tooling).
+      //
+      // IA-6B (Gap 8) — confidence-threshold fast path: pass the route's
+      // computed `confidence` so the QA Reviewer is SKIPPED when the
+      // output is already high-confidence (schema-validated JSON, > 0.7).
+      // This saves an 8s + frontier-model call on the common path; QA
+      // still runs on the risky low-confidence path (free-text output,
+      // ≤ 0.7).
       let qaReviewed = false
       let qaIssues: string[] = []
-      if (!errorMsg && shouldReviewAgent(step.agent)) {
+      if (!errorMsg && shouldReviewAgent(step.agent, confidence)) {
         try {
           const qaResult = await runQAReview({
             tenantId,

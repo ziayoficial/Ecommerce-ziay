@@ -15,12 +15,21 @@
 import { db } from '@/lib/db'
 import { buildAgentPrompt, AgentName } from '@/lib/agents/prompts'
 import { getLogisticsAdapter } from '@/lib/adapters/registry'
-import { getLLMProvider } from '@/lib/llm/adapter'
 import { OrchestratorState, OrchestratorScenario, ORCHESTRATOR_STEPS } from './constants'
 // IA-2 (agent-hardening) — tracing + budget wired into every agent call.
 import { agentTracer } from '@/lib/agents/tracing'
 import { budgetManager } from '@/lib/agents/budget'
-import { getModelForAgent, estimateCost } from '@/lib/agents/model-router'
+// IA-6A (Gap 1) — withRetry wraps the LLM call with exponential backoff
+// + jitter. Transient failures (network, 5xx, 429) get 3 retries before
+// surfacing to the customer. Note: `callLLMWithFallback` (Gap 2) below
+// internally composes withRetry per model, so we don't need to wrap it
+// again here.
+// IA-6A (Gap 2) — callLLMWithFallback chains down to a cheaper model
+// when the primary fails after retries.
+import { getModelForAgent, estimateCost, callLLMWithFallback } from '@/lib/agents/model-router'
+// IA-6A (Gap 3) — PII redactor applied to every agent output before
+// returning. Catches hallucinated PII from other customers' data.
+import { redactPII, buildCustomerWhitelist } from '@/lib/agents/pii-redactor'
 
 // Re-export for server consumers
 export type { OrchestratorState, OrchestratorScenario }
@@ -68,15 +77,23 @@ async function callAgentDirect(agentName: AgentName, ctx: Record<string, unknown
   span.setContext({ tenantId, conversationId })
 
   const { system, user } = await buildAgentPrompt(agentName, ctx as unknown as Parameters<typeof buildAgentPrompt>[1])
-  // `getLLMProvider` is a synchronous registry lookup (no tenantId arg);
-  // the per-tenant provider preference is honoured by the tenant's
-  // `proveedorIa` field elsewhere — here we just need a working LLM.
-  const llm = getLLMProvider()
   // IA-2 §4 — resolve the model from the per-agent tier map so the
   // adapter uses the right GLM variant (flash / 4.6 / 4.6-plus).
   const { model: tierModel } = getModelForAgent(agentName)
 
-  // 15s timeout per agent call
+  // IA-6A (Gap 1 + Gap 2) — wrap the LLM call with `withRetry` (Gap 1)
+  // for transient failures, AND chain to a cheaper model via
+  // `callLLMWithFallback` (Gap 2) when the primary fails after retries.
+  // The two layers compose: callLLMWithFallback internally calls
+  // withRetry per model, so the worst-case retry budget is
+  //   (models in chain) × (maxRetries + 1) attempts
+  // = 3 × 4 = 12 attempts before giving up. In practice most calls
+  // succeed on the first try; the chain only kicks in on persistent
+  // provider failures.
+  //
+  // The 15s timeout is preserved (Promise.race) so the worst-case
+  // latency is bounded — even with retries + fallback, the call can't
+  // run more than ~30s (15s × 2 models, since 429s fail fast on retry).
   const timeoutPromise = new Promise<never>((_, reject) =>
     setTimeout(() => reject(new Error(`Agent ${agentName} timed out after 15s`)), 15000)
   )
@@ -84,10 +101,15 @@ async function callAgentDirect(agentName: AgentName, ctx: Record<string, unknown
   // We map the agent prompt onto a two-message transcript and extract `.content`.
   // IA-2: capture the full result (not just `.content`) so we can record
   // token usage + cost on the span + budget ledger.
-  const llmPromise = llm.chat([
+  const llmPromise = callLLMWithFallback(agentName, [
     { role: 'system', content: system },
     { role: 'user', content: user },
-  ], { model: tierModel })
+  ], { primaryModel: tierModel }).then(r => ({
+    content: r.content,
+    model: r.model,
+    usage: r.usage,
+    fellBack: r.fellBack,
+  }))
 
   try {
     const result = await Promise.race([llmPromise, timeoutPromise])
@@ -118,7 +140,15 @@ async function callAgentDirect(agentName: AgentName, ctx: Record<string, unknown
       result.model ?? tierModel,
     )
 
-    return reply
+    // IA-6A (Gap 3) — PII redaction on agent output. Whitelist the
+    // current customer's own data (we don't have the full customer
+    // record here, but we pass customerId for callers that do).
+    // The orchestrator doesn't have customer PII on hand (just IDs),
+    // so the whitelist is empty — every PII match is redacted.
+    const redaction = redactPII(reply, {
+      whitelist: buildCustomerWhitelist({}),
+    })
+    return redaction.redacted
   } catch (e) {
     // On timeout/error, finalize the span as 'error' or 'timeout' and
     // return a deterministic fallback instead of failing the whole scenario.

@@ -354,6 +354,12 @@ export class BudgetManager {
    * counter is also debited (so the orchestrator can cap a single long
    * conversation from running away with tokens).
    *
+   * IA-6B (Gap 7) — `customerId` is optional. When present, it's
+   * persisted on the `TokenUsage` row so the per-customer cost
+   * attribution (`getCustomerCosts()`) + the admin endpoint
+   * `/api/agents/budget/[customerId]` can answer "how much does this
+   * customer cost us per month, broken down by agent?".
+   *
    * Fire-and-forget DB write — a slow DB must never block the next agent
    * call. The in-memory counter is updated synchronously so the very next
    * `checkBudget()` sees the new usage.
@@ -366,6 +372,7 @@ export class BudgetManager {
     costUsd: number,
     agentName: string,
     model: string,
+    customerId?: string,
   ): void {
     // IA-4 (P2-5) — ensure the periodic sweep timer is running. Cheap
     // (no-op if already started) — guards against the leak even on the
@@ -421,6 +428,7 @@ export class BudgetManager {
     this.persistTokenUsage({
       tenantId,
       conversationId,
+      customerId,
       tokensIn,
       tokensOut,
       costUsd,
@@ -432,6 +440,7 @@ export class BudgetManager {
         method: 'budget.recordUsage',
         tenantId,
         agentName,
+        customerId,
       })
     })
   }
@@ -661,6 +670,7 @@ export class BudgetManager {
   private async persistTokenUsage(input: {
     tenantId: string
     conversationId: string | undefined
+    customerId?: string
     tokensIn: number
     tokensOut: number
     costUsd: number
@@ -672,6 +682,11 @@ export class BudgetManager {
         data: {
           tenantId: input.tenantId,
           conversationId: input.conversationId ?? null,
+          // IA-6B (Gap 7) — per-customer attribution. Null when the
+          // caller doesn't have a customer context (e.g. orchestrator
+          // pre-customer-match turns). Indexed so the per-customer
+          // roll-up is a single index range scan.
+          customerId: input.customerId ?? null,
           agentName: input.agentName,
           model: input.model,
           tokensIn: input.tokensIn,
@@ -687,6 +702,7 @@ export class BudgetManager {
           err: err instanceof Error ? err.message : String(err),
           tenantId: input.tenantId,
           agentName: input.agentName,
+          customerId: input.customerId,
         },
         'budget.persistTokenUsage failed (non-blocking)',
       )
@@ -725,6 +741,111 @@ export class BudgetManager {
       logger.info({ evicted, tenants: budgetStore.size, maxAgeMs }, 'budget.conversation.cleanup')
     }
     return evicted
+  }
+
+  // ───────────────────────────────────────────────────────────────────────
+  // IA-6B (Gap 7) — Per-customer cost attribution
+  // ───────────────────────────────────────────────────────────────────────
+
+  /**
+   * Aggregate token usage + cost for a single customer over an optional
+   * date range. Used by the admin endpoint
+   * `GET /api/agents/budget/[customerId]` to surface "which customers
+   * are expensive" + "which agents are burning the most tokens for this
+   * customer".
+   *
+   * The query hits the `TokenUsage` table (the durable ledger). The
+   * in-memory `budgetStore` is per-tenant, not per-customer, so we
+   * can't serve this from the cache.
+   *
+   * `from` / `to` default to the start of the current month + now,
+   * respectively — that's the most common question ("how much has this
+   * customer cost us this month?").
+   *
+   * Fail-safe: any DB error returns an all-zero result (the caller — the
+   * admin endpoint — surfaces a 500 with the error message; this method
+   * never throws so the route handler stays simple).
+   */
+  async getCustomerCosts(
+    tenantId: string,
+    customerId: string,
+    from?: Date,
+    to?: Date,
+  ): Promise<{
+    totalTokensIn: number
+    totalTokensOut: number
+    totalCostUsd: number
+    byAgent: Array<{ agentName: string; tokens: number; costUsd: number; calls: number }>
+  }> {
+    try {
+      // Default window: start of the current month → now.
+      const now = new Date()
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+      const dateFrom = from ?? startOfMonth
+      const dateTo = to ?? now
+
+      const rows = await db.tokenUsage.findMany({
+        where: {
+          tenantId,
+          customerId,
+          createdAt: { gte: dateFrom, lte: dateTo },
+        },
+        select: {
+          agentName: true,
+          tokensIn: true,
+          tokensOut: true,
+          costUsd: true,
+        },
+      })
+
+      const byAgentMap = new Map<
+        string,
+        { tokens: number; costUsd: number; calls: number }
+      >()
+      let totalTokensIn = 0
+      let totalTokensOut = 0
+      let totalCostUsd = 0
+
+      for (const row of rows) {
+        totalTokensIn += row.tokensIn
+        totalTokensOut += row.tokensOut
+        totalCostUsd += row.costUsd
+        const entry = byAgentMap.get(row.agentName) ?? {
+          tokens: 0,
+          costUsd: 0,
+          calls: 0,
+        }
+        entry.tokens += row.tokensIn + row.tokensOut
+        entry.costUsd += row.costUsd
+        entry.calls += 1
+        byAgentMap.set(row.agentName, entry)
+      }
+
+      const byAgent = Array.from(byAgentMap.entries())
+        .map(([agentName, v]) => ({ agentName, ...v }))
+        .sort((a, b) => b.costUsd - a.costUsd)
+
+      // Round the totals to 6-decimal USD precision (matches `estimateCost`).
+      return {
+        totalTokensIn,
+        totalTokensOut,
+        totalCostUsd: Math.round(totalCostUsd * 1_000_000) / 1_000_000,
+        byAgent,
+      }
+    } catch (err) {
+      captureError(err, {
+        service: 'agents',
+        method: 'budget.getCustomerCosts',
+        tenantId,
+        customerId,
+      })
+      return {
+        totalTokensIn: 0,
+        totalTokensOut: 0,
+        totalCostUsd: 0,
+        byAgent: [],
+      }
+    }
   }
 }
 

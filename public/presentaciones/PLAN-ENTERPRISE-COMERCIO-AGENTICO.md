@@ -10,7 +10,7 @@
 ### De "IA que conversa" a "Revenue Operations con gobernanza"
 
 **Mensaje actual (demasiado amplio):**
-> "ZIAY es comercio conversacional + atribución de pauta con 26 agentes IA, wallet, marketplace y logística"
+> "ZIAY es comercio conversacional + atribución de pauta con 24 agentes IA, wallet, marketplace y logística"
 
 **Mensaje enterprise (condensado, en lenguaje de negocio):**
 > **"ZIAY es la capa enterprise que convierte conversaciones, agentes y canales digitales en ingresos trazables, con automatización operativa, gobernanza y conexión nativa a tu stack comercial."**
@@ -67,7 +67,7 @@ Si una de estas 4 patas no está clara, enterprise lo percibe como experimento, 
 | Confirmación de datos | 10 mensajes ida y vuelta | 1 formulario, 1 respuesta | -80% mensajes |
 | Gestión de novedades | WhatsApp + Excel + cuaderno | CRM con evidence, messages, timeline | -70% tiempo |
 | Conciliación de pauta | "Meta dice 100 conversiones" | Atribución real por pedido | -100% error |
-| Postventa | Llamadas manuales | Agent logistics_notifier + remarketing | -60% llamadas |
+| Postventa | Llamadas manuales | Agent postventa_logistics + remarketing | -60% llamadas |
 
 ### Eje 3: Gobernanza
 
@@ -124,7 +124,7 @@ Si una de estas 4 patas no está clara, enterprise lo percibe como experimento, 
 
 | Feature | Usar internamente | NO liderar en venta enterprise |
 |---|---|---|
-| "26 agentes IA" | ✅ | ❌ (complejidad narrativa) |
+| "24 agentes IA" | ✅ | ❌ (complejidad narrativa) |
 | "95% automatizado" | ✅ | ❌ (suena a "no necesitas humanos") |
 | "Marketplace cross-brand" | ✅ | ❌ (suena a experimento) |
 | "Wallet para traffickers" | ✅ | ❌ (demasiado nicho) |
@@ -283,7 +283,7 @@ La ventaja competitiva es tener mejor **orquestación comercial con evidencia**.
 | Semana | Qué | Entregable |
 |---|---|---|
 | 1 | Onboarding | Marca configurada, catálogo importado, WhatsApp conectado |
-| 2 | Activación | 26 agentes activos, orquestador funcionando, pagos conectados |
+| 2 | Activación | 24 agentes activos, orquestador funcionando, pagos conectados |
 | 3 | Medición | Dashboard con KPIs reales: conversión, ROAS, tiempo de respuesta |
 | 4 | Reporte | Documento before/after con métricas demostrables |
 
@@ -408,7 +408,7 @@ Cada propuesta enterprise debe incluir:
 | Shopify/Meta lanzan agente gratuito | Alta | Medio | ZIAY se diferencia con LATAM + atribución + gobernanza |
 | Cliente enterprise exige SSO | Alta | Alto | Roadmap Q3 2026 (SAML/OIDC) |
 | Cliente exige on-premise | Media | Alto | Docker disponible, pero no hardening on-prem todavía |
-| Competencia LATAM agrega IA | Media | Medio | ZIAY tiene 10x features (26 agentes vs 1-3) |
+| Competencia LATAM agrega IA | Media | Medio | ZIAY tiene 10x features (24 agentes vs 1-3) |
 | SQLite no escala | 100% si creces | Crítico | Migración a PostgreSQL (1 día, env var) |
 | Regulación IA LATAM | Media | Medio | Audit trail + RLS + consent + redacción |
 

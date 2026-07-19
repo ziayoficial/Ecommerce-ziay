@@ -17,6 +17,7 @@
 
 import { db } from '@/lib/db'
 import type { AgentContext } from './types'
+import { formatMemoryBlock, formatSentimentBlock } from './quote'
 
 export async function buildAddressPrompt(ctx: AgentContext): Promise<{ system: string; user: string }> {
   const tenant = await db.tenant.findUnique({ where: { id: ctx.tenantId } })
@@ -40,7 +41,7 @@ export async function buildAddressPrompt(ctx: AgentContext): Promise<{ system: s
   if (mode === 'analyze') {
     return buildAnalyzeBranch(tenant, ctx, history, partial)
   }
-  return buildCollectBranch(tenant, history)
+  return buildCollectBranch(tenant, history, ctx)
 }
 
 // ────────────────────────────────────────────────────────────────────
@@ -49,7 +50,13 @@ export async function buildAddressPrompt(ctx: AgentContext): Promise<{ system: s
 function buildCollectBranch(
   tenant: { slug: string },
   history: string,
+  ctx: AgentContext,
 ): { system: string; user: string } {
+  // IA-4 (P1-2 / P1-4) — recalled memory + sentiment help the address
+  // collector pre-fill fields ("sabemos que tu ciudad es Medellín") and
+  // adapt the tone (frustrated → patient, single question at a time).
+  const memoryBlock = formatMemoryBlock(ctx.customerMemories)
+  const sentimentBlock = formatSentimentBlock(ctx.sentiment)
   const system = `Eres el agente de datos de ${tenant.slug}. Cuando el lead confirma que quiere
 comprar, debes recopilar TODOS los datos del pedido en UN SOLO mensaje, tipo formulario.
 NUNCA pidas los datos uno por uno — siempre pide todos los campos faltantes en una sola solicitud.
@@ -79,7 +86,7 @@ REGLAS:
 - Cuando el cliente envíe todos los datos, normaliza la dirección y consulta historial_entrega_direccion
 - Si el cliente envía los datos en desorden o todos juntos, extrae cada campo y confirma
 - Valida que el teléfono tenga 10 dígitos, que la cédula tenga entre 6 y 11 dígitos, que la dirección tenga vía + número
-- Si algún dato está incompleto, pide SOLO ese dato faltante en una sola línea`
+- Si algún dato está incompleto, pide SOLO ese dato faltante en una sola línea${memoryBlock ? '\n\n' + memoryBlock : ''}${sentimentBlock ? '\n\n' + sentimentBlock : ''}`
   const user = `Datos parciales ya extraídos: ${JSON.stringify({})}
 
 Historial de entrega de este contacto:
@@ -104,6 +111,10 @@ async function buildAnalyzeBranch(
     })
     if (order) partialAddress = { direccion: order.address || '', ciudad: order.city || '', pais: order.country || 'CO' }
   }
+  // IA-4 (P1-2 / P1-4) — memory (past addresses, delivery outcomes) +
+  // sentiment (frustrated after a previous failed delivery → patient tone).
+  const memoryBlock = formatMemoryBlock(ctx.customerMemories)
+  const sentimentBlock = formatSentimentBlock(ctx.sentiment)
   const system = `Eres el analista de direcciones de ${tenant.slug} (Colombia-focused). Antes de despachar,
 evalúas la dirección del cliente contra: (1) completitud de los 10 campos Saramantha, (2) coberturas
 de las transportadoras configuradas para este tenant, (3) historial de entrega de esa dirección
@@ -112,7 +123,7 @@ interior, referencias). Salida JSON:
 {"direccion_completa": bool, "campos_faltantes": [...], "cobertura": "nacional|internacional|sin_cobertura",
 "transportadoras_disponibles": [...], "riesgo_entrega": "bajo|medio|alto", "historial_previo": "ok|rechazo|novedad|sin_registro",
 "accion_recomendada": "despachar|confirmar_direccion|pedir_referencia|rechazar_envio",
-"pregunta_cliente": "..."}. Nunca inventes un resultado de entrega que no esté en el historial.`
+"pregunta_cliente": "..."}. Nunca inventes un resultado de entrega que no esté en el historial.${memoryBlock ? '\n\n' + memoryBlock : ''}${sentimentBlock ? '\n\n' + sentimentBlock : ''}`
   const carriers = await db.carrier.findMany({
     where: { tenantId: ctx.tenantId },
     select: { nombreCanonico: true, cobertura: true },

@@ -31,7 +31,7 @@
 
 ## 1. Resumen Ejecutivo
 
-ZIAY opera hoy **26 agentes** definidos como *prompt-builders* en `src/lib/agents/prompts/*.ts`,
+ZIAY operaba en la auditoría original con un fleet de **26 (consolidado a 24 en IA-3)** definidos como *prompt-builders* en `src/lib/agents/prompts/*.ts`,
 orquestados linealmente por `src/lib/orchestrator/orchestrator.ts` (9 pasos visuales de los 10
 agentes conversacionales principales). El sistema funciona, es **~100× más barato por conversación
 que Meta Business Agent** (`$0.02` vs `$2.00`, ver `docs/META-AGENT-DECISION.md`), y ya cumple
@@ -80,7 +80,7 @@ LangChain, Microsoft, OpenAI y CrewAI, ZIAY presenta cuatro brechas estructurale
 
 ## 2. Estado Actual de ZIAY
 
-### 2.1 Inventario de los 26 agentes
+### 2.1 Inventario histórico del fleet de 26 (consolidado a 24 en IA-3)
 
 Los agentes viven en `src/lib/agents/prompts/*.ts` y se registran en
 `src/lib/agents/prompts/index.ts`. Cada uno expone una función `build<Name>Prompt(ctx)` que
@@ -582,7 +582,7 @@ Fuente: <https://encore.dev/blog/you-probably-dont-need-a-vector-database>
 |---|---|---|---|
 | **Prompt engineering** | Comportamiento, estilo | $0 | ✅ Ya en uso |
 | **RAG** | Conocimiento factual | Bajo (pgvector ya está) | **Sí, prioridad 1** |
-| **Fine-tuning** | Tono, formato, dominio | Alto (data + GPU) | Solo si los 26 agentes no convergen tras RAG + reflexión |
+| **Fine-tuning** | Tono, formato, dominio | Alto (data + GPU) | Solo si el fleet histórico de 26 (hoy 24 tras IA-3) no converge tras RAG + reflexión |
 
 > **Regla práctica:** Si el problema es "el agente no sabe X", RAG. Si es "el agente suena
 > raro en contexto Y", few-shot en prompt. Si es "el agente no puede aprender el formato aún
@@ -831,7 +831,7 @@ commerce sobre WhatsApp, con clientes como Coca-Cola, Bimbo, Walmart LATAM.
 
 - **Multi-tenant + RLS** — Yalo es más por-instancia; ZIAY escala por tenant con aislamiento.
 - **100× más barato por conversación** (ya documentado en `META-AGENT-DECISION.md`).
-- **26 agentes especializados** vs plantillas genéricas de Yalo.
+- **Fleet de 26 (consolidado a 24 en IA-3) agentes especializados** vs plantillas genéricas de Yalo.
 - **AP2/UCP compliance** — Yalo cede datos a Meta; ZIAY no.
 
 **Riesgo Yalo:** si Meta reduce drásticamente el costo per-token de Meta Business Agent, Yalo
@@ -1164,7 +1164,7 @@ Detalle en §5.2. Resumen:
 ### Internal ZIAY references
 - `docs/META-AGENT-DECISION.md` — Decisión Meta Native vs Own Stack.
 - `docs/GUIA-COMPORTAMIENTO-AGENTES.md` — Reglas NUNCA/SIEMPRE.
-- `src/lib/agents/prompts/index.ts` — Registro de los 26 agentes.
+- `src/lib/agents/prompts/index.ts` — Registro histórico del fleet de 26 (hoy 24 tras IA-3).
 - `src/lib/agents/rules.ts` — 28 reglas NUNCA + 17 SIEMPRE.
 - `src/lib/orchestrator/orchestrator.ts` — Pipeline lineal de 9 pasos.
 - `src/lib/orchestrator/constants.ts` — `ORCHESTRATOR_STEPS`, `OrchestratorState`, escenarios.

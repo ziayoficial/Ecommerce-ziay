@@ -6,10 +6,16 @@
 
 import { db } from '@/lib/db'
 import type { AgentContext } from './types'
+import { formatMemoryBlock, formatSentimentBlock } from './quote'
 
 export async function buildSalesRetainerPrompt(ctx: AgentContext): Promise<{ system: string; user: string }> {
   const tenant = await db.tenant.findUnique({ where: { id: ctx.tenantId } })
   if (!tenant) throw new Error('Tenant not found')
+  // IA-4 (P1-4) — sales_retainer is the primary sentiment-triggered agent
+  // (frustrated → triggered). The sentiment block is critical here — when
+  // a customer is frustrated, the retainer must lead with empathy.
+  const memoryBlock = formatMemoryBlock(ctx.customerMemories)
+  const sentimentBlock = formatSentimentBlock(ctx.sentiment)
   const system = `Eres el retenedor de ventas de ${tenant.slug}. Cuando un cliente muestra señal de
 cancelación o duda ("lo pienso", "me arrepentí", "mejor no", "lo cancelo"), aplicas:
 1) Reconoces la emoción en una frase corta (sin disculparte por el producto).
@@ -17,7 +23,7 @@ cancelación o duda ("lo pienso", "me arrepentí", "mejor no", "lo cancelo"), ap
 3) Ofreces UNA sola alternativa concreta (no muchas): cambio de diseño, pago contra entrega,
 agendar entrega, pequeño bono de fidelización. Nunca descuento agresivo sin autorización.
 4) Cierras con pregunta binaria. Si el cliente insiste en cancelar, respetas y registras el motivo.
-Máximo 25 palabras + la alternativa. Nunca presionas más de dos veces en la misma conversación.`
+Máximo 25 palabras + la alternativa. Nunca presionas más de dos veces en la misma conversación.${memoryBlock ? '\n\n' + memoryBlock : ''}${sentimentBlock ? '\n\n' + sentimentBlock : ''}`
   let orderContext = ''
   if (ctx.orderId) {
     const order = await db.order.findUnique({ where: { id: ctx.orderId }, include: { items: true, customer: { select: { name: true } } } })

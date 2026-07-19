@@ -30,7 +30,7 @@ import { z } from 'zod'
 import { db } from '@/lib/db'
 import { requireTenantAccess } from '@/lib/auth-helpers'
 import { rateLimit } from '@/lib/middleware/rate-limit'
-import { AGENT_LABELS, AgentName, buildAgentPrompt, FALLBACKS } from '@/lib/agents/prompts'
+import { AGENT_LABELS, AGENT_NAMES, AgentName, buildAgentPrompt, FALLBACKS } from '@/lib/agents/prompts'
 import {
   ORCHESTRATOR_STEPS, ORCHESTRATOR_SCENARIOS, OrchestratorStepId, OrchestratorScenario,
 } from '@/lib/orchestrator/constants'
@@ -75,8 +75,18 @@ import { orchestrateService } from '@/lib/services'
 // extraction), Sentiment Analyzer (parallel customer-state classification).
 import { runGovernor } from '@/lib/agents/governor.service'
 import { runQAReview, shouldReviewAgent } from '@/lib/agents/qa-reviewer.service'
-import { runMemoryCuratorAsync } from '@/lib/agents/memory-curator.service'
-import { runSentimentAsync } from '@/lib/agents/sentiment.service'
+import { runMemoryCuratorAsync, recallCustomerMemory } from '@/lib/agents/memory-curator.service'
+import { runSentimentAsync, runSentiment } from '@/lib/agents/sentiment.service'
+// IA-4 — wire the IA-2 hardening layer (agentTracer + budgetManager +
+// getModelForAgent) into the real API route. Was previously dead code
+// (only used by src/lib/orchestrator/orchestrator.ts which has 0
+// consumers). Now every callAgent invocation in the orchestrator's
+// pipeline gets traced + budget-checked + uses the per-tier model.
+import { agentTracer } from '@/lib/agents/tracing'
+import { budgetManager } from '@/lib/agents/budget'
+import { getModelForAgent, estimateCost } from '@/lib/agents/model-router'
+// IA-4 (P1-4) — SentimentResult type for the ctx.sentiment field.
+import type { SentimentResult } from '@/lib/agents/sentiment.service'
 
 const log = getLogger('api:orchestrate')
 
@@ -191,6 +201,43 @@ async function callAgent(
   // evita desbordar el context window en pipelines largos.
   pipelineMemory?: Message[],
 ): Promise<CallAgentResult> {
+  // IA-4 — IA-2 hardening: resolve the per-agent tier model so the
+  // adapter actually uses the right GLM variant (flash/4.6/4.6-plus)
+  // instead of the adapter default. Pre-flight the new token-level budget
+  // manager (covers per-conversation caps the legacy `checkBudgetBeforeCall`
+  // doesn't). Open a tracing span around the LLM call.
+  const tierInfo = getModelForAgent(agentName)
+  const estimatedTokens = tierInfo.tier === 'cheap' ? 1000 : tierInfo.tier === 'standard' ? 2000 : 4000
+  let tierBudgetAllowed = true
+  let tierBudgetReason: string | undefined
+  try {
+    const tierCheck = await budgetManager.checkBudget(ctx.tenantId, estimatedTokens)
+    if (!tierCheck.allowed) {
+      tierBudgetAllowed = false
+      tierBudgetReason = tierCheck.reason
+    }
+  } catch (err) {
+    // Fail-open — the legacy checkBudgetBeforeCall already gated at the
+    // POST handler entry. The new manager failing (DB down) must not
+    // block the call.
+    log.warn(
+      { err: err instanceof Error ? err.message : String(err), tenantId: ctx.tenantId, agentName },
+      'budgetManager.checkBudget failed (non-blocking, fail-open)',
+    )
+  }
+  if (!tierBudgetAllowed) {
+    return {
+      reply: `(presupuesto excedido: ${tierBudgetReason ?? 'unknown'})`,
+      confidence: 0.1,
+      error: tierBudgetReason ?? 'Token budget exceeded',
+      latencyMs: 0,
+    }
+  }
+
+  // IA-4 — open a tracing span around the LLM call.
+  const span = agentTracer.startSpan(agentName, ctx)
+  span.setContext({ tenantId: ctx.tenantId, conversationId: ctx.conversationId })
+
   const { system, user } = await buildAgentPrompt(agentName, ctx)
   const startTime = Date.now()
   // FIX-AI-AGENTS-001 §A-1: system prompt con rol `system`
@@ -231,6 +278,9 @@ async function callAgent(
     llmResult = await Promise.race([
       chat(messages, {
         provider: providerName,
+        // IA-4 — pass the per-tier model so the adapter actually uses
+        // the resolved GLM variant instead of its default.
+        model: tierInfo.model,
         thinking: 'disabled',
       }),
       new Promise<never>((_, reject) =>
@@ -241,6 +291,9 @@ async function callAgent(
     // Propagar el error con el metadata del LLM (vacío — no hubo usage)
     // para que el caller pueda persistirlo en el DecisionLog.
     const message = err instanceof Error ? err.message : 'unknown error'
+    // IA-4 — finalize the span as error/timeout.
+    const _isTimeout = message.toLowerCase().includes('timeout')
+    span.setError(message, _isTimeout ? 'timeout' : 'error')
     return {
       reply: FALLBACKS[agentName],
       confidence: 0.1,
@@ -249,6 +302,29 @@ async function callAgent(
     }
   }
   const rawReply = llmResult.content.trim() || ''
+
+  // IA-4 — finalize the tracing span + debit the budget ledger.
+  const tokensIn = llmResult.usage?.promptTokens ?? 0
+  const tokensOut = llmResult.usage?.completionTokens ?? 0
+  const costUsd = estimateCost(agentName, tokensIn, tokensOut)
+  span.end(rawReply, {
+    tenantId: ctx.tenantId,
+    conversationId: ctx.conversationId,
+    model: llmResult.model ?? tierInfo.model,
+    tokensIn,
+    tokensOut,
+    costUsd,
+    status: 'success',
+  })
+  budgetManager.recordUsage(
+    ctx.tenantId,
+    ctx.conversationId,
+    tokensIn,
+    tokensOut,
+    costUsd,
+    agentName,
+    llmResult.model ?? tierInfo.model,
+  )
 
   // FIX-AI-AGENTS-001 §A-2: validar salida contra esquema Zod si existe.
   const parsed = parseAgentOutput<unknown>(agentName, rawReply)
@@ -385,20 +461,67 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
       }
     }
 
-    // ── IA-1 (agent-builder) — Sentiment Analyzer (parallel, async) ────
-    // Fire-and-forget: classify the customer's latest message in parallel
-    // with the pipeline. The result is emitted via socket (`sentiment:classified`)
-    // and may trigger retention agents (`sales_retainer`, `remarketing`) or
-    // prioritize `quote` via `agent:trigger` events. NEVER blocks the
-    // pipeline — the customer's response is returned as soon as the
-    // pipeline completes, regardless of whether sentiment is done.
+    // ── IA-1 (agent-builder) — Sentiment Analyzer (awaited, then async emit) ──
+    // IA-4 (P1-3 + P1-4) — switched from pure fire-and-forget to an awaited
+    // call so the classification result is available to inject into the
+    // AgentContext of downstream agents (P1-4) AND to drive the
+    // `agent:trigger` listener directly (P1-3) — if the customer is
+    // frustrated, we invoke `sales_retainer` synchronously so its reply
+    // is included in this same response (rather than relying on a socket
+    // event crossing process boundaries, which never had a listener).
+    //
+    // The sentiment call has a 1.5s timeout built into `runSentiment`, so
+    // the worst-case latency impact is bounded. On timeout/error it
+    // returns a neutral fallback (decisionSource !== 'llm') — downstream
+    // agents get ctx.sentiment undefined-equivalent (no tone adjustment).
+    let sentimentResult: SentimentResult | undefined
     if (governorMessage && conversationId) {
-      runSentimentAsync({
-        tenantId,
-        conversationId,
-        customerId,
-        message: governorMessage,
-      })
+      try {
+        sentimentResult = await runSentiment({
+          tenantId,
+          conversationId,
+          customerId,
+          message: governorMessage,
+        })
+      } catch (err) {
+        // Non-blocking — pipeline continues with no sentiment context.
+        // The legacy async emit also runs so the dashboard still sees the
+        // classification attempt.
+        log.warn(
+          { err: err instanceof Error ? err.message : String(err), tenantId, conversationId },
+          'Sentiment synchronous call failed — continuing without sentiment ctx (non-blocking)',
+        )
+        runSentimentAsync({
+          tenantId,
+          conversationId,
+          customerId,
+          message: governorMessage,
+        })
+      }
+    }
+
+    // IA-4 (P1-2) — recall long-term customer memory BEFORE building the
+    // per-step ctx. The query is the latest customer message + scenario
+    // context. Returned facts are injected into the prompts of the 4
+    // agents that benefit most from historical context (quote, objection,
+    // address, checkout). Non-blocking: failure → empty memories (the
+    // agents just don't get the memory block).
+    let customerMemories: { id: string; type: string; key: string; value: string; confidence: number; score: number }[] = []
+    if (customerId && governorMessage) {
+      try {
+        customerMemories = await recallCustomerMemory({
+          tenantId,
+          customerId,
+          query: governorMessage,
+          topK: 5,
+          minScore: 0.15,
+        })
+      } catch (err) {
+        log.warn(
+          { err: err instanceof Error ? err.message : String(err), tenantId, customerId },
+          'recallCustomerMemory failed (non-blocking) — agents will run without memory block',
+        )
+      }
     }
 
     const scenario: OrchestratorScenario | undefined = scenarioId
@@ -406,6 +529,11 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
       : undefined
 
     // Shared context built from scenario (if any)
+    // IA-4 (P1-2 / P1-4) — inject recalled long-term memory + the
+    // sentiment classification result into every step's AgentContext.
+    // Agents that don't need them just ignore the fields (the prompt
+    // builders that DO consume them are: quote, objection, address,
+    // checkout, speech, sales_retainer, remarketing).
     const buildCtx = (stepId: OrchestratorStepId) => ({
       tenantId,
       conversationId,
@@ -420,6 +548,9 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
         : undefined,
       message: stepId === 'objection' ? scenario?.objectionMessage : undefined,
       partialAddress: stepId === 'address' ? { ciudad: 'Bogotá' } : undefined,
+      // IA-4 — recalled memory + sentiment classification.
+      customerMemories: customerMemories.length > 0 ? customerMemories : undefined,
+      sentiment: sentimentResult,
     })
 
     // ── action='step' — single agent ────────────────────────────────────
@@ -746,6 +877,68 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
       })
     }
 
+    // ── IA-4 (P1-3) — Sentiment `agent:trigger` listener ──────────────
+    // The Sentiment service emits socket `agent:trigger` events when it
+    // detects frustration / churn risk / high buying intent (target =
+    // sales_retainer / remarketing / quote). Previously NO consumer
+    // listened — the triggered retention agents never actually ran.
+    //
+    // We replace the cross-process socket listener with a direct
+    // function call: after the pipeline completes, if the sentiment
+    // classification triggered any agents, we invoke each one with the
+    // current conversation context + the sentiment (so the retainer
+    // knows WHY it was triggered). The replies are appended to the
+    // timeline as an extra entry so the dashboard sees the retention
+    // attempt and the operator can route it to the customer.
+    //
+    // We skip 'quote' as a direct call — it's already a pipeline step
+    // (step 4 of 8). The sentiment-aware prompt block (P1-4) handles
+    // "buyingIntent=high → close faster" inside the quote step itself.
+    if (sentimentResult && sentimentResult.triggeredAgents.length > 0) {
+      const retentionTargets = sentimentResult.triggeredAgents.filter(
+        (a) => a !== 'quote' && AGENT_NAMES.includes(a as AgentName),
+      )
+      for (const target of retentionTargets) {
+        try {
+          const retentionCtx = {
+            tenantId,
+            conversationId,
+            customerId,
+            perfil: scenario?.perfil,
+            message: governorMessage,
+            // Pass the sentiment + memory into the retention agent's ctx.
+            sentiment: sentimentResult,
+            customerMemories: customerMemories.length > 0 ? customerMemories : undefined,
+          }
+          const retentionResult = await callAgent(
+            target as AgentName,
+            retentionCtx,
+            providerName,
+          )
+          timeline.push({
+            step: 'checkout', // reuse the last step id (no new step id for retention)
+            index: timeline.length + 1,
+            label: `Retención (${sentimentResult.sentiment})`,
+            emoji: '🛟',
+            agent: target,
+            agentLabel: AGENT_LABELS[target as AgentName],
+            reply: retentionResult.reply,
+            confidence: retentionResult.confidence,
+            error: retentionResult.error,
+          })
+          log.info(
+            { tenantId, conversationId, target, reason: sentimentResult.sentiment, replyLen: retentionResult.reply.length },
+            'Sentiment-triggered retention agent invoked',
+          )
+        } catch (err) {
+          log.warn(
+            { err: err instanceof Error ? err.message : String(err), target, tenantId, conversationId },
+            'Sentiment-triggered retention agent failed (non-blocking)',
+          )
+        }
+      }
+    }
+
     return NextResponse.json({
       ok: true,
       action: 'full',
@@ -754,5 +947,18 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
       // IA-1 (agent-builder) — surface governor decision in the response
       // so the dashboard can show "passed governor" feedback.
       governor: governorResult,
+      // IA-4 (P1-4) — surface the sentiment classification so the
+      // dashboard can show "frustrated → triggered sales_retainer".
+      sentiment: sentimentResult
+        ? {
+            sentiment: sentimentResult.sentiment,
+            score: sentimentResult.score,
+            urgency: sentimentResult.urgency,
+            buyingIntent: sentimentResult.buyingIntent,
+            churnRisk: sentimentResult.churnRisk,
+            triggeredAgents: sentimentResult.triggeredAgents,
+            decisionSource: sentimentResult.decisionSource,
+          }
+        : undefined,
     })
 })

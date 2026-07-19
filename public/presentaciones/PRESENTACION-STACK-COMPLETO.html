@@ -68,7 +68,7 @@ pre{background:var(--surface2);padding:14px;border-radius:8px;overflow-x:auto;fo
 <table>
 <tr><th>Capa Arquitectura</th><th>Eje Enterprise</th><th>Tecnologías</th><th>Propósito</th></tr>
 <tr><td><strong>Revenue Layer</strong></td><td>Crecimiento medible</td><td>Next.js 16.2.10, Prisma 6, z-ai-web-dev-sdk, CAPI adapters</td><td>Conversaciones → ingresos trazables. Atribución real por canal.</td></tr>
-<tr><td><strong>Operations Layer</strong></td><td>Eficiencia operativa</td><td>26 agentes IA, 3 pipelines, 5 protocolos (AP2/UCP/ACP/MCP/A2A), Socket.io, n8n</td><td>Automatización end-to-end del ciclo de venta.</td></tr>
+<tr><td><strong>Operations Layer</strong></td><td>Eficiencia operativa</td><td>24 agentes IA, 3 pipelines, 5 protocolos (AP2/UCP/ACP/MCP/A2A), Socket.io, n8n</td><td>Automatización end-to-end del ciclo de venta.</td></tr>
 <tr><td><strong>Governance Layer</strong></td><td>Gobernanza + Integración</td><td>OTPAuth 2FA, RLS Postgres, 18 adapters, 8 webhooks HMAC + rotación, 6 módulos compliance</td><td>Gobernanza financiera, legal y de datos, conexión nativa al stack comercial.</td></tr>
 </table>
 </section>
@@ -94,7 +94,7 @@ pre{background:var(--surface2);padding:14px;border-radius:8px;overflow-x:auto;fo
 <h3>Operations Layer</h3>
 <p><strong>Eje:</strong> Eficiencia operativa</p>
 <ul>
-<li>26 agentes IA en 3 pipelines</li>
+<li>24 agentes IA en 3 pipelines</li>
 <li>Pre-venta (10) · Post-venta (4) · Inteligencia (5)</li>
 <li>Logística, novedades, reintentos automáticos</li>
 <li>Real-time Socket.io con rooms por tenant</li>
@@ -218,7 +218,7 @@ pre{background:var(--surface2);padding:14px;border-radius:8px;overflow-x:auto;fo
 <li><strong>Prisma types:</strong> generados desde schema.prisma</li>
 <li><strong>API contracts:</strong> request/response tipados en cada route</li>
 <li><strong>Adapter interfaces:</strong> EcommerceAdapter, LogisticsAdapter, PaymentAdapter, AdPlatformAdapter, LLMProvider</li>
-<li><strong>Agent types:</strong> 26 agentes con nombres tipados</li>
+<li><strong>Agent types:</strong> 24 agentes con nombres tipados</li>
 <li><strong>View IDs:</strong> ViewId union type para dashboard navigation</li>
 </ul>
 </div>
@@ -417,7 +417,7 @@ src/lib/socket.ts   # Client singleton
 <h3>🤖 LLM (glm-4.6)</h3>
 <p>Usado en 5 rutas IA:</p>
 <ul>
-<li>POST /api/agents/[agentName] — 26 agentes</li>
+<li>POST /api/agents/[agentName] — 24 agentes</li>
 <li>POST /api/ai-reply — reply contextual</li>
 <li>POST /api/orchestrate — pipeline de 9 pasos</li>
 <li>POST /api/address-analysis — validación de dirección</li>
@@ -538,9 +538,9 @@ model Product {
 </div>
 </section>
 
-<!-- Slide 13: 26 Agentes -->
+<!-- Slide 13: 24 Agentes -->
 <section class="slide">
-<h1>26 Agentes Conversacionales</h1>
+<h1>24 Agentes Conversacionales</h1>
 <h2>Prompts especializados + fallback determinístico</h2>
 <div class="grid grid-3">
 <div class="card card-accent">
@@ -549,43 +549,41 @@ model Product {
 <li>buyer_behavior 🛡️</li>
 <li>profile 🎯</li>
 <li>speech 💬</li>
-<li>catalog 🖼️</li>
-<li>cart_builder 🛒</li>
-<li>quote 🧮</li>
+<li>catalog 🖼️ (+ tema)</li>
+<li>quote 🧮 (+ carrito)</li>
 <li>objection 🛡️</li>
-<li>address 📍</li>
+<li>address 📍 (+ análisis)</li>
 <li>logistics 🚚</li>
+<li>vision 👁️</li>
 <li>checkout ✅</li>
 </ol>
 </div>
 <div class="card card-accent">
-<h3 class="text-primary">Post-venta (4)</h3>
+<h3 class="text-primary">Post-venta (5)</h3>
 <ol>
-<li>guide_tracking 📦</li>
+<li>postventa_logistics 📦 (tracking+alerta+aviso)</li>
 <li>novedades ⚠️</li>
 <li>redelivery 🔄</li>
 <li>remarketing 💌</li>
-</ol>
-<h3 class="text-accent" style="margin-top:16px">Especializados (7)</h3>
-<ul>
-<li>vision 👁️</li>
-<li>address_analysis 📐</li>
 <li>sales_retainer 🔒</li>
-<li>logistics_notifier 📢</li>
-<li>traffic_orchestrator 🎯</li>
-<li>guide_alert 🚨</li>
-<li>theme 🎨</li>
-</ul>
+</ol>
 </div>
 <div class="card card-accent">
 <h3 class="text-primary">Inteligencia (5)</h3>
 <ol>
-<li>customer_score 📊</li>
-<li>carrier_score 🚚</li>
+<li>scoring 📊 (cliente+carrier)</li>
 <li>product_enrichment 🏷️</li>
 <li>marketplace 🏪</li>
 <li>affiliator 💰</li>
+<li>traffic_orchestrator 🎯</li>
 </ol>
+<h3 class="text-accent" style="margin-top:16px">Control-plane (4)</h3>
+<ul>
+<li>governor 🛂</li>
+<li>qa_reviewer 🔍</li>
+<li>memory_curator 🧠</li>
+<li>sentiment 💗</li>
+</ul>
 </div>
 </div>
 <div class="card">

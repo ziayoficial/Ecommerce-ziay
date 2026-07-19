@@ -147,7 +147,7 @@ pre{background:var(--surface2);padding:16px;border-radius:8px;overflow-x:auto;fo
 <div class="card card-accent">
 <div class="emoji">⚙️</div>
 <h3>Operations Layer</h3>
-<p>Automatización operativa del ciclo de venta: 26 agentes en 3 pipelines (pre-venta, post-venta, inteligencia). Logística, novedades, reintentos y remarketing sin intervención humana.</p>
+<p>Automatización operativa del ciclo de venta: 24 agentes en 3 pipelines (pre-venta, post-venta, inteligencia). Logística, novedades, reintentos y remarketing sin intervención humana.</p>
 <p class="muted">Eje: <strong>Eficiencia operativa</strong></p>
 </div>
 <div class="card card-accent">
@@ -290,7 +290,7 @@ pre{background:var(--surface2);padding:16px;border-radius:8px;overflow-x:auto;fo
 <!-- Slide 7: 26 Agentes (cómo lo hacemos) -->
 <section class="slide">
 <h1>Automatización operativa end-to-end</h1>
-<h2>Cómo lo hacemos: 26 agentes en 3 pipelines cubren todo el ciclo de venta</h2>
+<h2>Cómo lo hacemos: 24 agentes en 3 pipelines cubren todo el ciclo de venta</h2>
 <div class="grid grid-3">
 <div class="card card-accent">
 <h3 class="text-primary">Pipeline A · Pre-venta (10)</h3>
@@ -299,7 +299,7 @@ pre{background:var(--surface2);padding:16px;border-radius:8px;overflow-x:auto;fo
 <li>profile 🎯</li>
 <li>speech 💬</li>
 <li>catalog 🖼️</li>
-<li>cart_builder 🛒</li>
+<li>quote 🧮 (+ carrito)</li>
 <li>quote 🧮</li>
 <li>objection 🛡️</li>
 <li>address 📍</li>
@@ -310,7 +310,7 @@ pre{background:var(--surface2);padding:16px;border-radius:8px;overflow-x:auto;fo
 <div class="card card-accent">
 <h3 class="text-primary">Pipeline B · Post-venta (4)</h3>
 <ol>
-<li>guide_tracking 📦</li>
+<li>postventa_logistics 📦</li>
 <li>novedades ⚠️</li>
 <li>redelivery 🔄</li>
 <li>remarketing 💌</li>
@@ -318,19 +318,19 @@ pre{background:var(--surface2);padding:16px;border-radius:8px;overflow-x:auto;fo
 <h3 class="text-accent" style="margin-top:20px">Especializados (7)</h3>
 <ul>
 <li>vision 👁️</li>
-<li>address_analysis 📐</li>
+<li>address 📐 (analyze)</li>
 <li>sales_retainer 🔒</li>
-<li>logistics_notifier 📢</li>
+<li>postventa_logistics 📢</li>
 <li>traffic_orchestrator 🎯</li>
-<li>guide_alert 🚨</li>
+<li>postventa_logistics 🚨</li>
 <li>theme 🎨</li>
 </ul>
 </div>
 <div class="card card-accent">
 <h3 class="text-primary">Pipeline C · Inteligencia (5)</h3>
 <ol>
-<li>customer_score 📊</li>
-<li>carrier_score 🚚</li>
+<li>scoring 📊</li>
+<li>scoring 🚚</li>
 <li>product_enrichment 🏷️</li>
 <li>marketplace 🏪</li>
 <li>affiliator 💰</li>
@@ -351,7 +351,7 @@ pre{background:var(--surface2);padding:16px;border-radius:8px;overflow-x:auto;fo
 <span class="flow-step">2. profile</span><span class="flow-arrow">→</span>
 <span class="flow-step">3. speech</span><span class="flow-arrow">→</span>
 <span class="flow-step">4. catalog</span><span class="flow-arrow">→</span>
-<span class="flow-step">5. cart_builder</span>
+<span class="flow-step">5. quote</span>
 </div>
 <div class="flow">
 <span class="flow-step">6. quote</span><span class="flow-arrow">→</span>
@@ -366,7 +366,7 @@ pre{background:var(--surface2);padding:16px;border-radius:8px;overflow-x:auto;fo
 <tr><td>2</td><td>profile</td><td>Perfila al lead: mayorista, emprendedor, detal, o regalo. Determina discurso y precios.</td><td>POST /api/agents/profile</td></tr>
 <tr><td>3</td><td>speech</td><td>Genera discurso de ventas personalizado por perfil. Incluye ofertas y cross-sell.</td><td>POST /api/agents/speech</td></tr>
 <tr><td>4</td><td>catalog</td><td>Muestra productos visualmente (tarjetas con imagen, precio, descripción). Visual-first.</td><td>POST /api/agents/catalog</td></tr>
-<tr><td>5</td><td>cart_builder</td><td>Construye carrito conversacional. Añade items, calcula totales, descuentos por volumen.</td><td>POST /api/conversational-cart</td></tr>
+<tr><td>5</td><td>quote</td><td>Construye carrito conversacional. Añade items, calcula totales, descuentos por volumen.</td><td>POST /api/conversational-cart</td></tr>
 <tr><td>6</td><td>quote</td><td>Cotización con cross-sell. Aplica precios por volumen (mayorista 3 tiers, emprendedor 2).</td><td>POST /api/agents/quote</td></tr>
 <tr><td>7</td><td>objection</td><td>Maneja objeciones: desconfianza, precio, talla, lo_pienso, producto_no_disponible.</td><td>POST /api/agents/objection</td></tr>
 <tr><td>8</td><td>address</td><td>Confirma 10 campos de dirección. Valida formato colombiano (vía + número).</td><td>POST /api/agents/address</td></tr>
@@ -380,14 +380,14 @@ pre{background:var(--surface2);padding:16px;border-radius:8px;overflow-x:auto;fo
 <h1>Pipeline Post-venta · 4 Pasos</h1>
 <h2>Seguimiento, novedades, reintentos y recuperación</h2>
 <div class="flow">
-<span class="flow-step">1. guide_tracking 📦</span><span class="flow-arrow">→</span>
+<span class="flow-step">1. postventa_logistics 📦</span><span class="flow-arrow">→</span>
 <span class="flow-step">2. novedades ⚠️</span><span class="flow-arrow">→</span>
 <span class="flow-step">3. redelivery 🔄</span><span class="flow-arrow">→</span>
 <span class="flow-step">4. remarketing 💌</span>
 </div>
 <div class="grid grid-2" style="margin-top:20px">
 <div class="card card-accent">
-<h3>📦 guide_tracking + guide_alert</h3>
+<h3>📦 postventa_logistics + postventa_logistics</h3>
 <p><strong>Seguimiento de guías:</strong> consulta estado en tiempo real via API de la transportadora. Detecta guías estancadas sin movimiento por X días.</p>
 <p><strong>Alertas automáticas:</strong> si una guía lleva >3 días sin movimiento, se crea una alerta en el dashboard de Inteligencia Logística.</p>
 <p class="muted">API: GET /api/logistics-intelligence · GET /api/guide-movements</p>
@@ -418,15 +418,15 @@ pre{background:var(--surface2);padding:16px;border-radius:8px;overflow-x:auto;fo
 <h1>Pipeline Inteligencia · 5 Pasos</h1>
 <h2>Scores, enriquecimiento, marketplace y affiliates</h2>
 <div class="flow">
-<span class="flow-step">1. customer_score 📊</span><span class="flow-arrow">→</span>
-<span class="flow-step">2. carrier_score 🚚</span><span class="flow-arrow">→</span>
+<span class="flow-step">1. scoring 📊</span><span class="flow-arrow">→</span>
+<span class="flow-step">2. scoring 🚚</span><span class="flow-arrow">→</span>
 <span class="flow-step">3. product_enrichment 🏷️</span><span class="flow-arrow">→</span>
 <span class="flow-step">4. marketplace 🏪</span><span class="flow-arrow">→</span>
 <span class="flow-step">5. affiliator 💰</span>
 </div>
 <div class="grid grid-3" style="margin-top:20px">
 <div class="card card-accent">
-<h3>📊 customer_score</h3>
+<h3>📊 scoring</h3>
 <p>Score de cliente basado en historial de entregas. 3 categorías:</p>
 <ul>
 <li><strong class="text-primary">Confiables (100%):</strong> 50% de los clientes</li>
@@ -436,7 +436,7 @@ pre{background:var(--surface2);padding:16px;border-radius:8px;overflow-x:auto;fo
 <p>Detección de patrones: direcciones falsas, números incorrectos, pedidos repetidos sin pagar.</p>
 </div>
 <div class="card card-accent">
-<h3>🚚 carrier_score</h3>
+<h3>🚚 scoring</h3>
 <p>Score de transportadoras. 6 variantes de "Interrapidísimo" normalizadas. Datos reales:</p>
 <ul>
 <li>Interrapidísimo, TCC, Coordinadora, Servientrega, Envía</li>
@@ -477,7 +477,7 @@ pre{background:var(--surface2);padding:16px;border-radius:8px;overflow-x:auto;fo
 <h2>Todo lo que necesitas en un solo lugar</h2>
 <div class="grid grid-2">
 <div class="card"><h3>📊 Resumen</h3><p>KPIs: ingresos, ROAS, CPA, ROI, pedidos, inversión en pauta. Gráficos de tendencia y desglose por canal.</p></div>
-<div class="card"><h3>💬 Mensajería</h3><p>Inbox unificado WhatsApp + Messenger + IG. 26 agentes en dropdown. Socket.io tiempo real. Optimistic UI.</p></div>
+<div class="card"><h3>💬 Mensajería</h3><p>Inbox unificado WhatsApp + Messenger + IG. 24 agentes en dropdown. Socket.io tiempo real. Optimistic UI.</p></div>
 <div class="card"><h3>🖼️ Catálogo Visual</h3><p>Grid de productos con filtros. Chat IA embebido para enviar productos a conversaciones. Vista grid + lista.</p></div>
 <div class="card"><h3>📦 Pedidos & Pagos</h3><p>Tabla de pedidos con filtros. Workflow de estados inline. Modo de pago (anticipado/contra entrega/híbrido).</p></div>
 <div class="card"><h3>📋 Kanban Operativo</h3><p>Drag & drop con @dnd-kit. 8 columnas del embudo §15.1. % de pedidos por etapa. Tooltip de "stuck".</p></div>
@@ -541,7 +541,7 @@ pre{background:var(--surface2);padding:16px;border-radius:8px;overflow-x:auto;fo
 <li>profile</li>
 <li>speech</li>
 <li>catalog</li>
-<li>cart_builder</li>
+<li>quote</li>
 <li>quote</li>
 <li>objection</li>
 <li>address</li>
@@ -554,7 +554,7 @@ pre{background:var(--surface2);padding:16px;border-radius:8px;overflow-x:auto;fo
 <h3 class="text-primary">Pipeline B · Post-venta</h3>
 <p><strong>4 pasos secuenciales</strong></p>
 <ol>
-<li>guide_tracking + alertas</li>
+<li>postventa_logistics + alertas</li>
 <li>novedades (CRM)</li>
 <li>redelivery (reintentos)</li>
 <li>remarketing</li>
@@ -565,8 +565,8 @@ pre{background:var(--surface2);padding:16px;border-radius:8px;overflow-x:auto;fo
 <h3 class="text-primary">Pipeline C · Inteligencia</h3>
 <p><strong>5 pasos secuenciales</strong></p>
 <ol>
-<li>customer_score</li>
-<li>carrier_score</li>
+<li>scoring</li>
+<li>scoring</li>
 <li>product_enrichment</li>
 <li>marketplace</li>
 <li>affiliator</li>

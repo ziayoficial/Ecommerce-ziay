@@ -199,7 +199,7 @@ ul.checks li::before{content:'▸';position:absolute;left:0;color:var(--accent-3
       <strong style="color:var(--accent-3)">Revenue Operations para Comercio Agéntico.</strong> 8 journeys end-to-end del <b style="color:var(--accent-3)">comprador</b> — desde el primer mensaje en WhatsApp
       hasta el cierre del ciclo (compra, pago, envío, post-venta, devolución, remarketing, SEO y affiliator).
       Cada journey evidencia <b style="color:var(--accent-3)">ingresos trazables</b> y mapea agentes, APIs y modelos DB sobre los 4 ejes enterprise.
-      26 agentes IA interoperan vía <b style="color:var(--accent-3)">5 protocolos</b> (AP2/UCP/ACP/MCP/A2A) · 94 API routes · 71 modelos Prisma · 891 tests.
+      24 agentes IA interoperan vía <b style="color:var(--accent-3)">5 protocolos</b> (AP2/UCP/ACP/MCP/A2A) · 94 API routes · 71 modelos Prisma · 891 tests.
     </p>
     <div class="journey-index">
       <div class="ji"><div class="n">J1</div><div class="t">Compra nueva</div><div class="a">10 agentes · Eficiencia operativa</div></div>
@@ -221,7 +221,7 @@ ul.checks li::before{content:'▸';position:absolute;left:0;color:var(--accent-3
 <section class="slide" data-slide="2">
   <div class="ghost-num" data-decor>02</div>
   <div class="eyebrow"><span class="dot"></span>Persona + agentes<span class="bar"></span><span class="num">02 / 26</span></div>
-  <h1 class="title">Quién es el <span class="em">customer</span> + 26 agentes</h1>
+  <h1 class="title">Quién es el <span class="em">customer</span> + 24 agentes</h1>
   <p class="lede">"Customer" en este deck = el <b style="color:var(--accent-3)">comprador final</b> que chatea con la marca por WhatsApp/Messenger/IG. La marca opera el dashboard; el comprador vive el journey en su app de mensajería.</p>
 
   <div class="split">
@@ -253,26 +253,26 @@ ul.checks li::before{content:'▸';position:absolute;left:0;color:var(--accent-3
       </div>
     </div>
     <div class="col">
-      <h2 class="title">Los 26 agentes disponibles</h2>
+      <h2 class="title">Los 24 agentes disponibles</h2>
       <pre class="code"><span class="c">// src/lib/agents/prompts.ts</span>
 <span class="c">// Pipeline A · Pre-venta (10)</span>
 profile, speech, catalog, theme, quote,
 objection, address, logistics, checkout,
-cart_builder, buyer_behavior
+quote, buyer_behavior
 
 <span class="c">// Pipeline B · Post-venta (4)</span>
-guide_tracking, novedades, redelivery,
+postventa_logistics, novedades, redelivery,
 remarketing
 
 <span class="c">// Pipeline C · Inteligencia (5)</span>
-customer_score, carrier_score,
+scoring, scoring,
 product_enrichment, marketplace, affiliator
 
 <span class="c">// Soporte (7)</span>
-vision, guide_alert, address_analysis,
+vision, postventa_logistics, address,
 traffic_orchestrator, sales_retainer,
-logistics_notifier, (+orchestrate meta)</pre>
-      <p style="font:400 11px/1.4 'Inter',sans-serif;color:var(--dim);margin-top:8px">Cada journey marca qué agentes se invocan y en qué orden. Total: 26 agentes cubren todo el ciclo de vida del comprador.</p>
+postventa_logistics, (+orchestrate meta)</pre>
+      <p style="font:400 11px/1.4 'Inter',sans-serif;color:var(--dim);margin-top:8px">Cada journey marca qué agentes se invocan y en qué orden. Total: 24 agentes cubren todo el ciclo de vida del comprador.</p>
     </div>
   </div>
   <div class="foot"><span class="brand"><b>ZIAY</b> OS · Revenue Operations · Trazabilidad E2E</span><span>Persona</span><span class="pg">02 / 26</span></div>
@@ -300,7 +300,7 @@ logistics_notifier, (+orchestrate meta)</pre>
       <div class="fc-node agent">catalog</div>
     </div>
     <div class="fc-row">
-      <div class="fc-node agent">cart_builder</div>
+      <div class="fc-node agent">quote</div>
       <div class="fc-arr">→</div>
       <div class="fc-node agent">quote</div>
       <div class="fc-arr">→</div>
@@ -371,8 +371,8 @@ logistics_notifier, (+orchestrate meta)</pre>
     </div>
     <div class="step-card">
       <div class="num">5</div>
-      <div class="body"><div class="h">cart_builder — Carrito conversacional</div><div class="d">Construye carrito desde el chat: añade SKU + cantidad, muestra screenshots y descripciones, permite editar antes de cotizar.</div></div>
-      <div class="ag">cart_builder</div>
+      <div class="body"><div class="h">quote — Carrito conversacional</div><div class="d">Construye carrito desde el chat: añade SKU + cantidad, muestra screenshots y descripciones, permite editar antes de cotizar.</div></div>
+      <div class="ag">quote</div>
     </div>
   </div>
   <div class="foot"><span class="brand"><b>ZIAY</b> OS · Revenue Operations · Trazabilidad E2E</span><span>J1 pasos 1-5</span><span class="pg">04 / 26</span></div>
@@ -398,12 +398,12 @@ logistics_notifier, (+orchestrate meta)</pre>
     </div>
     <div class="step-card">
       <div class="num">8</div>
-      <div class="body"><div class="h">address — 10 campos de dirección + validación</div><div class="d">Uno a la vez: nombre, teléfono, departamento, ciudad, barrio, tipo_vía, vía, número, complemento, punto_referencia. Valida calidad por país (address_analysis).</div></div>
+      <div class="body"><div class="h">address — 10 campos de dirección + validación</div><div class="d">Uno a la vez: nombre, teléfono, departamento, ciudad, barrio, tipo_vía, vía, número, complemento, punto_referencia. Valida calidad por país (address).</div></div>
       <div class="ag">address</div>
     </div>
     <div class="step-card">
       <div class="num">9</div>
-      <div class="body"><div class="h">logistics — Cotizar flete + elegir carrier</div><div class="d">Llama LogisticsAdapter (Dropi/99envios/Aveonline). Compara tarifa + días + score carrier_score. Recomienda el mejor por ciudad-destino.</div></div>
+      <div class="body"><div class="h">logistics — Cotizar flete + elegir carrier</div><div class="d">Llama LogisticsAdapter (Dropi/99envios/Aveonline). Compara tarifa + días + score scoring. Recomienda el mejor por ciudad-destino.</div></div>
       <div class="ag">logistics</div>
     </div>
     <div class="step-card">
@@ -432,7 +432,7 @@ logistics_notifier, (+orchestrate meta)</pre>
           <tr><td>2</td><td class="mono-cell">POST /api/agents/profile</td><td class="mono-cell">Tenant, Conversation</td></tr>
           <tr><td>3</td><td class="mono-cell">POST /api/agents/speech</td><td class="mono-cell">Tenant, SalesSpeech</td></tr>
           <tr><td>4</td><td class="mono-cell">POST /api/agents/catalog</td><td class="mono-cell">Product, ProductImage, TemaDiseno</td></tr>
-          <tr><td>5</td><td class="mono-cell">POST /api/agents/cart_builder</td><td class="mono-cell">Cart, CartItem</td></tr>
+          <tr><td>5</td><td class="mono-cell">POST /api/agents/quote</td><td class="mono-cell">Cart, CartItem</td></tr>
           <tr><td>6</td><td class="mono-cell">POST /api/agents/quote</td><td class="mono-cell">Product, VolumePrice</td></tr>
           <tr><td>7</td><td class="mono-cell">POST /api/agents/objection</td><td class="mono-cell">ObjectionScript</td></tr>
           <tr><td>8</td><td class="mono-cell">POST /api/agents/address</td><td class="mono-cell">Customer, Address</td></tr>
@@ -496,7 +496,7 @@ logistics_notifier, (+orchestrate meta)</pre>
     <div class="fc-row">
       <div class="fc-node db">AuditLog</div>
       <div class="fc-arr">→</div>
-      <div class="fc-node agent">logistics_notifier</div>
+      <div class="fc-node agent">postventa_logistics</div>
       <div class="fc-arr">→</div>
       <div class="fc-node">Confirma al cliente por WA</div>
       <div class="fc-arr">→</div>
@@ -564,11 +564,11 @@ AuditLog.<span class="fn">create</span>({
     <div class="fc-row">
       <div class="fc-node start">Orden despachada</div>
       <div class="fc-arr">→</div>
-      <div class="fc-node agent">guide_tracking</div>
+      <div class="fc-node agent">postventa_logistics</div>
       <div class="fc-arr">→</div>
       <div class="fc-node decision">¿Estancada?</div>
       <div class="fc-arr">→</div>
-      <div class="fc-node agent">guide_alert</div>
+      <div class="fc-node agent">postventa_logistics</div>
     </div>
     <div class="fc-row">
       <div class="fc-node decision">¿Novedad?</div>
@@ -592,7 +592,7 @@ AuditLog.<span class="fn">create</span>({
     <div class="col">
       <h2 class="title">4 agentes del pipeline B</h2>
       <ul class="checks">
-        <li><b>guide_tracking</b> — consulta estado de guía cada N horas, calcula días en tránsito</li>
+        <li><b>postventa_logistics</b> — consulta estado de guía cada N horas, calcula días en tránsito</li>
         <li><b>novedades</b> — crea caso si guía estancada &gt; 48h, valida orden, pide evidencias</li>
         <li><b>redelivery</b> — si devolución: identifica motivo + nueva dirección + reintento</li>
         <li><b>remarketing</b> — recupera ventas perdidas (cart_recovery / reminder / winback)</li>
@@ -602,7 +602,7 @@ AuditLog.<span class="fn">create</span>({
       <h2 class="title">APIs + DB</h2>
       <pre class="code"><span class="c">// tracking + alertas</span>
 GET  /api/logistics/track/{trackingNumber}
-POST /api/agents/guide_tracking
+POST /api/agents/postventa_logistics
 GET  /api/guide-movements
 
 <span class="c">// novedades</span>
@@ -742,7 +742,7 @@ Redelivery, RemarketingCampaign</pre>
         <li><b>High refund rate</b> — &gt; 30% de órdenes terminan en reembolso</li>
       </ul>
       <h2 class="title" style="margin-top:14px">Score computation</h2>
-      <pre class="code"><span class="c">// customer_score agente</span>
+      <pre class="code"><span class="c">// scoring agente</span>
 score = <span class="n">100</span>
   - (returns * <span class="n">8</span>)
   - (false_claims * <span class="n">15</span>)
@@ -1069,9 +1069,9 @@ body: {
     <div class="fc-row">
       <div class="fc-node start">Guía sin movimiento 48h</div>
       <div class="fc-arr">→</div>
-      <div class="fc-node agent">guide_alert</div>
+      <div class="fc-node agent">postventa_logistics</div>
       <div class="fc-arr">→</div>
-      <div class="fc-node agent">guide_tracking</div>
+      <div class="fc-node agent">postventa_logistics</div>
       <div class="fc-arr">→</div>
       <div class="fc-node db">GuideMovement.lastUpdate</div>
     </div>
@@ -1112,7 +1112,7 @@ body: {
     }
   })
   <span class="k">for</span> (<span class="k">const</span> o <span class="k">of</span> stuck) {
-    <span class="k">await</span> <span class="fn">invokeAgent</span>(<span class="s">'guide_alert'</span>, {
+    <span class="k">await</span> <span class="fn">invokeAgent</span>(<span class="s">'postventa_logistics'</span>, {
       tenantId: o.tenantId,
       orderId: o.id,
       trackingNumber: o.trackingNumber
@@ -1166,7 +1166,7 @@ body: {
           <tr><td>profile</td><td>0.8s</td><td>3.1%</td></tr>
           <tr><td>speech</td><td>1.4s</td><td>0.0%</td></tr>
           <tr><td>catalog</td><td>2.1s</td><td>1.8%</td></tr>
-          <tr><td>cart_builder</td><td>1.7s</td><td>0.9%</td></tr>
+          <tr><td>quote</td><td>1.7s</td><td>0.9%</td></tr>
           <tr><td>quote</td><td>0.9s</td><td>0.2%</td></tr>
           <tr><td>objection</td><td>1.6s</td><td>2.4%</td></tr>
           <tr><td>address</td><td>3.2s</td><td>5.7%</td></tr>
@@ -1189,7 +1189,7 @@ body: {
         <div class="h">2️⃣ Address — 5.7% retry</div>
         <ul>
           <li>Cliente no completa los 10 campos en una sola vez</li>
-          <li>address_analysis detecta direcciones inválidas (barrio no existe)</li>
+          <li>address detecta direcciones inválidas (barrio no existe)</li>
           <li>Pide campos faltantes uno a uno sin frustrar al cliente</li>
         </ul>
       </div>
@@ -1309,23 +1309,23 @@ dormant
       <tr><td class="mono-cell">profile</td><td>✓</td><td>—</td><td>—</td><td>—</td><td>✓</td><td>✓</td><td>—</td><td>—</td></tr>
       <tr><td class="mono-cell">speech</td><td>✓</td><td>—</td><td>—</td><td>—</td><td>✓</td><td>✓</td><td>—</td><td>—</td></tr>
       <tr><td class="mono-cell">catalog</td><td>✓</td><td>—</td><td>—</td><td>—</td><td>✓✓</td><td>✓</td><td>—</td><td>—</td></tr>
-      <tr><td class="mono-cell">cart_builder</td><td>✓</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+      <tr><td class="mono-cell">quote</td><td>✓</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
       <tr><td class="mono-cell">quote</td><td>✓</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
       <tr><td class="mono-cell">objection</td><td>✓</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
       <tr><td class="mono-cell">address</td><td>✓</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
       <tr><td class="mono-cell">logistics</td><td>✓</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
       <tr><td class="mono-cell">checkout</td><td>✓</td><td>✓</td><td>—</td><td>✓</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
-      <tr><td class="mono-cell">guide_tracking</td><td>—</td><td>—</td><td>✓✓</td><td>—</td><td>—</td><td>—</td><td>—</td><td>✓</td></tr>
-      <tr><td class="mono-cell">guide_alert</td><td>—</td><td>—</td><td>✓</td><td>—</td><td>—</td><td>—</td><td>—</td><td>✓✓</td></tr>
+      <tr><td class="mono-cell">postventa_logistics</td><td>—</td><td>—</td><td>✓✓</td><td>—</td><td>—</td><td>—</td><td>—</td><td>✓</td></tr>
+      <tr><td class="mono-cell">postventa_logistics</td><td>—</td><td>—</td><td>✓</td><td>—</td><td>—</td><td>—</td><td>—</td><td>✓✓</td></tr>
       <tr><td class="mono-cell">novedades</td><td>—</td><td>—</td><td>✓</td><td>—</td><td>—</td><td>—</td><td>—</td><td>✓✓</td></tr>
       <tr><td class="mono-cell">redelivery</td><td>—</td><td>—</td><td>✓</td><td>—</td><td>—</td><td>—</td><td>—</td><td>✓</td></tr>
       <tr><td class="mono-cell">remarketing</td><td>—</td><td>—</td><td>✓</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
-      <tr><td class="mono-cell">customer_score</td><td>—</td><td>—</td><td>—</td><td>✓✓</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
-      <tr><td class="mono-cell">carrier_score</td><td>—</td><td>—</td><td>✓</td><td>—</td><td>—</td><td>—</td><td>—</td><td>✓</td></tr>
+      <tr><td class="mono-cell">scoring</td><td>—</td><td>—</td><td>—</td><td>✓✓</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+      <tr><td class="mono-cell">scoring</td><td>—</td><td>—</td><td>✓</td><td>—</td><td>—</td><td>—</td><td>—</td><td>✓</td></tr>
       <tr><td class="mono-cell">marketplace</td><td>—</td><td>—</td><td>—</td><td>—</td><td>✓✓</td><td>—</td><td>—</td><td>—</td></tr>
       <tr><td class="mono-cell">affiliator</td><td>—</td><td>—</td><td>—</td><td>—</td><td>✓</td><td>—</td><td>✓✓</td><td>—</td></tr>
       <tr><td class="mono-cell">product_enrichment</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>✓</td><td>—</td><td>—</td></tr>
-      <tr><td class="mono-cell">logistics_notifier</td><td>—</td><td>✓</td><td>✓</td><td>—</td><td>—</td><td>—</td><td>—</td><td>✓</td></tr>
+      <tr><td class="mono-cell">postventa_logistics</td><td>—</td><td>✓</td><td>✓</td><td>—</td><td>—</td><td>—</td><td>—</td><td>✓</td></tr>
     </tbody>
   </table>
   <p style="font:400 11px 'Inter',sans-serif;color:var(--dim);margin-top:8px">✓✓ = agente principal del journey · ✓ = agente secundario involucrado · — = no participa</p>
@@ -1403,7 +1403,7 @@ dormant
 
 <span class="c">Marcela:</span> Quiero 12 del short tira y 8 del largo familia.
 
-<span class="c">→ cart_builder</span> añade 2 SKUs al carrito
+<span class="c">→ quote</span> añade 2 SKUs al carrito
 <span class="c">→ quote</span> calcula con precios_por_volumen mayorista
 
 <span class="c">quote:</span> 12 PIJ-SHORT-TIRA + 8 PIJ-LARGO-FAMILIA:
@@ -1478,10 +1478,10 @@ dormant
           <tr><td>prospect → quoted</td><td class="mono-cell">cart_built</td><td>quote</td></tr>
           <tr><td>quoted → buyer</td><td class="mono-cell">checkout_completed</td><td>checkout</td></tr>
           <tr><td>buyer → customer</td><td class="mono-cell">payment.confirmed</td><td>(webhook)</td></tr>
-          <tr><td>customer → in_transit</td><td class="mono-cell">order.shipped</td><td>logistics_notifier</td></tr>
-          <tr><td>in_transit → active</td><td class="mono-cell">order.delivered</td><td>guide_tracking</td></tr>
+          <tr><td>customer → in_transit</td><td class="mono-cell">order.shipped</td><td>postventa_logistics</td></tr>
+          <tr><td>in_transit → active</td><td class="mono-cell">order.delivered</td><td>postventa_logistics</td></tr>
           <tr><td>active → dormant</td><td class="mono-cell">no_activity_90d</td><td>remarketing (cron)</td></tr>
-          <tr><td>active → at_risk</td><td class="mono-cell">customer.flagged</td><td>customer_score</td></tr>
+          <tr><td>active → at_risk</td><td class="mono-cell">customer.flagged</td><td>scoring</td></tr>
           <tr><td>dormant → reactivated</td><td class="mono-cell">remarketing.click</td><td>remarketing</td></tr>
         </tbody>
       </table>
@@ -1672,7 +1672,7 @@ Conversation.<span class="fn">update</span>({
     </div>
     <div class="col">
       <h2 class="title">Carrier preference por ciudad</h2>
-      <pre class="code"><span class="c">// carrier_score agente</span>
+      <pre class="code"><span class="c">// scoring agente</span>
 <span class="k">function</span> <span class="fn">recommendCarrier</span>(city) {
   <span class="k">return</span> db.carrierScore.<span class="fn">findMany</span>({
     where: { city, active: <span class="k">true</span> },
@@ -1770,7 +1770,7 @@ trf-001  Ana Trafficker  wallet $1.2M  2FA ✅</pre>
     <div class="persona" style="border-left-color:var(--violet)">
       <div class="ph"><span class="em">🛍️</span><div><div class="name">J10 · Recompra 1-clic</div><div class="role">Returning customer</div></div></div>
       <div class="quote">"Quiero repetir la orden #789 pero con 4 unidades más..."</div>
-      <div class="meta"><span><b>Agentes:</b> cart_builder + checkout</span><span><b>Status:</b> cycle 2</span></div>
+      <div class="meta"><span><b>Agentes:</b> quote + checkout</span><span><b>Status:</b> cycle 2</span></div>
     </div>
     <div class="persona" style="border-left-color:var(--warn)">
       <div class="ph"><span class="em">🌍</span><div><div class="name">J11 · Multi-idioma</div><div class="role">DE / EN / ES auto</div></div></div>
@@ -1795,7 +1795,7 @@ trf-001  Ana Trafficker  wallet $1.2M  2FA ✅</pre>
       <h2 class="title">Roadmap por quarter</h2>
       <pre class="code"><span class="c">// 2025 Q4 — actual</span>
 ✓ 8 journeys core (este deck)
-✓ 26 agentes
+✓ 24 agentes
 ✓ 3 pipelines
 ✓ 18 adapters
 

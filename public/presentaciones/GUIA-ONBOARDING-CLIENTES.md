@@ -114,13 +114,13 @@ Existen muchas herramientas de WhatsApp, CRMs, y plataformas de pauta. Pero **ni
 
 ---
 
-#### 🏆 2. Automatización operativa end-to-end (26 agentes en equipo)
+#### 🏆 2. Automatización operativa end-to-end (24 agentes en equipo)
 
 **El problema:** Los bots de WhatsApp normales responden "Gracias por escribir, te contactaremos pronto". No venden, no cotizan, no cierran.
 
 **Lo que hacen otros:** Chatbots simples con respuestas pre-programadas. No entienden contexto, no perfilan, no recomiendan productos.
 
-**Lo que hacemos nosotros:** 26 agentes IA especializados, cada uno experto en una tarea (perfilamiento, catálogo, carrito, cotización, objeciones, dirección, logística, checkout, seguimiento, novedades, remarketing). Trabajan en secuencia automáticamente — del "Hola" al "Pedido entregado" sin intervención humana.
+**Lo que hacemos nosotros:** 24 agentes IA especializados, cada uno experto en una tarea (perfilamiento, catálogo, carrito, cotización, objeciones, dirección, logística, checkout, seguimiento, novedades, remarketing). Trabajan en secuencia automáticamente — del "Hola" al "Pedido entregado" sin intervención humana.
 
 **Tu beneficio:** menos costo por venta, más conversión. Tu equipo solo supervisa, con trazabilidad de ingresos y gobernanza sobre cada transición.
 
@@ -541,11 +541,11 @@ Aquí ajustas cómo funciona ZIAY para ti. Es como el control remoto de tu TV: c
 
 ---
 
-## 5. Cómo lo hacemos: tus 26 asistentes
+## 5. Cómo lo hacemos: tus 24 asistentes
 
 ### Conoce a tu equipo virtual
 
-Tienes 26 asistentes virtuales, cada uno experto en una cosa. No los vas a usar todos todos los días, pero es bueno saber qué hace cada uno. Los dividimos en 3 equipos — esta es nuestra forma de implementar **automatización operativa end-to-end** (uno de los 4 ejes enterprise):
+Tienes 24 asistentes virtuales, cada uno experto en una cosa. No los vas a usar todos todos los días, pero es bueno saber qué hace cada uno. Los dividimos en 4 equipos — esta es nuestra forma de implementar **automatización operativa end-to-end** (uno de los 4 ejes enterprise):
 
 ### 🛒 Equipo A: Antes de vender (10 asistentes)
 
@@ -556,50 +556,48 @@ Estos te ayudan desde que el cliente escribe "Hola" hasta que confirma el pedido
 | 1 | **El Guardia** (buyer_behavior) | Revisa si el cliente es de los que siempre devuelven. Si es así, avisa para pedir pago anticipado. |
 | 2 | **El Psicólogo** (profile) | Adivina qué tipo de comprador es: ¿mayorista (compra mucho), detal (1-2 unidades), o regalo? |
 | 3 | **El Vendedor** (speech) | Genera el discurso de ventas perfecto para ese tipo de cliente. |
-| 4 | **El Mostrador** (catalog) | Muestra productos con fotos, precios, descripciones. Visual-first. |
-| 5 | **El Empacador** (cart_builder) | Arma el carrito: añade items, calcula totales, descuentos por volumen. |
-| 6 | **El Cotizador** (quote) | Cotiza con cross-sell (si compras X, te recomiendo Y). Aplica precios por volumen. |
-| 7 | **El Negociador** (objection) | Maneja objeciones: "muy caro", "no tengo la talla", "lo pienso". |
-| 8 | **El Cartero** (address) | Confirma los 10 campos de la dirección. Valida que esté bien escrita. |
-| 9 | **El Despachador** (logistics) | Cotiza el flete y elige la mejor transportadora. |
+| 4 | **El Mostrador** (catalog) | Muestra productos con fotos, precios, descripciones. Visual-first. También busca por tema/personaje (Stitch, Hello Kitty). |
+| 5 | **El Empacador+Cotizador** (quote) | Arma el carrito y cotiza con cross-sell (si compras X, te recomiendo Y). Aplica precios por volumen. |
+| 6 | **El Negociador** (objection) | Maneja objeciones: "muy caro", "no tengo la talla", "lo pienso". |
+| 7 | **El Cartero+Geógrafo** (address) | Confirma los 10 campos de la dirección y analiza la calidad (cobertura, historial de entrega). |
+| 8 | **El Despachador** (logistics) | Cotiza el flete y elige la mejor transportadora. |
+| 9 | **El Ojo** (vision) | Identifica productos desde fotos. Cliente manda foto → dice qué producto es. |
 | 10 | **El Cajero** (checkout) | Genera el link de pago o confirma contra entrega. Cierra la venta. |
 
-### 📦 Equipo B: Después de vender (4 asistentes)
+### 📦 Equipo B: Después de vender (5 asistentes)
 
 Estos te ayudan después de que el pedido está confirmado.
 
 | # | Nombre | Qué hace |
 |---|---|---|
-| 11 | **El Rastreador** (guide_tracking) | Sigue cada paquete. Si lleva 3 días sin moverse, avisa. |
+| 11 | **El Rastreador+Alarmista+Avisador** (postventa_logistics) | Sigue cada paquete, detecta guías estancadas y manda notificaciones al comprador. |
 | 12 | **El Gestor de Problemas** (novedades) | Si hay devolución, abre un caso y lo sigue hasta resolverse. |
 | 13 | **El Reintentador** (redelivery) | Si el paquete vuelve, agenda un nuevo intento con dirección corregida. |
-| 14 | **El Recuperador** (remarketing) | Si el cliente dejóó de responder, le manda un mensaje inteligente. |
+| 14 | **El Recuperador** (remarketing) | Si el cliente dejó de responder, le manda un mensaje inteligente. |
+| 15 | **El Retenedor** (sales_retainer) | Detecta abandono y genera mensajes para retener al cliente. |
 
-### 🧠 Equipo C: Inteligencia (5 asistentes)
+### 🧠 Equipo C: Inteligencia (6 asistentes)
 
 Estos no hablan con el cliente. Trabajan en silencio analizando datos.
 
 | # | Nombre | Qué hace |
 |---|---|---|
-| 15 | **El Analista de Clientes** (customer_score) | Puntúa a tus clientes: confiables, riesgosos, devolvedores. |
-| 16 | **El Analista de Transportadoras** (carrier_score) | Puntúa a las transportadoras: cuál entrega mejor. |
+| 16 | **El Analista Dual** (scoring) | Puntúa a tus clientes (confiables, riesgosos, devolvedores) y a las transportadoras (cuál entrega mejor). |
 | 17 | **El Decorador** (product_enrichment) | Analiza tus fotos de productos y genera tags SEO, materiales, colores. |
 | 18 | **El Conector** (marketplace) | Conecta marcas entre sí. Si no tienes un producto, lo busca en otra marca. |
 | 19 | **El Contable** (affiliator) | Mide qué affiliates generan más ventas y calcula comisiones. |
+| 20 | **El Traficante** (traffic_orchestrator) | Gestiona píxeles, SEO, y atribución de pauta. |
 
-### 🎯 Especialistas (7 asistentes)
+### 🛡️ Equipo D: Control y calidad (4 asistentes — añaden gobernanza)
 
-Estos hacen cosas específicas que no encajan en los equipos de arriba.
+Estos vigilan a los demás para asegurar calidad, seguridad y aprendizaje continuo.
 
 | # | Nombre | Qué hace |
 |---|---|---|
-| 20 | **El Ojo** (vision) | Identifica productos desde fotos. Cliente manda foto → dice qué producto es. |
-| 21 | **El Geógrafo** (address_analysis) | Valida direcciones de Colombia (vía + número, barrio, ciudad). |
-| 22 | **El Retenedor** (sales_retainer) | Detecta abandono y genera mensajes para retener al cliente. |
-| 23 | **El Avisador** (logistics_notifier) | Manda notificaciones al comprador sobre su envío. |
-| 24 | **El Traficante** (traffic_orchestrator) | Gestiona píxeles, SEO, y atribución de pauta. |
-| 25 | **El Alarmista** (guide_alert) | Detecta guías estancadas y crea alertas. |
-| 26 | **El Temático** (theme) | Sugiere productos por tema/personaje (Stitch, Hello Kitty, etc.). |
+| 21 | **El Gobernador** (governor) | Revisa cada mensaje del cliente antes de que lo procesen los demás. Bloquea intentos de inyección de prompt o PII. |
+| 22 | **El Auditor de Calidad** (qa_reviewer) | Revisa los outputs de los agentes críticos (cotizaciones, checkout) antes de que lleguen al cliente. |
+| 23 | **El Curador de Memoria** (memory_curator) | Extrae hechos duraderos del cliente (preferencias, historial) para que los demás agentes los recuerden. |
+| 24 | **El Analista de Sentimiento** (sentiment) | Clasifica la emoción del cliente (frustrado, entusiasmado) y dispara al retenedor si detecta riesgo de abandono. |
 
 ---
 
@@ -1189,7 +1187,7 @@ Perfecto. ZIAY se conecta con Shopify y WooCommerce. Tu catálogo se sincroniza 
 Sí. Estamos optimizados para LATAM (Colombia, México, Perú, Chile, Argentina). Funciona con transportadoras locales y métodos de pago locales.
 
 **¿La IA habla como yo?**
-Sí. Configuramos los 26 agentes con tu tono de voz. Puedes ajustar los prompts para que hablen como tú quieres.
+Sí. Configuramos los 24 agentes con tu tono de voz. Puedes ajustar los prompts para que hablen como tú quieres.
 
 **¿Qué pasa si un cliente es problemático?**
 El sistema lo detecta automáticamente. Si es devolvedor, le pedimos pago anticipado. Si es agresivo, puedes bloquearlo.
@@ -1245,7 +1243,7 @@ Todo queda registrado en el historial. Puedes ver qué hiciste, cuándo, y desha
 | **LLM** | Modelo de lenguaje grande. El cerebro de la IA (como ChatGPT). |
 | **Multi-tenant** | Sistema donde varias marcas conviven separadas, como apartamentos. |
 | **Novedad** | Un problema logístico: paquete perdido, dañado, dirección incorrecta. |
-| **Orquestador** | El director que hace trabajar a los 26 agentes en equipo. |
+| **Orquestador** | El director que hace trabajar a los 24 agentes en equipo. |
 | **Pipeline** | Un equipo de agentes que trabaja en secuencia. Hay 3: pre-venta, post-venta, inteligencia. |
 | **Pixel** | Código que rastrea conversiones en tu web. |
 | **Redelivery** | Reintento de entrega cuando un paquete se devuelve. |
@@ -1288,7 +1286,7 @@ Si te gusta, activamos tu marca:
 - ✅ Conectamos tu WhatsApp Business + Messenger + Instagram
 - ✅ Configuramos tu estrategia de pago (anticipado/COD/híbrido)
 - ✅ Creamos tu página web SEO (`/t/tumarca`)
-- ✅ Configuramos los 26 agentes con tu tono de voz
+- ✅ Configuramos los 24 agentes con tu tono de voz
 - ✅ Conectamos tu pauta de Meta/Google/TikTok
 - ✅ Te damos acceso al panel
 

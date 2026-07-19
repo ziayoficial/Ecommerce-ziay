@@ -39,6 +39,27 @@ import { logger } from '@/lib/logger'
 // critique+revise on revenue-critical agent outputs).
 import { runGovernor } from '@/lib/agents/governor.service'
 import { runQAReview, shouldReviewAgent } from '@/lib/agents/qa-reviewer.service'
+// IA-4 — wire the IA-2 hardening layer into the real API routes (was dead
+// code only used by src/lib/orchestrator/orchestrator.ts, which has 0
+// consumers). Now every /api/agents/[agentName] call gets:
+//   - getModelForAgent() → resolves the per-tier model (cheap/standard/frontier)
+//     and passes it to the adapter (so the call actually uses the right GLM
+//     variant instead of the adapter default).
+//   - budgetManager.checkBudget() → pre-flight token+USD cap (in addition to
+//     the legacy `checkBudgetBeforeCall` USD-only check; the new one covers
+//     per-tenant daily/monthly token caps + per-conversation caps).
+//   - agentTracer.startSpan() → opens a span around the LLM call; finalised
+//     on success/error with token usage + cost + latency. Powers
+//     /api/agents/traces (was returning [] because no route called it).
+//   - budgetManager.recordUsage() → debits the in-memory counters + writes
+//     a TokenUsage row (audit ledger). Powers /api/agents/budget (was
+//     returning tokensUsed: 0 because no route called it).
+// The wrapping is non-blocking: any error in the hardening layer is
+// captured + logged, never breaks the agent reply (the customer's response
+// is never delayed by observability).
+import { agentTracer } from '@/lib/agents/tracing'
+import { budgetManager } from '@/lib/agents/budget'
+import { getModelForAgent, estimateCost } from '@/lib/agents/model-router'
 
 // FIX-AI-AGENTS-001 §A-3 — tabla de fallbacks movida a module-scope para
 // que sea accesible tanto del bloque try (cuando la validación de salida
@@ -183,6 +204,38 @@ export const POST = withErrorHandling(
     )
   }
 
+  // IA-4 — IA-2 hardening: resolve the per-agent model tier + pre-flight
+  // the new token-level budget manager (covers per-conversation caps the
+  // legacy `checkBudgetBeforeCall` doesn't). The new check runs alongside
+  // the legacy one — both must allow the call. If the new check fails, we
+  // return a 429 with a structured reason the Governor can surface to the
+  // customer.
+  const tierInfo = getModelForAgent(agentName)
+  const estimatedTokens = tierInfo.tier === 'cheap' ? 1000 : tierInfo.tier === 'standard' ? 2000 : 4000
+  let tierBudgetAllowed = true
+  let tierBudgetReason: string | undefined
+  try {
+    const tierCheck = await budgetManager.checkBudget(ctx.tenantId, estimatedTokens)
+    if (!tierCheck.allowed) {
+      tierBudgetAllowed = false
+      tierBudgetReason = tierCheck.reason
+    }
+  } catch (err) {
+    // Fail-open: the legacy `checkBudgetBeforeCall` above already gated.
+    // The new budget manager failing (DB down, etc.) must not block the
+    // call — captured + logged.
+    logger.warn(
+      { err: err instanceof Error ? err.message : String(err), tenantId: ctx.tenantId, agentName },
+      'budgetManager.checkBudget failed (non-blocking, fail-open)',
+    )
+  }
+  if (!tierBudgetAllowed) {
+    return NextResponse.json(
+      { error: tierBudgetReason || 'Token budget exceeded', code: 'BUDGET_EXCEEDED' },
+      { status: 429 },
+    )
+  }
+
   // ── IA-1 (agent-builder) — Governor: safety/budget gate ──────────────
   // Runs FIRST on every inbound message, before the agent LLM call.
   // Checks for prompt injection, PII leaks, banned content. The governor
@@ -218,6 +271,14 @@ export const POST = withErrorHandling(
       )
     }
   }
+
+  // IA-4 — open a tracing span around the LLM call. The span is finalised
+  // in the try block (success) or the catch block (error/timeout) with
+  // token usage + cost + latency. Non-blocking on observability failures.
+  // Created AFTER the Governor check so a blocked message doesn't leave
+  // an orphan span.
+  const span = agentTracer.startSpan(agentName, ctx)
+  span.setContext({ tenantId: ctx.tenantId, conversationId: ctx.conversationId })
 
   // Persist image identification result for vision agent (after the call)
   // (Done below if agentName === 'vision')
@@ -262,6 +323,11 @@ export const POST = withErrorHandling(
         ],
         {
           provider: tenant?.proveedorIa,
+          // IA-4 — pass the per-tier model so the adapter actually uses
+          // the resolved GLM variant (flash/4.6/4.6-plus) instead of its
+          // default. Previously every call used the adapter default
+          // (`glm-4.6`), defeating the model-router savings.
+          model: tierInfo.model,
           thinking: 'disabled',
         },
       ),
@@ -270,6 +336,34 @@ export const POST = withErrorHandling(
       ),
     ])
     const reply = llmResult.content.trim() || ''
+
+    // IA-4 — finalize the tracing span with token usage + cost + model
+    // actually used by the adapter. Non-blocking: span.end() never throws
+    // (it logs + persists fire-and-forget).
+    const _tokensIn = llmResult.usage?.promptTokens ?? 0
+    const _tokensOut = llmResult.usage?.completionTokens ?? 0
+    const _costUsd = estimateCost(agentName, _tokensIn, _tokensOut)
+    span.end(reply, {
+      tenantId: ctx.tenantId,
+      conversationId: ctx.conversationId,
+      model: llmResult.model ?? tierInfo.model,
+      tokensIn: _tokensIn,
+      tokensOut: _tokensOut,
+      costUsd: _costUsd,
+      status: 'success',
+    })
+    // IA-4 — debit the new token-level budget ledger. Fire-and-forget on
+    // the DB write (the in-memory counter is updated synchronously so
+    // the very next checkBudget sees the new usage).
+    budgetManager.recordUsage(
+      ctx.tenantId,
+      ctx.conversationId,
+      _tokensIn,
+      _tokensOut,
+      _costUsd,
+      agentName,
+      llmResult.model ?? tierInfo.model,
+    )
 
     // FIX-AI-AGENTS-001 §A-2: validar la salida contra el esquema Zod
     // del agente (si existe). 8 agentes tienen esquema (v0.4.1 · IA-3); los 12 restantes
@@ -417,6 +511,26 @@ export const POST = withErrorHandling(
     // mientras que 0.1 implica "nunca llegamos a tener output del modelo").
     // SPRINT-AI-LLM-ADAPTER-001 §A-3: incluye el caso de timeout (15s).
     const confidence = 0.1
+
+    // IA-4 — finalize the tracing span as error/timeout. If the adapter
+    // returned partial usage before the timeout, we still debit it so the
+    // budget ledger stays honest. Most timeouts leave usage = undefined.
+    const _errTokensIn = llmResult?.usage?.promptTokens ?? 0
+    const _errTokensOut = llmResult?.usage?.completionTokens ?? 0
+    const _errCostUsd = estimateCost(agentName, _errTokensIn, _errTokensOut)
+    const _isTimeout = message.toLowerCase().includes('timeout')
+    span.setError(message, _isTimeout ? 'timeout' : 'error')
+    if (_errTokensIn > 0 || _errTokensOut > 0) {
+      budgetManager.recordUsage(
+        ctx.tenantId,
+        ctx.conversationId,
+        _errTokensIn,
+        _errTokensOut,
+        _errCostUsd,
+        agentName,
+        llmResult?.model ?? tierInfo.model,
+      )
+    }
 
     // SPRINT-GOVERNANCE-001 — pilar #4: persistir incluso los fallbacks
     // (la trazabilidad cubre los casos de error del agente).

@@ -214,8 +214,8 @@ Final score: **10.0/10** · 71 Prisma models · 94 API routes · 964 tests (51 f
 - Admin incident management UI (`/admin/incidents`) — Sprint 12
 - Log shipping (pino → external service)
 
-### Added — AI Agents (26 agents across 6 stages)
-- 26 agents: discovery, evaluation, decision, payment, fulfillment, learning
+### Added — AI Agents (24 agents across 6 stages)
+- 24 agents: discovery, evaluation, decision, payment, fulfillment, learning
 - LLM adapter (Zai/OpenAI/xAI/Ollama) — no direct `ZAI.create()` calls (ADR-0004)
 - 11 Zod output schemas for JSON-returning agents
 - Prompt injection defense (`wrapUserInput` + `ANTI_INJECTION_PREFIX`)

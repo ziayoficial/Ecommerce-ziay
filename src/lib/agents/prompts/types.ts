@@ -36,6 +36,36 @@ export type AgentName =
   // IA-1 (agent-builder) — control-plane agents
   | 'governor' | 'qa_reviewer' | 'memory_curator' | 'sentiment'
 
+// IA-4 (P1-2) — recalled long-term memory fact. Returned by
+// `recallCustomerMemory()` in src/lib/agents/memory-curator.service.ts and
+// injected into the AgentContext of revenue-critical agents (quote,
+// objection, address, checkout) so they can reference "what we already
+// know about this customer" in their prompts. Mirrors the return shape of
+// `recallCustomerMemory` 1:1 — kept here (not imported) so the types.ts
+// file stays the single source of truth for AgentContext shape.
+export interface RecalledCustomerMemory {
+  id: string
+  type: string
+  key: string
+  value: string
+  confidence: number
+  /** Cosine similarity score [0,1] between the query and the fact embedding. */
+  score: number
+}
+
+// IA-4 (P1-4) — sentiment classification result, passed into the
+// AgentContext so downstream agents can adapt their tone. Mirrors the
+// `SentimentResult` interface from src/lib/agents/sentiment.service.ts
+// (kept here so types.ts is the single source of truth for AgentContext).
+export interface SentimentContext {
+  sentiment: 'positive' | 'neutral' | 'negative' | 'frustrated' | 'excited'
+  score: number
+  urgency: 'low' | 'medium' | 'high'
+  buyingIntent: 'low' | 'medium' | 'high'
+  churnRisk: 'low' | 'medium' | 'high'
+  decisionSource: 'llm' | 'timeout' | 'error'
+}
+
 export interface AgentContext {
   tenantId: string
   conversationId?: string
@@ -78,4 +108,19 @@ export interface AgentContext {
   /** `catalog` theme filter: si está presente, el agente busca por tema en
    *  `temas_diseño` en vez de hacer búsqueda general por `query`. */
   theme?: string
+  // ─── IA-4 (P1-2) — long-term customer memory recall ───
+  /** Top-K most relevant `CustomerMemory` facts for this customer +
+   *  conversation query, recalled via `recallCustomerMemory()` before
+   *  building the agent prompt. Consumed by quote, objection, address,
+   *  checkout (the agents that most benefit from "what we already know
+   *  about this customer"). Agents that don't need it just ignore the
+   *  field — empty/undefined means "no recalled memories". */
+  customerMemories?: RecalledCustomerMemory[]
+  // ─── IA-4 (P1-4) — sentiment classification result ───
+  /** Latest sentiment classification of the customer's message, passed
+   *  downstream so agents can adapt their tone (frustrated → empathetic,
+   *  buyingIntent=high → close, churnRisk=high → retention incentive).
+   *  Undefined when sentiment hasn't been classified yet (first turn,
+   *  or sentiment service timed out / errored → neutral fallback). */
+  sentiment?: SentimentContext
 }

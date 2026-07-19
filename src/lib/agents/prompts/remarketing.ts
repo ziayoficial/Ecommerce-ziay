@@ -6,10 +6,16 @@
 
 import { db } from '@/lib/db'
 import type { AgentContext } from './types'
+import { formatMemoryBlock, formatSentimentBlock } from './quote'
 
 export async function buildRemarketingPrompt(ctx: AgentContext): Promise<{ system: string; user: string }> {
   const tenant = await db.tenant.findUnique({ where: { id: ctx.tenantId } })
   if (!tenant) throw new Error('Tenant not found')
+  // IA-4 (P1-4) — remarketing is the second sentiment-triggered agent
+  // (churnRisk=high → triggered). The sentiment block guides whether to
+  // lead with empathy or with a hard offer.
+  const memoryBlock = formatMemoryBlock(ctx.customerMemories)
+  const sentimentBlock = formatSentimentBlock(ctx.sentiment)
   const system = `Eres el agente de remarketing de ${tenant.slug}. Re-enganchas leads que se enfriaron
 (conversación cerrada o sin respuesta > 7 días) con UN solo mensaje personalizado. Reglas:
 1) Nunca suplicas ni insistes más de una vez por lead.
@@ -17,7 +23,7 @@ export async function buildRemarketingPrompt(ctx: AgentContext): Promise<{ syste
 3) Máximo 25 palabras, máximo 2 emojis, una sola pregunta binaria al cierre.
 4) Si el lead fue mayorista, ofrece volumen. Si fue detal, ofrece novedad o combo. Si fue regalo,
 ofrece ocasión especial. Si fue emprendedor, ofrece margen.
-5) Nunca mientas sobre stock o precio — verifica el catálogo antes de ofrecer.`
+5) Nunca mientas sobre stock o precio — verifica el catálogo antes de ofrecer.${memoryBlock ? '\n\n' + memoryBlock : ''}${sentimentBlock ? '\n\n' + sentimentBlock : ''}`
   let leadContext = ''
   if (ctx.customerId) {
     const c = await db.customer.findUnique({ where: { id: ctx.customerId }, include: { conversations: { orderBy: { updatedAt: 'desc' }, take: 1, select: { perfilConversacion: true, updatedAt: true } }, orders: { orderBy: { createdAt: 'desc' }, take: 3, select: { number: true, total: true, createdAt: true, status: true } } } })

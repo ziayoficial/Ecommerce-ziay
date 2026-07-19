@@ -269,7 +269,7 @@
     "Los agentes 6.5-6.9 (theme, objection, address, logistics, vision) se invocan condicionalmente según el contexto.",
     "",
     "ESTADO ACTUAL (SPRINT-FIXES-N8N-DEPLOY-001):",
-    "- El proyecto ahora tiene 26 agentes (10 originales + 16 nuevos agregados en BUILD-AGENTS-LIB-001).",
+    "- El proyecto ahora tiene 24 agentes (10 originales + 16 nuevos agregados en BUILD-AGENTS-LIB-001).",
     "- El pipeline canónico actual es de 9 pasos (NO 10) — ver master-orchestrator.json y src/lib/orchestrator/constants.ts.",
     "- El agente 'vision' se invoca como variante visual-primero dentro del paso 'catalog' (no como paso separado).",
     "- Los 16 agentes nuevos (buyer_behavior, cart_builder, guide_tracking, novedades, redelivery, remarketing, guide_alert, sales_retainer, logistics_notifier, customer_score, carrier_score, product_enrichment, marketplace, affiliator, traffic_orchestrator, address_analysis) se invocan individualmente vía POST /api/agents/{agentName} — ver los workflows agent-*.json individuales.",

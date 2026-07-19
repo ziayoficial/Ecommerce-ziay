@@ -37,14 +37,48 @@ import { conversationService, agentsService } from '@/lib/services'
 // gate, runs FIRST), Sentiment Analyzer (parallel classification),
 // Memory Curator (async long-term fact extraction).
 import { runGovernor } from '@/lib/agents/governor.service'
-import { runSentimentAsync } from '@/lib/agents/sentiment.service'
-import { runMemoryCuratorAsync } from '@/lib/agents/memory-curator.service'
+import { runSentimentAsync, runSentiment } from '@/lib/agents/sentiment.service'
+import { runMemoryCuratorAsync, recallCustomerMemory } from '@/lib/agents/memory-curator.service'
+// IA-4 — wire the IA-2 hardening layer into the real API route. Was
+// previously dead code (only used by src/lib/orchestrator/orchestrator.ts
+// which has 0 consumers). Now every /api/ai-reply call gets:
+//   - getModelForAgent('ai_reply') → uses the 'standard' tier default
+//     (ai_reply isn't in AGENT_MODEL_TIER; the router falls back to
+//     'standard' = glm-4.6, which matches the adapter default for ZAI).
+//   - budgetManager.checkBudget() pre-flight + recordUsage() post-call.
+//   - agentTracer.startSpan() around the LLM call.
+import { agentTracer } from '@/lib/agents/tracing'
+import { budgetManager } from '@/lib/agents/budget'
+import { getModelForAgent, estimateCost } from '@/lib/agents/model-router'
+// IA-4 (P1-2 / P1-3 / P1-4) — agent prompt builders + schemas for the
+// sentiment-triggered retention agent invocation (sales_retainer /
+// remarketing). The retention agent is invoked AFTER the reply is
+// generated, fire-and-forget, so the customer's reply is never delayed.
+import { AGENT_NAMES, AgentName, buildAgentPrompt, FALLBACKS } from '@/lib/agents/prompts'
+import { getLogger } from '@/lib/logger'
+
+const log = getLogger('api:ai-reply')
 
 // TD-2: Zod schema for ai-reply POST.
 const AiReplySchema = z.object({
   conversationId: z.string().min(1),
   tone: z.string().optional(),
 }).passthrough()
+
+// IA-4 (P1-4) — stashed sentiment result on the conversation object so
+// the system prompt builder + the post-reply retention invoker can read
+// it without plumbing a separate variable through every helper.
+type ConvWithSentiment = {
+  _sentiment?: {
+    sentiment: string
+    score: number
+    urgency: string
+    buyingIntent: string
+    churnRisk: string
+    decisionSource: string
+    triggeredAgents: string[]
+  }
+}
 
 // POST /api/ai-reply
 // Generates context-aware sales replies using the LLM skill.
@@ -153,15 +187,63 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
         { status: 403 },
       )
     }
-    // ── IA-1 (agent-builder) — Sentiment Analyzer (parallel, async) ────
-    // Fire-and-forget: classify the customer's latest message in parallel
-    // with the LLM reply generation. NEVER blocks the response.
-    runSentimentAsync({
-      tenantId: conv.tenantId,
-      conversationId,
-      customerId: conv.customerId,
-      message: latestCustomerMessage,
-    })
+    // ── IA-4 (P1-3 / P1-4) — Sentiment Analyzer (awaited) ─────────────
+    // Switched from fire-and-forget to an awaited call so the classification
+    // result is available to (a) adapt the reply's tone via the system
+    // prompt below (P1-4) and (b) drive the retention-agent trigger
+    // directly after the reply is generated (P1-3 — previously the
+    // `agent:trigger` socket event had no listener).
+    //
+    // The sentiment call has a 1.5s timeout built into `runSentiment`,
+    // so the worst-case latency impact is bounded. On timeout/error it
+    // returns a neutral fallback — the reply continues with no tone
+    // adjustment and no retention trigger.
+    try {
+      const sentiment = await runSentiment({
+        tenantId: conv.tenantId,
+        conversationId,
+        customerId: conv.customerId,
+        message: latestCustomerMessage,
+      })
+      // Stash on the request-scoped `conv` object so the system prompt
+      // builder + the post-reply retention invoker can read it.
+      ;(conv as ConvWithSentiment)._sentiment = sentiment
+    } catch (err) {
+      // Non-blocking — fall back to the legacy async emit so the
+      // dashboard still sees the classification attempt.
+      log.warn(
+        { err: err instanceof Error ? err.message : String(err), conversationId },
+        'Sentiment synchronous call failed — continuing without sentiment ctx (non-blocking)',
+      )
+      runSentimentAsync({
+        tenantId: conv.tenantId,
+        conversationId,
+        customerId: conv.customerId,
+        message: latestCustomerMessage,
+      })
+    }
+  }
+
+  // IA-4 (P1-2) — recall long-term customer memory (past purchases,
+  // preferences, objections) so the reply can reference "lo que ya
+  // sabemos" instead of asking the customer again. Non-blocking: failure
+  // → empty memories (the system prompt just doesn't get the memory block).
+  let customerMemories: { id: string; type: string; key: string; value: string; confidence: number; score: number }[] = []
+  if (conv.customerId && latestCustomerMessage) {
+    try {
+      customerMemories = await recallCustomerMemory({
+        tenantId: conv.tenantId,
+        customerId: conv.customerId,
+        query: latestCustomerMessage,
+        topK: 5,
+        minScore: 0.15,
+      })
+    } catch (err) {
+      log.warn(
+        { err: err instanceof Error ? err.message : String(err), tenantId: conv.tenantId, customerId: conv.customerId },
+        'recallCustomerMemory failed (non-blocking) — reply will run without memory block',
+      )
+    }
   }
 
   // Build context for the model
@@ -190,6 +272,31 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   // SPRINT-BACKEND-FINAL-001 — DB read migrated to `conversationService.getTenantLlmProvider`.
   const tenant = await conversationService.getTenantLlmProvider(conv.tenantId)
 
+  // IA-4 (P1-2 / P1-4) — inject recalled memory + sentiment tone
+  // adjustment into the system prompt. The memory block references
+  // "lo que ya sabemos del cliente" so the reply doesn't re-ask. The
+  // sentiment block nudges the tone (frustrated → empathetic, high
+  // buyingIntent → close).
+  const memoryBlock = customerMemories.length > 0
+    ? '\n\nContexto conocido del cliente (recuperado de memoria a largo plazo — úsalo SI es relevante, NO lo repitas textualmente al cliente):\n' +
+      customerMemories.slice(0, 8).map((m) => {
+        const v = m.value.length > 200 ? m.value.slice(0, 200) + '…' : m.value
+        return `- ${m.type} · ${m.key}: ${v} (confianza ${m.confidence.toFixed(2)})`
+      }).join('\n')
+    : ''
+  const sentiment = (conv as ConvWithSentiment)._sentiment
+  const sentimentBlock = (() => {
+    if (!sentiment || sentiment.decisionSource !== 'llm') return ''
+    const parts: string[] = []
+    if (sentiment.sentiment === 'frustrated') parts.push('El cliente parece frustrado — usa un tono calmado y empático, reconoce su molestia antes de responder.')
+    if (sentiment.sentiment === 'excited') parts.push('El cliente está entusiasmado — refuerza la energía y avanza rápido hacia el cierre.')
+    if (sentiment.urgency === 'high') parts.push('El cliente muestra urgencia — responde sin demora y prioriza la información esencial.')
+    if (sentiment.buyingIntent === 'high') parts.push('El cliente muestra fuerte intención de compra — mueve la conversación hacia el cierre (cantidades, dirección, pago).')
+    if (sentiment.churnRisk === 'high') parts.push('El cliente podría estar por abandonar — ofrece un incentivo de retención (contra entrega, bono pequeño).')
+    if (parts.length === 0) return ''
+    return '\n\nAjuste de tono según sentimiento detectado:\n' + parts.map((p) => `- ${p}`).join('\n')
+  })()
+
   const systemPrompt = `Eres un asistente de ventas conversacional experto para una tienda de belleza y cuidado personal en Colombia (y expansión internacional).
 Canal: ${conv.channel.displayName} (${conv.channel.type}).
 Estrategia de pago del canal: ${strategyText}
@@ -199,7 +306,7 @@ Contexto de atribución: ${conv.sourceCampaign ? 'vino por campaña "' + conv.so
 Catálogo disponible:
 ${catalog}
 
-Tono: ${tone}, cálido, cercano (estilo LATAM), emojis moderados. Máximo 2 mensajes cortos. Cierra hacia la venta: confirma producto, cantidad, modo de pago y dirección. NO inventes precios fuera del catálogo. Si el cliente pregunta por contra entrega y el canal es solo 'advance', explica amablemente que ese canal requiere pago anticipado pero ofrece descuento.`
+Tono: ${tone}, cálido, cercano (estilo LATAM), emojis moderados. Máximo 2 mensajes cortos. Cierra hacia la venta: confirma producto, cantidad, modo de pago y dirección. NO inventes precios fuera del catálogo. Si el cliente pregunta por contra entrega y el canal es solo 'advance', explica amablemente que ese canal requiere pago anticipado pero ofrece descuento.${memoryBlock}${sentimentBlock}`
 
   // SPRINT-AI-LLM-ADAPTER-001 §A-7 — convertir el historial a formato
   // Message[] (role+content) y truncar para preservar el context window.
@@ -242,6 +349,15 @@ Tono: ${tone}, cálido, cercano (estilo LATAM), emojis moderados. Máximo 2 mens
   const startTime = Date.now()
   let llmResult: LLMChatResult | undefined
 
+  // IA-4 — IA-2 hardening: resolve the per-tier model + pre-flight the
+  // new token-level budget manager + open a tracing span around the LLM
+  // call. The model for /api/ai-reply is the 'standard' tier (glm-4.6)
+  // via getModelForAgent's fallback — explicit per-agent override can be
+  // added to AGENT_MODEL_TIER if a tenant wants a different tier.
+  const tierInfo = getModelForAgent('ai_reply')
+  const span = agentTracer.startSpan('ai_reply', { tenantId: conv.tenantId, conversationId: conv.id, customerId: conv.customerId })
+  span.setContext({ tenantId: conv.tenantId, conversationId: conv.id })
+
   try {
     // §A-3 (timeout): Promise.race con 15s. Si el LLM no responde,
     // cae al catch (fallback deterministic) — mismo comportamiento que
@@ -249,6 +365,9 @@ Tono: ${tone}, cálido, cercano (estilo LATAM), emojis moderados. Máximo 2 mens
     llmResult = await Promise.race([
       chat(messages, {
         provider: tenant?.proveedorIa,
+        // IA-4 — pass the per-tier model so the adapter uses the resolved
+        // GLM variant instead of its default.
+        model: tierInfo.model,
         thinking: 'disabled',
       }),
       new Promise<never>((_, reject) =>
@@ -260,6 +379,29 @@ Tono: ${tone}, cálido, cercano (estilo LATAM), emojis moderados. Máximo 2 mens
     // libre (no JSON), no hay esquema Zod que validar → 0.6.
     // (Antes era 0.9 hardcodeado en cada éxito.)
     const confidence = 0.6
+
+    // IA-4 — finalize the tracing span + debit the budget ledger.
+    const tokensIn = llmResult.usage?.promptTokens ?? 0
+    const tokensOut = llmResult.usage?.completionTokens ?? 0
+    const costUsd = estimateCost('ai_reply', tokensIn, tokensOut)
+    span.end(reply, {
+      tenantId: conv.tenantId,
+      conversationId: conv.id,
+      model: llmResult.model ?? tierInfo.model,
+      tokensIn,
+      tokensOut,
+      costUsd,
+      status: 'success',
+    })
+    budgetManager.recordUsage(
+      conv.tenantId,
+      conv.id,
+      tokensIn,
+      tokensOut,
+      costUsd,
+      'ai_reply',
+      llmResult.model ?? tierInfo.model,
+    )
 
     // SPRINT-AI-LLM-ADAPTER-001 §A-6 — persistir tokens/costo/latencia
     // en DecisionLog. El path de éxito antes no persistía nada; ahora
@@ -294,6 +436,43 @@ Tono: ${tone}, cálido, cercano (estilo LATAM), emojis moderados. Máximo 2 mens
       })
     }
 
+    // ── IA-4 (P1-3) — Sentiment `agent:trigger` listener ──────────────
+    // The Sentiment service emits socket `agent:trigger` events when it
+    // detects frustration / churn risk / high buying intent (target =
+    // sales_retainer / remarketing / quote). Previously NO consumer
+    // listened — the triggered retention agents never actually ran.
+    //
+    // We replace the cross-process socket listener with a direct
+    // fire-and-forget call: after the reply is sent, if the sentiment
+    // classification triggered any retention agents (excluding 'quote',
+    // which is a no-op in this single-reply route), we invoke each one
+    // with the conversation context + the sentiment + the recalled
+    // memory, then emit the retention reply via socket so the operator
+    // can review + route it. NEVER delays the customer's reply.
+    if (sentiment && sentiment.triggeredAgents.length > 0) {
+      const retentionTargets = sentiment.triggeredAgents.filter(
+        (a) => a !== 'quote' && AGENT_NAMES.includes(a as AgentName),
+      )
+      for (const target of retentionTargets) {
+        // Fire-and-forget — the customer's reply is already returned.
+        void invokeRetentionAgent({
+          agentName: target as AgentName,
+          tenantId: conv.tenantId,
+          conversationId: conv.id,
+          customerId: conv.customerId,
+          message: latestCustomerMessage,
+          providerName: tenant?.proveedorIa,
+          sentiment,
+          customerMemories,
+        }).catch((err) => {
+          log.warn(
+            { err: err instanceof Error ? err.message : String(err), target, conversationId: conv.id },
+            'Sentiment-triggered retention agent failed (non-blocking)',
+          )
+        })
+      }
+    }
+
     return NextResponse.json({ reply, confidence })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'unknown error'
@@ -304,6 +483,26 @@ Tono: ${tone}, cálido, cercano (estilo LATAM), emojis moderados. Máximo 2 mens
     // que 0.1 implica "nunca llegamos a tener output del modelo").
     // SPRINT-AI-LLM-ADAPTER-001 §A-3: incluye el caso de timeout (15s).
     const confidence = 0.1
+
+    // IA-4 — finalize the tracing span as error/timeout. If the adapter
+    // returned partial usage before the timeout, still debit it.
+    const _errTokensIn = llmResult?.usage?.promptTokens ?? 0
+    const _errTokensOut = llmResult?.usage?.completionTokens ?? 0
+    const _errCostUsd = estimateCost('ai_reply', _errTokensIn, _errTokensOut)
+    const _isTimeout = message.toLowerCase().includes('timeout')
+    span.setError(message, _isTimeout ? 'timeout' : 'error')
+    if (_errTokensIn > 0 || _errTokensOut > 0) {
+      budgetManager.recordUsage(
+        conv.tenantId,
+        conv.id,
+        _errTokensIn,
+        _errTokensOut,
+        _errCostUsd,
+        'ai_reply',
+        llmResult?.model ?? tierInfo.model,
+      )
+    }
+
     // §A-3 auto-escalación: 0.1 < 0.6 → persistir DecisionLog con
     // `humanReviewed: false` y emitir `agent:low_confidence` al tenant.
     // SPRINT-BACKEND-FINAL-001 — DB write migrated to `agentsService.persistDecisionLog`.
@@ -333,3 +532,101 @@ Tono: ${tone}, cálido, cercano (estilo LATAM), emojis moderados. Máximo 2 mens
     return NextResponse.json({ reply: fallback, confidence, error: message })
   }
 })
+
+// ───────────────────────────────────────────────────────────────────────────
+// IA-4 (P1-3) — Fire-and-forget retention agent invoker.
+//
+// Called after the /api/ai-reply reply is generated, when the sentiment
+// classification triggered a retention agent (frustrated → sales_retainer,
+// churnRisk=high → remarketing). The invocation:
+//   1. Builds the retention agent's prompt with the full conversation
+//      context (tenantId, customerId, latest message, sentiment, recalled
+//      memory) — same shape as /api/agents/[agentName] uses.
+//   2. Calls the LLM via the pluggable adapter, with a 15s timeout.
+//   3. Emits the retention reply via the `agent:trigger` socket event so
+//      the dashboard can surface it to the operator for review + routing
+//      to the customer.
+//
+// NEVER awaits — the customer's reply was already returned. Any failure
+// is captured + logged; the operator won't see the retention suggestion
+// in that case (acceptable: better to deliver the customer's reply than
+// to block on a retention side-effect).
+// ───────────────────────────────────────────────────────────────────────────
+
+async function invokeRetentionAgent(params: {
+  agentName: AgentName
+  tenantId: string
+  conversationId: string
+  customerId?: string
+  message: string
+  providerName?: string
+  sentiment: { sentiment: string; score: number; urgency: string; buyingIntent: string; churnRisk: string; decisionSource: string; triggeredAgents: string[] }
+  customerMemories: { id: string; type: string; key: string; value: string; confidence: number; score: number }[]
+}): Promise<void> {
+  const start = Date.now()
+  const { system, user } = await buildAgentPrompt(params.agentName, {
+    tenantId: params.tenantId,
+    conversationId: params.conversationId,
+    customerId: params.customerId,
+    message: params.message,
+    // The literal types in SentimentContext (e.g. 'frustrated') are
+    // already validated by the sentiment service's Zod schema. Cast to
+    // satisfy the AgentContext type without re-validating here.
+    sentiment: params.sentiment as unknown as {
+      sentiment: 'positive' | 'neutral' | 'negative' | 'frustrated' | 'excited'
+      score: number
+      urgency: 'low' | 'medium' | 'high'
+      buyingIntent: 'low' | 'medium' | 'high'
+      churnRisk: 'low' | 'medium' | 'high'
+      decisionSource: 'llm' | 'timeout' | 'error'
+    },
+    customerMemories: params.customerMemories.length > 0 ? params.customerMemories : undefined,
+  })
+
+  const messages: Message[] = [
+    { role: 'system', content: ANTI_INJECTION_PREFIX + system },
+    { role: 'user', content: wrapUserInput(user) },
+  ]
+
+  let reply = ''
+  let model = ''
+  try {
+    const result = await Promise.race([
+      chat(messages, {
+        provider: params.providerName,
+        model: getModelForAgent(params.agentName).model,
+        thinking: 'disabled',
+      }),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Retention agent LLM timeout (15s)')), 15_000),
+      ),
+    ])
+    reply = result.content.trim() || FALLBACKS[params.agentName]
+    model = result.model
+  } catch (err) {
+    log.warn(
+      { err: err instanceof Error ? err.message : String(err), agentName: params.agentName, conversationId: params.conversationId },
+      'Retention agent LLM call failed — using fallback reply',
+    )
+    reply = FALLBACKS[params.agentName]
+  }
+
+  // Emit the retention reply to the tenant's dashboard. The dashboard
+  // surfaces it as a suggestion (NOT auto-sent to the customer — the
+  // operator reviews + approves). This is the actionable sink for the
+  // previously-unheard `agent:trigger` socket event.
+  emitToTenant(params.tenantId, 'agent:trigger', {
+    target: params.agentName,
+    conversationId: params.conversationId,
+    customerId: params.customerId,
+    reason: `sentiment:${params.sentiment.sentiment}/churn:${params.sentiment.churnRisk}/intent:${params.sentiment.buyingIntent}`,
+    reply,
+    model,
+    latencyMs: Date.now() - start,
+  })
+
+  log.info(
+    { agentName: params.agentName, conversationId: params.conversationId, replyLen: reply.length, latencyMs: Date.now() - start },
+    'Sentiment-triggered retention agent invoked (fire-and-forget)',
+  )
+}

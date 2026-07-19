@@ -189,7 +189,7 @@ src/lib/services/
 
 ---
 
-## 5. LOS 26 AGENTES IA
+## 5. LOS 24 AGENTES IA
 
 ### Pipeline A: Pre-venta (10 agentes)
 
@@ -198,48 +198,46 @@ src/lib/services/
 | 1 | buyer_behavior | Detecta devolvedores antes de vender (20.5% devolvedores en datos reales) |
 | 2 | profile | Perfila: mayorista / emprendedor / detal / regalo |
 | 3 | speech | Discurso de ventas personalizado por perfil |
-| 4 | catalog | Muestra productos con imágenes en el chat (visual-first) |
-| 5 | cart_builder | Arma carrito conversacional con descuentos por volumen |
-| 6 | quote | Cotización con cross-sell, precios por volumen (3 tiers) |
-| 7 | objection | Maneja objeciones: desconfianza, precio, talla, lo_pienso |
-| 8 | address | Formulario de 11 campos en un solo mensaje (nombre, cédula, teléfono, dept, ciudad, dirección, barrio, horario, talla, diseño, cantidad) |
-| 9 | logistics | Cotiza flete con Dropi/99envios/Aveonline, elige transportadora |
+| 4 | catalog | Muestra productos con imágenes en el chat (visual-first) + búsqueda por tema |
+| 5 | quote | Cotización con cross-sell, precios por volumen (3 tiers) + constructor de carrito |
+| 6 | objection | Maneja objeciones: desconfianza, precio, talla, lo_pienso |
+| 7 | address | Formulario de 11 campos + análisis de dirección (cobertura, historial) |
+| 8 | logistics | Cotiza flete con Dropi/99envios/Aveonline, elige transportadora |
+| 9 | vision | Identifica productos desde fotos del cliente (VLM glm-4.6v) |
 | 10 | checkout | Genera link de pago (MP/Wompi/Stripe/PayU) o confirma contra entrega |
 
-### Pipeline B: Post-venta (4 agentes)
+### Pipeline B: Post-venta (5 agentes)
 
 | # | Nombre | Función |
 |---|---|---|
-| 11 | guide_tracking | Sigue guías, alerta si estancadas (>3 días sin movimiento) |
+| 11 | postventa_logistics | Tracking + alertas de guías estancadas + notificaciones al comprador |
 | 12 | novedades | CRM de incidencias: crear caso, evidence, messages, resolution |
 | 13 | redelivery | Reintentos de entrega con dirección corregida, máximo configurable |
 | 14 | remarketing | Campañas de recuperación para clientes que no responden |
+| 15 | sales_retainer | Retiene ventas en abandono/cancelación |
 
 ### Pipeline C: Inteligencia (5 agentes)
 
 | # | Nombre | Función |
 |---|---|---|
-| 15 | customer_score | Puntúa clientes: confiables (100%), riesgo (1-49%), devolvedores (0%) |
-| 16 | carrier_score | Puntúa transportadoras por tasa de entrega |
+| 16 | scoring | Puntúa clientes (confiables/riesgo/devolvedores) y transportadoras por tasa de entrega |
 | 17 | product_enrichment | VLM glm-4.6v enriquece productos con SEO tags, materiales, colores |
 | 18 | marketplace | Cross-brand: si no tienes producto, lo busca en otra marca |
 | 19 | affiliator | Mide performance de traffickers, calcula comisiones |
+| 20 | traffic_orchestrator | Gestiona píxeles, SEO, AEO |
 
-### Especializados (7 agentes)
+### Control-plane (4 agentes — IA-1)
 
 | # | Nombre | Función |
 |---|---|---|
-| 20 | vision | Identifica productos desde fotos del cliente (VLM glm-4.6v) |
-| 21 | address_analysis | Valida direcciones de Colombia (vía + número, barrio, ciudad) |
-| 22 | sales_retainer | Retiene ventas en abandono/cancelación |
-| 23 | logistics_notifier | Notifica al comprador sobre su envío |
-| 24 | traffic_orchestrator | Gestiona píxeles, SEO, AEO |
-| 25 | guide_alert | Detecta guías estancadas, crea alertas |
-| 26 | theme | Sugiere productos por tema/personaje (Stitch, Hello Kitty, Marvel) |
+| 21 | governor | Safety/budget gate — corre PRIMERO en cada mensaje, bloquea inyección de prompt o PII |
+| 22 | qa_reviewer | Reflexion (critique+revise) sobre outputs de agentes críticos (quote, checkout) |
+| 23 | memory_curator | Extracción async de hechos duraderos del cliente → CustomerMemory |
+| 24 | sentiment | Clasifica emoción del cliente, dispara agentes de retención automáticamente |
 
 ### Implementación
 
-- **Ubicación:** `src/lib/agents/prompts/` (28 archivos — 26 agentes + types.ts + index.ts)
+- **Ubicación:** `src/lib/agents/prompts/` (26 archivos — 24 agentes + types.ts + index.ts)
 - **Cada agente:** función `build{Name}Prompt(ctx)` que retorna `{ system, user }`
 - **Fallback:** cada agente tiene un fallback determinístico si el LLM falla
 - **Orquestación:** POST /api/orchestrate con `action: 'full' | 'step'` y `pipeline: 'pre_sale' | 'post_sale' | 'intelligence'`
@@ -376,7 +374,7 @@ src/lib/services/
 
 ### Nivel de autonomía (según Deloitte)
 
-ZIAY está en **Nivel 1-2**: los 26 agentes hacen el 95% del trabajo (investigan, perfilan, cotizan, cierran) y el humano solo supervisa casos edge.
+ZIAY está en **Nivel 1-2**: los 24 agentes hacen el 95% del trabajo (investigan, perfilan, cotizan, cierran) y el humano solo supervisa casos edge.
 
 ### C-commerce (Comercio Conversacional)
 
@@ -387,13 +385,13 @@ ZIAY está en **Nivel 1-2**: los 26 agentes hacen el 95% del trabajo (investigan
 | Carrito conversacional | ✅ | ConversationalCart + CartItem models |
 | Cotización automática | ✅ | Agent quote con precios por volumen (3 tiers) |
 | Pago en el chat | ✅ | Link de pago generado dentro de la conversación |
-| Seguimiento de envío | ✅ | Agent guide_tracking + alertas |
+| Seguimiento de envío | ✅ | Agent postventa_logistics (tracking + alertas + notificaciones) |
 | CRM de novedades | ✅ | 3 tabs: Casos, Reintentos, Historial |
 | Remarketing | ✅ | Campañas automáticas de recuperación |
 | Score de clientes | ✅ | Confiables (100%), Riesgo (1-49%), Devolvedores (0%) |
 | Multi-canal | ✅ | WA + Messenger + IG + (Telegram preparado) |
 | Multi-tenant | ✅ | 5 marcas en un panel, aisladas (tenantId + RLS) |
-| Multi-país | ✅ | country en Channel + address_analysis por país |
+| Multi-país | ✅ | country en Channel + address (modo analyze) por país |
 | Multi-IA | ✅ | 4 LLM providers (Zai, OpenAI, xAI, Ollama) |
 | Multi-logística | ✅ | 3 proveedores (Dropi, 99envios, Aveonline) |
 | Multi-pago | ✅ | 4 gateways (MP, Wompi, Stripe, PayU) |
@@ -416,7 +414,7 @@ ZIAY está en **Nivel 1-2**: los 26 agentes hacen el 95% del trabajo (investigan
 
 | Feature | Estado | Detalle |
 |---|---|---|
-| Agentes autónomos | ✅ | 26 agentes, 3 pipelines, 95% automatizado |
+| Agentes autónomos | ✅ | 24 agentes, 3 pipelines, 95% automatizado |
 | Perfilamiento automático | ✅ | Agent profile detecta tipo de cliente en tiempo real |
 | Detección de devolvedores | ✅ | Agent buyer_behavior revisa historial antes de vender |
 | Identificación por imagen | ✅ | Agent vision (VLM glm-4.6v) identifica productos desde fotos |
@@ -433,7 +431,7 @@ ZIAY está en **Nivel 1-2**: los 26 agentes hacen el 95% del trabajo (investigan
 | # | Diferenciador | Beneficio |
 |---|---|---|
 | 1 | Detección automática de devolvedores | $600K/mes ahorrado |
-| 2 | 26 agentes IA en equipo | 95% automatizado |
+| 2 | 24 agentes IA en equipo | 95% automatizado |
 | 3 | Atribución real de pauta | $900K/mes ahorrado |
 | 4 | Verdict engine automático | 24/7 optimización |
 | 5 | CAPI server-side | +30% tracking |
@@ -485,7 +483,7 @@ ZIAY está en **Nivel 1-2**: los 26 agentes hacen el 95% del trabajo (investigan
 
 - ✅ Demo para clientes (5-10 usuarios, perfecto)
 - ✅ Beta con 1-2 marcas (SQLite + in-memory cache aguanta)
-- ✅ POC para inversión (features reales, 26 agentes, atribución)
+- ✅ POC para inversión (features reales, 24 agentes, atribución)
 - ✅ Vender a clientes pequeños (<50 conversaciones/día)
 
 ### Lo que NO puedes hacer HOY

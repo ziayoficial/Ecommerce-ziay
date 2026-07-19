@@ -2,7 +2,7 @@
 
 Esta carpeta contiene **28 workflows n8n** listos para importar en tu instancia de n8n autoalojada (incluida en `docker-compose.yml`).
 
-> **SPRINT-FIXES-N8N-DEPLOY-001** — la carpeta se expandió de 12 workflows (los 10 agentes originales + el orquestador + el legacy) a **28 workflows**: los 12 originales renombrados (`CommerceFlow` → `ZIAY`) + **16 nuevos** para los agentes adicionales agregados en `BUILD-AGENTS-LIB-001` (26 agentes en total).
+> **SPRINT-FIXES-N8N-DEPLOY-001** — la carpeta se expandió de 12 workflows (los 10 agentes originales + el orquestador + el legacy) a **28 workflows**: los 12 originales renombrados (`CommerceFlow` → `ZIAY`) + **16 nuevos** para los agentes adicionales agregados en `BUILD-AGENTS-LIB-001` (24 agentes en total).
 
 ## Archivos
 
@@ -171,7 +171,7 @@ El `master-orchestrator.json` acepta estos `scenarioId`:
 
 - Los workflows llaman a `http://app:3000/api/agents/[name]` (el ZIAY Next.js app).
 - Si n8n no puede resolver `app`, usa `http://host.docker.internal:3000` en su lugar.
-- Los 26 agentes también funcionan sin n8n (vía la UI del Orquestador en el dashboard), pero n8n permite que un equipo no-técnico edite los flujos visualmente.
+- Los 24 agentes también funcionan sin n8n (vía la UI del Orquestador en el dashboard), pero n8n permite que un equipo no-técnico edite los flujos visualmente.
 - El pipeline canónico de 9 pasos está definido en `src/lib/orchestrator/constants.ts` (`ORCHESTRATOR_STEPS`). El `master-orchestrator.json` solo ejecuta ese pipeline — los 16 agentes adicionales se invocan por separado según el contexto del negocio.
 
 ## Endpoint de Reglas de Comportamiento

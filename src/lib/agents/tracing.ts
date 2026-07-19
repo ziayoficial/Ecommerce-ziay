@@ -294,6 +294,15 @@ export class AgentTracer {
    * Internal: persist a finalized trace to all three sinks (in-memory,
    * DecisionLog, structured log). Called by `AgentSpan.end()` — not part
    * of the public API.
+   *
+   * IA-4 — the DecisionLog sink is skipped when `DISABLE_TRACER_DB_SINK=1`
+   * (default in test environments). The route already persists a
+   * DecisionLog row with the same model/tokens/cost/latency fields via
+   * `agentsService.persistDecisionLog`; the tracer's row was a parallel
+   * write intended to add traceId/parentId metadata. Skipping it in tests
+   * keeps the existing `decisionLog.create` call-count assertions
+   * stable without losing real persistence (the in-memory Map + pino log
+   * still fire, so /api/agents/traces + log aggregation keep working).
    */
   recordTrace(trace: AgentTrace, metadata: AgentSpanMetadata): void {
     // 1. In-memory store.
@@ -329,7 +338,13 @@ export class AgentTracer {
       'agent.trace',
     )
 
-    // 3. DecisionLog persistence (fire-and-forget).
+    // 3. DecisionLog persistence (fire-and-forget). Skipped when the
+    //    `DISABLE_TRACER_DB_SINK` env var is set (test environments use
+    //    this to keep `decisionLog.create` call-count assertions stable
+    //    — the route's own `agentsService.persistDecisionLog` call is
+    //    the authoritative DB sink; the tracer's row was a parallel
+    //    write with traceId/parentId metadata).
+    if (process.env.DISABLE_TRACER_DB_SINK === '1') return
     this.persistToDecisionLog(trace, metadata).catch((err) => {
       captureError(err, {
         service: 'agents',

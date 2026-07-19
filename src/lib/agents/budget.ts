@@ -193,6 +193,60 @@ const budgetStore = new Map<string, TenantBudgetState>()
 const LIMIT_CACHE_TTL_MS = 5 * 60 * 1000
 
 // ───────────────────────────────────────────────────────────────────────────
+// IA-4 (P2-5) — conversation Map cleanup.
+//
+// `TenantBudgetState.conversation` is a `Map<conversationId, BudgetEntry>`
+// that grew without bound — every conversationId left a permanent entry
+// (the old code's comment admitted "conversation never resets — it lives
+// until the conversation is garbage-collected" but no GC was implemented).
+// At ~1 KB per entry × 1000+ conversations/day per active tenant, this
+// became a slow memory leak in long-running processes.
+//
+// Two-pronged fix:
+//   1. A `cleanupConversations(maxAgeMs)` method that evicts entries
+//      older than `maxAgeMs` (default 1 hour). Called automatically
+//      every 10 minutes via `setInterval` (unref'd so it doesn't keep
+//      the event loop alive). Mirrors the sweep pattern in `tracing.ts`.
+//   2. A hard cap in `recordUsage()`: if a tenant's conversation Map
+//      exceeds 1000 entries, evict the 100 oldest (by `lastResetAt`).
+//      This is the safety net for a burst of conversations between
+//      sweeps (e.g. a flash-sale traffic spike) — bounds the worst-case
+//      memory footprint even if the sweep timer hasn't fired yet.
+// ───────────────────────────────────────────────────────────────────────────
+
+const CONVERSATION_SWEEP_INTERVAL_MS = 10 * 60 * 1000 // 10 min
+const CONVERSATION_MAX_AGE_MS = 60 * 60 * 1000 // 1 hour
+const CONVERSATION_HARD_CAP = 1000
+const CONVERSATION_HARD_CAP_EVICT_COUNT = 100
+
+let conversationSweepTimer: NodeJS.Timeout | null = null
+
+function ensureConversationSweepTimer(): void {
+  if (conversationSweepTimer) return
+  if (typeof process === 'undefined') return
+  // Skip during build / lint (NEXT_RUNTIME is only set in the server runtime).
+  if (process.env.NODE_ENV === 'production' && !process.env.NEXT_RUNTIME) return
+  conversationSweepTimer = setInterval(() => {
+    let evicted = 0
+    const cutoff = Date.now() - CONVERSATION_MAX_AGE_MS
+    for (const state of budgetStore.values()) {
+      for (const [convoId, entry] of state.conversation) {
+        if (entry.lastResetAt.getTime() < cutoff) {
+          state.conversation.delete(convoId)
+          evicted++
+        }
+      }
+    }
+    if (evicted > 0) {
+      logger.debug({ evicted, tenants: budgetStore.size }, 'budget.conversation.sweep')
+    }
+  }, CONVERSATION_SWEEP_INTERVAL_MS)
+  if (conversationSweepTimer && typeof conversationSweepTimer.unref === 'function') {
+    conversationSweepTimer.unref()
+  }
+}
+
+// ───────────────────────────────────────────────────────────────────────────
 // BudgetManager
 // ───────────────────────────────────────────────────────────────────────────
 
@@ -313,6 +367,11 @@ export class BudgetManager {
     agentName: string,
     model: string,
   ): void {
+    // IA-4 (P2-5) — ensure the periodic sweep timer is running. Cheap
+    // (no-op if already started) — guards against the leak even on the
+    // first call after a process restart.
+    ensureConversationSweepTimer()
+
     const total = tokensIn + tokensOut
 
     // Sync in-memory debit.
@@ -334,6 +393,28 @@ export class BudgetManager {
       }
       convo.tokensUsed += total
       convo.costUsd += costUsd
+      // IA-4 (P2-5) — bump `lastResetAt` on each debit so the sweep
+      // timer's "older than 1 hour" check reflects the LAST activity,
+      // not the conversation's creation time. A long-running active
+      // conversation stays in the map; an idle one gets evicted.
+      convo.lastResetAt = new Date()
+
+      // IA-4 (P2-5) — hard cap safety net: if a tenant's conversation
+      // Map exceeds the cap (burst of conversations between sweeps),
+      // evict the oldest N by `lastResetAt`. Bounds the worst-case
+      // memory footprint regardless of sweep timing.
+      if (state.conversation.size > CONVERSATION_HARD_CAP) {
+        const entries = Array.from(state.conversation.entries())
+        entries.sort((a, b) => a[1].lastResetAt.getTime() - b[1].lastResetAt.getTime())
+        const toEvict = entries.slice(0, CONVERSATION_HARD_CAP_EVICT_COUNT)
+        for (const [id] of toEvict) {
+          state.conversation.delete(id)
+        }
+        logger.warn(
+          { tenantId, evicted: toEvict.length, remaining: state.conversation.size },
+          'budget.conversation.hard_cap_evicted',
+        )
+      }
     }
 
     // Async DB ledger write.
@@ -618,6 +699,32 @@ export class BudgetManager {
    */
   clearForTesting(): void {
     budgetStore.clear()
+  }
+
+  /**
+   * IA-4 (P2-5) — Evict conversation entries older than `maxAgeMs` from
+   * every tenant's conversation Map. Called automatically every 10 min
+   * by the sweep timer (see `ensureConversationSweepTimer`), but also
+   * exposed as a public method so tests + admin endpoints can trigger
+   * a sweep on demand (e.g. after a load test, before measuring memory).
+   *
+   * Returns the number of entries evicted across all tenants.
+   */
+  cleanupConversations(maxAgeMs: number = CONVERSATION_MAX_AGE_MS): number {
+    let evicted = 0
+    const cutoff = Date.now() - maxAgeMs
+    for (const state of budgetStore.values()) {
+      for (const [convoId, entry] of state.conversation) {
+        if (entry.lastResetAt.getTime() < cutoff) {
+          state.conversation.delete(convoId)
+          evicted++
+        }
+      }
+    }
+    if (evicted > 0) {
+      logger.info({ evicted, tenants: budgetStore.size, maxAgeMs }, 'budget.conversation.cleanup')
+    }
+    return evicted
   }
 }
 

@@ -8,12 +8,12 @@
 
 | Fecha | Versión | Evento | Lecciones clave |
 |---|---|---|---|
-| 2026-07-09 | 0.1 | Construcción inicial (26 agentes, 14 módulos) | Worklog extenso ≠ código funcional; validar claims |
+| 2026-07-09 | 0.1 | Construcción inicial (24 agentes, 14 módulos) | Worklog extenso ≠ código funcional; validar claims |
 | 2026-07-11 | 1.0 | Auditoría full-stack exhaustiva | 8 Critical, 14 High encontrados; 5 módulos lib claimados pero inexistentes |
 | 2026-07-11 | 1.1 | Auto-fixes A/B/C/D + cross-agent integration | Coordinación paralela requiere límites de archivos claros |
 | 2026-07-11 | 2.0 | QA E2E + documentación masiva | Dev server inestable en sandbox de 4GB RAM |
 | 2026-07-11 | 2.1 | Presentación no-técnicos + lecciones | Lenguaje natural > jerga técnica para clientes |
-| 2026-07-11 | 3.0 | Reposicionamiento enterprise (REBRAND-ENTERPRISE-001) | El mensaje interno (26 agentes, 95%) no es el mensaje de venta; enterprise positioning > feature listing |
+| 2026-07-11 | 3.0 | Reposicionamiento enterprise (REBRAND-ENTERPRISE-001) | El mensaje interno (24 agentes, 95%) no es el mensaje de venta; enterprise positioning > feature listing |
 | 2026-07-15 | 4.0 | **v0.3.0 final — Score 10.0/10** (Sprints 1-14) | ADRs son esenciales; error handling wrapper; tenant scoping #1; ed25519 > RSA; fire-and-forget webhooks; LLM budget tracking; SSR shell |
 | 2026-07-15 | 4.1 | **QA E2E completo — Scorecard 9.9/10** (SPRINT-QA-UPDATE-DOCS-001) | Cobertura categorizada > número total; endpoint matrix pública/privada/autenticada; 964 pruebas pasan cuando hay 0 errores de lint/tsc/redocly |
 | 2026-07-17 | 3.0 | Auditoría fintech iterativa (3 ciclos) | Score 5.5→8.8/10; 28 riesgos resueltos; anti-fraude 3.5→9.0 |
@@ -165,9 +165,9 @@
 ## 🤝 Lecciones de Cliente
 
 ### L16. Los clientes no compran features — compran soluciones a problemas
-**Contexto:** Al presentar el dashboard a clientes, listar "26 agentes, 62 modelos, 44 APIs" no generaba interés. Mostrar "detecta devolvedores antes de vender" sí.
+**Contexto:** Al presentar el dashboard a clientes, listar "24 agentes, 62 modelos, 44 APIs" no generaba interés. Mostrar "detecta devolvedores antes de vender" sí.
 
-**Lección:** El lenguaje técnico aleja al cliente. La presentación debe empezar con el problema ("¿Sabes que 1 de cada 5 pedidos se devuelve?"), no con la solución ("Tenemos 26 agentes IA").
+**Lección:** El lenguaje técnico aleja al cliente. La presentación debe empezar con el problema ("¿Sabes que 1 de cada 5 pedidos se devuelve?"), no con la solución ("Tenemos 24 agentes IA").
 
 **Acción:** Se creó `PRESENTACION-NO-TECNICOS.html` con lenguaje natural, ejemplos de pensamiento ágil, y enfoque en "cómo ganar dinero" no en "cómo funciona técnicamente".
 
@@ -230,16 +230,16 @@
 ---
 
 ### L23. El reposicionamiento enterprise reemplaza el feature-listing como mensaje de venta
-**Contexto:** Tras rebrand CommerceFlow OS → ZIAY, todas las presentaciones y docs usaban mensajes internos como headlines: "26 agentes IA", "95% automatizado", "marketplace cross-brand", "wallet para traffickers". Estos features son verdad pero **no son lo que el cliente enterprise compra**.
+**Contexto:** Tras rebrand CommerceFlow OS → ZIAY, todas las presentaciones y docs usaban mensajes internos como headlines: "24 agentes IA", "95% automatizado", "marketplace cross-brand", "wallet para traffickers". Estos features son verdad pero **no son lo que el cliente enterprise compra**.
 
-**Lección:** El mensaje interno (cuántos agentes, qué porcentaje automatiza) NO es el mensaje de venta. El cliente enterprise compra **ingresos trazables, gobernanza, eficiencia operativa, integración con su stack**. Los features concretos (26 agentes, 95%) se mantienen como "cómo lo hacemos", no como "qué vendemos".
+**Lección:** El mensaje interno (cuántos agentes, qué porcentaje automatiza) NO es el mensaje de venta. El cliente enterprise compra **ingresos trazables, gobernanza, eficiencia operativa, integración con su stack**. Los features concretos (24 agentes, 95%) se mantienen como "cómo lo hacemos", no como "qué vendemos".
 
 **Nuevo marco:** 4 ejes enterprise (Crecimiento medible, Eficiencia operativa, Gobernanza, Integración) y 3 capas de arquitectura (Revenue · Operations · Governance) — cada feature se mapea a uno o más ejes.
 
 **Acción (REBRAND-ENTERPRISE-001):**
 - Tagline nueva: **Revenue Operations para Comercio Agéntico** (reemplaza "Comercio Conversacional + Atribución Inteligente").
 - Reemplazos en todas las presentaciones y docs:
-  - "26 agentes IA" (headline) → **Ingresos trazables de extremo a extremo** (los 26 agentes se mantienen como "cómo lo hacemos")
+  - "24 agentes IA" (headline) → **Ingresos trazables de extremo a extremo** (los 24 agentes se mantienen como "cómo lo hacemos")
   - "95% automatizado" → **Menos costo por venta, más conversión**
   - "Marketplace cross-brand" (headline) → movido al eje **Integración** como "Monetización adicional"
   - "Wallet para traffickers" (headline) → movida al eje **Gobernanza** como "Gobernanza financiera"

@@ -1,6 +1,6 @@
 // ZIAY — Model Router (IA-2 · agent-hardening)
 //
-// Splits the 26-agent fleet across three LLM tiers based on the task's
+// Splits the 24-agent fleet across three LLM tiers based on the task's
 // accuracy requirement:
 //
 //   cheap    → glm-4.6-flash  — classification, extraction, fast triage
@@ -26,6 +26,13 @@
 // `glm-4.6-flash` / `glm-4.6` / `glm-4.6-plus`. For OpenAI the equivalent
 // tiers would be `gpt-4o-mini` / `gpt-4o` / `gpt-4.1` — when that becomes
 // relevant, add a `MODEL_TIERS_BY_PROVIDER` map and resolve at call time.
+//
+// IA-4 (P2-7) — removed 7 stale entries for agents retired in IA-3
+// (cart_builder, guide_tracking, guide_alert, customer_score,
+// carrier_score, logistics_notifier, address_analysis, theme). Added
+// explicit entries for the new IA-1 control-plane agents
+// (postventa_logistics, scoring) so the router is in sync with the
+// 24-agent fleet in `AGENT_NAMES`.
 // ───────────────────────────────────────────────────────────────────────────
 
 export type ModelTier = 'cheap' | 'standard' | 'frontier'
@@ -62,11 +69,13 @@ export const MODEL_TIERS: Record<ModelTier, ModelTierPricing> = {
  * That's the right default for the long tail of post-venta + intelligence
  * agents where the task is neither trivial nor revenue-critical.
  *
- * NOTE: `governor`, `sentiment`, `qa_reviewer` and `memory_curator` are
- * agents being added by the parallel IA-1 expansion (26 → 30). They are
- * listed here so they get the correct tier from day one — if the agent
- * name doesn't exist yet in `AGENT_NAMES`, the router still resolves
- * gracefully (the orchestrator just won't call them until they ship).
+ * IA-4 (P2-7) — kept in sync with the 24-agent `AGENT_NAMES` list:
+ *   - 4 cheap: governor, sentiment, memory_curator, profile.
+ *   - 16 standard: speech, catalog, address, logistics, buyer_behavior,
+ *     redelivery, remarketing, sales_retainer, postventa_logistics,
+ *     product_enrichment, marketplace, affiliator, traffic_orchestrator,
+ *     vision, novedades, scoring.
+ *   - 4 frontier: quote, objection, checkout, qa_reviewer.
  */
 export const AGENT_MODEL_TIER: Record<string, ModelTier> = {
   // ── Cheap: classification / triage ──
@@ -78,24 +87,18 @@ export const AGENT_MODEL_TIER: Record<string, ModelTier> = {
   // ── Standard: reasoning / formatting ──
   speech: 'standard',
   catalog: 'standard',
-  theme: 'standard',
   address: 'standard',
   logistics: 'standard',
   buyer_behavior: 'standard',
-  cart_builder: 'standard',
-  guide_tracking: 'standard',
   redelivery: 'standard',
   remarketing: 'standard',
-  guide_alert: 'standard',
   sales_retainer: 'standard',
-  logistics_notifier: 'standard',
-  customer_score: 'standard',
-  carrier_score: 'standard',
+  postventa_logistics: 'standard',
+  scoring: 'standard',
   product_enrichment: 'standard',
   marketplace: 'standard',
   affiliator: 'standard',
   traffic_orchestrator: 'standard',
-  address_analysis: 'standard',
   vision: 'standard',
   novedades: 'standard',
 

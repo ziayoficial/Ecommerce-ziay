@@ -60,6 +60,12 @@ import { runQAReview, shouldReviewAgent } from '@/lib/agents/qa-reviewer.service
 import { agentTracer } from '@/lib/agents/tracing'
 import { budgetManager } from '@/lib/agents/budget'
 import { getModelForAgent, estimateCost } from '@/lib/agents/model-router'
+// IA-5 — Tool Use registry + LLM ↔ tool-execution loop. When the agent
+// has tools available (search_catalog, calculate_quote, etc.), they're
+// injected into the LLM call as a system-prompt block; the LLM can
+// emit tool_call blocks which `runToolLoop` parses + executes + feeds
+// back to the LLM. Capped at 5 tool calls per turn.
+import { toolRegistry, runToolLoop } from '@/lib/agents/tools'
 
 // FIX-AI-AGENTS-001 §A-3 — tabla de fallbacks movida a module-scope para
 // que sea accesible tanto del bloque try (cuando la validación de salida
@@ -315,27 +321,41 @@ export const POST = withErrorHandling(
     // El adapter no soporta `signal` nativamente (cubre 4 providers con
     // APIs muy distintas), por eso usamos Promise.race en lugar de
     // AbortController.
-    llmResult = await Promise.race([
-      chat(
-        [
+    //
+    // IA-5 (tool-use) — cuando el agente tiene tools disponibles
+    // (toolRegistry.listForAgent(agentName) retorna >0), reemplazamos la
+    // llamada directa al LLM por `runToolLoop()`. Esta función inyecta
+    // un bloque "AVAILABLE TOOLS" en el system prompt, llama al LLM,
+    // parsea bloques ```tool_call, los ejecuta vía `toolRegistry.execute()`
+    // + alimenta los resultados de vuelta al LLM. Repite hasta que el
+    // LLM produzca una respuesta sin tool calls (max 5 iteraciones).
+    // Cuando no hay tools disponibles, runToolLoop short-circuits a una
+    // sola llamada LLM (comportamiento idéntico al `chat()` directo).
+    const agentTools = toolRegistry.listForAgent(agentName)
+    let toolCallCount = 0
+    const toolLoopResult = await Promise.race([
+      runToolLoop({
+        messages: [
           { role: 'system', content: ANTI_INJECTION_PREFIX + system },
           { role: 'user', content: wrapUserInput(user) },
         ],
-        {
-          provider: tenant?.proveedorIa,
-          // IA-4 — pass the per-tier model so the adapter actually uses
-          // the resolved GLM variant (flash/4.6/4.6-plus) instead of its
-          // default. Previously every call used the adapter default
-          // (`glm-4.6`), defeating the model-router savings.
-          model: tierInfo.model,
-          thinking: 'disabled',
+        tools: agentTools,
+        ctx: {
+          tenantId: ctx.tenantId,
+          conversationId: ctx.conversationId,
+          customerId: ctx.customerId,
+          __agentName: agentName,
         },
-      ),
+        provider: tenant?.proveedorIa,
+        model: tierInfo.model,
+      }),
       new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error('LLM timeout (15s)')), 15_000),
       ),
     ])
-    const reply = llmResult.content.trim() || ''
+    llmResult = toolLoopResult.llmResult
+    toolCallCount = toolLoopResult.toolCallCount
+    const reply = (llmResult.content || '').trim()
 
     // IA-4 — finalize the tracing span with token usage + cost + model
     // actually used by the adapter. Non-blocking: span.end() never throws
@@ -435,12 +455,14 @@ export const POST = withErrorHandling(
     // SPRINT-GOVERNANCE-001 — pilar #4: persistir la decisión del agente.
     // SPRINT-AI-LLM-ADAPTER-001 §A-6: persistimos también model/provider/
     // tokens/costo/latencia desde el resultado del adapter.
+    // IA-5 (tool-use) — persistimos también el toolCallCount para que el
+    // audit trail muestre "este agente usó N tools en este turno".
     await agentsService.persistDecisionLog({
       tenantId: ctx.tenantId,
       agentName,
       conversationId: ctx.conversationId,
       ctx,
-      result: { reply: finalReply, confidence },
+      result: { reply: finalReply, confidence, error: undefined, toolCallCount },
       llmData: {
         model: llmResult.model,
         provider: llmResult.provider,
@@ -502,6 +524,9 @@ export const POST = withErrorHandling(
       // IA-1 (agent-builder) — QA Review metadata for the caller.
       qaReviewed,
       qaIssues: qaIssues.length > 0 ? qaIssues : undefined,
+      // IA-5 (tool-use) — surface the tool-call count so the caller can
+      // see "this agent turn used 3 tool calls" for observability.
+      toolCallCount,
     })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'unknown error'

@@ -50,6 +50,15 @@ import { runMemoryCuratorAsync, recallCustomerMemory } from '@/lib/agents/memory
 import { agentTracer } from '@/lib/agents/tracing'
 import { budgetManager } from '@/lib/agents/budget'
 import { getModelForAgent, estimateCost } from '@/lib/agents/model-router'
+// IA-5 — Tool Use registry + LLM ↔ tool-execution loop. The ai-reply
+// route is the most general agent endpoint (used by the WhatsApp
+// webhook + dashboard reply box). When the implicit 'ai_reply' agent
+// has tools available, runToolLoop injects them into the LLM call.
+// Note: 'ai_reply' isn't in TOOL_PERMISSIONS today, so listForAgent
+// returns 0 tools → runToolLoop short-circuits to a single LLM call.
+// The wiring is in place so future tools added with allowedAgents
+// including 'ai_reply' light up automatically.
+import { toolRegistry, runToolLoop } from '@/lib/agents/tools'
 // IA-4 (P1-2 / P1-3 / P1-4) — agent prompt builders + schemas for the
 // sentiment-triggered retention agent invocation (sales_retainer /
 // remarketing). The retention agent is invoked AFTER the reply is
@@ -362,19 +371,34 @@ Tono: ${tone}, cálido, cercano (estilo LATAM), emojis moderados. Máximo 2 mens
     // §A-3 (timeout): Promise.race con 15s. Si el LLM no responde,
     // cae al catch (fallback deterministic) — mismo comportamiento que
     // una excepción de red o del provider.
-    llmResult = await Promise.race([
-      chat(messages, {
+    //
+    // IA-5 (tool-use) — cuando el agente 'ai_reply' tiene tools
+    // disponibles, runToolLoop los inyecta en el system prompt + ejecuta
+    // los bloques ```tool_call + alimenta los resultados de vuelta al
+    // LLM. Hoy 'ai_reply' no está en TOOL_PERMISSIONS → listForAgent
+    // retorna [] → runToolLoop short-circuits a una sola llamada LLM.
+    const aiReplyTools = toolRegistry.listForAgent('ai_reply')
+    let toolCallCount = 0
+    const toolLoopResult = await Promise.race([
+      runToolLoop({
+        messages,
+        tools: aiReplyTools,
+        ctx: {
+          tenantId: conv.tenantId,
+          conversationId: conv.id,
+          customerId: conv.customerId,
+          __agentName: 'ai_reply',
+        },
         provider: tenant?.proveedorIa,
-        // IA-4 — pass the per-tier model so the adapter uses the resolved
-        // GLM variant instead of its default.
         model: tierInfo.model,
-        thinking: 'disabled',
       }),
       new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error('LLM timeout (15s)')), 15_000),
       ),
     ])
-    const reply = llmResult.content.trim() || ''
+    llmResult = toolLoopResult.llmResult
+    toolCallCount = toolLoopResult.toolCallCount
+    const reply = (llmResult.content || '').trim()
     // FIX-AI-AGENTS-001 §A-3: confidence real — esta ruta devuelve texto
     // libre (no JSON), no hay esquema Zod que validar → 0.6.
     // (Antes era 0.9 hardcodeado en cada éxito.)
@@ -473,7 +497,7 @@ Tono: ${tone}, cálido, cercano (estilo LATAM), emojis moderados. Máximo 2 mens
       }
     }
 
-    return NextResponse.json({ reply, confidence })
+    return NextResponse.json({ reply, confidence, toolCallCount })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'unknown error'
     // Fallback deterministic reply so the UI never breaks

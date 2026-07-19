@@ -26,7 +26,7 @@ export interface PersistDecisionLogInput {
   agentName: string
   conversationId?: string
   ctx: unknown
-  result: { reply: string; confidence: number; error?: string }
+  result: { reply: string; confidence: number; error?: string; toolCallCount?: number }
   llmData?: {
     model?: string
     provider?: string
@@ -142,6 +142,9 @@ export const agentsService = {
             reply: input.result.reply,
             confidence: input.result.confidence,
             error: input.result.error ?? null,
+            // IA-5 (tool-use) — record the tool-call count so the audit
+            // trail shows when an agent turn used tools.
+            toolCallCount: input.result.toolCallCount ?? 0,
           }),
           // El SDK actual no expone reasoning por separado — lo dejamos en null
           // para futuras integraciones con modelos con chain-of-thought visible.

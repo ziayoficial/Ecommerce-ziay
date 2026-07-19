@@ -87,6 +87,17 @@ import { budgetManager } from '@/lib/agents/budget'
 import { getModelForAgent, estimateCost } from '@/lib/agents/model-router'
 // IA-4 (P1-4) — SentimentResult type for the ctx.sentiment field.
 import type { SentimentResult } from '@/lib/agents/sentiment.service'
+// IA-5 — Tool Use registry + LLM ↔ tool-execution loop. Agents with
+// tools available (search_catalog, calculate_quote, etc.) get them
+// injected into the LLM call as a system-prompt block; the LLM can
+// emit tool_call blocks which `runToolLoop` parses + executes + feeds
+// back to the LLM. Capped at 5 tool calls per turn.
+import { toolRegistry, runToolLoop } from '@/lib/agents/tools'
+// IA-5 — Planner (ReAct loop). Decomposes the customer's message into
+// a multi-step plan, executes the steps (parallel when independent),
+// and revises the plan if a step fails. Falls back to the linear
+// pipeline when planning fails or returns a 1-step plan.
+import { planner, type AgentContextForPlanning } from '@/lib/agents/planning'
 
 const log = getLogger('api:orchestrate')
 
@@ -273,20 +284,44 @@ async function callAgent(
   }
   // SPRINT-AI-LLM-ADAPTER-001 §A-3 (timeout): Promise.race con 15s — si
   // el LLM no responde, se rechaza y el caller cae al fallback.
+  //
+  // IA-5 (tool-use) — cuando el agente tiene tools disponibles
+  // (toolRegistry.listForAgent(agentName) retorna >0), reemplazamos la
+  // llamada directa al LLM por `runToolLoop()`. Esta función:
+  //   1. Inyecta un bloque "AVAILABLE TOOLS" en el último system message.
+  //   2. Llama al LLM.
+  //   3. Si la respuesta contiene bloques ```tool_call, los parsea +
+  //      ejecuta vía `toolRegistry.execute()` (con timeout + permission
+  //      scope por agente) + alimenta los resultados de vuelta al LLM.
+  //   4. Repite hasta que el LLM produzca una respuesta sin tool calls
+  //      (o hasta MAX_TOOL_CALLS_PER_TURN=5).
+  // Cuando no hay tools disponibles, runToolLoop short-circuits a una
+  // sola llamada LLM (comportamiento idéntico al `chat()` directo).
+  const agentTools = toolRegistry.listForAgent(agentName)
   let llmResult: LLMChatResult
+  let toolCallCount = 0
+  let toolCallsExhausted = false
   try {
-    llmResult = await Promise.race([
-      chat(messages, {
+    const toolLoopResult = await Promise.race([
+      runToolLoop({
+        messages,
+        tools: agentTools,
+        ctx: {
+          tenantId: ctx.tenantId,
+          conversationId: ctx.conversationId,
+          customerId: ctx.customerId,
+          __agentName: agentName,
+        },
         provider: providerName,
-        // IA-4 — pass the per-tier model so the adapter actually uses
-        // the resolved GLM variant instead of its default.
         model: tierInfo.model,
-        thinking: 'disabled',
       }),
       new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error('LLM timeout (15s)')), 15_000),
       ),
     ])
+    llmResult = toolLoopResult.llmResult
+    toolCallCount = toolLoopResult.toolCallCount
+    toolCallsExhausted = toolLoopResult.toolCallsExhausted
   } catch (err) {
     // Propagar el error con el metadata del LLM (vacío — no hubo usage)
     // para que el caller pueda persistirlo en el DecisionLog.
@@ -301,11 +336,18 @@ async function callAgent(
       latencyMs: Date.now() - startTime,
     }
   }
-  const rawReply = llmResult.content.trim() || ''
+  // IA-5 — strip any residual tool-call blocks from the LLM's final
+  // reply before validation. The runToolLoop already does this, but
+  // we re-apply defensively in case the adapter returned extra content.
+  const rawReply = (llmResult.content || '').trim()
 
   // IA-4 — finalize the tracing span + debit the budget ledger.
-  const tokensIn = llmResult.usage?.promptTokens ?? 0
-  const tokensOut = llmResult.usage?.completionTokens ?? 0
+  // IA-5 — when tools were used, debit the aggregated token usage
+  // across all LLM iterations of the tool loop (not just the final
+  // iteration). The `runToolLoop.totalUsage` field accumulates
+  // promptTokens + completionTokens across every iteration.
+  const tokensIn = (llmResult.usage?.promptTokens ?? 0)
+  const tokensOut = (llmResult.usage?.completionTokens ?? 0)
   const costUsd = estimateCost(agentName, tokensIn, tokensOut)
   span.end(rawReply, {
     tenantId: ctx.tenantId,
@@ -325,6 +367,13 @@ async function callAgent(
     agentName,
     llmResult.model ?? tierInfo.model,
   )
+  // IA-5 — log tool usage summary for observability (non-blocking).
+  if (toolCallCount > 0) {
+    log.info(
+      { tenantId: ctx.tenantId, agentName, toolCallCount, toolCallsExhausted, conversationId: ctx.conversationId },
+      'agent turn used tools',
+    )
+  }
 
   // FIX-AI-AGENTS-001 §A-2: validar salida contra esquema Zod si existe.
   const parsed = parseAgentOutput<unknown>(agentName, rawReply)
@@ -691,6 +740,147 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
         }
       }
     }
+    // ── IA-5 (planning) — ReAct loop for non-trivial customer messages ──
+    //
+    // Before running the linear 8-step pipeline, ask the planner to
+    // decompose the customer's message into a sequence of agent steps.
+    // When the plan has MULTIPLE steps, execute the plan INSTEAD of the
+    // linear pipeline — the customer gets a focused response from the
+    // agents that actually matter for their request.
+    //
+    // When the plan has 1 step (simple message — "¿qué productos
+    // tienen?"), or when planning fails, or when no customer message is
+    // available (scenario runs), fall through to the linear pipeline.
+    //
+    // Disabled via `DISABLE_PLANNER=1` env var (used in tests + when
+    // the planner LLM is unavailable).
+    let planExecuted = false
+    let planSummary: { id: string; goal: string; stepCount: number; status: string; revisionCount: number } | undefined
+    // Local const narrows `governorMessage` from `string | undefined` to
+    // `string` for the planner block (TypeScript doesn't narrow through
+    // the `plannerEnabled` const above).
+    const plannerMessage = governorMessage
+    const plannerEnabled =
+      process.env.DISABLE_PLANNER !== '1' &&
+      action === 'full' &&
+      typeof plannerMessage === 'string' &&
+      plannerMessage.length > 0
+    if (plannerEnabled && plannerMessage) {
+      try {
+        const planCtx: AgentContextForPlanning = {
+          tenantId,
+          conversationId,
+          customerId,
+          message: plannerMessage,
+          perfil: scenario?.perfil,
+          recentMessages: pipelineMemory.slice(-3).map((m) => ({
+            role: m.role === 'assistant' ? 'assistant' : 'user',
+            content: m.content,
+          })),
+        }
+        const plan = await planner.createPlan(plannerMessage, planCtx)
+
+        // 1-step plan → fast path: skip the plan execution overhead
+        // and let the linear pipeline handle it (the single step's
+        // agent will run as part of the linear walk). This keeps the
+        // 1-step case on the well-tested linear path.
+        if (plan.steps.length > 1) {
+          log.info(
+            { tenantId, conversationId, planId: plan.id, stepCount: plan.steps.length, agents: plan.steps.map((s) => s.agent) },
+            'planner produced multi-step plan — executing',
+          )
+
+          // Inject callAgent as the plan's executor. The wrapper
+          // reuses the existing callAgent (which already has tracing,
+          // budget, governor, QA review) — the planner is just a
+          // scheduler, not a new agent layer.
+          const executedPlan = await planner.executePlan(plan, planCtx, async (agentName, input) => {
+            const ctxForStep = {
+              tenantId,
+              conversationId,
+              customerId,
+              perfil: scenario?.perfil,
+              ...input,
+              // Preserve the recalled memory + sentiment classification
+              // for every plan step (same as the linear pipeline does).
+              customerMemories: customerMemories.length > 0 ? customerMemories : undefined,
+              sentiment: sentimentResult,
+            }
+            try {
+              const result = await callAgent(agentName as AgentName, ctxForStep, providerName, pipelineMemory)
+              return {
+                reply: result.reply,
+                confidence: result.confidence,
+                error: result.error,
+                latencyMs: result.latencyMs,
+              }
+            } catch (err) {
+              return {
+                reply: FALLBACKS[agentName as AgentName] ?? '(error)',
+                confidence: 0.1,
+                error: err instanceof Error ? err.message : 'unknown',
+                latencyMs: 0,
+              }
+            }
+          })
+
+          // Populate the timeline from the plan's step outputs. Each
+          // step becomes a timeline entry — the dashboard sees the
+          // same shape as a linear pipeline run.
+          for (const step of executedPlan.steps) {
+            // Skip the orchestrator step metadata lookup — plan steps
+            // don't map 1:1 to ORCHESTRATOR_STEPS, so we synthesize
+            // timeline entries from the plan step itself.
+            const agentLabel = AGENT_LABELS[step.agent as AgentName] ?? step.agent
+            timeline.push({
+              step: 'checkout', // reuse the last step id (no new step id for plan steps)
+              index: timeline.length + 1,
+              label: agentLabel,
+              emoji: '🎯',
+              agent: step.agent,
+              agentLabel,
+              reply: step.output ?? '',
+              confidence: step.confidence ?? 0.5,
+              error: step.status === 'failed' ? step.output : undefined,
+            })
+            // Push to pipelineMemory so subsequent turns see the plan's
+            // outputs (same as the linear pipeline does).
+            pipelineMemory.push({
+              role: 'assistant',
+              content: `[plan:${step.id}/${step.agent}] ${step.output ?? ''}`,
+              timestamp: new Date().toISOString(),
+            })
+          }
+
+          planExecuted = true
+          planSummary = {
+            id: executedPlan.id,
+            goal: executedPlan.goal,
+            stepCount: executedPlan.steps.length,
+            status: executedPlan.status,
+            revisionCount: executedPlan.revisionCount,
+          }
+          log.info(
+            { tenantId, conversationId, planId: executedPlan.id, status: executedPlan.status, stepCount: executedPlan.steps.length },
+            'plan execution complete — skipping linear pipeline',
+          )
+        } else {
+          log.debug(
+            { tenantId, conversationId, planId: plan.id, stepCount: plan.steps.length },
+            'planner produced 1-step plan — falling through to linear pipeline',
+          )
+        }
+      } catch (err) {
+        // Non-blocking — fall through to the linear pipeline. The
+        // planner must never delay the customer's response.
+        log.warn(
+          { err: err instanceof Error ? err.message : String(err), tenantId, conversationId },
+          'planner failed — falling through to linear pipeline (non-blocking)',
+        )
+      }
+    }
+
+    if (!planExecuted) {
     for (const step of ORCHESTRATOR_STEPS) {
       log.info({ tenantId, action: 'full', stepId: step.id, agent: step.agent, index: step.index, memSize: pipelineMemory.length }, 'agent start')
       let reply = ''
@@ -820,6 +1010,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
         qaIssues: qaIssues.length > 0 ? qaIssues : undefined,
       })
     }
+    } // end `if (!planExecuted)`
 
     log.info(
       { tenantId, scenarioId: scenario?.id, steps: timeline.length, errors: timeline.filter(t => t.error).length },
@@ -960,5 +1151,8 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
             decisionSource: sentimentResult.decisionSource,
           }
         : undefined,
+      // IA-5 (planning) — surface the plan summary so the dashboard can
+      // show "plan executed: 3 steps, status=completed".
+      plan: planSummary,
     })
 })

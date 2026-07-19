@@ -2,17 +2,20 @@
 // Saramantha §6 (10 agents) + §12 (orchestrator) + §15.1 (Kanban board columns)
 //
 // This file is the single source of truth for:
-// 1. The 9-step agent pipeline (each step maps to one of the 10 conversational agents).
+// 1. The 8-step agent pipeline (was 9 in v0.3.0 — v0.4.1 · IA-3 folded `theme` into `catalog`).
 // 2. The 4 orchestration scenarios used by the "Ejecutar todo" / "Siguiente paso" buttons.
 // 3. The 8 Kanban board columns (§15.1 funnel) used by the operational Kanban view.
 
 // ───────────────────────────────────────────────────────────────────────────
-// 1. Pipeline steps — 9 visual steps mapped to the 10 agents (vision is the
-//    optional 4.5/visual-primero variant; we keep it folded into "catalog"
-//    for the visual stepper, but expose it separately in the agent list).
+// 1. Pipeline steps — 8 visual steps (was 9 in v0.3.0; v0.4.1 · IA-3
+//    folded the `theme` step into `catalog`, so the "Tema/personaje" search
+//    now runs inside the catalog step via `ctx.theme`).
+//    vision is the optional 4.5/visual-primero variant; we keep it folded
+//    into "catalog" for the visual stepper, but expose it separately in
+//    the agent list).
 // ───────────────────────────────────────────────────────────────────────────
 export type OrchestratorStepId =
-  | 'profile' | 'speech' | 'catalog' | 'theme'
+  | 'profile' | 'speech' | 'catalog'
   | 'quote' | 'objection' | 'address' | 'logistics' | 'checkout'
 
 export interface OrchestratorStep {
@@ -29,13 +32,12 @@ export interface OrchestratorStep {
 export const ORCHESTRATOR_STEPS: OrchestratorStep[] = [
   { id: 'profile',    index: 1, label: 'Perfilamiento',     emoji: '🎯', agent: 'profile',    description: 'Detecta mayorista / emprendedor / detal / regalo',         accent: 'primary' },
   { id: 'speech',     index: 2, label: 'Discurso',          emoji: '💬', agent: 'speech',     description: 'Apertura + prueba social por perfil',                       accent: 'emerald' },
-  { id: 'catalog',    index: 3, label: 'Catálogo',          emoji: '🖼️', agent: 'catalog',    description: 'Respuesta visual-primero con imágenes reales',              accent: 'sky' },
-  { id: 'theme',      index: 4, label: 'Tema/personaje',    emoji: '🐱', agent: 'theme',      description: 'Stitch, Hello Kitty y otros — busca en temas_diseño',      accent: 'violet' },
-  { id: 'quote',      index: 5, label: 'Cotización',        emoji: '🧮', agent: 'quote',      description: 'Precio por volumen + margen por tramo',                     accent: 'amber' },
-  { id: 'objection',  index: 6, label: 'Objeciones',        emoji: '🛡️', agent: 'objection',  description: 'Clasifica + aplica gatillo mental',                         accent: 'rose' },
-  { id: 'address',    index: 7, label: 'Dirección',         emoji: '📍', agent: 'address',    description: '10 campos — uno a la vez si falta',                         accent: 'primary' },
-  { id: 'logistics',  index: 8, label: 'Logística',         emoji: '🚚', agent: 'logistics',  description: 'Flete real vía LogisticsAdapter (Dropi/99envios/Aveonline)', accent: 'emerald' },
-  { id: 'checkout',   index: 9, label: 'Checkout',          emoji: '✅', agent: 'checkout',   description: 'Resumen + confirmación + sync ecommerce + guía',           accent: 'sky' },
+  { id: 'catalog',    index: 3, label: 'Catálogo + Tema',   emoji: '🖼️', agent: 'catalog',    description: 'Visual-primero + temas_diseño (Stitch, Hello Kitty)',       accent: 'sky' },
+  { id: 'quote',      index: 4, label: 'Cotización',        emoji: '🧮', agent: 'quote',      description: 'Carrito NL + precio por volumen + margen',                 accent: 'amber' },
+  { id: 'objection',  index: 5, label: 'Objeciones',        emoji: '🛡️', agent: 'objection',  description: 'Clasifica + aplica gatillo mental',                         accent: 'rose' },
+  { id: 'address',    index: 6, label: 'Dirección',         emoji: '📍', agent: 'address',    description: '10 campos + análisis de calidad (cobertura/historial)',     accent: 'primary' },
+  { id: 'logistics',  index: 7, label: 'Logística',         emoji: '🚚', agent: 'logistics',  description: 'Flete real vía LogisticsAdapter (Dropi/99envios/Aveonline)', accent: 'emerald' },
+  { id: 'checkout',   index: 8, label: 'Checkout',          emoji: '✅', agent: 'checkout',   description: 'Resumen + confirmación + sync ecommerce + guía',           accent: 'sky' },
 ]
 
 // ───────────────────────────────────────────────────────────────────────────

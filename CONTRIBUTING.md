@@ -75,7 +75,7 @@ accordingly — no manual edits to `schema.prisma` needed:
 - **`scripts/db-push.ts`** (`bun run db:push`) — pushes the current schema to
   the configured database. Picks the right provider block automatically.
 - **`scripts/db-seed.ts`** (`bun run db:seed`) — seeds reference + demo data
-  (tenants, products, AI agent catalog — currently **27 agents**, was 26).
+  (tenants, products, AI agent catalog — currently **24 agents** = 20 consolidated base + 4 control-plane, was 26 in v0.4.0).
   Reads `prisma.seed` from `package.json` for the runner command.
 
 Both scripts are idempotent and safe to re-run.

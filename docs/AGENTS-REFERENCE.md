@@ -1,39 +1,42 @@
 # Referencia de Agentes — ZIAY
 
-Documentación de los **10 agentes conversacionales** originales de ZIAY, con su nombre, endpoint, system prompt resumido, tablas que consultan, side-effects y cuándo usarlos. Incluye la **secuencia de orquestación de 9 pasos** y los **4 escenarios del §12** del documento Saramantha.
+Documentación de los **agentes conversacionales** de ZIAY, con su nombre, endpoint, system prompt resumido, tablas que consultan, side-effects y cuándo usarlos. Incluye la **secuencia de orquestación de 8 pasos** (v0.4.1 · IA-3 — era 9 en v0.4.0) y los **4 escenarios del §12** del documento Saramantha.
 
 > 📖 Código fuente: [`../src/lib/agents/prompts.ts`](../src/lib/agents/prompts.ts)
 > 📖 Orquestador: [`../src/lib/orchestrator/orchestrator.ts`](../src/lib/orchestrator/orchestrator.ts)
 > 📖 API: [`POST /api/agents/[agentName]`](./API-REFERENCE.md#5-agents)
 
-> **v0.4.0 update**: El código ahora define **26 agentes conversacionales**
-> (era 26 en v0.3.0, 10 en el doc original). Los 10 agentes documentados aquí
-> son el núcleo del orquestador Saramantha. Los 17 agentes adicionales cubren:
-> speech/voice (Vapi AI), 6 compliance agents (KYC, consent, retracto, age
-> gate, DIAN invoicing, retention), 3 fintech agents (wallet balance,
-> withdrawal, compensation), 3 monitoring agents (incident triage, alert
-> routing, status page), 2 governance agents (mandate enforcement, escalation
-> queue), y el agente anti-fraud (velocity + OFAC + blocklist). Ver
-> `src/lib/agents/prompts.ts` y `AGENT_NAMES` / `AGENT_LABELS` para el
-> catálogo completo.
+> **v0.4.1 update (IA-3 · consolidación)**: El código ahora define **24 agentes
+> conversacionales** (20 consolidados + 4 control-plane de IA-1). La consolidación
+> fusionó 8 agentes redundantes en 2 merged + 3 enhanced:
+> - `guide_tracking` + `guide_alert` + `logistics_notifier` → `postventa_logistics`
+> - `customer_score` + `carrier_score` → `scoring`
+> - `address_analysis` se integró en `address` (modo `analyze`)
+> - `theme` se integró en `catalog` (vía `ctx.theme`)
+> - `cart_builder` se integró en `quote` (modo `cart`)
+>
+> Los 9 agentes documentados aquí (8 originales del §6 + `vision`) son el núcleo
+> del orquestador Saramantha. Los 15 agentes restantes cubren: post-venta,
+> inteligencia de negocio, especializados y control-plane (governor, qa_reviewer,
+> memory_curator, sentiment). Ver `src/lib/agents/prompts.ts` y `AGENT_NAMES` /
+> `AGENT_LABELS` para el catálogo completo.
 
 ---
 
 ## 📋 Tabla de contenidos
 
 - [Regla de oro §2 — Sin datos de negocio en prompts](#regla-de-oro-2--sin-datos-de-negocio-en-prompts)
-- [Los 10 agentes](#los-10-agentes)
+- [Los 9 agentes del pipeline principal](#los-9-agentes-del-pipeline-principal)
   1. [Profile (§6.1)](#1-profile-61)
   2. [Speech (§6.2)](#2-speech-62)
-  3. [Quote (§6.3)](#3-quote-63)
-  4. [Catalog (§6.4)](#4-catalog-64)
-  5. [Theme (§6.5)](#5-theme-65)
-  6. [Objection (§6.6)](#6-objection-66)
-  7. [Address (§6.7)](#7-address-67)
-  8. [Logistics (§6.8)](#8-logistics-68)
-  9. [Vision (§6.9)](#9-vision-69)
-  10. [Checkout (§6.10)](#10-checkout-610)
-- [Orquestación de 9 pasos (§12)](#orquestación-de-9-pasos-12)
+  3. [Quote (§6.3 · con cart_builder)](#3-quote-63--con-cart_builder)
+  4. [Catalog (§6.4 · con theme)](#4-catalog-64--con-theme)
+  5. [Objection (§6.6)](#5-objection-66)
+  6. [Address (§6.7 · con address_analysis)](#6-address-67--con-address_analysis)
+  7. [Logistics (§6.8)](#7-logistics-68)
+  8. [Vision (§6.9)](#8-vision-69)
+  9. [Checkout (§6.10)](#9-checkout-610)
+- [Orquestación de 8 pasos (§12)](#orquestación-de-8-pasos-12)
 - [Los 4 escenarios del §12](#los-4-escenarios-del-12)
 - [Timeouts y fallbacks](#timeouts-y-fallbacks)
 - [Cómo extender con un nuevo agente](#cómo-extender-con-un-nuevo-agente)

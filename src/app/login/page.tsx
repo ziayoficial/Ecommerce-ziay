@@ -163,7 +163,7 @@ function LoginInner() {
           <ul className="space-y-2.5 text-sm">
             {[
               'Multi-tenant con RBAC por rol',
-              '26 agentes IA orquestados',
+              '24 agentes IA orquestados',
               'Webhooks firmados (HMAC) para 4 pasarelas',
               'SSR público por tenant con JSON-LD',
             ].map((f) => (

@@ -60,11 +60,12 @@ function StuckGuideRow({
   const createNovedad = async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/agents/guide_alert', {
+      const res = await fetch('/api/agents/postventa_logistics', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           tenantId,
+          mode: 'alert',
           guideNumber: guide.guideNumber,
           carrierName: guide.carrierName,
           daysStuck: guide.daysStuck,

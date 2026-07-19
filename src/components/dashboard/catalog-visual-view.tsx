@@ -324,7 +324,7 @@ export function CatalogVisualView() {
                   </div>
                   <div className="flex gap-2 flex-wrap">
                     <Button onClick={() => askAgent('catalog')} variant="ghost" size="sm" className="gap-1 text-xs" disabled={aiLoading}><Bot className="size-3" /> Catalogo</Button>
-                    <Button onClick={() => askAgent('theme')} variant="ghost" size="sm" className="gap-1 text-xs" disabled={aiLoading}><Tag className="size-3" /> Tema</Button>
+                    <Button onClick={() => askAgent('catalog')} variant="ghost" size="sm" className="gap-1 text-xs" disabled={aiLoading}><Tag className="size-3" /> Tema</Button>
                     <Button onClick={() => askAgent('objection')} variant="ghost" size="sm" className="gap-1 text-xs" disabled={aiLoading}><MessageSquare className="size-3" /> Objeciones</Button>
                   </div>
                 </div>

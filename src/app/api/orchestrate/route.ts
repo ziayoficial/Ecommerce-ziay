@@ -27,6 +27,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { db } from '@/lib/db'
 import { requireTenantAccess } from '@/lib/auth-helpers'
 import { rateLimit } from '@/lib/middleware/rate-limit'
 import { AGENT_LABELS, AgentName, buildAgentPrompt, FALLBACKS } from '@/lib/agents/prompts'
@@ -68,6 +69,14 @@ import { emitToTenant } from '@/lib/chat-emit'
 import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 // SPRINT-BACKEND-FINAL-001 — DB side-effects migrated to `orchestrateService`.
 import { orchestrateService } from '@/lib/services'
+// IA-1 (agent-builder) — control-plane agents: Governor (safety/budget
+// gate, runs FIRST), QA Reviewer (Reflexion critique+revise on
+// revenue-critical agent outputs), Memory Curator (async long-term fact
+// extraction), Sentiment Analyzer (parallel customer-state classification).
+import { runGovernor } from '@/lib/agents/governor.service'
+import { runQAReview, shouldReviewAgent } from '@/lib/agents/qa-reviewer.service'
+import { runMemoryCuratorAsync } from '@/lib/agents/memory-curator.service'
+import { runSentimentAsync } from '@/lib/agents/sentiment.service'
 
 const log = getLogger('api:orchestrate')
 
@@ -321,6 +330,77 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     // llamadas callAgent del pipeline (9 para action='full').
     const providerName = tenant.proveedorIa
 
+    // ── IA-1 (agent-builder) — Governor: safety/budget gate ────────────
+    // Runs FIRST on every inbound message, before any other agent. Checks
+    // for prompt injection, PII leaks, banned content, and (re)verifies
+    // budget. Has a <300ms timeout and fails-open (allow) on timeout/error
+    // so the conversation is never blocked by a slow governor LLM.
+    //
+    // We need a `message` to evaluate. The orchestrator is typically
+    // called with a `scenarioId` (synthetic test scenarios) OR with a
+    // real `conversationId` (the dashboard "run pipeline" button). For
+    // real conversations, the latest customer message is the governor
+    // input. For scenario runs (no real customer message), we skip the
+    // governor — there's nothing to gate (the scenario is a deterministic
+    // test fixture, not customer input).
+    //
+    // The governor result is also surfaced in the response (`governor`
+    // field) so the dashboard can show "blocked by governor" feedback.
+    let governorMessage: string | undefined
+    if (conversationId) {
+      try {
+        const latestInbound = await db.message.findFirst({
+          where: { conversationId, direction: 'inbound' },
+          orderBy: { createdAt: 'desc' },
+          select: { body: true },
+        })
+        governorMessage = latestInbound?.body
+      } catch {
+        // Non-blocking — if we can't fetch the latest message, the
+        // governor runs with an empty message (which it'll allow).
+      }
+    }
+    let governorResult: { allow: boolean; reason?: string; redirect?: string | null; decisionSource: string; latencyMs: number; budgetRemaining: number } | null = null
+    if (governorMessage) {
+      governorResult = await runGovernor({
+        tenantId,
+        conversationId: conversationId ?? '',
+        message: governorMessage,
+        customerId,
+      })
+      if (!governorResult.allow) {
+        // Governor blocked the message — short-circuit. Return the
+        // rejection reason so the dashboard can surface it. Do NOT run
+        // any downstream agent.
+        log.info(
+          { tenantId, conversationId, reason: governorResult.reason, decisionSource: governorResult.decisionSource },
+          'Governor blocked message — short-circuiting pipeline',
+        )
+        return NextResponse.json({
+          ok: false,
+          error: governorResult.reason || 'Mensaje bloqueado por el Gobernador',
+          code: 'GOVERNOR_BLOCKED',
+          governor: governorResult,
+        }, { status: 403 })
+      }
+    }
+
+    // ── IA-1 (agent-builder) — Sentiment Analyzer (parallel, async) ────
+    // Fire-and-forget: classify the customer's latest message in parallel
+    // with the pipeline. The result is emitted via socket (`sentiment:classified`)
+    // and may trigger retention agents (`sales_retainer`, `remarketing`) or
+    // prioritize `quote` via `agent:trigger` events. NEVER blocks the
+    // pipeline — the customer's response is returned as soon as the
+    // pipeline completes, regardless of whether sentiment is done.
+    if (governorMessage && conversationId) {
+      runSentimentAsync({
+        tenantId,
+        conversationId,
+        customerId,
+        message: governorMessage,
+      })
+    }
+
     const scenario: OrchestratorScenario | undefined = scenarioId
       ? ORCHESTRATOR_SCENARIOS.find(s => s.id === scenarioId)
       : undefined
@@ -332,6 +412,9 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
       customerId,
       perfil: scenario?.perfil,
       query: stepId === 'catalog' ? scenario?.catalogQuery : undefined,
+      // IA-3: theme folded into catalog — if the scenario has a theme,
+      // the catalog agent runs the §6.5 theme-search branch.
+      theme: stepId === 'catalog' ? scenario?.theme : undefined,
       items: stepId === 'quote'
         ? [{ sku: 'SHORT-TIRA', cantidad: 12 }] // demo quote
         : undefined,
@@ -416,7 +499,8 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     // ── action='full' — run all 9 steps sequentially ────────────────────
     const timeline: Array<{
       step: OrchestratorStepId; index: number; label: string; emoji: string;
-      agent: string; agentLabel: string; reply: string; confidence: number; error?: string
+      agent: string; agentLabel: string; reply: string; confidence: number; error?: string;
+      qaReviewed?: boolean; qaIssues?: string[]
     }> = []
     // SPRINT-AI-FINAL-001 §1 — memoria del pipeline: cada step ve los
     // outputs de los steps anteriores como mensajes `assistant` en su
@@ -545,6 +629,51 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
         result: { reply, confidence, rawReply, error: errorMsg, ...llmMeta },
       })
 
+      // ── IA-1 (agent-builder) — QA Reviewer on revenue-critical agents ──
+      // After `quote`, `novedades`, `address`, `checkout` produce their
+      // output, the QA Reviewer (Reflexion: critique → revise) runs to
+      // catch hallucinations before they reach the customer. If the
+      // reviewer returns `approved: false`, the `revisedOutput` replaces
+      // the original `reply` (the timeline entry below records the
+      // revision + issues for audit). Uses a FRONTIER LLM (glm-4.6) —
+      // critique is harder than generation.
+      //
+      // Best-effort: if the QA Reviewer itself fails (timeout/parse
+      // error), the original `reply` is used unchanged (fail-closed =
+      // approve original — never block the conversation on QA tooling).
+      let qaReviewed = false
+      let qaIssues: string[] = []
+      if (!errorMsg && shouldReviewAgent(step.agent)) {
+        try {
+          const qaResult = await runQAReview({
+            tenantId,
+            agentName: step.agent,
+            agentOutput: reply,
+            conversationContext: pipelineMemory.map(m => `[${m.role}] ${m.content}`).join('\n').slice(-3000),
+            conversationId,
+            customerId,
+            perfil: scenario?.perfil,
+          })
+          if (!qaResult.approved && qaResult.revisedOutput && qaResult.revisedOutput.length > 0) {
+            // Replace the reply with the revised version. The original
+            // `rawReply` is preserved for audit (the timeline entry
+            // records that QA revised the output).
+            rawReply = reply // preserve original as rawReply
+            reply = qaResult.revisedOutput
+            qaReviewed = true
+            qaIssues = qaResult.issues
+            // Bump confidence — the revised output passed QA review.
+            confidence = Math.max(confidence, 0.85)
+          }
+        } catch (err) {
+          // Non-blocking — log + continue with the original reply.
+          log.warn(
+            { err: err instanceof Error ? err.message : String(err), agentName: step.agent, stepId: step.id },
+            'QA Reviewer failed (non-blocking) — using original reply',
+          )
+        }
+      }
+
       timeline.push({
         step: step.id,
         index: step.index,
@@ -555,6 +684,9 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
         reply,
         confidence,
         error: errorMsg,
+        // IA-1 (agent-builder) — QA Review metadata for the dashboard.
+        qaReviewed,
+        qaIssues: qaIssues.length > 0 ? qaIssues : undefined,
       })
     }
 
@@ -591,10 +723,36 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
       )
     }
 
+    // ── IA-1 (agent-builder) — Memory Curator (async, fire-and-forget) ──
+    // After the pipeline completes, extract durable facts (preferences,
+    // past purchases, objections, budget, brand affinity, communication
+    // style) from the latest turn and persist them in `CustomerMemory`
+    // with embeddings for semantic recall in future conversations.
+    //
+    // Fire-and-forget: the response is returned immediately, the curator
+    // runs in the background. NEVER blocks the response to the customer.
+    // If it fails, the failure is captured + logged (the curator service
+    // handles its own error swallowing via runMemoryCuratorAsync).
+    if (conversationId && customerId && governorMessage) {
+      const turnTranscript = `Customer: ${governorMessage}\n\nAgent pipeline:\n${
+        timeline.map(t => `[${t.step}/${t.agent}] ${t.reply}`).join('\n')
+      }`
+      runMemoryCuratorAsync({
+        tenantId,
+        conversationId,
+        customerId,
+        perfil: scenario?.perfil,
+        turnTranscript,
+      })
+    }
+
     return NextResponse.json({
       ok: true,
       action: 'full',
       scenario: scenario ? { id: scenario.id, label: scenario.label } : undefined,
       timeline,
+      // IA-1 (agent-builder) — surface governor decision in the response
+      // so the dashboard can show "passed governor" feedback.
+      governor: governorResult,
     })
 })

@@ -1,7 +1,7 @@
 /**
  * Live LLM evaluation harness.
  *
- * SPRINT-AI-AGENTS-002 §1 — corre los 11 agentes con esquema contra entradas
+ * SPRINT-AI-AGENTS-002 §1 — corre los agentes con esquema contra entradas
  * conocidas y mide:
  *   - Schema validation pass rate
  *   - Average confidence
@@ -9,11 +9,10 @@
  *   - Latency
  *   - Cost per call
  *
- * SPRINT-AI-AGENTS-003 §2 — ampliado de 5 a los 11 agentes con esquema
- * (profile, quote, cart_builder, buyer_behavior, address_analysis,
- * guide_tracking, customer_score, carrier_score, vision, novedades,
- * remarketing). Cada caso nuevo añade ~$0.001 al costo del harness — total
- * ~$0.011 por run completo.
+ * v0.4.1 · IA-3 — ampliado y consolidado. Ahora cubre los 8 agentes con
+ * esquema (profile, quote, buyer_behavior, postventa_logistics, scoring,
+ * vision, novedades, remarketing). Cada caso cuesta ~$0.001 — total
+ * ~$0.010 por run completo (12 casos, ~$0.012 con el segundo vision).
  *
  * SPRINT-AI-FINAL-001 §3 — añadido un 2do caso `vision` con URL de imagen
  * real (inline en el user input, el adapter chat() es texto-only). El
@@ -52,19 +51,18 @@ interface EvalCase {
 }
 
 /**
- * Casos de evaluación — uno por cada agente con esquema (los 11). Cada
- * caso incluye un system prompt autocontenido + un user input realista en
- * español. Los system prompts son reducidos respecto a los del catálogo
+ * Casos de evaluación — uno por cada agente con esquema (los 8 de v0.4.1).
+ * Cada caso incluye un system prompt autocontenido + un user input realista
+ * en español. Los system prompts son reducidos respecto a los del catálogo
  * (`src/lib/agents/prompts/<agent>.ts`) porque el harness valida el
  * contrato de salida (schema), no la integración con la DB del tenant —
  * los builders reales leen Tenant/Shipment/Customer/Product y requerirían
  * un setup de DB pesado para el eval.
  *
- * Los 6 casos nuevos (guide_tracking, customer_score, carrier_score,
- * vision, novedades, remarketing) se añadieron en SPRINT-AI-AGENTS-003 §2.
- * Cada uno apunta al esquema Zod correspondiente en
- * `src/lib/agents/schemas.ts` y usa inputs realistas en español LATAM
- * (mensajes de WhatsApp típicos del canal de ventas).
+ * v0.4.1 · IA-3: 8 casos consolidados. `postventa_logistics` reemplaza
+ * `guide_tracking`; `scoring` (con target discriminator en el prompt) reemplaza
+ * `customer_score` + `carrier_score`. `address_analysis` y `cart_builder`
+ * se removieron (sus agentes se fusionaron con `address` y `quote`).
  */
 const EVAL_CASES: EvalCase[] = [
   {
@@ -83,64 +81,51 @@ const EVAL_CASES: EvalCase[] = [
     description: 'Quote request — should return structured quote',
   },
   {
-    agentName: 'cart_builder',
-    systemPrompt:
-      'Eres un agente que arma carritos. Devuelve JSON con items (sku, cantidad) y total.',
-    userInput: 'Quiero 2 short tira y 1 pantalón tira',
-    description: 'Cart build — should return items with SKUs',
-  },
-  {
     agentName: 'buyer_behavior',
     systemPrompt:
       'Eres un agente que analiza comportamiento. Devuelve JSON con intencion (compara/compra/navega/abandona), signals (array), y recomendacion.',
     userInput: 'Estoy comparando precios con otras tiendas, pero me gusta este modelo',
     description: 'Comparison behavior — should detect intencion=compara',
   },
-  {
-    agentName: 'address_analysis',
-    systemPrompt:
-      'Eres un agente que valida direcciones. Devuelve JSON con valid (bool), ciudad, barrio, sugerencia.',
-    userInput: 'Calle 100 #15-20, Bogotá',
-    description: 'Valid Bogotá address',
-  },
-  // ── SPRINT-AI-AGENTS-003 §2 — 6 casos nuevos para los agentes ──────────
+  // ── v0.4.1 · IA-3 — casos consolidados ──────────────────────────────────
   // Cada caso nuevo apunta a su esquema Zod (ver AGENT_OUTPUT_SCHEMAS en
   // src/lib/agents/schemas.ts). Los system prompts son reducidos respecto
   // a los builders reales (que leen DB) — el harness valida el contrato
   // de salida, no la integración con el tenant.
   {
-    // Esquema GuideTrackingSchema: { estado: en_transito|entregado|...
-    //   fechaEstimada?, ultimaActualizacion? }. El prompt incluye un
-    // estado simulado (guía 123456 en tránsito con ETA 2 días) — el
-    // builder real consultaría LogisticsAdapter.
-    agentName: 'guide_tracking',
+    // Esquema PostventaLogisticsSchema (alias GuideTrackingSchema):
+    //   { estado: en_transito|entregado|..., fechaEstimada?, ultimaActualizacion? }.
+    // El prompt incluye un estado simulado (guía 123456 en tránsito con
+    // ETA 2 días) — el builder real consultaría LogisticsAdapter.
+    agentName: 'postventa_logistics',
     systemPrompt:
       'Eres el agente de seguimiento de guías. Devuelves JSON estricta con estado (en_transito/entregado/devuelto/perdido/desconocido), fechaEstimada (ISO date), ultimaActualizacion (ISO date). No inventes estados — usa solo el dato proporcionado.',
     userInput:
       'Mi guía es 123456, ¿dónde está mi pedido? (dato del sistema: guía 123456 con Servientrega, estado actual en_transito, ETA 2025-01-15, última actualización 2025-01-12)',
-    description: 'Guide tracking — should return estado=en_transito with ETA',
+    description: 'Postventa logística — tracking mode (guía 123456 en tránsito)',
   },
   {
-    // Esquema CustomerScoreSchema: { score: 0-100, nivel: vip|regular|
-    //   en_riesgo|nuevo, razon }. El cliente del input tiene 15 compras
-    // en 6 meses con ticket promedio $80k — claramente VIP.
-    agentName: 'customer_score',
+    // Esquema ScoringSchema (union CustomerScoreSchema | CarrierScoreSchema):
+    //   customer shape { score: 0-100, nivel, razon }.
+    // El cliente del input tiene 15 compras en 6 meses con ticket promedio
+    // $80k — claramente VIP.
+    agentName: 'scoring',
     systemPrompt:
       'Eres el motor de scoring de clientes. Recibes el historial del cliente y devuelves JSON estricta con score (0-100), nivel (vip/regular/en_riesgo/nuevo), razon. Score basado en frecuencia de compra, ticket promedio, recencia y riesgo de churn.',
     userInput:
       'Cliente que ha comprado 15 veces en 6 meses, ticket promedio $80k. Última compra hace 5 días. Sin cancelaciones. Perfil: mayorista.',
-    description: 'Customer score — VIP signal (15 compras, $80k avg)',
+    description: 'Scoring — customer target (15 compras, $80k avg → VIP)',
   },
   {
-    // Esquema CarrierScoreSchema: { carrier: string, score: 0-100,
-    //   onTimeRate: 0-1, issues: array }. Servientrega entregó 45/50 a
-    // tiempo → onTimeRate=0.9, score alto.
-    agentName: 'carrier_score',
+    // Esquema ScoringSchema (union CustomerScoreSchema | CarrierScoreSchema):
+    //   carrier shape { carrier, score, onTimeRate, issues }.
+    // Servientrega entregó 45/50 a tiempo → onTimeRate=0.9, score alto.
+    agentName: 'scoring',
     systemPrompt:
       'Eres el motor de scoring de transportadoras. Para la transportadora indicada, devuelves JSON estricta con carrier (nombre), score (0-100), onTimeRate (0-1), issues (array de strings con problemas detectados). Basado en volumen, % on-time, % novedad, % devolución.',
     userInput:
       'Servientrega ha entregado 45 de 50 paquetes a tiempo. 3 tuvieron novedad (dirección errónea), 2 fueron devueltos. Volumen total: 50 envíos en 30 días.',
-    description: 'Carrier score — Servientrega 90% on-time, high score',
+    description: 'Scoring — carrier target (Servientrega 90% on-time, high score)',
   },
   {
     // Esquema VisionSchema: { producto: string, categoria?, atributos?:

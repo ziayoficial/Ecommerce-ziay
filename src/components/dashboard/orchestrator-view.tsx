@@ -180,7 +180,7 @@ export function OrchestratorView() {
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <Bot className="size-4 text-primary" /> Orquestador de agentes
-            <Badge variant="outline" className="text-[10px] h-5">9 pasos · 10 agentes · §12</Badge>
+            <Badge variant="outline" className="text-[10px] h-5">8 pasos · 9 agentes · §12</Badge>
           </CardTitle>
           <CardDescription>
             Elige un escenario y ejecuta el pipeline completo o paso a paso. Cada paso invoca un agente del catálogo §6.

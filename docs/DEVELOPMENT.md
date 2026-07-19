@@ -232,7 +232,7 @@ Todos los scripts viven en `scripts/` y se corren con `bun run scripts/<nombre>.
 | `scripts/load-real-orders.ts` | Carga 238 pedidos reales desde CSV del CRM |
 | `scripts/backfill-embeddings.ts` | Genera embeddings para todos los mensajes existentes |
 | `scripts/fix-saramantha-messages.ts` | Repara mensajes con franja de metadata visible |
-| `scripts/generate-n8n-workflows.ts` | Genera 11 workflows JSON para n8n (10 agentes + master) |
+| `scripts/generate-n8n-workflows.ts` | Genera 10 workflows JSON para n8n (9 agentes consolidados + master) |
 
 ### Backfill embeddings
 
@@ -381,7 +381,7 @@ bunx eslint src/ --quiet
 
 ## Cómo añadir un nuevo agente conversacional
 
-Sigue el patrón de los **26 agentes** en `src/lib/agents/prompts.ts`. Ver [`CONTRIBUTING.md`](../CONTRIBUTING.md#cómo-añadir-un-nuevo-agente-conversacional) para el ejemplo paso a paso.
+Sigue el patrón de los **24 agentes** (20 consolidados + 4 control-plane) en `src/lib/agents/prompts.ts`. Ver [`CONTRIBUTING.md`](../CONTRIBUTING.md#cómo-añadir-un-nuevo-agente-conversacional) para el ejemplo paso a paso.
 
 Resumen:
 
@@ -543,7 +543,7 @@ Reinicia el dev server y vuelve a probar.
 ## Próximos pasos
 
 - 📖 Lee [`docs/DATA-MODEL.md`](./DATA-MODEL.md) para entender el schema (78 modelos Prisma).
-- 📖 Lee [`docs/AGENTS-REFERENCE.md`](./AGENTS-REFERENCE.md) para entender los 26 agentes.
+- 📖 Lee [`docs/AGENTS-REFERENCE.md`](./AGENTS-REFERENCE.md) para entender los 24 agentes (20 consolidados + 4 control-plane).
 - 📖 Lee [`docs/ADAPTERS.md`](./ADAPTERS.md) para entender la capa de adaptadores.
 - 📖 Lee [`docs/PRODUCTION-CHECKLIST.md`](./PRODUCTION-CHECKLIST.md) antes de desplegar.
 - 📖 Lee [`upload/onboarding-end-to-end.md`](../upload/onboarding-end-to-end.md) para el onboarding completo de 2.006 líneas.

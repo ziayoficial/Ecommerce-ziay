@@ -15,13 +15,14 @@
 // kicks in, degrading agent quality without operator visibility. Golden cases
 // make regressions visible at CI time.
 //
-// Coverage:
-//   - 11 schema-backed agents (profile, quote, cart_builder, buyer_behavior,
-//     guide_tracking, customer_score, carrier_score, address_analysis,
-//     vision, novedades, remarketing) — each with ≥1 accept case + ≥1 reject
-//     case.
-//   - parseAgentOutput JSON extraction — text-wrapped, markdown-fenced, pure
-//     JSON, malformed JSON, unknown agent.
+// v0.4.1 · IA-3 — schema consolidation:
+//   - 8 schema-backed agents (was 11): profile, quote, buyer_behavior,
+//     postventa_logistics, scoring, vision, novedades, remarketing.
+//   - `postventa_logistics` replaces `guide_tracking`.
+//   - `scoring` (union) replaces `customer_score` + `carrier_score`.
+//   - `address_analysis` + `cart_builder` schemas no longer registered
+//     (their agents merged with `address` / `quote`, which have mode-
+//     dependent shapes — caller validates directly).
 //
 // Adding a new agent? Add a golden case here. Adding a new field to an existing
 // schema? Add an accept case + a reject case for the new field's validation
@@ -148,46 +149,6 @@ describe('Agent golden cases — quote', () => {
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
-// cart_builder agent — lightweight cart (sku + cantidad per item)
-// ─────────────────────────────────────────────────────────────────────────────
-describe('Agent golden cases — cart_builder', () => {
-  it('accepts valid cart', () => {
-    const output = {
-      items: [
-        { sku: 'PIJ-001', cantidad: 5 },
-        { sku: 'PIJ-002', cantidad: 3 },
-      ],
-      total: 120000,
-    }
-    expect(parseAgentOutput('cart_builder', JSON.stringify(output))).not.toBeNull()
-  })
-
-  it('rejects negative quantity', () => {
-    const output = {
-      items: [{ sku: 'PIJ-001', cantidad: -5 }],
-      total: 0,
-    }
-    expect(parseAgentOutput('cart_builder', JSON.stringify(output))).toBeNull()
-  })
-
-  it('rejects zero quantity (must be positive)', () => {
-    const output = {
-      items: [{ sku: 'PIJ-001', cantidad: 0 }],
-      total: 0,
-    }
-    expect(parseAgentOutput('cart_builder', JSON.stringify(output))).toBeNull()
-  })
-
-  it('rejects non-integer quantity', () => {
-    const output = {
-      items: [{ sku: 'PIJ-001', cantidad: 1.5 }],
-      total: 100,
-    }
-    expect(parseAgentOutput('cart_builder', JSON.stringify(output))).toBeNull()
-  })
-})
-
-// ─────────────────────────────────────────────────────────────────────────────
 // buyer_behavior agent — purchase intent classification
 // ─────────────────────────────────────────────────────────────────────────────
 describe('Agent golden cases — buyer_behavior', () => {
@@ -223,16 +184,17 @@ describe('Agent golden cases — buyer_behavior', () => {
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
-// guide_tracking agent — shipping guide status
+// postventa_logistics agent — shipping guide status (v0.4.1 · IA-3 —
+// replaces guide_tracking; schema is PostventaLogisticsSchema = GuideTrackingSchema)
 // ─────────────────────────────────────────────────────────────────────────────
-describe('Agent golden cases — guide_tracking', () => {
+describe('Agent golden cases — postventa_logistics', () => {
   it('accepts en_transito status', () => {
     const output = {
       estado: 'en_transito',
       fechaEstimada: '2026-07-20',
       ultimaActualizacion: '2026-07-15T10:30:00Z',
     }
-    expect(parseAgentOutput('guide_tracking', JSON.stringify(output))).not.toBeNull()
+    expect(parseAgentOutput('postventa_logistics', JSON.stringify(output))).not.toBeNull()
   })
 
   it('accepts entregado status', () => {
@@ -240,66 +202,64 @@ describe('Agent golden cases — guide_tracking', () => {
       estado: 'entregado',
       fechaEstimada: '2026-07-18',
     }
-    expect(parseAgentOutput('guide_tracking', JSON.stringify(output))).not.toBeNull()
+    expect(parseAgentOutput('postventa_logistics', JSON.stringify(output))).not.toBeNull()
   })
 
   it('accepts devuelto / perdido / desconocido statuses', () => {
     for (const estado of ['devuelto', 'perdido', 'desconocido']) {
       const output = { estado }
-      expect(parseAgentOutput('guide_tracking', JSON.stringify(output))).not.toBeNull()
+      expect(parseAgentOutput('postventa_logistics', JSON.stringify(output))).not.toBeNull()
     }
   })
 
   it('rejects English status "delivered" (must be Spanish "entregado")', () => {
     const output = { estado: 'delivered' }
-    expect(parseAgentOutput('guide_tracking', JSON.stringify(output))).toBeNull()
+    expect(parseAgentOutput('postventa_logistics', JSON.stringify(output))).toBeNull()
   })
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
-// customer_score agent — VIP / regular / en_riesgo / nuevo
+// scoring agent — customer LTV/churn + carrier on-time (v0.4.1 · IA-3 —
+// replaces customer_score + carrier_score; schema is ScoringSchema = union)
 // ─────────────────────────────────────────────────────────────────────────────
-describe('Agent golden cases — customer_score', () => {
+describe('Agent golden cases — scoring (customer target)', () => {
   it('accepts valid VIP score', () => {
     const output = {
       score: 92,
       nivel: 'vip',
       razon: 'Cliente recurrente con alto ticket promedio',
     }
-    expect(parseAgentOutput('customer_score', JSON.stringify(output))).not.toBeNull()
+    expect(parseAgentOutput('scoring', JSON.stringify(output))).not.toBeNull()
   })
 
   it('accepts all 4 valid nivel values', () => {
     for (const nivel of ['vip', 'regular', 'en_riesgo', 'nuevo']) {
       const output = { score: 50, nivel, razon: 'x' }
-      expect(parseAgentOutput('customer_score', JSON.stringify(output))).not.toBeNull()
+      expect(parseAgentOutput('scoring', JSON.stringify(output))).not.toBeNull()
     }
   })
 
   it('rejects score > 100', () => {
     const output = { score: 150, nivel: 'vip', razon: 'test' }
-    expect(parseAgentOutput('customer_score', JSON.stringify(output))).toBeNull()
+    expect(parseAgentOutput('scoring', JSON.stringify(output))).toBeNull()
   })
 
   it('rejects score < 0', () => {
     const output = { score: -1, nivel: 'vip', razon: 'test' }
-    expect(parseAgentOutput('customer_score', JSON.stringify(output))).toBeNull()
+    expect(parseAgentOutput('scoring', JSON.stringify(output))).toBeNull()
   })
 
   it('accepts boundary scores 0 and 100', () => {
     expect(
-      parseAgentOutput('customer_score', JSON.stringify({ score: 0, nivel: 'nuevo', razon: 'x' })),
+      parseAgentOutput('scoring', JSON.stringify({ score: 0, nivel: 'nuevo', razon: 'x' })),
     ).not.toBeNull()
     expect(
-      parseAgentOutput('customer_score', JSON.stringify({ score: 100, nivel: 'vip', razon: 'x' })),
+      parseAgentOutput('scoring', JSON.stringify({ score: 100, nivel: 'vip', razon: 'x' })),
     ).not.toBeNull()
   })
 })
 
-// ─────────────────────────────────────────────────────────────────────────────
-// carrier_score agent — transportadora on-time rate
-// ─────────────────────────────────────────────────────────────────────────────
-describe('Agent golden cases — carrier_score', () => {
+describe('Agent golden cases — scoring (carrier target)', () => {
   it('accepts valid carrier score', () => {
     const output = {
       carrier: 'dropi',
@@ -307,55 +267,34 @@ describe('Agent golden cases — carrier_score', () => {
       onTimeRate: 0.95,
       issues: ['delay_north'],
     }
-    expect(parseAgentOutput('carrier_score', JSON.stringify(output))).not.toBeNull()
+    expect(parseAgentOutput('scoring', JSON.stringify(output))).not.toBeNull()
   })
 
   it('rejects onTimeRate > 1', () => {
     const output = { carrier: 'dropi', score: 90, onTimeRate: 1.5, issues: [] }
-    expect(parseAgentOutput('carrier_score', JSON.stringify(output))).toBeNull()
+    expect(parseAgentOutput('scoring', JSON.stringify(output))).toBeNull()
   })
 
   it('rejects score > 100', () => {
     const output = { carrier: 'dropi', score: 200, onTimeRate: 0.9, issues: [] }
-    expect(parseAgentOutput('carrier_score', JSON.stringify(output))).toBeNull()
+    expect(parseAgentOutput('scoring', JSON.stringify(output))).toBeNull()
+  })
+
+  it('accepts empty issues array', () => {
+    const output = { carrier: 'x', score: 50, onTimeRate: 0.5, issues: [] }
+    expect(parseAgentOutput('scoring', JSON.stringify(output))).not.toBeNull()
   })
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
-// address_analysis agent — Bogotá / Medellín address validation
+// address agent — text-only after IA-3 consolidation (analyze-mode JSON
+// shape not registered in AGENT_OUTPUT_SCHEMAS — caller validates directly).
+// Kept here as a regression guard: parseAgentOutput('address', ...) should
+// return null because the agent has no schema registered.
 // ─────────────────────────────────────────────────────────────────────────────
-describe('Agent golden cases — address_analysis', () => {
-  it('accepts valid address', () => {
-    const output = {
-      valid: true,
-      ciudad: 'Bogotá',
-      barrio: 'Chapinero',
-      sugerencia: 'Dirección verificada',
-    }
-    expect(parseAgentOutput('address_analysis', JSON.stringify(output))).not.toBeNull()
-  })
-
-  it('accepts invalid address with suggestion', () => {
-    const output = {
-      valid: false,
-      sugerencia: 'La dirección no existe en Bogotá. ¿Quizás es Calle 100 #15-20?',
-    }
-    expect(parseAgentOutput('address_analysis', JSON.stringify(output))).not.toBeNull()
-  })
-
-  it('accepts minimal address (only `valid` field)', () => {
-    const output = { valid: true }
-    expect(parseAgentOutput('address_analysis', JSON.stringify(output))).not.toBeNull()
-  })
-
-  it('rejects missing `valid` field', () => {
-    const output = { ciudad: 'Bogotá' }
-    expect(parseAgentOutput('address_analysis', JSON.stringify(output))).toBeNull()
-  })
-
-  it('rejects non-boolean `valid`', () => {
-    const output = { valid: 'yes' }
-    expect(parseAgentOutput('address_analysis', JSON.stringify(output))).toBeNull()
+describe('Agent golden cases — address (no schema after IA-3)', () => {
+  it('returns null for any address output (no schema registered)', () => {
+    expect(parseAgentOutput('address', '{"valid":true,"ciudad":"Bogotá"}')).toBeNull()
   })
 })
 
@@ -479,6 +418,8 @@ describe('Agent golden cases — parseAgentOutput JSON extraction', () => {
 
   it('returns null for agent without schema (text-only agent)', () => {
     // `speech`, `catalog`, `theme`, etc. — agents without JSON contracts.
+    // (v0.4.1 · IA-3: theme is no longer a registered AgentName — it's
+    // folded into catalog. Still text-only → still null.)
     expect(parseAgentOutput('speech', '{"any":"thing"}')).toBeNull()
     expect(parseAgentOutput('catalog', '{"any":"thing"}')).toBeNull()
     expect(parseAgentOutput('theme', '{"any":"thing"}')).toBeNull()
@@ -508,25 +449,25 @@ describe('Agent golden cases — boundary values', () => {
     ).not.toBeNull()
   })
 
-  it('accepts customer_score with boundary 0 and 100', () => {
+  it('accepts scoring (customer target) with boundary 0 and 100', () => {
     expect(
       parseAgentOutput(
-        'customer_score',
+        'scoring',
         JSON.stringify({ score: 0, nivel: 'nuevo', razon: 'x' }),
       ),
     ).not.toBeNull()
     expect(
       parseAgentOutput(
-        'customer_score',
+        'scoring',
         JSON.stringify({ score: 100, nivel: 'vip', razon: 'x' }),
       ),
     ).not.toBeNull()
   })
 
-  it('accepts carrier_score with empty issues array', () => {
+  it('accepts scoring (carrier target) with empty issues array', () => {
     expect(
       parseAgentOutput(
-        'carrier_score',
+        'scoring',
         JSON.stringify({ carrier: 'x', score: 50, onTimeRate: 0.5, issues: [] }),
       ),
     ).not.toBeNull()

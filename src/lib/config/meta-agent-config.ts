@@ -31,7 +31,7 @@ export interface MetaAgentConfig {
   // ── Feature flags ──────────────────────────────────────────────
   useMetaCatalog: boolean // Meta's product catalog in WA
   useMetaAgent: boolean // Meta Business Agent (no-code)
-  useOwnAgents: boolean // ZIAY's 26 agents
+  useOwnAgents: boolean // ZIAY's 24 agents (20 consolidated + 4 control-plane)
   useOwnSocket: boolean // ZIAY real-time via Socket.io
   // ── Cost model (USD per conversation) ──────────────────────────
   metaAgentPerTokenCost?: number // Meta charges per token from Aug 2026

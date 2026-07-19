@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { db } from '@/lib/db'
 import { requireTenantAccess } from '@/lib/auth-helpers'
 import { rateLimit } from '@/lib/middleware/rate-limit'
 // SPRINT-AI-LLM-ADAPTER-001 — reemplazo de la llamada directa al SDK de ZAI por el
@@ -32,6 +33,12 @@ import { sanitizeParsed } from '@/lib/middleware/sanitize'
 // tenant provider, catalog slice); `agentsService` owns the
 // DecisionLog persistence (shared with /api/agents/[agentName]).
 import { conversationService, agentsService } from '@/lib/services'
+// IA-1 (agent-builder) — control-plane agents: Governor (safety/budget
+// gate, runs FIRST), Sentiment Analyzer (parallel classification),
+// Memory Curator (async long-term fact extraction).
+import { runGovernor } from '@/lib/agents/governor.service'
+import { runSentimentAsync } from '@/lib/agents/sentiment.service'
+import { runMemoryCuratorAsync } from '@/lib/agents/memory-curator.service'
 
 // TD-2: Zod schema for ai-reply POST.
 const AiReplySchema = z.object({
@@ -109,6 +116,52 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
       { error: budgetCheck.message, code: 'BUDGET_EXCEEDED' },
       { status: 429 },
     )
+  }
+
+  // ── IA-1 (agent-builder) — Governor: safety/budget gate ──────────────
+  // Runs FIRST on every inbound message, before the LLM generates a reply.
+  // Checks for prompt injection, PII leaks, banned content. Has a <300ms
+  // timeout and fails-open (allow) on timeout/error so the conversation
+  // is never blocked by a slow governor LLM.
+  //
+  // The latest customer message is fetched from the conversation history
+  // (the dashboard's "AI reply" button generates a reply for the latest
+  // inbound). If the governor blocks, return 403 with the reason — the
+  // dashboard surfaces it to the agent.
+  let latestCustomerMessage = ''
+  try {
+    const latestInbound = await db.message.findFirst({
+      where: { conversationId, direction: 'inbound' },
+      orderBy: { createdAt: 'desc' },
+      select: { body: true },
+    })
+    latestCustomerMessage = latestInbound?.body ?? ''
+  } catch {
+    // Non-blocking — if we can't fetch the latest message, the governor
+    // runs with an empty message (which it'll allow).
+  }
+  if (latestCustomerMessage) {
+    const governorResult = await runGovernor({
+      tenantId: conv.tenantId,
+      conversationId,
+      message: latestCustomerMessage,
+      customerId: conv.customerId,
+    })
+    if (!governorResult.allow) {
+      return NextResponse.json(
+        { error: governorResult.reason || 'Mensaje bloqueado por el Gobernador', code: 'GOVERNOR_BLOCKED' },
+        { status: 403 },
+      )
+    }
+    // ── IA-1 (agent-builder) — Sentiment Analyzer (parallel, async) ────
+    // Fire-and-forget: classify the customer's latest message in parallel
+    // with the LLM reply generation. NEVER blocks the response.
+    runSentimentAsync({
+      tenantId: conv.tenantId,
+      conversationId,
+      customerId: conv.customerId,
+      message: latestCustomerMessage,
+    })
   }
 
   // Build context for the model
@@ -226,6 +279,20 @@ Tono: ${tone}, cálido, cercano (estilo LATAM), emojis moderados. Máximo 2 mens
         latencyMs: Date.now() - startTime,
       },
     })
+
+    // ── IA-1 (agent-builder) — Memory Curator (async, fire-and-forget) ──
+    // After the reply is generated, extract durable facts from the latest
+    // turn (customer message + this reply) and persist them in
+    // `CustomerMemory` for future conversations. NEVER blocks the response.
+    if (latestCustomerMessage) {
+      const turnTranscript = `Customer: ${latestCustomerMessage}\n\nAgent: ${reply}`
+      runMemoryCuratorAsync({
+        tenantId: conv.tenantId,
+        conversationId: conv.id,
+        customerId: conv.customerId,
+        turnTranscript,
+      })
+    }
 
     return NextResponse.json({ reply, confidence })
   } catch (err) {

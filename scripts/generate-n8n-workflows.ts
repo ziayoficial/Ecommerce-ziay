@@ -1,5 +1,10 @@
-// CommerceFlow OS — Genera los 10 workflows n8n individuales + master orchestrator
+// CommerceFlow OS — Genera los 9 workflows n8n individuales + master orchestrator
 // Run: bun run scripts/generate-n8n-workflows.ts
+//
+// v0.4.1 · IA-3: 9-step → 8-step pipeline (theme folded into catalog,
+// cart_builder into quote, address_analysis into address). Output drops
+// the standalone `theme` workflow — `catalog` now handles theme queries
+// via `?theme=Stitch` query param.
 import { writeFileSync, mkdirSync } from 'fs'
 
 mkdirSync('/home/z/my-project/n8n-workflows', { recursive: true })
@@ -7,11 +12,10 @@ mkdirSync('/home/z/my-project/n8n-workflows', { recursive: true })
 const AGENTS = [
   { id: 'profile', label: '6.1 Perfilamiento de leads', desc: 'Clasifica mayorista/emprendedor/detal/regalo' },
   { id: 'speech', label: '6.2 Discurso de ventas por perfil', desc: 'Apertura + prueba social por perfil' },
-  { id: 'quote', label: '6.3 Cotización cruzada', desc: 'Volume pricing + margen total' },
-  { id: 'catalog', label: '6.4 Catálogo visual-primero', desc: 'Mínimo 3 prendas en categoría amplia' },
-  { id: 'theme', label: '6.5 Búsqueda por tema/personaje', desc: 'Stitch, Hello Kitty, etc.' },
+  { id: 'quote', label: '6.3 Cotización + constructor de carrito', desc: 'Volume pricing + margen + cart NL' },
+  { id: 'catalog', label: '6.4 Catálogo visual + búsqueda por tema', desc: 'Mínimo 3 prendas + temas_diseño' },
   { id: 'objection', label: '6.6 Manejo de objeciones', desc: 'Desconfianza/precio/talla/lo pienso' },
-  { id: 'address', label: '6.7 Confirmación de datos (10 campos)', desc: 'Nombre, teléfono, dirección, etc.' },
+  { id: 'address', label: '6.7 Confirmación de datos + análisis', desc: '10 campos + cobertura + historial' },
   { id: 'logistics', label: '6.8 Logística de fletes', desc: 'Cotización real vía LogisticsAdapter' },
   { id: 'vision', label: '6.9 Visión (identificación por imagen)', desc: 'OCR + CLIP + LLM fallback' },
   { id: 'checkout', label: '6.10 Checkout y sincronización', desc: 'Crea pedido + guía + comisión' },

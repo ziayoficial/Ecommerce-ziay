@@ -56,7 +56,7 @@ ZIAY es una plataforma de **comercio conversacional con atribución inteligente*
 
 ### Capacidades principales
 
-- **26 agentes de IA** cubriendo pre-venta, post-venta, inteligencia, compliance, fintech y monitoreo
+- **24 agentes de IA** (20 consolidados + 4 control-plane) cubriendo pre-venta, post-venta, inteligencia, compliance, fintech y monitoreo
 - **5 protocolos agénticos** (AP2, UCP, ACP, MCP, A2A) para interoperabilidad con agentes externos
 - **8 métodos de pago** (4 tarjetas + 4 locales LATAM)
 - **7 monedas** (COP, MXN, BRL, USD, PEN, CLP, ARS)

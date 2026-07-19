@@ -46,7 +46,7 @@ vi.mock('@/lib/llm/adapter', () => ({
 
 // ── Mock: DB ─────────────────────────────────────────────────────────────
 // Only the delegates the route actually touches are mocked. The prompt
-// builders for other agents (cart_builder, etc.) call db.product.findMany
+// builders for other agents (quote cart mode, etc.) call db.product.findMany
 // but we only exercise the `profile` agent in this suite.
 const { db } = vi.hoisted(() => ({
   db: {

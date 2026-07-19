@@ -11,7 +11,7 @@ disponible globalmente en WhatsApp, Messenger e Instagram. Recomienda
 productos del catálogo, agenda citas, califica leads y escala a un humano.
 Todo dentro de la app de Meta, sin código.
 
-ZIAY ya cuenta con 26 agentes especializados que cubren las 6 etapas del
+ZIAY ya cuenta con 24 agentes (20 consolidados + 4 control-plane) especializados que cubren las 6 etapas del
 flujo agéntico (perfilación → catálogo → carrito → checkout → logística →
 fidelización), orquestados en tiempo real vía Socket.io sobre la WhatsApp
 Cloud API.
@@ -30,7 +30,7 @@ Cloud API.
 
 ### 2. Stack Propio (Cloud API + ZIAY agents)
 
-- **Pros:** Control total, 26 agentes especializados, socket.io tiempo real,
+- **Pros:** Control total, 24 agentes (20 consolidados + 4 control-plane), socket.io tiempo real,
   AP2/UCP compliance, no data sharing.
 - **Contras:** Mayor costo de desarrollo, mantenimiento de infraestructura.
 - **Costo estimado:** `$0.015/conversación (LLM) + $0.0085/mensaje (Meta) ≈ $0.02/conversación`.
@@ -47,7 +47,7 @@ Cloud API.
 
 **Razón:**
 
-1. ZIAY ya tiene 26 agentes especializados que cubren las 6 etapas del flujo
+1. ZIAY ya tiene 24 agentes (20 consolidados + 4 control-plane) que cubren las 6 etapas del flujo
    agéntico — el agente de Meta es funcionalmente un subconjunto.
 2. El stack propio es **~100x más barato** por conversación (`$0.02` vs `$2`).
 3. AP2/UCP compliance requiere control del signing service (imposible con

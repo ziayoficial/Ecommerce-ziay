@@ -251,30 +251,34 @@ export function LogisticsIntelligenceView() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             <AgentButton
-              label="customer_score"
+              label="scoring"
+              body={{ target: 'customer' }}
               display="Recalcular score de clientes"
               icon={<ShieldCheck className="size-4" />}
               tenantId={tenantId!}
               onDone={load}
             />
             <AgentButton
-              label="carrier_score"
+              label="scoring"
+              body={{ target: 'carrier' }}
               display="Recalcular score de transportadoras"
               icon={<Truck className="size-4" />}
               tenantId={tenantId!}
               onDone={load}
             />
             <AgentButton
-              label="guide_alert"
+              label="postventa_logistics"
+              body={{ mode: 'alert' }}
               display="Disparar alertas de guías"
               icon={<AlertTriangle className="size-4" />}
               tenantId={tenantId!}
               onDone={load}
             />
             <AgentButton
-              label="logistics_notifier"
+              label="postventa_logistics"
+              body={{ mode: 'notification' }}
               display="Notificar clientes logística"
               icon={<Send className="size-4" />}
               tenantId={tenantId!}
@@ -322,13 +326,16 @@ function KpiCard({
 }
 
 function AgentButton({
-  label, display, icon, tenantId, onDone,
+  label, display, icon, tenantId, onDone, body,
 }: {
   label: string
   display: string
   icon: React.ReactNode
   tenantId: string
   onDone: () => void
+  // v0.4.1 · IA-3 — agents merged with `mode`/`target` discriminator
+  // accept an optional body payload (e.g. { mode: 'alert' }, { target: 'customer' }).
+  body?: Record<string, unknown>
 }) {
   const [loading, setLoading] = useState(false)
   const run = async () => {
@@ -337,7 +344,7 @@ function AgentButton({
       const res = await fetch(`/api/agents/${label}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tenantId }),
+        body: JSON.stringify({ tenantId, ...body }),
       })
       if (!res.ok) throw new Error('agent failed')
       const json = await res.json()

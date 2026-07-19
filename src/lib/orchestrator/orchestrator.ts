@@ -1,7 +1,13 @@
 // CommerceFlow OS — Orchestrator (Saramantha §12 — 4 end-to-end scenarios)
-// Sequences the 10 agents automatically based on conversation state.
+// Sequences the agents automatically based on conversation state.
 // Each agent's output feeds the next. Mirrors the §12.1 narrative:
-//   profile → speech → catalog → theme → quote → objection → address → logistics → checkout
+//   profile → speech → catalog (con tema) → quote (con carrito) → objection → address (con análisis) → logistics → checkout
+//
+// v0.4.1 · IA-3: 9 pasos → 8 (theme se mergea en catalog, cart_builder en
+// quote, address_analysis en address). El `OrchestratorScenario.theme` se
+// pasa como `ctx.theme` al catalog agent; el `OrchestratorScenario.items`
+// (o el mensaje del lead) se pasa al quote agent en modo cart si no hay
+// items resueltos.
 //
 // IMPORTANT: This module imports z-ai-web-dev-sdk (server-only).
 // Client components must import from './constants' instead.
@@ -11,6 +17,10 @@ import { buildAgentPrompt, AgentName } from '@/lib/agents/prompts'
 import { getLogisticsAdapter } from '@/lib/adapters/registry'
 import { getLLMProvider } from '@/lib/llm/adapter'
 import { OrchestratorState, OrchestratorScenario, ORCHESTRATOR_STEPS } from './constants'
+// IA-2 (agent-hardening) — tracing + budget wired into every agent call.
+import { agentTracer } from '@/lib/agents/tracing'
+import { budgetManager } from '@/lib/agents/budget'
+import { getModelForAgent, estimateCost } from '@/lib/agents/model-router'
 
 // Re-export for server consumers
 export type { OrchestratorState, OrchestratorScenario }
@@ -18,14 +28,53 @@ export { ORCHESTRATOR_STEPS, ORCHESTRATOR_SCENARIOS } from './constants'
 
 // Call an agent directly (no HTTP) — reuses the same buildAgentPrompt + LLM logic
 // Includes a 15s timeout per agent to prevent the full scenario from exceeding 120s.
+//
+// IA-2 (agent-hardening) — wraps every call with:
+//   1. `budgetManager.checkBudget()` pre-flight — rejects if the tenant
+//      has exceeded its daily/monthly token or USD cap (the Governor
+//      agent in IA-1 surfaces this to the end user).
+//   2. `agentTracer.startSpan()` — opens a span with `tenantId` +
+//      `conversationId` + `agentName` for observability.
+//   3. The LLM call (unchanged) — `Promise.race` with a 15s timeout.
+//   4. `span.end()` with the actual token usage + cost from the adapter.
+//   5. `budgetManager.recordUsage()` — debits the in-memory counter +
+//      writes a `TokenUsage` row (audit ledger).
+//
+// The tracing + budget wrapping is non-blocking on errors: if the budget
+// check throws (DB down), we fail-open (allow the call) and capture the
+// error. If the span.end() fails, the LLM reply still returns. The
+// observability layer must never break the agent pipeline.
 async function callAgentDirect(agentName: AgentName, ctx: Record<string, unknown>): Promise<string> {
-  const { system, user } = await buildAgentPrompt(agentName, ctx as unknown as Parameters<typeof buildAgentPrompt>[1])
   const tenantId = ctx.tenantId as string
   if (!tenantId) throw new Error('tenantId required in context')
+  const conversationId = (ctx.conversationId as string) ?? 'orchestrator'
+
+  // IA-2 §2 — budget pre-flight. Estimated tokens = a worst-case cap
+  // based on the agent's tier (cheap=1K, standard=2K, frontier=4K).
+  // The actual usage is debited after the call; we only block if even
+  // the estimate would push the tenant over the cap.
+  const tier = getModelForAgent(agentName).tier
+  const estimatedTokens = tier === 'cheap' ? 1000 : tier === 'standard' ? 2000 : 4000
+  const budgetCheck = await budgetManager.checkBudget(tenantId, estimatedTokens)
+  if (!budgetCheck.allowed) {
+    // Surface the reason in the reply so the orchestrator's history
+    // shows why the step was short-circuited. The Governor agent (IA-1)
+    // is responsible for translating this to a user-facing message.
+    return `(presupuesto excedido: ${budgetCheck.reason ?? 'unknown'})`
+  }
+
+  // IA-2 §1 — open a tracing span around the LLM call.
+  const span = agentTracer.startSpan(agentName, ctx)
+  span.setContext({ tenantId, conversationId })
+
+  const { system, user } = await buildAgentPrompt(agentName, ctx as unknown as Parameters<typeof buildAgentPrompt>[1])
   // `getLLMProvider` is a synchronous registry lookup (no tenantId arg);
   // the per-tenant provider preference is honoured by the tenant's
   // `proveedorIa` field elsewhere — here we just need a working LLM.
   const llm = getLLMProvider()
+  // IA-2 §4 — resolve the model from the per-agent tier map so the
+  // adapter uses the right GLM variant (flash / 4.6 / 4.6-plus).
+  const { model: tierModel } = getModelForAgent(agentName)
 
   // 15s timeout per agent call
   const timeoutPromise = new Promise<never>((_, reject) =>
@@ -33,20 +82,61 @@ async function callAgentDirect(agentName: AgentName, ctx: Record<string, unknown
   )
   // The LLMProvider interface exposes `.chat(messages, opts)` (not `.complete`).
   // We map the agent prompt onto a two-message transcript and extract `.content`.
+  // IA-2: capture the full result (not just `.content`) so we can record
+  // token usage + cost on the span + budget ledger.
   const llmPromise = llm.chat([
     { role: 'system', content: system },
     { role: 'user', content: user },
-  ]).then((r) => r.content)
+  ], { model: tierModel })
 
   try {
-    return await Promise.race([llmPromise, timeoutPromise])
+    const result = await Promise.race([llmPromise, timeoutPromise])
+    const reply = result.content
+
+    // IA-2 §1 — finalize the span with token usage + cost.
+    const tokensIn = result.usage?.promptTokens ?? 0
+    const tokensOut = result.usage?.completionTokens ?? 0
+    const costUsd = estimateCost(agentName, tokensIn, tokensOut)
+    span.end(reply, {
+      tenantId,
+      conversationId,
+      model: result.model ?? tierModel,
+      tokensIn,
+      tokensOut,
+      costUsd,
+      status: 'success',
+    })
+
+    // IA-2 §2 — debit the budget ledger.
+    budgetManager.recordUsage(
+      tenantId,
+      conversationId,
+      tokensIn,
+      tokensOut,
+      costUsd,
+      agentName,
+      result.model ?? tierModel,
+    )
+
+    return reply
   } catch (e) {
-    // On timeout, return a deterministic fallback instead of failing the whole scenario
+    // On timeout/error, finalize the span as 'error' or 'timeout' and
+    // return a deterministic fallback instead of failing the whole scenario.
+    const isTimeout = e instanceof Error && e.message.includes('timed out')
+    span.setError(
+      e instanceof Error ? e.message : 'unknown error',
+      isTimeout ? 'timeout' : 'error',
+    )
+
+    // Even on error, we still debit any tokens the adapter may have
+    // reported before the timeout. Most timeouts leave usage = 0
+    // (the upstream never returned), so this is a no-op in the common
+    // case — but if a streaming call timed out after partial usage,
+    // we want it counted.
     const fallbacks: Record<string, string> = {
       profile: 'mayorista',
       speech: '¡Hola! ¿Qué producto te interesa?',
       catalog: 'Te muestro las opciones disponibles.',
-      theme: 'Tenemos Stitch y Hello Kitty.',
       quote: '¿Qué cantidades necesitas?',
       objection: 'Entiendo. ¿Te confirmo el pedido?',
       address: '¿Cuál es tu ciudad y dirección?',

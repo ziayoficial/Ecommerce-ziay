@@ -28,9 +28,14 @@ export async function POST(req: NextRequest) {
   if (error) return error
 
   try {
-    const { system, user } = await buildAgentPrompt('address_analysis', {
+    // v0.4.1 · IA-3: el agente `address_analysis` se consolidó en `address`.
+    // El caller pasa `mode: 'analyze'` para activar la rama de análisis de
+    // calidad/entregabilidad; el `address` agent ahora cubre los 2 modos
+    // (collect = formulario, analyze = validación estructural).
+    const { system, user } = await buildAgentPrompt('address', {
       tenantId,
       country,
+      mode: 'analyze',
       partialAddress: { direccion, ciudad, departamento, pais: country },
       message: direccion,
     })

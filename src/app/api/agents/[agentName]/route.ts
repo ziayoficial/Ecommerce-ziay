@@ -6,7 +6,8 @@ import { buildAgentPrompt, AGENT_NAMES, AGENT_LABELS, AgentName } from '@/lib/ag
 // adapter pluggable. Resuelve el provider vía `tenant.proveedorIa` y
 // unifica la superficie de llamada para los 4 providers (zai/openai/xai/ollama).
 import { chat, type LLMChatResult } from '@/lib/llm/adapter'
-// FIX-AI-AGENTS-001 — defensas y validación de salida para los 26 agentes.
+// FIX-AI-AGENTS-001 — defensas y validación de salida para los agentes ZIAY
+// (20 agentes tras la consolidación IA-3 de v0.4.1).
 import { parseAgentOutput, hasOutputSchema } from '@/lib/agents/schemas'
 import { wrapUserInput, ANTI_INJECTION_PREFIX } from '@/lib/agents/sanitize'
 // SPRINT-GUIA-COMPORTAMIENTO-001 — validación de reglas NUNCA en el output.
@@ -33,40 +34,49 @@ import { sanitizeParsed } from '@/lib/middleware/sanitize'
 // decisionLog create) live in the service.
 import { agentsService } from '@/lib/services'
 import { logger } from '@/lib/logger'
+// IA-1 (agent-builder) — control-plane agents: Governor (safety/budget
+// gate, runs FIRST on every message) + QA Reviewer (Reflexion
+// critique+revise on revenue-critical agent outputs).
+import { runGovernor } from '@/lib/agents/governor.service'
+import { runQAReview, shouldReviewAgent } from '@/lib/agents/qa-reviewer.service'
 
 // FIX-AI-AGENTS-001 §A-3 — tabla de fallbacks movida a module-scope para
 // que sea accesible tanto del bloque try (cuando la validación de salida
 // falla y queremos usar el fallback) como del catch (cuando la llamada
 // LLM falla completamente). El contenido es idéntico al que estaba
 // inline en el catch — se mantiene el comportamiento existente.
+//
+// v0.4.1 · IA-3: 8 agentes consolidados en 3 (postventa_logistics,
+// scoring, address+catalog+quote enhanced). Tabla sincronizada con
+// `FALLBACKS` en `src/lib/agents/prompts/index.ts`.
 const AGENT_FALLBACKS: Record<AgentName, string> = {
   profile: '¿Para ti o para surtir tu negocio?',
   speech: '¡Hola! ¿Qué producto te interesa?',
   quote: '¿Qué productos y cantidades quieres cotizar?',
   catalog: '¿Qué tema o producto buscas?',
-  theme: '¿Qué personaje o tema te gusta?',
   objection: 'Entiendo. ¿Te confirmo el pedido?',
   address: '¿Cuál es tu ciudad y dirección completa?',
   logistics: '¿A qué ciudad enviamos y cuántas unidades?',
   vision: 'Por favor envíame una foto clara del producto para identificarlo.',
   checkout: '¿Confirmas el pedido?',
-  // BUILD-AGENTS-LIB-001 — 16 new agent fallbacks
   buyer_behavior: 'Déjame revisar tu historial para recomendarte la mejor opción.',
-  cart_builder: '¿Qué productos y cantidades quieres agregar al carrito?',
-  guide_tracking: '¿Me compartes el número de guía o pedido para rastrearlo?',
   novedades: 'Tengo una novedad con tu envío, ¿me confirmas tu dirección actual?',
   redelivery: 'Para re-agendar la entrega, ¿qué horario te queda mejor?',
   remarketing: '¡Hola! Tengo una novedad que te puede interesar, ¿te acuerdo?',
-  guide_alert: 'Alerta operativa generada — el equipo revisará el caso.',
   sales_retainer: 'Entiendo. ¿Te ofrezco pago contra entrega para que no pierdas el producto?',
-  logistics_notifier: 'Tu pedido va en camino — te aviso en cada hito.',
-  customer_score: 'Calculando score de cliente…',
-  carrier_score: 'Calculando score de transportadoras…',
+  postventa_logistics: '¿Me compartes el número de guía o pedido para rastrearlo?',
+  scoring: 'Calculando score…',
   product_enrichment: 'Enriqueciendo producto…',
   marketplace: 'Evaluando viabilidad de publicación en marketplace…',
   affiliator: 'Procesando atribución de afiliado…',
   traffic_orchestrator: 'Analizando redistribución de presupuesto…',
-  address_analysis: 'Analizando calidad de la dirección…',
+  // IA-1 (agent-builder) — 4 control-plane agents. Fallbacks are
+  // conservative: governor/qa_reviewer fail-open (allow / pass-through),
+  // memory_curator/sentiment return neutral placeholders.
+  governor: '(permitido)',
+  qa_reviewer: '(sin observaciones)',
+  memory_curator: '(sin hechos nuevos para memorizar)',
+  sentiment: 'neutral',
 }
 
 /**
@@ -173,6 +183,42 @@ export const POST = withErrorHandling(
     )
   }
 
+  // ── IA-1 (agent-builder) — Governor: safety/budget gate ──────────────
+  // Runs FIRST on every inbound message, before the agent LLM call.
+  // Checks for prompt injection, PII leaks, banned content. The governor
+  // short-circuits with `allow: false` if it detects a policy violation —
+  // the agent call is NOT made (saves tokens + prevents the violation
+  // from reaching the customer).
+  //
+  // The governor evaluates `ctx.message` (the customer's input to the
+  // agent). For agents that don't take a customer message (e.g. vision
+  // takes `imageUrl`, catalog takes `query`), the governor is skipped —
+  // there's no free-text customer input to gate.
+  //
+  // Skip the governor for the control-plane agents themselves
+  // (governor, qa_reviewer, memory_curator, sentiment) — they don't
+  // process customer messages directly.
+  const CONTROL_PLANE_AGENTS = new Set(['governor', 'qa_reviewer', 'memory_curator', 'sentiment'])
+  if (
+    !CONTROL_PLANE_AGENTS.has(agentName) &&
+    typeof ctx.message === 'string' &&
+    ctx.message.length > 0 &&
+    ctx.conversationId
+  ) {
+    const governorResult = await runGovernor({
+      tenantId: ctx.tenantId,
+      conversationId: ctx.conversationId,
+      message: ctx.message,
+      customerId: ctx.customerId,
+    })
+    if (!governorResult.allow) {
+      return NextResponse.json(
+        { error: governorResult.reason || 'Mensaje bloqueado por el Gobernador', code: 'GOVERNOR_BLOCKED' },
+        { status: 403 },
+      )
+    }
+  }
+
   // Persist image identification result for vision agent (after the call)
   // (Done below if agentName === 'vision')
 
@@ -226,7 +272,7 @@ export const POST = withErrorHandling(
     const reply = llmResult.content.trim() || ''
 
     // FIX-AI-AGENTS-001 §A-2: validar la salida contra el esquema Zod
-    // del agente (si existe). 11 agentes tienen esquema; los 15 restantes
+    // del agente (si existe). 8 agentes tienen esquema (v0.4.1 · IA-3); los 12 restantes
     // son de texto libre y no se validan.
     const parsed = parseAgentOutput<unknown>(agentName, reply)
     const schemaExists = hasOutputSchema(agentName)
@@ -322,7 +368,47 @@ export const POST = withErrorHandling(
       rawReply: reply,
     })
 
-    return NextResponse.json({ reply: finalReply, agent: agentName, confidence })
+    // ── IA-1 (agent-builder) — QA Reviewer on revenue-critical agents ──
+    // After `quote`, `novedades`, `address`, `checkout` produce their
+    // output, the QA Reviewer (Reflexion: critique → revise) runs to
+    // catch hallucinations before they reach the customer. If the
+    // reviewer returns `approved: false`, the `revisedOutput` replaces
+    // the original `finalReply`. Best-effort: failure is logged but
+    // never blocks the response.
+    let qaReviewed = false
+    let qaIssues: string[] = []
+    if (shouldReviewAgent(agentName)) {
+      try {
+        const qaResult = await runQAReview({
+          tenantId: ctx.tenantId,
+          agentName,
+          agentOutput: finalReply,
+          conversationContext: typeof ctx.message === 'string' ? ctx.message : '',
+          conversationId: ctx.conversationId,
+          customerId: ctx.customerId,
+        })
+        if (!qaResult.approved && qaResult.revisedOutput && qaResult.revisedOutput.length > 0) {
+          finalReply = qaResult.revisedOutput
+          qaReviewed = true
+          qaIssues = qaResult.issues
+          confidence = Math.max(confidence, 0.85)
+        }
+      } catch (err) {
+        logger.warn(
+          { err: err instanceof Error ? err.message : String(err), agentName },
+          'QA Reviewer failed (non-blocking) — using original reply',
+        )
+      }
+    }
+
+    return NextResponse.json({
+      reply: finalReply,
+      agent: agentName,
+      confidence,
+      // IA-1 (agent-builder) — QA Review metadata for the caller.
+      qaReviewed,
+      qaIssues: qaIssues.length > 0 ? qaIssues : undefined,
+    })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'unknown error'
     const fallbackReply = AGENT_FALLBACKS[agentName as AgentName]

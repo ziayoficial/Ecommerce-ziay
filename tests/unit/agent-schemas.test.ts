@@ -1,8 +1,22 @@
 // Unit tests for src/lib/agents/schemas.ts
 // TASK: SPRINT-TESTS-001
 //
-// Covers all 11 Zod agent-output schemas + the `parseAgentOutput` JSON
-// extractor + the `hasOutputSchema` registry predicate.
+// Covers all 8 Zod agent-output schemas (v0.4.1 · IA-3, was 11 in v0.3.0)
+// + the `parseAgentOutput` JSON extractor + the `hasOutputSchema` registry
+// predicate.
+//
+// v0.4.1 · IA-3 schema consolidation:
+//   - `guide_tracking` schema → `postventa_logistics` (alias of GuideTrackingSchema).
+//   - `customer_score` + `carrier_score` schemas → unified `scoring`
+//     (ScoringSchema = CustomerScoreSchema | CarrierScoreSchema union).
+//   - `address_analysis` schema no longer registered (the `address` agent
+//     now has 2 modes — analyze mode JSON validation is the caller's
+//     responsibility, not the agent-route's). AddressAnalysisSchema is
+//     still exported for direct callers.
+//   - `cart_builder` schema no longer registered (the `quote` agent now
+//     has 2 modes — cart mode JSON validation is the caller's
+//     responsibility). CartBuilderSchema is still exported.
+//   Net: 11 → 8 registered schemas.
 //
 // These schemas are the LLM output contract — they prevent malformed agent
 // responses from polluting the DecisionLog + downstream consumers (checkout,
@@ -17,8 +31,10 @@ import {
   CartBuilderSchema,
   BuyerBehaviorSchema,
   GuideTrackingSchema,
+  PostventaLogisticsSchema,
   CustomerScoreSchema,
   CarrierScoreSchema,
+  ScoringSchema,
   AddressAnalysisSchema,
   VisionSchema,
   NovedadesSchema,
@@ -212,33 +228,37 @@ describe('BuyerBehaviorSchema', () => {
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
-// GuideTrackingSchema
+// PostventaLogisticsSchema (v0.4.1 · IA-3 — alias of GuideTrackingSchema)
 // ─────────────────────────────────────────────────────────────────────────────
-describe('GuideTrackingSchema', () => {
+describe('PostventaLogisticsSchema', () => {
+  it('is the same schema as GuideTrackingSchema (alias)', () => {
+    expect(PostventaLogisticsSchema).toBe(GuideTrackingSchema)
+  })
+
   it('validates a correct tracking update', () => {
     const valid = {
       estado: 'en_transito',
       fechaEstimada: '2025-01-15',
       ultimaActualizacion: '2025-01-10T10:00:00Z',
     }
-    expect(GuideTrackingSchema.safeParse(valid).success).toBe(true)
+    expect(PostventaLogisticsSchema.safeParse(valid).success).toBe(true)
+  })
+})
+
+describe('ScoringSchema (v0.4.1 · IA-3 — union of customer + carrier)', () => {
+  it('accepts a customer-score shape', () => {
+    const valid = { score: 92, nivel: 'vip', razon: 'LTV alto' }
+    expect(ScoringSchema.safeParse(valid).success).toBe(true)
   })
 
-  it('accepts all 5 valid estado values', () => {
-    for (const estado of ['en_transito', 'entregado', 'devuelto', 'perdido', 'desconocido']) {
-      const valid = { estado }
-      expect(GuideTrackingSchema.safeParse(valid).success).toBe(true)
-    }
+  it('accepts a carrier-score shape', () => {
+    const valid = { carrier: 'dropi', score: 90, onTimeRate: 0.95, issues: [] }
+    expect(ScoringSchema.safeParse(valid).success).toBe(true)
   })
 
-  it('rejects an invalid estado', () => {
-    const invalid = { estado: 'delivered' } // English spelling — invalid
-    expect(GuideTrackingSchema.safeParse(invalid).success).toBe(false)
-  })
-
-  it('accepts only the required estado field', () => {
-    const valid = { estado: 'entregado' }
-    expect(GuideTrackingSchema.safeParse(valid).success).toBe(true)
+  it('rejects an object that matches neither shape', () => {
+    const invalid = { foo: 'bar' }
+    expect(ScoringSchema.safeParse(invalid).success).toBe(false)
   })
 })
 
@@ -435,23 +455,25 @@ describe('RemarketingSchema', () => {
 // AGENT_OUTPUT_SCHEMAS registry
 // ─────────────────────────────────────────────────────────────────────────────
 describe('AGENT_OUTPUT_SCHEMAS registry', () => {
-  it('registers exactly 11 agent schemas', () => {
-    expect(Object.keys(AGENT_OUTPUT_SCHEMAS)).toHaveLength(11)
+  it('registers exactly 12 agent schemas (v0.4.1 · IA-3 + IA-1)', () => {
+    expect(Object.keys(AGENT_OUTPUT_SCHEMAS)).toHaveLength(12)
   })
 
-  it('registers all 11 expected agent names', () => {
+  it('registers all 12 expected agent names (v0.4.1 · IA-3 + IA-1)', () => {
     const expected = [
       'profile',
       'quote',
-      'cart_builder',
       'buyer_behavior',
-      'guide_tracking',
-      'customer_score',
-      'carrier_score',
-      'address_analysis',
+      'postventa_logistics',
+      'scoring',
       'vision',
       'novedades',
       'remarketing',
+      // IA-1 (agent-builder) — 4 control-plane agents with strict JSON schemas.
+      'governor',
+      'memory_curator',
+      'qa_reviewer',
+      'sentiment',
     ]
     expect(Object.keys(AGENT_OUTPUT_SCHEMAS).sort()).toEqual(expected.sort())
   })
@@ -461,16 +483,13 @@ describe('AGENT_OUTPUT_SCHEMAS registry', () => {
 // hasOutputSchema
 // ─────────────────────────────────────────────────────────────────────────────
 describe('hasOutputSchema', () => {
-  it('returns true for all 11 registered agent names', () => {
+  it('returns true for all 8 registered agent names', () => {
     for (const name of [
       'profile',
       'quote',
-      'cart_builder',
       'buyer_behavior',
-      'guide_tracking',
-      'customer_score',
-      'carrier_score',
-      'address_analysis',
+      'postventa_logistics',
+      'scoring',
       'vision',
       'novedades',
       'remarketing',
@@ -479,24 +498,38 @@ describe('hasOutputSchema', () => {
     }
   })
 
-  it('returns false for text-only agents (speech, catalog, theme, objection, etc.)', () => {
+  it('returns false for text-only / mode-text agents (speech, catalog, objection, address, logistics, checkout, sales_retainer, product_enrichment, marketplace, affiliator, traffic_orchestrator)', () => {
     const textOnlyAgents = [
       'speech',
       'catalog',
-      'theme',
       'objection',
       'address',
       'logistics',
       'checkout',
-      'guide_alert',
       'sales_retainer',
-      'logistics_notifier',
       'product_enrichment',
       'marketplace',
       'affiliator',
       'traffic_orchestrator',
     ]
     for (const name of textOnlyAgents) {
+      expect(hasOutputSchema(name)).toBe(false)
+    }
+  })
+
+  it('returns false for the retired agent names (v0.4.1 · IA-3)', () => {
+    // These names used to have schemas in v0.3.0 but were consolidated
+    // away — confirm they no longer do.
+    for (const name of [
+      'theme',
+      'cart_builder',
+      'guide_tracking',
+      'guide_alert',
+      'logistics_notifier',
+      'customer_score',
+      'carrier_score',
+      'address_analysis',
+    ]) {
       expect(hasOutputSchema(name)).toBe(false)
     }
   })

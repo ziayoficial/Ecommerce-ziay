@@ -49,7 +49,7 @@ ChateaPro y el Generador de Prompts son **herramientas de terceros** que funcion
 │  • Flete dinámico (Dropi/99envios/Aveonline)        │
 │  • VLM para identificación por imagen               │
 │  • Estrategia de pago híbrida                       │
-│  • 26 agentes IA con reglas NUNCA/SIEMPRE           │
+│  • 24 agentes IA (20 consolidados + 4 control-plane) con reglas NUNCA/SIEMPRE │
 │  • n8n orquesta todo vía API ZIAY                   │
 └─────────────────────────────────────────────────────┘
 ```

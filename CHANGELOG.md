@@ -6,7 +6,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-_No unreleased changes. See [0.4.0] for the current release._
+### Changed — AI Agents (IA-3 · consolidación 26 → 20 base + 4 control-plane = 24)
+
+- **Consolidated 8 redundant agents into 2 merged + 2 enhanced** per the
+  architecture audit (INVESTIGACION-AGENTES-IA §9.1):
+  - `guide_tracking` + `guide_alert` + `logistics_notifier` → **`postventa_logistics`**
+    (single agent with `mode: 'tracking' | 'alert' | 'notification'`).
+  - `customer_score` + `carrier_score` → **`scoring`**
+    (single agent with `target: 'customer' | 'carrier'`).
+  - `address_analysis` → folded into **`address`** (now does `collect` + `analyze` modes).
+  - `theme` → folded into **`catalog`** (now handles general search + theme-filtered
+    search via optional `ctx.theme`).
+  - `cart_builder` → folded into **`quote`** (now handles cart-building from natural
+    language + price quoting via `ctx.mode`).
+  - Net: 26 → 20 base agents. Plus 4 new control-plane agents added by IA-1
+    (`governor`, `qa_reviewer`, `memory_curator`, `sentiment`) → 24 total.
+- **Orchestrator pipeline** went from 9 steps → 8 (`theme` step folded into
+  `catalog`; `OrchestratorScenario.theme` is now passed to the catalog agent as
+  `ctx.theme`).
+- **Agent output schemas**: 11 → 12 registered schemas (8 from the consolidated
+  base + 4 from IA-1's control-plane agents). Removed from registry:
+  `cart_builder`, `address_analysis`, `guide_tracking`, `customer_score`,
+  `carrier_score` (their schemas still exported as named constants for direct
+  callers — `CartBuilderSchema`, `AddressAnalysisSchema`, etc.). Added:
+  `postventa_logistics: PostventaLogisticsSchema`, `scoring: ScoringSchema`
+  (union of `CustomerScoreSchema | CarrierScoreSchema`).
+- **Tests updated**: `tests/unit/agent-schemas.test.ts` (12 schemas expected),
+  `tests/eval/golden-cases.test.ts` (consolidated agent names),
+  `tests/unit/agents-route.test.ts` (comment update).
+- **Scripts updated**: `scripts/eval-live.ts` (8 → 12 cases with the new
+  consolidated agent names), `scripts/generate-n8n-workflows.ts` (10 → 9
+  workflows — `theme` workflow folded into `catalog`).
+- **Dashboard updated**: messenger dropdown (10 → 9 items — `theme` button
+  merged into `catalog`), logistics quick-actions (4 → 4 buttons using the
+  consolidated `scoring` + `postventa_logistics` agents with `target`/`mode`
+  discriminator payloads), catalog-visual-view `Tema` button now calls
+  `catalog` (with theme passed in body), logistics-guides.tsx alert trigger
+  now calls `postventa_logistics` with `mode: 'alert'`.
+
+### Verification
+
+- `npx tsc --noEmit` → 0 errors.
+- `bun run lint` → 0 errors (53 pre-existing warnings).
+- `bun run test` → 1029 passed / 5 skipped / 0 failed.
+- `AGENT_NAMES.length === 24` (was 26 in v0.4.0).
 
 ## [0.4.0] - 2026-07-18 — "Comercio Agéntico + Fintech Hardened"
 

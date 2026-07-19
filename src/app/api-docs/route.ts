@@ -41,7 +41,7 @@ const ROUTES: ApiDoc[] = [
 
   // ── Tenants & agents ──────────────────────────────────────────────────
   { method: 'GET', path: '/api/tenants', description: 'List active tenants', auth: true, group: 'tenants' },
-  { method: 'GET', path: '/api/agents', description: 'List all 26 agents and their metadata', auth: true, group: 'agents' },
+  { method: 'GET', path: '/api/agents', description: 'List all 24 agents and their metadata', auth: true, group: 'agents' },
   { method: 'GET', path: '/api/agents/[agentName]', description: 'Get a single agent definition', auth: true, group: 'agents' },
   { method: 'POST', path: '/api/agents/[agentName]', description: 'Run a single agent with the supplied input', auth: true, group: 'agents' },
   { method: 'POST', path: '/api/orchestrate', description: 'Run the traffic orchestrator across agents', auth: true, group: 'agents' },

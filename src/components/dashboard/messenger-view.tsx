@@ -498,7 +498,7 @@ export function MessengerView() {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="start" className="w-64">
-                    <DropdownMenuLabel className="text-xs text-muted-foreground">10 agentes especializados (Saramantha §6)</DropdownMenuLabel>
+                    <DropdownMenuLabel className="text-xs text-muted-foreground">9 agentes especializados (Saramantha §6)</DropdownMenuLabel>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem onClick={() => aiSuggest('profile')} className="text-xs cursor-pointer">
                       <span className="font-medium">Perfilamiento</span><span className="text-muted-foreground ml-auto">mayorista/detal/...</span>
@@ -510,10 +510,7 @@ export function MessengerView() {
                       <span className="font-medium">Cotización</span><span className="text-muted-foreground ml-auto">volumen + margen</span>
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => aiSuggest('catalog')} className="text-xs cursor-pointer">
-                      <span className="font-medium">Catálogo</span><span className="text-muted-foreground ml-auto">visual-primero</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => aiSuggest('theme')} className="text-xs cursor-pointer">
-                      <span className="font-medium">Tema/personaje</span><span className="text-muted-foreground ml-auto">Stitch, Hello Kitty</span>
+                      <span className="font-medium">Catálogo / Tema</span><span className="text-muted-foreground ml-auto">visual + Stitch</span>
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => aiSuggest('objection')} className="text-xs cursor-pointer">
                       <span className="font-medium">Objeciones</span><span className="text-muted-foreground ml-auto">desconfianza, precio...</span>

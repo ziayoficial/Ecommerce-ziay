@@ -126,6 +126,10 @@ model Tenant {
   channelCosts           ChannelCost[]
   // ── Governance — SPRINT-GOVERNANCE-001 ──
   decisionLogs           DecisionLog[]
+  // ── IA-2 (agent-hardening) — token usage ledger for cost control ──
+  tokenUsages            TokenUsage[]
+  // ── IA-1 (agent-builder) — long-term customer memory (Memory Curator) ──
+  customerMemories       CustomerMemory[]
   // ── SPRINT-SCHEMA-CLEANUP-001 — wire 30 orphan models (AUDIT-FINAL-ARCH-001) ──
   // Previously these 30 models carried a `tenantId` scalar + `@@index([tenantId])`
   // but no `tenant Tenant @relation(...)`, which broke cascade delete + Prisma
@@ -290,6 +294,67 @@ model Customer {
   @@index([email])
   @@index([phone])
   @@index([isMinor])
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// IA-1 — Customer Memory (long-term facts extracted by the Memory Curator agent)
+// ───────────────────────────────────────────────────────────────────────────
+// Async-extracted structured facts from each conversation turn: customer
+// preferences, past purchases, objections raised, budget, brand affinity,
+// communication style. Persisted with embeddings so the agent layer can do
+// semantic recall ("what do I know about this customer that's relevant to
+// THIS question?") without re-reading the whole conversation history.
+//
+// Embedding portability:
+//   - dev (SQLite)  : `embedding` stored as `Bytes?` (Float32 array — same
+//                     pattern as `Product.embeddingTexto` / `Message.embedding`).
+//   - prod (PG)     : migrate the column to `vector(1536)` via the script in
+//                     `prisma/sql/pgvector-setup.sql` (HNSW cosine index).
+//                     The application code in `src/lib/agents/memory-curator.service.ts`
+//                     uses `src/lib/embeddings/service.ts` which is already
+//                     portable (Buffer ↔ vector).
+// ───────────────────────────────────────────────────────────────────────────
+model CustomerMemory {
+  id            String   @id @default(cuid())
+  tenantId      String
+  customerId    String
+  // type categorizes the fact for fast filtering / scoring UI.
+  //   preference     — preferred payment, size, color, channel
+  //   purchase_history — past SKU / category / quantity bought
+  //   objection      — objection raised (price, shipping, competitor)
+  //   budget         — stated budget ceiling
+  //   brand          — favorite brand / brand aversion
+  //   style          — communication style (formal/casual, emoji usage, language)
+  //   other          — anything else worth remembering
+  type          String
+  // key is the canonical attribute name, e.g. "preferred_payment", "size",
+  // "favorite_brand", "objection_price". Used to dedup/upsert by (tenant,
+  // customer, type, key).
+  key           String
+  // value is the extracted value as a plain string (multi-line allowed).
+  value         String
+  // confidence 0-1 reported by the curator LLM (how sure it is that this
+  // fact was actually stated vs inferred). Stored for surfacing + audit.
+  confidence    Float    @default(0.8)
+  // extractedFrom is the conversationId where the fact was learned (audit
+  // trail — lets a human reviewer open the source conversation).
+  extractedFrom String?
+  // embeddingTexto (Bytes in SQLite, vector(1536) in PG) — semantic search
+  // key so the agent layer can recall "facts relevant to this question".
+  embeddingTexto Bytes?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  tenant        Tenant   @relation(fields: [tenantId], references: [id])
+
+  // Hot paths:
+  //   - recall-by-customer: WHERE tenantId+customerId ORDER BY updatedAt
+  //   - filter-by-type    : WHERE tenantId+customerId+type
+  //   - dedup-upsert      : lookup by (tenantId, customerId, type, key)
+  @@index([tenantId, customerId])
+  @@index([tenantId, customerId, type])
+  @@index([tenantId, customerId, type, key])
+  @@map("customer_memory")
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -1984,4 +2049,39 @@ model Refund {
   @@index([orderId])
   @@index([gatewayRef])
   @@map("refund")
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// IA-2 — Token usage ledger (per agent call, per tenant / conversation).
+//
+// IA-2 (agent-hardening) — auditable ledger of every LLM token consumed by
+// the agent layer. Complements `DecisionLog` (which records the high-level
+// agent decision + its confidence) with a normalized, query-optimized table
+// for cost-control dashboards: daily/monthly aggregates, per-agent cost
+// breakdowns, per-conversation spend.
+//
+// Rows are written by `BudgetManager.recordUsage()` after every successful
+// (or failed-but-attempted) agent invocation. They feed:
+//   - `BudgetManager.checkBudget()` — daily/monthly caps + remaining tokens.
+//   - `/api/agents/budget` (admin) — cost breakdown UI.
+//   - `/api/agents/traces` (admin) — joins with `DecisionLog` for full
+//     observability (latency, tokens, cost, status) per agent call.
+// ───────────────────────────────────────────────────────────────────────────
+model TokenUsage {
+  id              String   @id @default(cuid())
+  tenantId        String
+  conversationId  String?
+  agentName       String
+  model           String
+  tokensIn        Int
+  tokensOut       Int
+  costUsd         Float
+  createdAt       DateTime @default(now())
+
+  tenant          Tenant   @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, agentName, createdAt])
+  @@index([conversationId])
+  @@map("token_usage")
 }

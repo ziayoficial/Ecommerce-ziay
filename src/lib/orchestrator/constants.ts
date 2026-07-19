@@ -61,6 +61,13 @@ export interface OrchestratorState {
   done: boolean
   /** Filled in by the logistics step. */
   freightQuote?: unknown
+  /**
+   * ORC-1 fix: when true (default), demo data is used for missing items/address
+   * (scenario walkthrough / testing). When false (production), the orchestrator
+   * PAUSES and asks the customer instead of auto-picking products or using a
+   * fake address.
+   */
+  isDemo?: boolean
 }
 
 

@@ -13,6 +13,7 @@
 // Client components must import from './constants' instead.
 
 import { db } from '@/lib/db'
+import { getLogger } from '@/lib/logger'
 import { buildAgentPrompt, AgentName } from '@/lib/agents/prompts'
 import { getLogisticsAdapter } from '@/lib/adapters/registry'
 import { OrchestratorState, OrchestratorScenario, ORCHESTRATOR_STEPS } from './constants'
@@ -30,6 +31,12 @@ import { getModelForAgent, estimateCost, callLLMWithFallback } from '@/lib/agent
 // IA-6A (Gap 3) — PII redactor applied to every agent output before
 // returning. Catches hallucinated PII from other customers' data.
 import { redactPII, buildCustomerWhitelist } from '@/lib/agents/pii-redactor'
+// ORC-1 (weakness #3) — circuit breaker: after N consecutive failures for
+// a (tenantId, agentName) pair, stop calling the LLM and return a fallback
+// immediately. Prevents wasting resources on a persistently broken agent.
+import { circuitBreaker, buildCircuitKey } from '@/lib/agents/circuit-breaker'
+
+const log = getLogger('orchestrator')
 
 // Re-export for server consumers
 export type { OrchestratorState, OrchestratorScenario }
@@ -75,6 +82,20 @@ async function callAgentDirect(agentName: AgentName, ctx: Record<string, unknown
   // IA-2 §1 — open a tracing span around the LLM call.
   const span = agentTracer.startSpan(agentName, ctx)
   span.setContext({ tenantId, conversationId })
+
+  // ORC-1 (weakness #3) — circuit breaker pre-flight. If this (tenantId,
+  // agentName) circuit is OPEN, skip the LLM call entirely and return a
+  // fallback. Prevents wasting resources on a persistently broken agent.
+  const circuitKey = buildCircuitKey(tenantId, agentName)
+  if (!circuitBreaker.canCall(circuitKey)) {
+    const state = circuitBreaker.getState(circuitKey)
+    log.warn(
+      { tenantId, agentName, circuitKey, state },
+      '[CIRCUIT BREAKER] Circuit is OPEN — skipping LLM call, returning fallback',
+    )
+    span.setError(`Circuit breaker open (${state})`)
+    return `(agente ${agentName} temporalmente no disponible — circuit breaker abierto. Intenta nuevamente en 1 minuto.)`
+  }
 
   const { system, user } = await buildAgentPrompt(agentName, ctx as unknown as Parameters<typeof buildAgentPrompt>[1])
   // IA-2 §4 — resolve the model from the per-agent tier map so the
@@ -148,8 +169,16 @@ async function callAgentDirect(agentName: AgentName, ctx: Record<string, unknown
     const redaction = redactPII(reply, {
       whitelist: buildCustomerWhitelist({}),
     })
+
+    // ORC-1 (weakness #3) — record success in the circuit breaker.
+    circuitBreaker.recordSuccess(circuitKey)
+
     return redaction.redacted
   } catch (e) {
+    // ORC-1 (weakness #3) — record failure in the circuit breaker.
+    // After N consecutive failures, the circuit opens and subsequent calls
+    // are rejected immediately (see the canCall check above).
+    circuitBreaker.recordFailure(circuitKey)
     // On timeout/error, finalize the span as 'error' or 'timeout' and
     // return a deterministic fallback instead of failing the whole scenario.
     const isTimeout = e instanceof Error && e.message.includes('timed out')
@@ -212,21 +241,74 @@ export async function runOrchestratorStep(state: OrchestratorState): Promise<Orc
     history: [...state.history, { agent: agentName, reply, ts: new Date().toISOString() }],
   }
 
-  // Profile agent → extract detected profile
+  // Profile agent → extract detected profile via structured JSON output
+  // ORC-1 fix: replaced fragile substring matching with schema-validated parsing.
+  // The profile agent is prompted to return JSON: { "profile": "mayorista|emprendedor|detal|regalo", "reasoning": "..." }
+  // If JSON parsing fails, fall back to substring matching (with a warning log) for backward compat.
   if (agentName === 'profile') {
-    const detected = ['mayorista', 'emprendedor', 'detal', 'regalo'].find(p => reply.toLowerCase().includes(p))
+    const PROFILES = ['mayorista', 'emprendedor', 'detal', 'regalo'] as const
+    let detected: string | undefined
+
+    // Try structured JSON parsing first
+    try {
+      const jsonMatch = reply.match(/\{[\s\S]*?"profile"[\s\S]*?\}/)
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0])
+        if (parsed.profile && PROFILES.includes(parsed.profile)) {
+          detected = parsed.profile
+        }
+      }
+    } catch {
+      // JSON parse failed — fall through to substring matching
+    }
+
+    // Fallback: substring matching (backward compat, logged as warning)
+    if (!detected) {
+      detected = PROFILES.find(p => reply.toLowerCase().includes(p))
+      if (detected) {
+        log.warn(
+          { agent: 'profile', detected, replyPreview: reply.slice(0, 100) },
+          '[ORCHESTRATOR] Profile detected via substring fallback — agent did not return structured JSON. This is a prompt issue.',
+        )
+      }
+    }
+
     if (detected) newState.perfil = detected
   }
 
-  // Quote agent → set items if not set (use first 2 products of tenant as demo)
+  // Quote agent → set items if not set
+  // ORC-1 fix: in production (isDemo=false), PAUSE and ask the customer instead of auto-picking products.
+  // In demo mode (isDemo=true, default), use the first 2 products for the scenario walkthrough.
   if (agentName === 'quote' && (!state.items || state.items.length === 0)) {
-    const products = await db.product.findMany({ where: { tenantId: state.tenantId, active: true }, take: 2 })
-    newState.items = products.map(p => ({ sku: p.sku, cantidad: state.perfil === 'mayorista' ? 6 : 2 }))
+    if (state.isDemo === false) {
+      // Production mode: do NOT auto-pick products. Pause and let the customer specify.
+      log.warn(
+        { tenantId: state.tenantId, conversationId: state.conversationId },
+        '[ORCHESTRATOR WARNING] No items in non-demo mode — pausing quote step. Customer must specify products.',
+      )
+      // Don't advance items — the conversation should handle this via the customer's next message
+      newState.items = []
+    } else {
+      // Demo mode: auto-pick first 2 products (for scenario walkthrough / testing)
+      const products = await db.product.findMany({ where: { tenantId: state.tenantId, active: true }, take: 2 })
+      newState.items = products.map(p => ({ sku: p.sku, cantidad: state.perfil === 'mayorista' ? 6 : 2 }))
+    }
   }
 
-  // Address agent → set partial address (demo: Bogotá)
+  // Address agent → set partial address
+  // ORC-1 fix: in production (isDemo=false), do NOT hardcode a fake address. Pause and ask the customer.
+  // In demo mode, use the Bogotá demo address for the scenario walkthrough.
   if (agentName === 'address' && !state.partialAddress) {
-    newState.partialAddress = { ciudad: 'Bogotá', direccion: 'Cra 10 # 20-30', departamento: 'Cundinamarca' }
+    if (state.isDemo === false) {
+      log.warn(
+        { tenantId: state.tenantId, conversationId: state.conversationId },
+        '[ORCHESTRATOR WARNING] No address in non-demo mode — pausing address step. Customer must provide their address.',
+      )
+      // Don't set a fake address — the conversation should collect it from the customer
+    } else {
+      // Demo mode: use demo address (for scenario walkthrough / testing)
+      newState.partialAddress = { ciudad: 'Bogotá', direccion: 'Cra 10 # 20-30', departamento: 'Cundinamarca' }
+    }
   }
 
   // Logistics agent → fetch real freight quote directly via adapter

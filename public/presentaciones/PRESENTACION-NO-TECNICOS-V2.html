@@ -2,7 +2,8 @@
 <html lang="es">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=1280, initial-scale=1" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=5.0">
+<meta name="theme-color" content="#047857">
 <title>ZIAY · Tu tienda conversacional que vende mientras duermes</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -157,6 +158,183 @@ table.tbl td.num{font-family:'JetBrains Mono',monospace;color:var(--accent-3)}
 .tag-list{display:flex;flex-wrap:wrap;gap:6px}
 .tag{font:500 11px 'JetBrains Mono';color:var(--muted);background:var(--panel-2);border:1px solid var(--border);padding:3px 9px;border-radius:6px}
 .tag.on{color:var(--accent-3);border-color:rgba(16,185,129,.4)}
+</style>
+<style id="pres-responsive" data-pres-responsive="1">
+
+/* ============================================================
+   PRES-1 · Responsive overrides (mobile iPhone/Android + web)
+   Injected by scripts/pres-responsive.py
+   Strategy: keep existing desktop CSS untouched, only override
+   for mobile/touch. Uses clamp() + safe-area-inset + 100dvh.
+   ============================================================ */
+:root{
+  --safe-top:env(safe-area-inset-top,0px);
+  --safe-bottom:env(safe-area-inset-bottom,0px);
+  --safe-left:env(safe-area-inset-left,0px);
+  --safe-right:env(safe-area-inset-right,0px);
+}
+*{ -webkit-tap-highlight-color:transparent; }
+img{ max-width:100%; height:auto; }
+
+/* ===== Mobile-first override: disable scaler, make stage fluid ===== */
+@media (max-width: 900px){
+  html,body{
+    height:100%; width:100%;
+    overflow:hidden;
+    display:block;
+    background:var(--bg,#06100c);
+  }
+  #scaler{
+    transform:none !important;
+    width:100vw !important;
+    height:100vh !important;
+    height:100dvh !important;
+  }
+  .stage{
+    position:relative !important;
+    width:100vw !important;
+    height:100vh !important;
+    height:100dvh !important;
+    border-radius:0 !important;
+    box-shadow:none !important;
+    overflow:hidden;
+  }
+  .slide{
+    position:absolute !important;
+    inset:0 !important;
+    padding-top:calc(clamp(16px,5vw,32px) + var(--safe-top)) !important;
+    padding-bottom:calc(clamp(76px,12vw,90px) + var(--safe-bottom)) !important;
+    padding-left:calc(clamp(16px,5vw,32px) + var(--safe-left)) !important;
+    padding-right:calc(clamp(16px,5vw,32px) + var(--safe-right)) !important;
+    overflow-y:auto !important;
+    -webkit-overflow-scrolling:touch;
+    transform:none !important;
+  }
+  .slide::-webkit-scrollbar{ width:5px; height:5px; }
+  .slide::-webkit-scrollbar-thumb{ background:var(--accent,#10b981); border-radius:3px; }
+  .slide::-webkit-scrollbar-track{ background:transparent; }
+  .slide>*{ flex-shrink:0; }
+
+  /* Fluid typography */
+  .hero-mark{ font-size:clamp(12px,3vw,16px) !important; letter-spacing:.2em !important; margin-bottom:14px !important; }
+  .hero-title{ font-size:clamp(28px,9vw,52px) !important; line-height:1.05 !important; margin-bottom:12px !important; }
+  .hero-sub{ font-size:clamp(14px,3.2vw,18px) !important; max-width:95vw !important; margin-bottom:18px !important; }
+  .hero-badges{ gap:6px !important; margin-bottom:16px !important; }
+  h1.title{ font-size:clamp(20px,5.5vw,28px) !important; line-height:1.15 !important; }
+  h2.title{ font-size:clamp(16px,4vw,20px) !important; line-height:1.2 !important; margin-bottom:10px !important; }
+  h3{ font-size:clamp(12px,2.8vw,14px) !important; }
+  p, .lede{ font-size:clamp(12px,2.5vw,14px) !important; line-height:1.55 !important; max-width:100% !important; }
+  p.muted{ font-size:clamp(11px,2.2vw,13px) !important; }
+  .stat{ font-size:clamp(20px,5vw,28px) !important; }
+  .stat-l{ font-size:clamp(9px,1.8vw,11px) !important; }
+  .big-quote{ font-size:clamp(20px,5.5vw,30px) !important; line-height:1.25 !important; max-width:100% !important; }
+  .stat-card{ padding:clamp(14px,4vw,22px) !important; border-radius:14px !important; }
+  .stat-card .v{ font-size:clamp(28px,8vw,44px) !important; margin-bottom:4px !important; }
+  .stat-card .l{ font-size:clamp(11px,2.4vw,13px) !important; }
+  .stat-card .sub{ font-size:clamp(10px,2.2vw,12px) !important; }
+  .kpi-pill{ padding:6px 12px !important; gap:8px !important; border-radius:24px !important; }
+  .kpi-pill .v{ font-size:clamp(14px,3.5vw,20px) !important; }
+  .kpi-pill .l{ font-size:clamp(9px,1.8vw,11px) !important; }
+  .badge{ font-size:clamp(9px,1.8vw,11px) !important; padding:3px 9px !important; }
+  .callout{ padding:clamp(11px,3vw,16px) !important; border-radius:10px !important; margin:8px 0 !important; }
+  .callout-title{ font-size:clamp(9px,1.8vw,11px) !important; margin-bottom:5px !important; }
+  .eyebrow{ gap:8px !important; font-size:clamp(9px,1.8vw,11px) !important; margin-bottom:8px !important; letter-spacing:.12em !important; }
+  .eyebrow .dot{ width:6px; height:6px; }
+  .eyebrow .bar{ display:none; }
+
+  /* Layout: grids collapse to 1 col on phones */
+  .grid,.g2,.g3,.g4,.g5{ grid-template-columns:1fr !important; gap:10px !important; }
+
+  /* Foot: stop absolute (was overlapping content) */
+  .foot{
+    position:relative !important;
+    left:auto !important; right:auto !important; bottom:auto !important;
+    padding:8px 0 4px !important;
+    margin-top:auto !important;
+    background:none !important;
+    font-size:clamp(9px,1.8vw,11px) !important;
+    flex-shrink:0;
+  }
+  .foot .brand,.foot .pg{ font-size:clamp(9px,1.8vw,11px) !important; }
+
+  /* Nav: bigger touch targets, fixed to bottom with safe-area-inset */
+  .nav{
+    position:fixed !important;
+    bottom:calc(10px + var(--safe-bottom)) !important;
+    left:50% !important;
+    transform:translateX(-50%) !important;
+    gap:8px !important;
+    z-index:100 !important;
+    max-width:calc(100vw - 20px);
+    background:rgba(15,28,23,0.92) !important;
+    backdrop-filter:blur(10px);
+    -webkit-backdrop-filter:blur(10px);
+    padding:6px 10px !important;
+    border-radius:30px !important;
+    border:1px solid var(--border,#1f3a30);
+    box-shadow:0 4px 20px rgba(0,0,0,.35);
+  }
+  .nav button{
+    width:44px !important; height:44px !important; min-width:44px;
+    border-radius:50% !important;
+    font-size:20px !important;
+  }
+  .nav .counter{
+    font-size:clamp(11px,2vw,13px) !important;
+    min-width:60px !important;
+    padding:6px 10px !important;
+    border-radius:16px !important;
+  }
+  .progress{ height:3px !important; z-index:200 !important; }
+
+  /* Ghost watermark: hide (causes horizontal overflow on mobile) */
+  .ghost{ display:none !important; }
+
+  /* Cards: tighter padding */
+  .card{ padding:10px 12px !important; border-radius:8px !important; }
+
+  /* Tables: horizontal scroll */
+  table.tbl, table{
+    display:block; overflow-x:auto;
+    white-space:nowrap;
+    -webkit-overflow-scrolling:touch;
+    max-width:100%;
+    font-size:clamp(10px,2.2vw,12px) !important;
+  }
+  table.tbl th, table.tbl td, table th, table td{
+    padding:6px 9px !important;
+  }
+
+  /* Step rows */
+  .step-row{ gap:8px !important; margin-bottom:6px !important; }
+  .step-row .body p{ font-size:clamp(11px,2.2vw,12px) !important; }
+
+  /* Tag lists wrap */
+  .tag-list{ gap:4px !important; }
+  .tag{ font-size:clamp(9px,1.7vw,10px) !important; padding:2px 6px !important; }
+}
+
+/* Tablet portrait: 2-col grids where appropriate */
+@media (min-width: 641px) and (max-width: 900px){
+  .g2{ grid-template-columns:1fr 1fr !important; }
+  .g3{ grid-template-columns:1fr 1fr !important; }
+  .g4{ grid-template-columns:1fr 1fr !important; }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce){
+  *, *::before, *::after{ transition:none !important; animation:none !important; }
+}
+
+/* Print */
+@media print{
+  body{ overflow:visible !important; background:white !important; }
+  .stage{ position:relative !important; width:auto !important; height:auto !important; overflow:visible !important; }
+  #scaler{ transform:none !important; }
+  .slide{ position:relative !important; display:flex !important; page-break-after:always; overflow:visible !important; }
+  .nav,.progress,.foot,#swipe-hint{ display:none !important; }
+}
+
 </style>
 </head>
 <body>

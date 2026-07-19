@@ -22809,3 +22809,87 @@ Stage Summary:
 - Files created: 2 src files (`src/lib/agents/retry.ts`, `src/lib/agents/pii-redactor.ts`) + 1 work record (`agent-ctx/IA-6A-full-stack-developer-agent-resilience.md`).
 - Files modified: 7 src files (`src/lib/agents/model-router.ts`, `src/lib/agents/tools/registry.ts`, `src/lib/agents/tools/llm-tools.ts`, `src/lib/agents/tools/index.ts`, `src/lib/orchestrator/orchestrator.ts`, `src/app/api/orchestrate/route.ts`, `src/app/api/ai-reply/route.ts`, `src/app/api/agents/[agentName]/route.ts`).
 - Productivity: 11/11 components passing — remains at 100% (IA-6A closed the 4 marginal gaps the V2 audit flagged for the next sprint, lifting Error handling 7→10, Guardrails 8→10, Tool Use 9→10; Cost control also benefits from the fallback chain stepping down to cheaper models + the tool cache avoiding redundant DB calls).
+
+---
+Task ID: PRES-1
+Agent: full-stack-developer (presentations-responsive)
+Task: Make all HTML presentations responsive (mobile iPhone + Android + web), fix overlaps, fix overflow
+
+Work Log:
+- Created `scripts/pres-responsive.py` — idempotent transformer that injects
+  mobile-first responsive overrides + viewport meta + theme-color into every
+  `public/presentaciones/*.html`. Detects already-processed files via
+  `data-pres-responsive="1"` marker on the injected `<style>` block.
+- Audited 15 presentations and classified them into 4 CSS patterns:
+  - Pattern A (scaler-based, 1280×720 fixed stage with `transform:scale`):
+    BUSINESS-CANVAS, ELEVATOR-SPEECH, PRESENTACION-CUSTOMER-JOURNEYS,
+    PRESENTACION-E2E-TESTS, PRESENTACION-EQUIPO-DESARROLLO-V2,
+    PRESENTACION-INVERSIONISTAS, PRESENTACION-NO-TECNICOS-V2
+  - Pattern B (fluid deck, .deck width:100vw height:100vh; .slide absolute):
+    PRESENTACION-CLIENTES-COMPLETA, PRESENTACION-NO-TECNICOS,
+    PRESENTACION-STACK-COMPLETO
+  - Pattern C (vertical scrolling slides, .slide min-height:100vh):
+    MANUAL-USUARIO, PRESENTACION-DIFERENCIADORES
+  - Pattern D (static doc / nav page): GUIA-ONBOARDING-CLIENTES, index.html
+- Each pattern gets a tailored CSS override block:
+  - All: viewport `width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=5.0`
+    + `<meta name="theme-color" content="#047857">` + safe-area-inset CSS vars
+    + `100dvh` for deck + `overflow-y:auto` on slides + `prefers-reduced-motion`
+    + print-friendly fallback.
+  - Pattern A (scaler): on ≤900px, disables `#scaler` transform, makes `.stage`
+    fluid `100vw × 100dvh`, replaces fixed slide padding (`44px 64px 76px`)
+    with `clamp()` + safe-area-inset, makes `.foot` `position:relative` (was
+    absolute and overlapped content on mobile), hides `.ghost` watermark
+    (was 360px font causing horizontal overflow), wraps tables in horizontal
+    scroll, collapses all `.g2/.g3/.g4/.g5` grids to 1 col on phones / 2 cols
+    on tablet, increases nav buttons to 44×44px (was 38px), uses `clamp()` for
+    all hero/title/stat/kpi/big-quote font sizes.
+  - Pattern B (fluid): adds `100dvh` to `.deck`, replaces `50px 70px 120px`
+    slide padding with `clamp()` + safe-area-inset, makes `.grid-2/3/4/5`
+    responsive (1 col phone / 2 col tablet / N col desktop), nav buttons 44px.
+  - Pattern C (vertical): adds `100dvh` to `.slide min-height`, safe-area-inset
+    padding, fluid `clamp()` typography for h1/h2/h3/p/li/big-stat, table
+    horizontal scroll, `.back-to-top` respects safe-area + ≥44px touch target,
+    `.vs` grid collapses to 1 col.
+  - Pattern D (doc): safe-area-inset padding on body, `clamp()` for h1/h2/h3/p,
+    tables horizontal scroll, `.back-to-top` ≥44px + safe-area.
+- Injected touch-swipe JS to 5 files that lacked it (BUSINESS-CANVAS,
+  ELEVATOR-SPEECH, and 3 others) — calls existing `window.navigate(dir)`
+  if available, ignores touches inside scrollable regions.
+- All existing desktop CSS is left untouched — overrides only activate via
+  `@media (max-width: 900px)` and tablet breakpoint `@media (min-width: 641px)
+  and (max-width: 900px)`, so desktop layout is preserved.
+
+Files updated (14):
+- public/presentaciones/BUSINESS-CANVAS.html
+- public/presentaciones/ELEVATOR-SPEECH.html
+- public/presentaciones/PRESENTACION-CUSTOMER-JOURNEYS.html
+- public/presentaciones/PRESENTACION-E2E-TESTS.html
+- public/presentaciones/PRESENTACION-EQUIPO-DESARROLLO-V2.html
+- public/presentaciones/PRESENTACION-INVERSIONISTAS.html
+- public/presentaciones/PRESENTACION-NO-TECNICOS-V2.html
+- public/presentaciones/PRESENTACION-CLIENTES-COMPLETA.html
+- public/presentaciones/PRESENTACION-NO-TECNICOS.html
+- public/presentaciones/PRESENTACION-STACK-COMPLETO.html
+- public/presentaciones/MANUAL-USUARIO.html
+- public/presentaciones/PRESENTACION-DIFERENCIADORES.html
+- public/presentaciones/GUIA-ONBOARDING-CLIENTES.html
+- public/presentaciones/index.html
+(BUSINESS-CANVAS-AGIL.html already had responsive CSS from a prior session —
+script detected marker and skipped it.)
+
+Stage Summary:
+- 14 presentations made fully responsive (mobile iPhone 390×844 + Android
+  412×915 + web 1440×900).
+- Used agent-browser to capture 13 mobile screenshots (390×844) + 5 desktop
+  screenshots (1440×900) + 2 Android screenshots (412×915), all saved to
+  `/tmp/pres-screens/`.
+- VLM (glm-4.6v) verification on every mobile + desktop screenshot confirms:
+  (a) text readable, (b) no horizontal overflow, (c) no element overlap,
+  (d) layout properly mobile-adapted (not a tiny scaled-down desktop), and
+  desktop layout preserved on wide viewports.
+- bun run lint: 0 errors, 54 pre-existing warnings (none introduced by this
+  task — all changes are static HTML in /public, not in Next.js src).
+- Idempotent: re-running `python3 scripts/pres-responsive.py` reports all 14
+  files as "already processed (skip)" via the `data-pres-responsive="1"`
+  marker on the injected `<style>` block.

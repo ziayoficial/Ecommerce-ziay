@@ -2,7 +2,8 @@
 <html lang="es" class="dark">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=5.0">
+<meta name="theme-color" content="#047857">
 <title>ZIAY · Guía para Emprendedores</title>
 <style>
 :root{--bg:#0a0f0d;--surface:#111815;--surface2:#1a2420;--border:#2a3a34;--text:#e8f0ec;--text2:#9ab0a8;--primary:#10b981;--primary2:#34d399;--accent:#f59e0b;--danger:#ef4444;--radius:14px}
@@ -61,6 +62,90 @@ td{padding:8px 12px;border-bottom:1px solid var(--border);color:var(--text)}
 .flow-step{background:var(--surface2);border:1px solid var(--primary);padding:8px 16px;border-radius:10px;font-size:.9em;font-weight:600;color:var(--text)}
 .flow-arrow{color:var(--primary2);font-size:1.3em}
 @media(max-width:768px){.slide{padding:28px 22px}.grid-2,.grid-3,.grid-4{grid-template-columns:1fr}h1{font-size:1.7em}p{font-size:.98em}}
+</style>
+<style id="pres-responsive" data-pres-responsive="1">
+
+/* ============================================================
+   PRES-1 · Responsive overrides (mobile iPhone/Android + web)
+   Injected by scripts/pres-responsive.py
+   Strategy: keep existing desktop CSS untouched, only override
+   for mobile/touch. Uses clamp() + safe-area-inset + 100dvh.
+   ============================================================ */
+:root{
+  --safe-top:env(safe-area-inset-top,0px);
+  --safe-bottom:env(safe-area-inset-bottom,0px);
+  --safe-left:env(safe-area-inset-left,0px);
+  --safe-right:env(safe-area-inset-right,0px);
+}
+*{ -webkit-tap-highlight-color:transparent; }
+img{ max-width:100%; height:auto; }
+
+/* ===== Use dynamic viewport height + safe-area-inset padding ===== */
+.deck{
+  width:100vw;
+  height:100vh;
+  height:100dvh;
+  position:relative;
+  overflow:hidden;
+}
+.slide{
+  padding-top:calc(clamp(20px,4vw,50px) + var(--safe-top)) !important;
+  padding-bottom:calc(clamp(80px,12vw,120px) + var(--safe-bottom)) !important;
+  padding-left:calc(clamp(16px,5vw,70px) + var(--safe-left)) !important;
+  padding-right:calc(clamp(16px,5vw,70px) + var(--safe-right)) !important;
+  overflow-y:auto !important;
+  -webkit-overflow-scrolling:touch;
+}
+.slide::-webkit-scrollbar{ width:5px; height:5px; }
+.slide::-webkit-scrollbar-thumb{ background:var(--primary,#10b981); border-radius:3px; }
+.slide::-webkit-scrollbar-track{ background:transparent; }
+
+@media (max-width: 900px){
+  h1{ font-size:clamp(22px,6vw,32px) !important; line-height:1.15 !important; }
+  h2{ font-size:clamp(16px,4vw,22px) !important; }
+  h3{ font-size:clamp(13px,2.8vw,16px) !important; }
+  p, li{ font-size:clamp(13px,2.4vw,16px) !important; line-height:1.55 !important; }
+  .grid-2,.grid-3,.grid-4,.grid-5{ grid-template-columns:1fr !important; gap:10px !important; }
+  /* Nav: bigger touch targets, safe-area-inset */
+  .nav, #nav{
+    position:fixed !important;
+    bottom:calc(12px + var(--safe-bottom)) !important;
+    left:50% !important;
+    transform:translateX(-50%) !important;
+    max-width:calc(100vw - 20px);
+  }
+  .nav button, #nav button{
+    width:44px !important; height:44px !important; min-width:44px;
+    font-size:20px !important;
+  }
+  /* Tables horizontal scroll */
+  table{ display:block; overflow-x:auto; -webkit-overflow-scrolling:touch; max-width:100%; }
+  /* Ensure no horizontal overflow */
+  body, html{ overflow-x:hidden; }
+  .slide{ max-width:100vw; }
+}
+
+@media (min-width: 641px) and (max-width: 900px){
+  .grid-2{ grid-template-columns:1fr 1fr !important; }
+  .grid-3{ grid-template-columns:1fr 1fr !important; }
+}
+@media (min-width: 901px){
+  .grid-3{ grid-template-columns:repeat(3,1fr) !important; }
+  .grid-4{ grid-template-columns:repeat(2,1fr) !important; }
+  .grid-5{ grid-template-columns:repeat(3,1fr) !important; }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce){
+  *, *::before, *::after{ transition:none !important; animation:none !important; }
+}
+@media print{
+  body{ overflow:visible !important; }
+  .deck{ height:auto !important; overflow:visible !important; }
+  .slide{ position:relative !important; display:flex !important; page-break-after:always; overflow:visible !important; }
+  .nav,.progress,#swipe-hint{ display:none !important; }
+}
+
 </style>
 </head>
 <body>

@@ -575,3 +575,59 @@ const orders = await db.order.findMany({ where: { tenantId } });
 ---
 
 *Documento mantenido por el equipo de ZIAY SAS. Última actualización: 2026-07-18 (v0.4.0 — Comercio Agéntico + Fintech Hardened, score 8.8/10 independent audit, CI 6/6 green). Tagline: **Revenue Operations para Comercio Agéntico**.*
+
+---
+
+## 🔬 Lecciones del orquestador (evaluación honesta externa · v0.4.2)
+
+### L45. El orquestador es la pieza más floja del sistema
+**Contexto:** Una evaluación externa honesta encontró que el orquestador (orchestrator.ts) tenía score 6/10 mientras la infraestructura de soporte (tracing, budget, model router, retry) tenía 8.5-9/10. El cerebro que decide qué paso sigue era menos sofisticado que los sistemas que lo rodeaban.
+
+**Lección:** Es fácil sobre-invertir en infraestructura de soporte (que es técnicamente interesante) y sub-invertir en la lógica de orquestación central (que es menos glamorosa pero más crítica). El orquestador es el cerebro — si es frágil, todo el sistema es frágil.
+
+**Acción:** Priorizar la robustez del orquestador sobre nuevas características de infraestructura.
+
+---
+
+### L46. Substring matching en salida de LLM es frágil
+**Contexto:** El orquestador detectaba el perfil del cliente buscando substrings ('mayorista', 'detal') en la respuesta de texto libre del LLM. Si el LLM cambiaba una palabra, la detección se rompía silenciosamente.
+
+**Lección:** Nunca parsear texto libre de un LLM para decisiones de control de flujo. Siempre pedir salida estructurada (JSON con schema) y validarla. El LLM puede cambiar palabras, pero un JSON con schema validado es determinístico.
+
+**Acción:** Reemplazado por parsing de JSON estructurado con fallback a substring (con warning log). El prompt del agente profile ahora pide JSON explícitamente.
+
+---
+
+### L47. Datos demo hardcodeados en flujo de producción son una bomba de tiempo
+**Contexto:** El orquestador usaba "los primeros 2 productos del tenant" cuando no había items, y la dirección "Cra 10 # 20-30, Bogotá" cuando no había dirección. Esto estaba bien para demos pero es un bug de negocio esperando pasar en producción.
+
+**Lección:** Los datos demo deben estar marcados explícitamente como demo y NUNCA ejecutarse en producción sin un flag `isDemo: true`. Cuando `isDemo: false`, el orquestador debe PAUSAR y pedir los datos al cliente, no inventarlos.
+
+**Acción:** Añadido `isDemo` flag al OrchestratorState. En producción (isDemo=false), el orquestador pausa y pide items/dirección al cliente. En demo, usa los datos de ejemplo con un warning log.
+
+---
+
+### L48. Falta circuit breaker — retry no es suficiente
+**Contexto:** Había retry con backoff + fallback de modelo, pero no circuit breaker. Si un agente fallaba N veces consecutivas, seguía intentando forever (gastando tokens y latencia).
+
+**Lección:** Retry maneja fallos transitorios. Circuit breaker maneja fallos persistentes. Necesitas ambos. Sin circuit breaker, un agente roto puede consumir todo el budget del tenant en reintentos inútiles.
+
+**Acción:** Implementado `src/lib/agents/circuit-breaker.ts` con 3 estados (closed/open/half-open), threshold de 5 fallos consecutivos, reset de 60s. Wired en `callAgentDirect` — si el circuit está open, retorna fallback inmediatamente sin llamar al LLM.
+
+---
+
+### L49. La documentación se desincroniza con el código tras refactors
+**Contexto:** La evaluación encontró que la docs decía "10 agentes", "9 pasos", "8 pasos" en distintos lugares del mismo archivo — restos de refactors (theme fusionado en catalog, etc.) sin limpieza final.
+
+**Lección:** Después de cada refactor de consolidación, hacer un grep de los nombres antiguos en toda la documentación. Los refactors de código son evidentes (tsc falla), pero los refactors de docs son invisibles.
+
+**Acción:** Grep de nombres de agentes eliminados en todos los .md después de cada consolidación. Actualizado a 24 agentes consistentemente.
+
+---
+
+### L50. La honestidad de la autoauditoría es una fortaleza
+**Contexto:** La evaluación externa notó que el repo incluye `AUDIT-REPORT.md` con hallazgos críticos reales y su remediación con evidencia file:line. Eso habla bien del proceso.
+
+**Lección:** Un reporte de auditoría honesto (con hallazgos críticos reales, no solo positivos) genera más confianza que un "10/10 todo perfecto". La transparencia sobre debilidades pasadas es evidencia de madurez.
+
+**Acción:** Mantener el reporte de auditoría actualizado con cada iteración, incluyendo los hallazgos nuevos y su resolución.

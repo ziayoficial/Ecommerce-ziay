@@ -2,7 +2,8 @@
 <html lang="es" class="dark">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=5.0">
+<meta name="theme-color" content="#047857">
 <title>CommerceFlow OS · Guía Maestra de Onboarding para Clientes</title>
 <style>
 :root{--bg:#0a0f0d;--surface:#111815;--surface2:#1a2420;--border:#2a3a34;--text:#e8f0ec;--text2:#9ab0a8;--primary:#10b981;--primary2:#34d399;--accent:#f59e0b;--danger:#ef4444;--radius:12px}
@@ -42,6 +43,59 @@ hr{border:none;border-top:1px solid var(--border);margin:30px 0}
 .back-to-top{position:fixed;bottom:20px;right:20px;background:var(--primary);color:var(--bg);padding:12px 20px;border-radius:30px;text-decoration:none;font-weight:600;box-shadow:0 4px 12px rgba(16,185,129,.4);z-index:100}
 .back-to-top:hover{background:var(--primary2)}
 @media(max-width:768px){.container{padding:20px 16px 60px}h1{font-size:1.6em}h2{font-size:1.3em}p{font-size:.98em}}
+</style>
+<style id="pres-responsive" data-pres-responsive="1">
+
+/* ============================================================
+   PRES-1 · Responsive overrides (mobile iPhone/Android + web)
+   Injected by scripts/pres-responsive.py
+   Strategy: keep existing desktop CSS untouched, only override
+   for mobile/touch. Uses clamp() + safe-area-inset + 100dvh.
+   ============================================================ */
+:root{
+  --safe-top:env(safe-area-inset-top,0px);
+  --safe-bottom:env(safe-area-inset-bottom,0px);
+  --safe-left:env(safe-area-inset-left,0px);
+  --safe-right:env(safe-area-inset-right,0px);
+}
+*{ -webkit-tap-highlight-color:transparent; }
+img{ max-width:100%; height:auto; }
+
+body{
+  overflow-x:hidden;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  padding-left:env(safe-area-inset-left,0px);
+  padding-right:env(safe-area-inset-right,0px);
+}
+.container{
+  padding-left:calc(clamp(16px,5vw,40px) + var(--safe-left)) !important;
+  padding-right:calc(clamp(16px,5vw,40px) + var(--safe-right)) !important;
+  padding-top:calc(clamp(20px,4vw,40px) + var(--safe-top)) !important;
+  padding-bottom:calc(clamp(40px,8vw,80px) + var(--safe-bottom)) !important;
+}
+@media (max-width: 900px){
+  h1{ font-size:clamp(20px,6vw,28px) !important; }
+  h2{ font-size:clamp(16px,4vw,20px) !important; }
+  h3{ font-size:clamp(13px,3vw,16px) !important; }
+  p, li{ font-size:clamp(13px,2.4vw,16px) !important; line-height:1.6 !important; }
+  table{ display:block; overflow-x:auto; -webkit-overflow-scrolling:touch; max-width:100%; font-size:clamp(11px,2.4vw,13px) !important; }
+  pre{ font-size:clamp(10px,2vw,12px) !important; padding:12px !important; }
+  code{ font-size:clamp(10px,2vw,12px) !important; }
+  .card{ padding:16px !important; }
+  .back-to-top{
+    bottom:calc(20px + var(--safe-bottom)) !important;
+    right:calc(20px + var(--safe-right)) !important;
+    padding:12px 18px !important;
+    min-height:44px;
+    display:inline-flex;
+    align-items:center;
+  }
+}
+@media (prefers-reduced-motion: reduce){
+  *, *::before, *::after{ transition:none !important; animation:none !important; }
+}
+
 </style>
 </head>
 <body>

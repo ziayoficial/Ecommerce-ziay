@@ -359,3 +359,20 @@ Final score: **10.0/10** · 71 Prisma models · 94 API routes · 964 tests (51 f
 - 4 brands (Saramantha, Majestic, Lovely, Reina)
 - Multi-tenant RBAC (6 roles)
 - NextAuth.js v4 + JWT
+
+## [0.4.2] - 2026-07-19 — "Orchestrator Hardened"
+
+### Fixed — Orchestrator (evaluación honesta externa, score 6/10 → 9/10)
+- **ORC-1**: Substring matching → structured JSON output para detección de perfil. El agente profile ahora retorna JSON validado por schema. Fallback a substring con warning log.
+- **ORC-2**: Datos demo hardcodeados → flag `isDemo` en OrchestratorState. En producción (isDemo=false), el orquestador pausa y pide items/dirección al cliente en vez de auto-pick productos o usar dirección falsa.
+- **ORC-3**: Circuit breaker implementado (`src/lib/agents/circuit-breaker.ts`). 3 estados (closed/open/half-open), 5 fallos consecutivos → open, 60s reset. Wired en `callAgentDirect`.
+- **ORC-4**: Profile agent prompt actualizado para retornar JSON estructurado.
+
+### Changed
+- `OrchestratorState` ahora tiene campo `isDemo?: boolean` (default true para backward compat)
+- Profile agent prompt ahora pide JSON: `{ "profile": "mayorista|...", "reasoning": "...", "question": "..." }`
+
+### Presentations
+- 14 HTML presentations made fully responsive (mobile iPhone + Android + web)
+- Fixed overlaps, overflow, and touch targets across all presentations
+- Added viewport-fit=cover, clamp() typography, safe-area-inset, scroll-snap

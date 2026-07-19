@@ -2,7 +2,8 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=5.0">
+<meta name="theme-color" content="#047857">
 <title>ZIAY · Manual de Usuario</title>
 <style>
 /* ═══ RESET + BASE ═══ */
@@ -115,6 +116,77 @@ code{font-family:var(--mono);font-size:12px;background:var(--bg3);padding:2px 8p
 .content-layer{position:relative;z-index:1}
 /* No element should use negative margins */
 .no-overlap{overflow:hidden;isolation:isolate}
+</style>
+<style id="pres-responsive" data-pres-responsive="1">
+
+/* ============================================================
+   PRES-1 · Responsive overrides (mobile iPhone/Android + web)
+   Injected by scripts/pres-responsive.py
+   Strategy: keep existing desktop CSS untouched, only override
+   for mobile/touch. Uses clamp() + safe-area-inset + 100dvh.
+   ============================================================ */
+:root{
+  --safe-top:env(safe-area-inset-top,0px);
+  --safe-bottom:env(safe-area-inset-bottom,0px);
+  --safe-left:env(safe-area-inset-left,0px);
+  --safe-right:env(safe-area-inset-right,0px);
+}
+*{ -webkit-tap-highlight-color:transparent; }
+img{ max-width:100%; height:auto; }
+
+/* ===== Vertical scrolling deck: safe-area-inset + fluid typography ===== */
+.slide{
+  min-height:100vh;
+  min-height:100dvh;
+  padding-top:calc(clamp(20px,4vw,50px) + var(--safe-top)) !important;
+  padding-bottom:calc(clamp(60px,8vw,120px) + var(--safe-bottom)) !important;
+  padding-left:calc(clamp(16px,5vw,50px) + var(--safe-left)) !important;
+  padding-right:calc(clamp(16px,5vw,50px) + var(--safe-right)) !important;
+  overflow-y:auto;
+}
+body{ overflow-x:hidden; }
+
+/* Fluid typography (where author used em — convert to clamp) */
+@media (max-width: 900px){
+  h1{ font-size:clamp(22px,6vw,32px) !important; line-height:1.2 !important; }
+  h2{ font-size:clamp(16px,4vw,22px) !important; }
+  h3{ font-size:clamp(13px,3vw,16px) !important; }
+  p, li{ font-size:clamp(13px,2.4vw,16px) !important; line-height:1.55 !important; }
+  .big-stat{ font-size:clamp(28px,8vw,42px) !important; }
+  /* Tables horizontal scroll */
+  table{ display:block; overflow-x:auto; -webkit-overflow-scrolling:touch; max-width:100%; font-size:clamp(11px,2.4vw,13px) !important; }
+  pre{ font-size:clamp(10px,2vw,12px) !important; padding:12px !important; }
+  code{ font-size:clamp(10px,2vw,12px) !important; }
+  /* Nav fixed bottom + safe-area-inset */
+  .nav, #nav{
+    position:fixed !important;
+    bottom:calc(12px + var(--safe-bottom)) !important;
+  }
+  .nav button, #nav button{
+    width:44px !important; height:44px !important; min-width:44px;
+  }
+  /* Back-to-top: respect safe-area */
+  .back-to-top{
+    bottom:calc(20px + var(--safe-bottom)) !important;
+    right:calc(20px + var(--safe-right)) !important;
+    padding:12px 18px !important;
+    min-height:44px;
+    display:inline-flex;
+    align-items:center;
+  }
+  /* vs (compare two-col) collapse */
+  .vs{ grid-template-columns:1fr !important; }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce){
+  *, *::before, *::after{ transition:none !important; animation:none !important; }
+}
+@media print{
+  .slide{ min-height:auto !important; page-break-after:always; }
+  .nav,.progress,.back-to-top{ display:none !important; }
+}
+
 </style>
 </head>
 <body>

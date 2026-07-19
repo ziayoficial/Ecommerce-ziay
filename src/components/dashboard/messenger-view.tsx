@@ -27,6 +27,7 @@ import {
   MessageCircle, Send, Sparkles, Phone, MapPin, Tag, Bot, User, Search,
   CircleDot, ArrowRight, ShoppingCart, RefreshCw, AlertCircle, Inbox, CornerDownLeft,
 } from 'lucide-react'
+import { HandoffButton } from './handoff-button'
 
 type ConvListItem = {
   id: string; status: string; priority: string; unreadCount: number; lastMessageAt: string
@@ -46,6 +47,9 @@ type ConvDetail = {
   orders: { id: string; number: string; status: string; paymentMode: string; total: number; currency: string; items: { name: string; quantity: number }[] }[]
   perfilConversacion?: string
   sourceCampaign?: string
+  // GAP-FIX-1: human takeover fields
+  botEnabled?: boolean
+  pausedReason?: string | null
 }
 
 const channelMeta = (type: string) => {
@@ -348,6 +352,16 @@ export function MessengerView() {
                   {active.customer.phone && <span>· {active.customer.phone}</span>}
                 </div>
               </div>
+              {/* GAP-FIX-1: HandoffButton — pause/resume AI bot for this conversation */}
+              <HandoffButton
+                conversationId={active.id}
+                botEnabled={active.botEnabled ?? true}
+                pausedReason={active.pausedReason ?? null}
+                onToggle={(newBotEnabled) => {
+                  // Update local state so the UI reflects the change immediately
+                  setActive((prev) => prev ? { ...prev, botEnabled: newBotEnabled } : prev)
+                }}
+              />
               <Select value={active.status} onValueChange={updateStatus}>
                 <SelectTrigger className="h-9 w-32 text-xs">
                   <SelectValue />

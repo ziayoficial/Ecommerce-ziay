@@ -595,24 +595,67 @@ export const POST = withWebhookErrorHandling(async (req: NextRequest) => {
     //
     // In meta_native mode, it always returns false — Meta handles everything.
     //
-    // The function is imported lazily to avoid loading the config module
-    // in the Edge runtime (this route runs in Node runtime, but the import
-    // is deferred for consistency with other lazy imports in this file).
+    // RE-AUDIT FIX: Previously the intent was hardcoded as 'faq' which broke
+    // hybrid mode (everything was treated as FAQ → nothing escalated to ZIAY).
+    // Now we do a lightweight intent classification from the message text
+    // BEFORE calling shouldEscalateToOwnAgent. This is NOT a full NLU
+    // classification — it's a keyword-based pre-classification that catches
+    // the high-value intents (checkout, complaint, novedad) that should
+    // always go to ZIAY's own agents. The Governor agent (which runs later
+    // in the pipeline) does the full classification.
     try {
-      const { shouldEscalateToOwnAgent } = await import('@/lib/config/meta-agent-config')
-      const escalateToOwn = shouldEscalateToOwnAgent({
-        intent: 'faq', // default intent — the Governor agent will refine this
-        orderValue: undefined,
-        customerTier: undefined,
-      })
+      const { shouldEscalateToOwnAgent, getMetaAgentStrategy } = await import('@/lib/config/meta-agent-config')
+      const strategy = getMetaAgentStrategy()
 
-      if (!escalateToOwn) {
-        // Meta Business Agent handles this message — don't trigger ZIAY's
-        // agent pipeline. The message is persisted (above) and visible in
-        // the dashboard, but Meta's agent responds directly to the customer.
+      // Only do intent classification in hybrid mode (own_stack always
+      // escalates, meta_native never does — no classification needed).
+      if (strategy.strategy === 'hybrid') {
+        const msgLower = (parsed.text || '').toLowerCase()
+        // Lightweight keyword-based intent pre-classification
+        let intent: 'faq' | 'catalog_query' | 'checkout' | 'novedad' | 'complaint' = 'faq'
+        if (/pedido|orden|comprar|pago|wompi|nequi|tarjeta|confirmar|envío|envio|dirección|direccion/.test(msgLower)) {
+          intent = 'checkout'
+        } else if(/novedad|reclamo|problema|no llegó|no llego|devolución|devolucion|reembolso|reclama/.test(msgLower)) {
+          intent = 'novedad'
+        } else if(/queja|mal|pésimo|pesimo|terrible|estafa|denuncia/.test(msgLower)) {
+          intent = 'complaint'
+        } else if(/catálogo|catalogo|producto|precio|talla|color|tienes|disponible/.test(msgLower)) {
+          intent = 'catalog_query'
+        }
+
+        const escalateToOwn = shouldEscalateToOwnAgent({
+          intent,
+          orderValue: undefined,
+          customerTier: undefined,
+        })
+
+        if (!escalateToOwn) {
+          // Meta Business Agent handles this message — don't trigger ZIAY's
+          // agent pipeline. The message is persisted (above) and visible in
+          // the dashboard, but Meta's agent responds directly to the customer.
+          log.info(
+            { conversationId: conversation.id, tenantId, strategy: 'hybrid', intent, msgPreview: (parsed.text || '').slice(0, 60) },
+            'Message routed to Meta Business Agent (hybrid mode, intent=%s) — skipping ZIAY pipeline',
+            intent,
+          )
+          return NextResponse.json({
+            received: true,
+            status: 'meta_handled',
+            conversationId: conversation.id,
+            intent,
+          })
+        } else {
+          log.info(
+            { conversationId: conversation.id, tenantId, strategy: 'hybrid', intent },
+            'Message escalated to ZIAY agents (hybrid mode, intent=%s)',
+            intent,
+          )
+        }
+      } else if (strategy.strategy === 'meta_native') {
+        // meta_native: Meta handles everything
         log.info(
-          { conversationId: conversation.id, tenantId, strategy: 'meta_or_hybrid' },
-          'Message routed to Meta Business Agent (hybrid mode) — skipping ZIAY pipeline',
+          { conversationId: conversation.id, tenantId, strategy: 'meta_native' },
+          'Message routed to Meta Business Agent (meta_native mode) — skipping ZIAY pipeline',
         )
         return NextResponse.json({
           received: true,
@@ -620,6 +663,7 @@ export const POST = withWebhookErrorHandling(async (req: NextRequest) => {
           conversationId: conversation.id,
         })
       }
+      // own_stack: fall through to normal ZIAY pipeline processing
     } catch (metaConfigErr) {
       // If the config module fails to load, fail-open to own_stack (default).
       log.warn(

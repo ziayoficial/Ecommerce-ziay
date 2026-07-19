@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { requireRole, requireTenantAccess, getSession } from '@/lib/auth-helpers'
+import { requireRole, requireTenantAccess } from '@/lib/auth-helpers'
 import { db } from '@/lib/db'
 import { getLogger } from '@/lib/logger'
 import { emitToTenant } from '@/lib/chat-emit'

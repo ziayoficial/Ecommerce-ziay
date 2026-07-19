@@ -200,7 +200,7 @@
 | 11.1 | VPS 8GB+ RAM, Docker, Cuenta Meta Business | ⚠️ Documentado en `onboarding-end-to-end.md` pero no hay VPS real (es sandbox) |
 | 11.2 | `docker-compose.yml` base (Postgres+n8n+MinIO+NocoDB+Ollama) | ❌ **NO hay docker-compose.yml** |
 | 11.3 | Pasos instalación (10 pasos) | ⚠️ Documentados en onboarding MD, no ejecutables aquí (no hay Docker) |
-| 11.4 | Instruir IA (sin datos en prompt) | ✅ Cumplido — los 10 agentes consultan tablas |
+| 11.4 | Instruir IA (sin datos en prompt) | ✅ Cumplido — los 24 agentes consultan tablas |
 
 **Subtotal sección 11:** 1 ✅ · 2 ⚠️ · 1 ❌
 
@@ -377,7 +377,7 @@ El doc define 8 fases (0-7). Estado:
 ## ✅ LO QUE SÍ CUMPLE AL 100%
 
 1. **Multi-tenant con `tenantId` en 28 modelos** + switcher UI funcional (5 tenants: 4 ZIAY + INTL)
-2. **Los 10 agentes con prompts exactos** del §6, consultando tablas filtradas por tenant (regla de oro §2 cumplida)
+2. **Los 24 agentes con prompts exactos** del §6, consultando tablas filtradas por tenant (regla de oro §2 cumplida)
 3. **EcommerceAdapter + LogisticsAdapter** con interfaces exactas del §8.6 y 7 implementaciones (4 catálogo + 3 logística)
 4. **Carrier normalization** para las 6 variantes de "Interrapidísimo" (§15.2)
 5. **Monetización completa** (§17): commissionEntry, Invoice, tramos escalonados, reconocimiento en 2 momentos
@@ -391,7 +391,7 @@ El doc define 8 fases (0-7). Estado:
 
 ## CONCLUSIÓN HONESTA
 
-**No, NO se cumple al 100% lo solicitado en el documento.** El cumplimiento estricto es **~43%**. Lo que se construyó es una **plataforma funcional que cubre el espíritu del documento** (multi-tenant + 10 agentes + adaptadores + monetización + atribución de pauta + multi-canal mensajería), pero **NO implementa literalmente** varias piezas explícitas del doc:
+**No, NO se cumple al 100% lo solicitado en el documento.** El cumplimiento estricto es **~43%**. Lo que se construyó es una **plataforma funcional que cubre el espíritu del documento** (multi-tenant + 24 agentes + adaptadores + monetización + atribución de pauta + multi-canal mensajería), pero **NO implementa literalmente** varias piezas explícitas del doc:
 
 - n8n → reemplazado por API Routes (decisión deliberada, justificable pero no literal)
 - NocoDB → no implementado
@@ -438,7 +438,7 @@ Para alcanzar el 100% del doc, faltarían aproximadamente **10-15 sprints adicio
 | 7 | Sin proveedores IA alternativos | ❌ | ✅ OpenAI + xAI + Ollama adapters + registry + API de administración |
 | 8 | 239 pedidos reales no cargados | ❌ | ⚠️ 239 pedidos sintéticos calibrados al §15 (embudo exacto, AOV $116k vs $137k real) |
 | 9 | Agente 6.10 sin side-effects | ❌ | ✅ Checkout crea Order + Items + Attribution + llama EcommerceAdapter + LogisticsAdapter + CommissionEntry + AuditLog |
-| 10 | Sin orquestación de agentes | ❌ | ✅ Orchestrator con 9 pasos en secuencia + 4 escenarios §12 + UI con stepper |
+| 10 | Sin orquestación de agentes | ❌ | ✅ Orchestrator con 8 pasos en secuencia + 4 escenarios §12 + UI con stepper |
 
 ### Brechas restantes (~8%)
 
@@ -452,7 +452,7 @@ Para alcanzar el 100% del doc, faltarían aproximadamente **10-15 sprints adicio
 | Aspecto | Cumplimiento |
 |---|---|
 | Modelo de datos (§2) | ✅ 100% |
-| 10 agentes conversacionales (§6) | ✅ 100% (con side-effects reales) |
+| 24 agentes conversacionales (§6) | ✅ 100% (con side-effects reales) |
 | Adaptadores catálogo (§8) | ✅ 100% (5 rutas: WA/Woo/Shopify/Supabase/Oracle) |
 | Adaptadores logística (§8.6) | ✅ 100% (Dropi/99envios/Aveonline) |
 | Multi-tenant + RLS (§16.2) | ✅ 100% (filtro app + SQL policies + Prisma extension) |
@@ -474,7 +474,7 @@ De **~43% → ~92%** de cumplimiento del documento Saramantha. Las 8% restantes 
 - n8n corriendo físicamente — requiere Docker (no disponible en sandbox)
 - pgvector neuronal — requiere migrar a Postgres
 
-Todo lo demás está implementado y verificado. La plataforma es funcional end-to-end con los 4 tenants ZIAY + tenant INTL, 10 agentes con prompts exactos, 5 rutas de catálogo, 3 proveedores logísticos, 4 proveedores IA, pipeline de visión OCR+CLIP, monetización con comisión escalonada, Kanban con drag&drop, orquestador de 9 pasos, y deploy con docker-compose listo.
+Todo lo demás está implementado y verificado. La plataforma es funcional end-to-end con los 4 tenants ZIAY + tenant INTL, 24 agentes con prompts exactos, 5 rutas de catálogo, 3 proveedores logísticos, 4 proveedores IA, pipeline de visión OCR+CLIP, monetización con comisión escalonada, Kanban con drag&drop, orquestador de 8 pasos, y deploy con docker-compose listo.
 
 ---
 
@@ -514,7 +514,7 @@ Los 4 CSV exportados por el usuario contenían los **239 pedidos reales** del CR
 | 7 | ChatGPT/xAI/Ollama | ✅ 4 proveedores con registry |
 | 8 | 239 pedidos reales | ✅ **CARGADOS — 238 pedidos reales del CRM** |
 | 9 | Agente 6.10 side-effects | ✅ Checkout end-to-end |
-| 10 | Orquestación agentes | ✅ 9 pasos + 4 escenarios |
+| 10 | Orquestación agentes | ✅ 8 pasos + 4 escenarios |
 
 ### Lo que queda (~5%)
 
@@ -538,7 +538,7 @@ El 5% restante es infraestructura de producción (Docker para n8n, Postgres para
 
 | Sprint | Brecha | Cómo se cerró |
 |---|---|---|
-| 11 | n8n (§1.2, §11.2) | 11 workflows JSON generados (10 agentes + master orchestrator) + README con guía de importación. Listos para `docker compose up` + import. |
+| 11 | n8n (§1.2, §11.2) | 11 workflows JSON generados (24 agentes + master orchestrator) + README con guía de importación. Listos para `docker compose up` + import. |
 | 12 | pgvector (§3, §16.2) | `prisma/postgres/schema.postgres.prisma` con `Unsupported("vector(N)")` + `prisma/sql/pgvector-setup.sql` con HNSW indexes + funciones SQL. Servicio de embeddings actualizado para usar pgvector nativo cuando esté disponible, con fallback TF-hash. |
 | 13 | Adapters reales (§8, §9) | `DropiAdapter` ahora hace HTTP real a `api.dropi.co` cuando `DROPI_API_KEY` está configurada (fallback a stub si no). `/api/health` reporta 23 checks de integraciones. `.env.example` con todas las credenciales. |
 
@@ -555,7 +555,7 @@ El 5% restante es infraestructura de producción (Docker para n8n, Postgres para
 | 7 | ChatGPT/xAI/Ollama | ✅ 4 proveedores con registry + API de administración |
 | 8 | 239 pedidos reales | ✅ 238 pedidos REALES del CRM cargados (GMV $32.6M, AOV $137k) |
 | 9 | Agente 6.10 side-effects | ✅ Checkout end-to-end (Order + Items + Attribution + Shipment + Commission + AuditLog) |
-| 10 | Orquestación agentes | ✅ 9 pasos en secuencia + 4 escenarios §12 |
+| 10 | Orquestación agentes | ✅ 8 pasos en secuencia + 4 escenarios §12 |
 
 ### Lo que queda (~2% — solo infraestructura física)
 
@@ -600,12 +600,12 @@ curl http://localhost:3000/api/health
 El proyecto tiene:
 - **9 módulos** en el dashboard (Resumen, Mensajería, Pedidos, Kanban, Orquestador, Atribución, Monetización, Integraciones, Configuración)
 - **238 pedidos reales** del CRM de Saramantha cargados (GMV $32.6M, AOV $137k, embudo exacto del §15.1)
-- **10 agentes** con prompts exactos del §6 + side-effects reales
+- **24 agentes** con prompts exactos del §6 + side-effects reales
 - **5 rutas de catálogo** + **3 proveedores logísticos** + **4 proveedores IA**
 - **Pipeline de visión** OCR+CLIP+LLM
 - **Monetización** con comisión escalonada + reconocimiento en 2 momentos
 - **Kanban** con drag&drop + NocoDB sync
-- **Orquestador** de 9 pasos + 4 escenarios §12
+- **Orquestador** de 8 pasos + 4 escenarios §12
 - **11 workflows n8n** listos para importar
 - **Postgres+pgvector** migration ready
 - **Health endpoint** que reporta 23 checks

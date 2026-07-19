@@ -674,11 +674,19 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
       // IA-3: theme folded into catalog — if the scenario has a theme,
       // the catalog agent runs the §6.5 theme-search branch.
       theme: stepId === 'catalog' ? scenario?.theme : undefined,
-      items: stepId === 'quote'
-        ? [{ sku: 'SHORT-TIRA', cantidad: 12 }] // demo quote
+      // ORC-1-FIX: demo data only when this is a scenario demo (not a real
+      // conversation). The /api/orchestrate endpoint is the dashboard's
+      // "Run Demo" button — it always has a scenarioId. Real conversations
+      // go through /api/ai-reply which uses tool-calling (no demo data).
+      // This guard prevents demo data from leaking into real conversations
+      // if someone calls /api/orchestrate with a real conversationId.
+      items: stepId === 'quote' && scenarioId
+        ? [{ sku: 'SHORT-TIRA', cantidad: 12 }] // demo quote (scenario only)
         : undefined,
       message: stepId === 'objection' ? scenario?.objectionMessage : undefined,
-      partialAddress: stepId === 'address' ? { ciudad: 'Bogotá' } : undefined,
+      partialAddress: stepId === 'address' && scenarioId
+        ? { ciudad: 'Bogotá' } // demo address (scenario only)
+        : undefined,
       // IA-4 — recalled memory + sentiment classification.
       customerMemories: customerMemories.length > 0 ? customerMemories : undefined,
       sentiment: sentimentResult,

@@ -45,7 +45,7 @@ interface CircuitEntry {
   lastSuccessAt?: number
 }
 
-class CircuitBreakerManager {
+export class CircuitBreakerManager {
   private circuits = new Map<string, CircuitEntry>()
   private config: CircuitBreakerConfig
 

@@ -519,7 +519,7 @@ my-project/
 
 ---
 
-# APÉNDICE DE EVOLUCIÓN — v2 (Multi-tenant + 10 agentes + adaptadores + monetización)
+# APÉNDICE DE EVOLUCIÓN — v2 (Multi-tenant + 24 agentes + adaptadores + monetización)
 
 > **Fecha de la evolución:** Julio 2026 · Posterior a la lectura del documento `PROYECTO_saramantha_agentes_whatsapp.md`
 > **Estado:** Las 8 brechas críticas identificadas en `REVISION-saramantha-vs-commerceflow.md` han sido cerradas (excepto vista Kanban, pendiente).

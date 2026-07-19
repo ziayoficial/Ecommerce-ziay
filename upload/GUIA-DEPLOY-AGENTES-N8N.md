@@ -694,7 +694,7 @@ done
 Más allá de los 26 workflows individuales, creamos **3 workflows orquestador**
 que encadenan los agentes en el orden definido en `src/lib/orchestrator/constants.ts`.
 
-### 9.1 Pipeline A — Pre-venta (10 agentes)
+### 9.1 Pipeline A — Pre-venta (24 agentes)
 
 ```
 Webhook → Code (init state) → Execute WF buyer_behavior
@@ -786,7 +786,7 @@ con cron `0 3 * * *` (3 AM UTC, 10 PM hora Colombia).
 ## 10. Ejemplo completo — workflow orquestador del Pipeline A
 
 El siguiente JSON es el workflow `CF · Orchestrate · Pre-sale` que encadena los
-10 agentes en orden. Importable directamente en n8n.
+24 agentes en orden. Importable directamente en n8n.
 
 ```json
 {

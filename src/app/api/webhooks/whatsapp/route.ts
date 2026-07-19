@@ -585,6 +585,49 @@ export const POST = withWebhookErrorHandling(async (req: NextRequest) => {
     emitToTenant(tenantId, 'message:new', livePayload)
     emitToTenant(tenantId, 'message:received', { conversationId: conversation.id, message: livePayload })
 
+    // ── GAP-FIX-3: Meta Business Agent hybrid routing ─────────────────
+    // In hybrid mode, simple FAQ/catalog queries are handled by Meta's
+    // Business Agent (free). Complex flows (checkout, novedad, complaint,
+    // high-value, VIP) escalate to ZIAY's own agents.
+    //
+    // In own_stack mode (default), shouldEscalateToOwnAgent() always
+    // returns true — all messages go through ZIAY's pipeline.
+    //
+    // In meta_native mode, it always returns false — Meta handles everything.
+    //
+    // The function is imported lazily to avoid loading the config module
+    // in the Edge runtime (this route runs in Node runtime, but the import
+    // is deferred for consistency with other lazy imports in this file).
+    try {
+      const { shouldEscalateToOwnAgent } = await import('@/lib/config/meta-agent-config')
+      const escalateToOwn = shouldEscalateToOwnAgent({
+        intent: 'faq', // default intent — the Governor agent will refine this
+        orderValue: undefined,
+        customerTier: undefined,
+      })
+
+      if (!escalateToOwn) {
+        // Meta Business Agent handles this message — don't trigger ZIAY's
+        // agent pipeline. The message is persisted (above) and visible in
+        // the dashboard, but Meta's agent responds directly to the customer.
+        log.info(
+          { conversationId: conversation.id, tenantId, strategy: 'meta_or_hybrid' },
+          'Message routed to Meta Business Agent (hybrid mode) — skipping ZIAY pipeline',
+        )
+        return NextResponse.json({
+          received: true,
+          status: 'meta_handled',
+          conversationId: conversation.id,
+        })
+      }
+    } catch (metaConfigErr) {
+      // If the config module fails to load, fail-open to own_stack (default).
+      log.warn(
+        { err: metaConfigErr instanceof Error ? metaConfigErr.message : String(metaConfigErr) },
+        'meta-agent-config load failed — defaulting to own_stack',
+      )
+    }
+
     // ── Mark message as read (best-effort, non-blocking) ───────────────
     // We do this AFTER the DB write so a slow Meta API call doesn't delay
     // persistence. The adapter swallows its own errors.

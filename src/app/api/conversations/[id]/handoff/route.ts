@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { requireRole, requireTenantAccess } from '@/lib/auth-helpers'
+import { requireRole, requireTenantAccess, getSession } from '@/lib/auth-helpers'
 import { db } from '@/lib/db'
 import { getLogger } from '@/lib/logger'
 import { emitToTenant } from '@/lib/chat-emit'
@@ -32,8 +32,12 @@ export async function POST(
   const { id: conversationId } = await params
 
   // Auth: any authenticated user with agent/admin role can toggle handoff
-  const { error: authError } = await requireRole(['admin', 'agent'])
+  const { session, error: authError } = await requireRole(['admin', 'agent'])
   if (authError) return authError
+
+  // GAP-FIX-1: extract the userId from the session so we know WHO paused
+  // the bot. Previously this was null with a TODO comment.
+  const pausedByUserId = session?.user?.id ?? null
 
   // Parse + validate body
   const body = await req.json().catch(() => null)
@@ -73,10 +77,7 @@ export async function POST(
     data: {
       botEnabled,
       pausedAt: botEnabled ? null : now,
-      // We don't have the userId from requireAuth — in a real impl, the
-      // session would provide it. For now, null is acceptable (the audit
-      // log captures the action via the OrderEvent / DecisionLog below).
-      pausedBy: null, // TODO: extract from session
+      pausedBy: botEnabled ? null : pausedByUserId,
       pausedReason: botEnabled ? null : reason,
     },
     select: {

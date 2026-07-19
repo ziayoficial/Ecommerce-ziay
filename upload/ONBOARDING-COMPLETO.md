@@ -16,7 +16,7 @@
 3. [Conceptos clave](#3-conceptos-clave)
 4. [Onboarding por rol](#4-onboarding-por-rol)
 5. [Tour por los 21 módulos del dashboard](#5-tour-por-los-21-módulos-del-dashboard)
-6. [Los 26 agentes conversacionales](#6-los-26-agentes-conversacionales)
+6. [Los 24 agentes conversacionales](#6-los-26-agentes-conversacionales)
 7. [Los 3 pipelines de orquestación](#7-los-3-pipelines-de-orquestación)
 8. [Flujo de un pedido (embudo §15.1)](#8-flujo-de-un-pedido-embudo-151)
 9. [Flujo de una novedad](#9-flujo-de-una-novedad)
@@ -43,7 +43,7 @@ ZIAY resuelve esto unificando todo en un dashboard multi-tenant, capturando el `
 Al terminar este onboarding vas a ser capaz de:
 
 - Navegar los **21 módulos** del dashboard y saber qué hace cada uno.
-- Invocar los **26 agentes** conversacionales en el momento correcto.
+- Invocar los **24 agentes** conversacionales en el momento correcto.
 - Entender los **3 pipelines** (pre-venta, post-venta, inteligencia) y cuándo dispararlos.
 - Operar el Kanban de **8 columnas** del embudo §15.1.
 - Crear y resolver una novedad logística.
@@ -98,7 +98,7 @@ Al terminar este onboarding vas a ser capaz de:
                              ▼
 ┌──────────────────────────────────────────────────────────────────────────────┐
 │                              DOMAIN LAYER                                    │
-│  26 agents (src/lib/agents/prompts.ts)                                       │
+│  24 agents (src/lib/agents/prompts.ts)                                       │
 │  3 pipelines × 19 steps (src/lib/orchestrator/constants.ts)                  │
 │  18 adapters + 2 registries (src/lib/adapters/)                              │
 │  LLM adapter (ZAI/OpenAI/xAI/Ollama) · VLM · pgvector embeddings             │
@@ -136,7 +136,7 @@ Antes de tocar el teclado, estos **9 conceptos** aparecen en cada pantalla. Si l
 | # | Concepto | Definición | Analogía |
 |---|----------|-----------|----------|
 | 1 | **Tenant** | Marca/empresa aislada con su propio catálogo, canales, usuarios y datos. Identificada por `tenantId` (ej: `ten-saramantha`) y `slug` (ej: `saramantha`). | Cada tenant es un apartamento en el mismo edificio: comparten plomería pero no se cruzan. |
-| 2 | **Agente conversacional** | Función IA especializada en un momento de la conversación (perfilamiento, cotización, objeciones…). Hay 26 agentes distribuidos en 3 pipelines. | Un empleado experto en UNA sola tarea. |
+| 2 | **Agente conversacional** | Función IA especializada en un momento de la conversación (perfilamiento, cotización, objeciones…). Hay 24 agentes distribuidos en 3 pipelines. | Un empleado experto en UNA sola tarea. |
 | 3 | **Conversación** | Thread de mensajes entre un comprador y la marca, en un canal (WhatsApp, Messenger, IG). Cada conversación tiene `customer`, `channel`, `assignedAgent` y opcionalmente `sourceAdId`. | Una conversación de WhatsApp tal cual la ves en tu teléfono, pero con metadata. |
 | 4 | **Pedido (Order)** | Orden de compra con items, total, modo de pago (`advance`, `cod`, `hybrid`), dirección y estado del embudo §15.1 (8 estados). | La orden de compra que firmó el cliente al cerrar la venta. |
 | 5 | **Novedad** | Incidencia logística (paquete dañado, no entregado, dirección errada…). Se crea un `NovedadCase` con número `NV-2026-XXXXX`, evidencias y escalación humana obligatoria. | Un ticket de soporte logístico con fotos y trazabilidad. |
@@ -271,7 +271,7 @@ Todos los módulos están en una sola ruta (`/`) y se cambian vía el sidebar iz
 
 **Features clave**:
 - Smart reply con LLM (botón "💡 Sugerir respuesta").
-- Dropdown de 26 agentes para invocar manualmente.
+- Dropdown de 24 agentes para invocar manualmente.
 - Socket.io live: nuevos mensajes llegan sin refresh.
 - Simulated customer auto-reply para demos (sin celular real).
 
@@ -433,7 +433,7 @@ Todos los módulos están en una sola ruta (`/`) y se cambian vía el sidebar iz
 
 ---
 
-## 6. Los 26 agentes conversacionales
+## 6. Los 24 agentes conversacionales
 
 Cada agente es una función `build<Name>Prompt(ctx)` en `src/lib/agents/prompts.ts`. Se invocan vía `POST /api/agents/[agentName]` con body `{ tenantId, ...context }`.
 
@@ -816,7 +816,7 @@ ZIAY tiene **5 rutas SSR** para SEO y presencia pública. Estas páginas se rend
 
 **20. ¿Cómo cambio de SQLite a Postgres?** Cambia `DATABASE_URL` en `.env` de `file:./db/custom.db` a `postgresql://...`. Ejecuta `bunx prisma migrate deploy`. El schema es portable.
 
-**21. ¿Puedo usar ZIAY sin n8n?** Sí, pero pierdes los 11 workflows externos (orquestación avanzada, integraciones con tools externos). El dashboard y los 26 agentes funcionan sin n8n.
+**21. ¿Puedo usar ZIAY sin n8n?** Sí, pero pierdes los 11 workflows externos (orquestación avanzada, integraciones con tools externos). El dashboard y los 24 agentes funcionan sin n8n.
 
 **22. ¿El código es open-source?** Sí, bajo licencia MIT. Los prompts de agentes y la configuración de tenants son propiedad de ZIAY SAS.
 
@@ -874,7 +874,7 @@ ZIAY tiene **5 rutas SSR** para SEO y presencia pública. Estas páginas se rend
 | Documento Saramantha original | `upload/PROYECTO_saramantha_agentes_whatsapp.md` | Especificación original. |
 | Maestro de arquitectura | `upload/MAESTRO-arquitectura.md` | Detalle arquitectónico. |
 | Health endpoint | `GET /api/health` | Estado de 23 integraciones. |
-| Lista de agentes | `GET /api/agents` | Los 26 agentes con metadata. |
+| Lista de agentes | `GET /api/agents` | Los 24 agentes con metadata. |
 | Capturas de auditoría | `upload/audit-*.png`, `upload/qa-*.png` | 60+ imágenes de verificación. |
 
 ---

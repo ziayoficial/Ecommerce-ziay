@@ -12,7 +12,7 @@
 > score **8.8/10**) lives in `public/presentaciones/AUDITORIA-FINTECH-V3-FINAL.md`,
 > `public/presentaciones/AUDITORIA-FULL-SECURITY-CODE-TEST.md`, and
 > `public/presentaciones/AUDITORIA-FULL-UX-SEO-DOCS-DEPLOY.md`. Counts below
-> (62 models, 44 routes, 26 agents) reflect the codebase at planning time;
+> (62 models, 44 routes, 24 agents) reflect the codebase at planning time;
 > v0.4.0 has **78 models / 114 routes / 27 agents / 986 tests / 35 RLS policies**.
 
 ---
@@ -261,7 +261,7 @@ Files: `accordion, alert, alert-dialog, aspect-ratio, avatar, badge, breadcrumb,
 
 | # | File | Depth | Domain | Owner |
 |---|---|---|---|---|
-| 1 | `src/lib/agents/prompts.ts` (1333 lines, 26 agents) | F | AG | WS-4 |
+| 1 | `src/lib/agents/prompts.ts` (1333 lines, 24 agents) | F | AG | WS-4 |
 | 2 | `src/lib/orchestrator/constants.ts` (220 lines, 3 pipelines) | F | AG | WS-4 |
 
 ### 2.8 Lib — Core (6 files — Domain: BE/SE/DA)
@@ -576,7 +576,7 @@ For **every** of the 44 API routes:
 |---|---|---|
 | `GET /api/wallet` | No session check; any caller with `traffickerId` reads balance | **Critical** |
 | `POST /api/wallet` (action=request_withdrawal) | No session check; only TOTP guards — an attacker with the TOTP secret could withdraw | **Critical** |
-| `GET /api/agents` | No auth; lists all 26 agents (low risk — metadata only) | Medium |
+| `GET /api/agents` | No auth; lists all 24 agents (low risk — metadata only) | Medium |
 | `POST /api/agents/[agentName]` | No auth; lets anyone invoke an LLM agent (cost/abuse risk) | High |
 | `GET /api/conversions` | No auth; reads conversion events (PII: fbp/fbc/gclid/ttclid) | High |
 | `POST /api/conversions` | No auth; can fire fake conversion events | High |
@@ -724,13 +724,13 @@ For **every** of the 44 API routes:
 ### WS-4: Agents & Orchestration
 
 **Owner:** Agents sub-agent
-**Scope:** 26 agents, 3 pipelines, prompts, LLM multi-provider, fallback
+**Scope:** 24 agents, 3 pipelines, prompts, LLM multi-provider, fallback
 **Files in scope:** `src/lib/agents/prompts.ts`, `src/lib/orchestrator/constants.ts`, `src/app/api/agents/*`, `src/app/api/orchestrate/route.ts`, `src/app/api/ai-reply/route.ts`, `src/app/api/buyer-behavior/route.ts`, `src/app/api/catalog/send-to-chat/route.ts`, `src/app/api/redelivery/route.ts`, `src/app/api/logistics-intelligence/route.ts`, `src/app/api/marketplace/route.ts`, `src/app/api/product-enrichment/route.ts`, `src/app/api/remarketing/route.ts`, `src/app/api/notifications/route.ts`, `src/app/api/address-analysis/route.ts`, `agent-ctx/REDELIVERY-API-UI-orchestrator.md`
 
 **Checklist (26 items):**
 
 1. [ ] Verify `AGENT_NAMES` array has exactly 26 entries.
-2. [ ] For each of 26 agents, verify a prompt exists in `prompts.ts` (≥100 chars).
+2. [ ] For each of 24 agents, verify a prompt exists in `prompts.ts` (≥100 chars).
 3. [ ] Verify NO business data is hardcoded in prompts (regla de oro §2 — only brand voice, not products).
 4. [ ] Verify each agent's prompt references its inputs as variables, not literals.
 5. [ ] Verify `POST /api/agents/[agentName]` returns structured `{ agent, output, meta }` shape.
@@ -814,7 +814,7 @@ For **every** of the 44 API routes:
 7. [ ] Verify `use-toast.ts` is wired into every mutation (create/update/delete).
 8. [ ] Verify Kanban drag&drop uses `@dnd-kit/core` + persists order to API.
 9. [ ] Verify Kanban has 8 columns matching `KANBAN_STAGES`.
-10. [ ] Verify Messenger dropdown has 27 items (26 agents + generic).
+10. [ ] Verify Messenger dropdown has 27 items (24 agents + generic).
 11. [ ] Verify Messenger socket reconnects on disconnect (use `getSocket()` from `src/lib/socket.ts`).
 12. [ ] Verify Wallet view: 2FA setup dialog (3 steps), TOTP InputOTP, backup codes display.
 13. [ ] Verify Wallet view: withdrawal dialog enforces TOTP before submit.
@@ -1311,7 +1311,7 @@ The audit is **complete and the system is production-ready** when ALL of the fol
 ### 9.2 Coverage Gates
 
 - [ ] 100% files inspected: 163/163 inventory entries have a depth tier assigned + executed
-- [ ] 100% features exercised: 26 agents invoked, 14 modules rendered, 18 adapters called, 5 SSR routes curled, 62 Prisma models verified, 8 fintech flows tested, 8 multi-tenant tests passed, 6 real-time events traced
+- [ ] 100% features exercised: 24 agents invoked, 14 modules rendered, 18 adapters called, 5 SSR routes curled, 62 Prisma models verified, 8 fintech flows tested, 8 multi-tenant tests passed, 6 real-time events traced
 - [ ] 100% API routes probed: 44/44 routes have at least one happy-path + one error-path curl artifact
 - [ ] agent-browser verification: 14 modules + 2 SSR pages screenshotted at 375px + 1280px in light + dark
 

@@ -71,7 +71,7 @@ Después de investigar 30+ plataformas, frameworks y tools, la recomendación pa
 ### Opción A: Next.js nativo (actual) — ⭐⭐⭐⭐
 
 **Lo que ZIAY ya tiene:**
-- 26 agentes con prompts especializados en `src/lib/agents/prompts.ts`
+- 24 agentes con prompts especializados en `src/lib/agents/prompts.ts`
 - 3 pipelines en `src/lib/orchestrator/constants.ts`
 - API `/api/orchestrate` que ejecuta agentes en secuencia
 - Fallback determinístico por agente
@@ -138,12 +138,12 @@ graph.add_edge("buyer_behavior", "profile")
 - ❌ Requiere Python (ZIAY es TypeScript)
 - ❌ Curva de aprendizaje
 - ❌ Otra infraestructura que mantener
-- ❌ Overkill para 26 agentes secuenciales
+- ❌ Overkill para 24 agentes secuenciales
 
 ### Opción D: CrewAI — ⭐⭐⭐
 
 **Pros:**
-- ✅ Roles definidos (perfecto para 26 agentes con roles)
+- ✅ Roles definidos (perfecto para 24 agentes con roles)
 - ✅ Sintaxis simple
 
 **Contras:**
@@ -175,7 +175,7 @@ graph.add_edge("buyer_behavior", "profile")
 ### Fase 1 (actual): Next.js + ZAI — ✅ Ya funcionando
 
 ```
-Cliente → WhatsApp → ZIAY API → 26 agentes (GLM-4.6) → Respuesta
+Cliente → WhatsApp → ZIAY API → 24 agentes (GLM-4.6) → Respuesta
                                 ↑
                           Fallback: OpenAI GPT-4o
 ```
@@ -221,7 +221,7 @@ Casos complejos → LangGraph (Python microservice)
 | **Visual** | ❌ | ✅ Sí | ❌ | ❌ |
 | **Producción** | ✅ Ya funciona | ✅ Maduro | ✅ GA Oct 2025 | ⚠️ |
 | **WhatsApp** | ✅ Directo | ✅ Nativo | ❌ Manual | ❌ Manual |
-| **Multi-agente** | ✅ 26 agentes | ✅ Orquesta | ✅ Mejor | ✅ |
+| **Multi-agente** | ✅ 24 agentes | ✅ Orquesta | ✅ Mejor | ✅ |
 | **Schedule/Cron** | ❌ Manual | ✅ Built-in | ❌ | ❌ |
 | **Retry** | ⚠️ Básico | ✅ Built-in | ✅ | ⚠️ |
 | **Monitoreo** | ❌ Logs | ✅ Visual UI | ⚠️ LangSmith | ⚠️ |
@@ -234,7 +234,7 @@ Casos complejos → LangGraph (Python microservice)
 
 ### 🏆 Ganador: **Next.js nativo + n8n (fase 2)**
 
-**Razón:** ZIAY ya tiene 26 agentes funcionando en Next.js con GLM-4.6. No necesita cambiar. Lo que necesita es **n8n como capa de orquestación visual** encima, para:
+**Razón:** ZIAY ya tiene 24 agentes funcionando en Next.js con GLM-4.6. No necesita cambiar. Lo que necesita es **n8n como capa de orquestación visual** encima, para:
 
 1. **Workflows visuales** — no-developers ajustan flujos sin tocar código
 2. **Cron jobs** — remarketing automático, lead scoring semanal
@@ -245,10 +245,10 @@ Casos complejos → LangGraph (Python microservice)
 
 ### ¿Por qué NO LangGraph/CrewAI ahora?
 
-1. **ZIAY ya funciona** — 26 agentes, 3 pipelines, 891 tests. No romper lo que funciona.
+1. **ZIAY ya funciona** — 24 agentes, 3 pipelines, 891 tests. No romper lo que funciona.
 2. **Python overhead** — agregar un microservice Python adds complejidad innecesaria
 3. **n8n hace lo mismo** — orquestación visual + retry + schedule, sin código
-4. **LangGraph es overkill** — para 26 agentes secuenciales, un switch/case es suficiente
+4. **LangGraph es overkill** — para 24 agentes secuenciales, un switch/case es suficiente
 5. **Costo** — n8n es self-hosted y ya está en docker-compose
 
 ### ¿Cuándo sí considerar LangGraph?
@@ -264,7 +264,7 @@ Casos complejos → LangGraph (Python microservice)
 
 | Fase | Cuándo | Qué | Esfuerzo |
 |---|---|---|---|
-| **1. Actual** | ✅ Hecho | 26 agentes en Next.js + GLM-4.6 | 0 |
+| **1. Actual** | ✅ Hecho | 24 agentes en Next.js + GLM-4.6 | 0 |
 | **2. n8n** | Q1 2026 | Deploy n8n + crear workflows para cada agente | 2 semanas |
 | **3. Vapi** | Q2 2026 | Integrar Vapi AI para voice agents | 2 semanas |
 | **4. LangGraph** | Q3 2026 | Solo si necesidad de estado complejo | 4 semanas |

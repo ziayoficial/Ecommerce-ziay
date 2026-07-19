@@ -709,9 +709,9 @@ Stack completo de observabilidad (Sprint 10, `SPRINT-MONITORING-FIX-001`):
 
 16 servicios Docker: app, chat-service, postgres, redis, minio, nocodb, n8n, ollama, uptime-kuma, caddy, mailhog, **prometheus, alertmanager, grafana, loki, promtail**.
 
-## F.6 AI (26 agentes + LLM adapter + budget tracking + eval harness)
+## F.6 AI (24 agentes + LLM adapter + budget tracking + eval harness)
 
-- **26 agentes** across 6 stages (discovery, evaluation, decision, payment, fulfillment, learning). Cada uno con Zod output schema (11 schemas JSON-returning).
+- **24 agentes** across 6 stages (discovery, evaluation, decision, payment, fulfillment, learning). Cada uno con Zod output schema (11 schemas JSON-returning).
 - **LLM adapter** (ADR-0004) — 4 providers (Zai, OpenAI, xAI, Ollama) vía `LLMAdapter` interface. No hay llamadas directas a `ZAI.create()`.
 - **Prompt injection defense** — `wrapUserInput` + `ANTI_INJECTION_PREFIX` en cada agente.
 - **Per-tenant daily + monthly LLM cost budget** — 80% warning alerts via socket-driven banner. API: `/api/llm/costs`, `/api/llm/costs/breakdown` (byModel), `/api/llm/budget`.
@@ -759,7 +759,7 @@ Casos destacados:
 ZIAY v0.3.0 es una **plataforma de comercio agéntico production-ready** que combina:
 
 - **Capa de operación** (v0.1.0): dashboard omnicanal, motor CPA/ROAS/ROI, estrategia de pago configurable, kill-switch de pauta, IA smart reply.
-- **Capa de ejecución de agentes** (v0.2.0): 26 agentes especializados con prompts exactos, multi-tenant con `tenantId` en cada modelo, adaptadores de catálogo y logística, monetización por comisión escalonada sobre GMV.
+- **Capa de ejecución de agentes** (v0.2.0): 24 agentes especializados con prompts exactos, multi-tenant con `tenantId` en cada modelo, adaptadores de catálogo y logística, monetización por comisión escalonada sobre GMV.
 - **Capa de comercio agéntico** (v0.3.0): 5 protocolos (AP2/UCP/ACP/MCP/A2A), multi-país LATAM (7 monedas, 4 locales, 8 métodos de pago), compliance regulatorio Colombia (6 módulos, 5 leyes + DIAN), monitoring stack completo (Prometheus + Grafana + Loki + Alertmanager + status page), LLM adapter con budget tracking + eval harness, 21 ADRs documentando cada decisión arquitectónica, 891 tests en 48 archivos.
 
 > **Verificado end-to-end:** 891/891 tests ✅ · 0 lint warnings ✅ · 0 TSC errors ✅ · 0 Redocly errors ✅ · build 30.2s ✅ · Next.js 16.2.10 ✅ · score 10.0/10 ✅.

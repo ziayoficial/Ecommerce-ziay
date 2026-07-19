@@ -114,13 +114,13 @@ Existen muchas herramientas de WhatsApp, CRMs, y plataformas de pauta. Pero **ni
 
 ---
 
-#### 🏆 2. Automatización operativa end-to-end (26 agentes en equipo)
+#### 🏆 2. Automatización operativa end-to-end (24 agentes en equipo)
 
 **El problema:** Los bots de WhatsApp normales responden "Gracias por escribir, te contactaremos pronto". No venden, no cotizan, no cierran.
 
 **Lo que hacen otros:** Chatbots simples con respuestas pre-programadas. No entienden contexto, no perfilan, no recomiendan productos.
 
-**Lo que hacemos nosotros:** 26 agentes IA especializados, cada uno experto en una tarea (perfilamiento, catálogo, carrito, cotización, objeciones, dirección, logística, checkout, seguimiento, novedades, remarketing). Trabajan en secuencia automáticamente — del "Hola" al "Pedido entregado" sin intervención humana.
+**Lo que hacemos nosotros:** 24 agentes IA especializados, cada uno experto en una tarea (perfilamiento, catálogo, carrito, cotización, objeciones, dirección, logística, checkout, seguimiento, novedades, remarketing). Trabajan en secuencia automáticamente — del "Hola" al "Pedido entregado" sin intervención humana.
 
 **Tu beneficio:** menos costo por venta, más conversión. Tu equipo solo supervisa, con trazabilidad de ingresos y gobernanza sobre cada transición.
 
@@ -1189,7 +1189,7 @@ Perfecto. ZIAY se conecta con Shopify y WooCommerce. Tu catálogo se sincroniza 
 Sí. Estamos optimizados para LATAM (Colombia, México, Perú, Chile, Argentina). Funciona con transportadoras locales y métodos de pago locales.
 
 **¿La IA habla como yo?**
-Sí. Configuramos los 26 agentes con tu tono de voz. Puedes ajustar los prompts para que hablen como tú quieres.
+Sí. Configuramos los 24 agentes con tu tono de voz. Puedes ajustar los prompts para que hablen como tú quieres.
 
 **¿Qué pasa si un cliente es problemático?**
 El sistema lo detecta automáticamente. Si es devolvedor, le pedimos pago anticipado. Si es agresivo, puedes bloquearlo.
@@ -1245,7 +1245,7 @@ Todo queda registrado en el historial. Puedes ver qué hiciste, cuándo, y desha
 | **LLM** | Modelo de lenguaje grande. El cerebro de la IA (como ChatGPT). |
 | **Multi-tenant** | Sistema donde varias marcas conviven separadas, como apartamentos. |
 | **Novedad** | Un problema logístico: paquete perdido, dañado, dirección incorrecta. |
-| **Orquestador** | El director que hace trabajar a los 26 agentes en equipo. |
+| **Orquestador** | El director que hace trabajar a los 24 agentes en equipo. |
 | **Pipeline** | Un equipo de agentes que trabaja en secuencia. Hay 3: pre-venta, post-venta, inteligencia. |
 | **Pixel** | Código que rastrea conversiones en tu web. |
 | **Redelivery** | Reintento de entrega cuando un paquete se devuelve. |
@@ -1288,7 +1288,7 @@ Si te gusta, activamos tu marca:
 - ✅ Conectamos tu WhatsApp Business + Messenger + Instagram
 - ✅ Configuramos tu estrategia de pago (anticipado/COD/híbrido)
 - ✅ Creamos tu página web SEO (`/t/tumarca`)
-- ✅ Configuramos los 26 agentes con tu tono de voz
+- ✅ Configuramos los 24 agentes con tu tono de voz
 - ✅ Conectamos tu pauta de Meta/Google/TikTok
 - ✅ Te damos acceso al panel
 

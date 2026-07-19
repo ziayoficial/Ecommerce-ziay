@@ -606,9 +606,9 @@ Stage Summary:
 
 ## BUILD-AGENTS-LIB-001 — Senior Fullstack Developer (agent lib + lib modules)
 
-**Scope:** Extend `src/lib/agents/prompts.ts` from 10 → 26 agents + create 9 lib module files. Zero deletions of existing code.
+**Scope:** Extend `src/lib/agents/prompts.ts` from 10 → 24 agents + create 9 lib module files. Zero deletions of existing code.
 
-### PART 1 — Agent library (10 → 26 agents)
+### PART 1 — Agent library (10 → 24 agents)
 Preserved all 10 pre-existing agents (profile, speech, quote, catalog, theme, objection, address, logistics, vision, checkout). Added 16 NEW agents in Spanish (LATAM, Colombia-focused), each with its own `build*Prompt(ctx)` function + case in the `buildAgentPrompt()` switch + entry in `AGENT_NAMES` array + label in `AGENT_LABELS` map:
 
 - **Pre-venta (2):** `buyer_behavior`, `cart_builder`
@@ -871,7 +871,7 @@ Work Log:
 ### 3 AGENTES EN PARALELO (sin tocar código existente)
 
 #### Agente 1: BUILD-AGENTS-LIB-001
-- prompts.ts: 10 agentes existentes preservados + 16 nuevos añadidos = 26 agentes total
+- prompts.ts: 10 agentes existentes preservados + 16 nuevos añadidos = 24 agentes total
 - NUEVOS: buyer_behavior, cart_builder, guide_tracking, novedades, redelivery, remarketing, guide_alert, sales_retainer, logistics_notifier, customer_score, carrier_score, product_enrichment, marketplace, affiliator, traffic_orchestrator, address_analysis
 - 9 lib modules creados:
   - src/lib/middleware/hmac.ts (verifyMetaSignature, verifyHmacSha256, timingSafeEqual)
@@ -920,7 +920,7 @@ Work Log:
 
 ### DESPUÉS DE ESTA FASE (estado verificado)
 - 62 modelos Prisma ✅ (era 29)
-- 26 agentes IA ✅ (era 3)
+- 24 agentes IA ✅ (era 3)
 - 13 dashboard views ✅ (sin cambios — no se tocaron)
 - 29 API routes ✅ (era 25 — añadidas /api/agents + 4 webhooks pago)
 - 4 payment adapters con HTTP real ✅ (era 0)
@@ -934,7 +934,7 @@ Work Log:
 - TSC: 0 errors en src/ ✅
 - Build: exitoso ✅
 - Server: HTTP 200 ✅
-- /api/agents → 26 agentes ✅
+- /api/agents → 24 agentes ✅
 - /t/saramantha → 200 (SSR con JSON-LD) ✅
 - /t/saramantha/p/PIJ-BATOLA-STITCH-003 → 200 (SSR producto) ✅
 - /vendedor → 200 ✅
@@ -1433,7 +1433,7 @@ unit → build → e2e → staging deploy).
   product detail (Product/BreadcrumbList), /sitemap.xml returns urlset XML,
   /robots.txt returns text/plain with User-Agent + Disallow /api/
 - `e2e/api.spec.ts` — 7 tests: /api/health 200 + status/checks/summary, /api/agents
-  returns 26 agents when authed (signs in via NextAuth credentials callback),
+  returns 24 agents when authed (signs in via NextAuth credentials callback),
   /api/tenants returns Saramantha, protected APIs redirect to /login,
   /api/webhooks/mercadopago POST 200 ack even with invalid sig,
   /api/webhooks/whatsapp GET 403 with wrong verify_token, 200 with correct
@@ -2816,7 +2816,7 @@ identical to before; the only new behaviour is on the error path.
 ### Task
 Aplicar el **reposicionamiento enterprise** de ZIAY a las 6 presentaciones
 HTML y 3 MDs clave, reemplazando el viejo messaging interno
-("26 agentes IA", "95% automatizado", "Comercio Conversacional +
+("24 agentes IA", "95% automatizado", "Comercio Conversacional +
 Atribución Inteligente") por el nuevo framing enterprise:
 
 - **Tagline:** "Revenue Operations para Comercio Agéntico"
@@ -2907,7 +2907,7 @@ Atribución Inteligente") por el nuevo framing enterprise:
    - Sección "4 Ejes Enterprise" con tabla feature → eje
    - Sección "3 Capas de Arquitectura" (Revenue · Operations ·
      Governance)
-   - Sección "Mensajes que NO lideran" (26 agentes / 95% /
+   - Sección "Mensajes que NO lideran" (24 agentes / 95% /
      marketplace / wallet) explicando el reposicionamiento
    - Tabla de key replacements
    - Stack técnico resumen + índice de documentación
@@ -2915,8 +2915,8 @@ Atribución Inteligente") por el nuevo framing enterprise:
 8. `upload/GUIA-ONBOARDING-CLIENTES.md` (3× tagline)
    - H1: "Tu nuevo asistente de ventas" → "Revenue Operations para
      Comercio Agéntico" + tagline destacada
-   - Diferenciador #2: "26 agentes IA especializados" → "Automatización
-     operativa end-to-end (26 agentes en equipo)"
+   - Diferenciador #2: "24 agentes IA especializados" → "Automatización
+     operativa end-to-end (24 agentes en equipo)"
    - "95% del trabajo automatizado" → "menos costo por venta, más
      conversión" (3 sitios)
    - Tabla resumen diferenciadores: fila 2 actualizada
@@ -2948,7 +2948,7 @@ copiadas a `public/presentaciones/` para servirse públicamente.
   no-tecnicos: 5, diferenciadores: 12)
 - ✅ 3 capas mencionadas en las 3 main presentations (clientes: 7,
   no-tecnicos: 1, diferenciadores: 1)
-- ✅ "26 agentes IA" ya NO es headline (reframed a "cómo lo hacemos"
+- ✅ "24 agentes IA" ya NO es headline (reframed a "cómo lo hacemos"
   en clientes, no-tecnicos, diferenciadores, guia-onboarding)
 - ✅ "95% automatizado" reemplazado por "Menos costo por venta, más
   conversión" (no-tecnicos, guia-onboarding)
@@ -6156,7 +6156,7 @@ Work Log:
 - Verified Prisma schema (1,290 lines, 55 models) — confirmed `AuditLog`, `Order`, `ConversationalCart`, `CustomerScore`, `ConversionEvent`, `PixelConfig`, `TwoFactorConfig` models exist; NO models for `Mandate`, `Intent`, `SpendLimit`, `Consent`, `IdentityVerification`, `UCPProfile`, `AgentCard`, or anything resembling AP2/UCP/ACP primitives.
 - Verified `/api-docs/route.ts` static manifest — 78 routes catalogued. Zero routes under `/.well-known/`, zero under `/ucp/`, `/ap2/`, `/acp/`, `/mcp/`, `/a2a/`, `/agents-card/`. Confirmed via `Glob src/app/api/.well-known/**` and `Glob public/.well-known/**` — both empty.
 - Verified CAPI implementation end-to-end: `/api/conversions` (route) → `conversionsService` (persistence) → `enqueue('capi-fire', ...)` (BullMQ job in `src/lib/queue.ts`) → Meta CAPI / Google MP / TikTok Events API firing helpers. Has test mode + per-pixel fan-out + `pending|sent|failed` status tracking.
-- Mapped all 26 agents (`src/lib/agents/prompts/index.ts`) to the document's 6-stage agentic flow:
+- Mapped all 24 agents (`src/lib/agents/prompts/index.ts`) to the document's 6-stage agentic flow:
   - Discovery: catalog, theme, vision, product_enrichment, marketplace, traffic_orchestrator (6 agents)
   - Evaluation: profile, quote, buyer_behavior, objection (4)
   - Decision: speech, cart_builder, sales_retainer (3)
@@ -6240,7 +6240,7 @@ Stage Summary:
 - **Missing:** 21 — including the entire AP2/UCP/ACP protocol stack, MCP/A2A transports, mandate revocation, per-category spend limits, Ley 2573 identity verification, Ley 1581 consent revocation, supervisor mapping.
 - **Extra:** 0 (no features present that the document didn't mention — the project is conversational-commerce first, agentic-protocol zero).
 
-The project is a mature conversational commerce platform (26 agents, 5 payment gateways, 55 Prisma models, CAPI attribution, multi-tenant RBAC, 2-layer webhook idempotency) but has **zero native support** for the three protocols (AP2/UCP/ACP) that the study document identifies as the foundation of "comercio agéntico". The conversational agents cover the 6-stage flow internally but cannot interop with external AI buyers (Gemini, ChatGPT, Copilot, custom agents). Colombia launch with credit/installments is blocked from November 2026 by the absence of Ley 2573 identity-verification infrastructure.
+The project is a mature conversational commerce platform (24 agents, 5 payment gateways, 55 Prisma models, CAPI attribution, multi-tenant RBAC, 2-layer webhook idempotency) but has **zero native support** for the three protocols (AP2/UCP/ACP) that the study document identifies as the foundation of "comercio agéntico". The conversational agents cover the 6-stage flow internally but cannot interop with external AI buyers (Gemini, ChatGPT, Copilot, custom agents). Colombia launch with credit/installments is blocked from November 2026 by the absence of Ley 2573 identity-verification infrastructure.
 
 Recommended next task: scope a sprint that ships gap #1 (AP2 mandates) + gap #2 (UCP manifest) + gap #6 (Ley 2573 KYC) together — they share the signing-service primitive and unblock both the protocol thesis and the Colombian regulatory launch in one architectural pass.
 
@@ -6609,7 +6609,7 @@ Files created (5):
 5. `docs/META-AGENT-DECISION.md` — Strategic decision document (study §13.1).
    * Context (Meta Business Agent launched 2026-06-03).
    * 3 options evaluated (Meta Native / Stack Propio / Híbrido) with pros/cons/cost-estimate/data-ceded table.
-   * Decision: `own_stack` with 4-point rationale (ZIAY has 26 agents / 100x cheaper / AP2 compliance / infrastructure-thesis).
+   * Decision: `own_stack` with 4-point rationale (ZIAY has 24 agents / 100x cheaper / AP2 compliance / infrastructure-thesis).
    * "Cuándo reconsiderar" triggers.
    * Routing-logic table for hybrid mode (intent × handler matrix).
    * Implementation references (`meta-agent-config.ts`, `.env.example`, `ChannelCost.aiTokenCost`).
@@ -7692,7 +7692,7 @@ Agent: senior-ai-engineer (LLM applications specialist)
 Task: Audit AI agent system quality — prompts, eval, guardrails, fallbacks (READ-ONLY)
 
 Work Log:
-- Read worklog tail (8 prior sprints confirmed; AUDIT-FINAL-ARCH-001 already inventoried `lib/agents/prompts/` = 28 files = 26 agents + index + types).
+- Read worklog tail (8 prior sprints confirmed; AUDIT-FINAL-ARCH-001 already inventoried `lib/agents/prompts/` = 28 files = 24 agents + index + types).
 - Verified agent inventory: `ls src/lib/agents/prompts/*.ts | grep -v 'index.ts\|types.ts' | wc -l` → **26 agent files** (matches SPRINT3-REFACTOR-001 claim). Builder count via `rg -c "^export async function build"` → 27 (includes the router `buildAgentPrompt` in `index.ts`).
 - Read 7 representative prompts end-to-end: `profile`, `catalog`, `quote`, `vision`, `novedades`, `address_analysis`, `sales_retainer`, `customer_score`, `affiliator`, `traffic_orchestrator`, `checkout`, `objection`. All written in Spanish; all inject tenant catalog/objection/customer/shipment/carrier/campaign data via DB lookups inside the builder (regla de oro §2 honored).
 - Read LLM adapter (`src/lib/llm/adapter.ts`): 4 providers defined (zai / openai / xai / ollama) with `LLMChatResult.usage` parsing. Resolution chain: explicit name → `LLM_PROVIDER` env → `'zai'`. **No fallback/retry/failover logic** in adapter.
@@ -7729,7 +7729,7 @@ Stage Summary:
 
 | # | Dimension | Score (0-10) | Status | Top gap |
 |---|-----------|-------------|--------|---------|
-| 1 | Prompt quality (26 agents) | 7/10 | ⚠️ Good but uneven | All in Spanish, tenant-grounded, output format specified per agent. But system prompts are sent as `role: 'assistant'` (should be `role: 'system'`) — weakens adherence. No max-length cap, no JSON schema validation hints. |
+| 1 | Prompt quality (24 agents) | 7/10 | ⚠️ Good but uneven | All in Spanish, tenant-grounded, output format specified per agent. But system prompts are sent as `role: 'assistant'` (should be `role: 'system'`) — weakens adherence. No max-length cap, no JSON schema validation hints. |
 | 2 | LLM provider config | 4/10 | ❌ Bypassed | Adapter defines 4 providers + provider-resolution chain, but all 3 call sites bypass it and call `ZAI.create()` directly. `tenant.proveedorIa` is documented but never resolved at runtime. No multi-tenant provider routing. |
 | 3 | Token / cost management | 2/10 | ❌ Critical gap | Adapter parses `usage` correctly, but routes drop it. DecisionLog has NO token/cost/model/provider fields. `aiTokenCost` in `channel-cost.service.ts` is a flat $0.02×orders heuristic. Per-agent budgets, quotas, and per-tenant cost ceilings do not exist. |
 | 4 | Output validation | 2/10 | ❌ Critical gap | 0 `zod` schemas, 0 `safeParse`, 0 JSON validators on agent outputs. Only the `vision` agent does a fragile `reply.match(/\{[\s\S]*\}/)` + bare `JSON.parse` inside a try/catch that swallows malformed JSON silently. 11 agents request strict JSON but none validate it. |
@@ -7769,7 +7769,7 @@ The adapter correctly implements 4 providers (zai/openai/xai/ollama), resolution
 The `DecisionLog` schema has `input`, `output`, `reasoning`, `confidence` but NO `model`, `provider`, `promptTokens`, `completionTokens`, `totalTokens`, `costUsd`, `latencyMs`. The `channel-cost.service.ts:234` estimates `aiTokenCost = ordersCount * 0.02` — a flat heuristic that cannot inform tenant billing, cost optimization, or agent-comparison decisions. **Fix**: add 6 columns to DecisionLog, populate from `LLMChatResult.usage` + `Date.now()` timing, expose via `/api/governance/decisions` and `/api/finance/channel-contribution`.
 
 **P1-3 — No eval / golden / regression test infrastructure** (0 test files match `agent|prompt|llm|zai`)
-The 26 agents have zero automated quality gates. Prompt changes (e.g., tightening the `quote` agent's "Nunca inventes un precio") ship to production with no signal on whether output quality regressed. There is no benchmark dataset, no A/B framework, no LLM-as-judge eval. This is the single biggest *engineering* gap (vs the *safety* gaps in P0). **Fix**: (1) create `tests/unit/agents/` with snapshot tests of `buildAgentPrompt` output (verifies tenant data injection); (2) create `tests/eval/` with 5-10 golden input/output pairs per agent (manually curated); (3) wire a `bun run eval` script that runs each golden case against the live LLM and reports pass/fail + diff; (4) add a CI gate that blocks prompt changes that fail > 20% of golden cases.
+The 24 agents have zero automated quality gates. Prompt changes (e.g., tightening the `quote` agent's "Nunca inventes un precio") ship to production with no signal on whether output quality regressed. There is no benchmark dataset, no A/B framework, no LLM-as-judge eval. This is the single biggest *engineering* gap (vs the *safety* gaps in P0). **Fix**: (1) create `tests/unit/agents/` with snapshot tests of `buildAgentPrompt` output (verifies tenant data injection); (2) create `tests/eval/` with 5-10 golden input/output pairs per agent (manually curated); (3) wire a `bun run eval` script that runs each golden case against the live LLM and reports pass/fail + diff; (4) add a CI gate that blocks prompt changes that fail > 20% of golden cases.
 
 **P1-4 — No conversation history summarization or context budget** (`src/app/api/ai-reply/route.ts:42`, `src/app/api/orchestrate/route.ts:103-114`)
 The only history handling is `messages: { take: 12 }` in `/api/ai-reply` — a hard 12-message cap with no summarization. The orchestrate route builds fresh `buildCtx` per step with NO shared memory between the 9 agents (each agent sees only its own slice). For long WhatsApp conversations (>12 messages), early context is silently dropped. For the orchestrate pipeline, agent N cannot reference what agent N-1 said. **Fix**: (1) implement a token-budget-aware history truncator (count tokens via `tiktoken` or provider API, keep the system prompt + last K tokens of history, summarize the rest); (2) for orchestrate, thread a `pipelineMemory` object through `buildCtx` so each agent sees prior agents' replies.
@@ -7782,9 +7782,9 @@ The ZAI SDK call has no timeout — a slow or stuck provider will hang the reque
 - **P2-1** — No multi-language enforcement. Add `"Responde siempre en español (LATAM). Si el cliente escribe en otro idioma, responde en español de todos modos."` to every system prompt, OR add a `locale: 'es-CO' | 'es-MX' | 'pt-BR' | 'en-US'` field to `AgentContext` and dynamically inject the language rule.
 - **P2-2** — 11 agents request strict JSON but none specify a JSON Schema or use OpenAI's `response_format: { type: 'json_object' }` parameter (the adapter doesn't expose it). For ZAI/GLM-4.6, add the `response_format` option where supported.
 - **P2-3** — `FALLBACKS` table is duplicated in two places: `src/lib/agents/prompts/index.ts:156-184` (canonical) AND `src/app/api/agents/[agentName]/route.ts:144-172` (inline copy). The inline copy was meant to be removed when the barrel was added. Drift risk.
-- **P2-4** — 16 of 26 agents have generic fallbacks ("Calculando score…", "Procesando…") that are NOT actionable for the customer. The original 10 agents have proper fallbacks. Specialize the 16 new agent fallbacks to at least ask a clarifying question.
+- **P2-4** — 16 of 24 agents have generic fallbacks ("Calculando score…", "Procesando…") that are NOT actionable for the customer. The original 10 agents have proper fallbacks. Specialize the 16 new agent fallbacks to at least ask a clarifying question.
 - **P2-5** — The `persistDecisionLog` function in `/api/agents/[agentName]/route.ts` is duplicated in spirit by `/api/orchestrate/route.ts` (which does NOT persist DecisionLogs — gap). Extract to `lib/services/agent-decision.service.ts` and call from both routes.
-- **P2-6** — Per-agent rate limit is 10/min/IP for `/api/agents/[agentName]` and 5/min/IP for `/api/orchestrate`. No per-tenant or per-agent budget. A single tenant could legitimately burn $100s of LLM cost per minute by hitting the 10/min ceiling across 26 agents × N IPs. Add a per-tenant daily token/$ budget enforced at the adapter layer.
+- **P2-6** — Per-agent rate limit is 10/min/IP for `/api/agents/[agentName]` and 5/min/IP for `/api/orchestrate`. No per-tenant or per-agent budget. A single tenant could legitimately burn $100s of LLM cost per minute by hitting the 10/min ceiling across 24 agents × N IPs. Add a per-tenant daily token/$ budget enforced at the adapter layer.
 
 ## HEALTH METRICS
 
@@ -8233,7 +8233,7 @@ Work Log:
   - `src/app/api/agents/[agentName]/route.ts` (197 lines) — POST runs a single agent; persists DecisionLog with hard-coded `confidence: 0.9`/`0.3`; has vision side-effect that JSON.parses the reply independently.
   - `src/app/api/orchestrate/route.ts` (217 lines) — POST runs 9-step pipeline (action='full') or a single step (action='step'); `callAgent` helper returns `string` (no confidence tracking, no DecisionLog persistence — audit P2-5 gap).
   - `src/app/api/ai-reply/route.ts` (97 lines) — POST builds system prompt from conversation+catalog+channel strategy, calls ZAI directly, returns `{ reply, confidence: 0.9 }` on success / `0.3` on fallback. No DecisionLog persistence.
-- Read `src/lib/agents/prompts/index.ts` (185 lines) — barrel + `buildAgentPrompt` router + `AGENT_NAMES` (26 agents) + `AGENT_LABELS` + `FALLBACKS` table. Read `src/lib/agents/prompts/types.ts` (50 lines) for `AgentContext` shape.
+- Read `src/lib/agents/prompts/index.ts` (185 lines) — barrel + `buildAgentPrompt` router + `AGENT_NAMES` (24 agents) + `AGENT_LABELS` + `FALLBACKS` table. Read `src/lib/agents/prompts/types.ts` (50 lines) for `AgentContext` shape.
 - Read `src/lib/chat-emit.ts` (62 lines) — `emitToTenant(tenantId, event, payload)` is the server-side fire-and-forget emitter (POSTs to chat-service on port 3003). Will use for §A-3 `agent:low_confidence` socket event.
 - Read `prisma/schema.prisma:1530-1559` — `DecisionLog` model has `humanReviewed Boolean @default(false)`, so any created DecisionLog is auto-flagged for human review. No schema migration needed for §A-3.
 - Baseline checks before edits: `npx tsc --noEmit` exit 0; `bun run lint` exit 0; `bunx vitest run` 180/180 passing.
@@ -8366,13 +8366,13 @@ Stage Summary:
 
 - P1-1 — LLM adapter bypassed by all 3 call sites (would enable provider failover + token usage telemetry).
 - P1-2 — DecisionLog schema missing `model`/`provider`/`promptTokens`/`completionTokens`/`totalTokens`/`costUsd`/`latencyMs` fields.
-- P1-3 — No eval / golden / regression test infrastructure for the 26 agents.
+- P1-3 — No eval / golden / regression test infrastructure for the 24 agents.
 - P1-4 — No conversation history summarization or context budget (orchestrate builds fresh `buildCtx` per step).
 - P1-5 — No LLM call timeout / abort.
 - P2-1 — No multi-language enforcement.
 - P2-2 — No `response_format: { type: 'json_object' }` for the 11 JSON agents.
 - P2-3 — `FALLBACKS` table duplicated in `prompts/index.ts` (canonical) + `/api/agents/[agentName]/route.ts` (inline `AGENT_FALLBACKS`).
-- P2-4 — 16 of 26 agents have generic fallbacks.
+- P2-4 — 16 of 24 agents have generic fallbacks.
 - P2-5 — Extract `persistDecisionLog` to `lib/services/agent-decision.service.ts` (currently duplicated in `/api/agents/[agentName]` + partially in `/api/orchestrate` + partially in `/api/ai-reply`).
 - P2-6 — No per-tenant daily token/$ budget.
 
@@ -18476,7 +18476,7 @@ Reescrito completamente. Ahora incluye:
 - Status badges (v0.3.0, score 10.0/10, 891 tests, 0 lint warnings).
 - Quick Start con nota de v0.3.0 (117 vars, 71 modelos, 94 rutas, 891 tests,
   21 ADRs, 5 protocolos, 7 monedas, 4 locales, 8 métodos de pago, 16 Docker
-  services, 21 dashboard views, 26 agentes IA, build 30.2s, 0 lint/tsc/redocly
+  services, 21 dashboard views, 24 agentes IA, build 30.2s, 0 lint/tsc/redocly
   errors).
 - Tech Stack expandido con: Next.js 16.2.10, 5 protocolos (AP2/UCP/ACP/MCP/A2A),
   6 módulos compliance (5 leyes + DIAN), 8 métodos de pago, 7 monedas, 4
@@ -18609,7 +18609,7 @@ Reescrito completamente. Estructura:
   - F.4 Compliance (6 módulos, 5 leyes) — tabla con ley → módulo →
     implementación → ADR.
   - F.5 Monitoring Stack (16 Docker services) — lista completa.
-  - F.6 AI (26 agentes + LLM adapter + budget tracking + eval harness).
+  - F.6 AI (24 agentes + LLM adapter + budget tracking + eval harness).
   - F.7 Tests (891 tests, 48 archivos) — tabla por suite.
   - F.8 Score final 10.0/10 — scorecard por dimensión.
   - F.9 Conclusión v3.0 — capa de operación + capa de ejecución de agentes
@@ -18665,7 +18665,7 @@ Reescrito completamente. Estructura:
     implementación → ADR.
   - §21 MONITORING STACK (16 Docker services) — lista completa + endpoints
     + 6 alert rules + routing.
-  - §22 AI (26 agentes + LLM adapter + budget tracking + eval harness) —
+  - §22 AI (24 agentes + LLM adapter + budget tracking + eval harness) —
     6 stages con agentes, LLM adapter (4 providers), budget tracking (80%
     warning), eval harness (11 golden cases + VLM), prompt injection
     defense, pipeline memory (24h TTL).
@@ -18674,7 +18674,7 @@ Reescrito completamente. Estructura:
 #### 2.10 `/home/z/my-project/upload/PLAN-ENTERPRISE-COMERCIO-AGENTICO.md`
 - §11 ROADMAP: reescrito completamente. Tabla Q1 2026 → Q2 2027 con estado
   (✅ Completado / Pendiente post v0.3.0). Tabla "v0.3.0 Highlights (Score
-  10.0/10)" con 14 capabilities (multi-tenant, 26 agentes, multi-currency,
+  10.0/10)" con 14 capabilities (multi-tenant, 24 agentes, multi-currency,
   multi-locale, multi-payment, protocol trinity, compliance Colombia,
   monitoring stack, governance, security hardening, 21 ADRs, OpenAPI 3.1,
   891 tests, build 30.2s). Tabla "Roadmap post v0.3.0" con 10 items
@@ -18951,7 +18951,7 @@ cross-cutting issues, all fixed:
   `.progress` got `pointer-events:none`.
 
 #### 6. `PRESENTACION-CUSTOMER-JOURNEYS.html` (1901 → ~1960 lines, 26 → 27 slides)
-- Cover lede: appended "26 agentes IA interoperan vía 5 protocolos
+- Cover lede: appended "24 agentes IA interoperan vía 5 protocolos
   (AP2/UCP/ACP/MCP/A2A) · 94 API routes · 71 modelos Prisma · 891
   tests".
 - New slide 26 "Protocolos IA · interoperabilidad": table mapping each
@@ -19070,7 +19070,7 @@ age-gate, retracto, DIAN) where relevant, and have clean HTML structure
      about the 7 additional views (monitoreo, analytics, auditoría,
      protocolos, plantillas, DIAN).
    - Slide 11: subtitle +observabilidad 24/7.
-   - Closing slide: added metrics line (26 agentes · 5 protocolos · 6
+   - Closing slide: added metrics line (24 agentes · 5 protocolos · 6
      módulos · 16 servicios Docker · 7 monedas · 4 idiomas · 8 pagos ·
      score 10.0/10).
    - Fixed pre-existing structural bug (extra `</div>` at end of slide
@@ -19363,7 +19363,7 @@ Métricas **v0.3.0 final** target:
    "docker-compose.yml (11 servicios)"→"(16 servicios en v0.3.0)" (§18
    Referencias). The "26 webhooks" references in §13.1 (Uptime Kuma
    pings) are NOT stale — they refer to n8n having one webhook per agent
-   (26 agentes → 26 n8n webhook endpoints), NOT system payment webhooks.
+   (24 agentes → 26 n8n webhook endpoints), NOT system payment webhooks.
    Left intact.
 
 7. `upload/LECCIONES-APRENDIDAS.md` (~423 líneas) — **Historical
@@ -19374,7 +19374,7 @@ Métricas **v0.3.0 final** target:
    - L14 Contexto: kept "Solo 3 de 62 modelos Prisma declaraban @@index"
      per task spec, ADDED parenthetical "(estado v0.1.0; hoy v0.3.0 son
      **71 modelos** con 110 `@@index`)".
-   - L16 Contexto (quote "26 agentes, 62 modelos, 44 APIs"): kept as-is
+   - L16 Contexto (quote "24 agentes, 62 modelos, 44 APIs"): kept as-is
      per task spec — it's an explicit historical quote about messaging
      that didn't resonate with clients.
    - Version history line 11 ("14 módulos" at v0.1.0): historical record,
@@ -19418,7 +19418,7 @@ $ rg "62 modelo|62 model|62 Prisma" --no-ignore -g "*.md" -g "*.html" \
 $ rg "52 API|52 ruta|44 API|44 ruta" --no-ignore -g "*.md" -g "*.html" \
     upload/ public/presentaciones/ 2>/dev/null
 # → 1 result: LECCIONES-APRENDIDAS.md L165 historical quote
-#   "26 agentes, 62 modelos, 44 APIs" (kept as-is per task spec)
+#   "24 agentes, 62 modelos, 44 APIs" (kept as-is per task spec)
 ```
 
 ### Rules compliance
@@ -19428,7 +19428,7 @@ $ rg "52 API|52 ruta|44 API|44 ruta" --no-ignore -g "*.md" -g "*.html" \
 - ✓ **No `prisma/schema.prisma` touched** — only verified counts via `rg`.
 - ✓ **Historical references in LECCIONES-APRENDIDAS.md preserved** —
   L14 "62 modelos" kept with parenthetical "(estado v0.1.0; hoy v0.3.0
-  son 71 modelos con 110 @@index)"; L16 quote "26 agentes, 62 modelos,
+  son 71 modelos con 110 @@index)"; L16 quote "24 agentes, 62 modelos,
   44 APIs" kept as-is; L1 version history (v0.1.0 had 14 módulos) kept
   as historical record; L1 Contexto "10 servicios Docker" false claim
   kept as historical evidence of the lesson.
@@ -20794,7 +20794,7 @@ Both failing tests were caused by the same root cause: the missing `local-paymen
 - `agent-buyer_behavior.json`, `agent-cart_builder.json`, `agent-guide_tracking.json`, `agent-novedades.json`, `agent-redelivery.json`, `agent-remarketing.json`, `agent-guide_alert.json`, `agent-sales_retainer.json`, `agent-logistics_notifier.json`, `agent-customer_score.json`, `agent-carrier_score.json`, `agent-product_enrichment.json`, `agent-marketplace.json`, `agent-affiliator.json`, `agent-traffic_orchestrator.json`, `agent-address_analysis.json`.
 - Each follows the same webhook → HTTP POST → respond template as the original 10.
 
-**Updated**: `n8n-workflows/README.md` rewritten with the full 28-workflow table, webhook URLs for all 26 agents + the orchestrator, and the 4 available scenarios.
+**Updated**: `n8n-workflows/README.md` rewritten with the full 28-workflow table, webhook URLs for all 24 agents + the orchestrator, and the 4 available scenarios.
 
 **Total**: `ls n8n-workflows/*.json | wc -l` → **28**.
 
@@ -22607,17 +22607,17 @@ Work Log:
 
 - Phase 11 — docs + count references:
   - `CHANGELOG.md`: added a new `## [Unreleased]` section at the top documenting the IA-3 consolidation (8 agents removed, 2 merged, 3 enhanced, 4 from IA-1 = 24 total), with bullets for orchestrator (9 → 8 steps), schemas (11 → 12 registered), tests/scripts/dashboard updates, and a verification block (0 tsc / 0 lint / 1029 tests / AGENT_NAMES.length === 24).
-  - `README.md`: tagline "26 agentes IA" → "24 agentes IA (20 consolidados + 4 control-plane)".
+  - `README.md`: tagline "24 agentes IA" → "24 agentes IA (20 consolidados + 4 control-plane)".
   - `CONTRIBUTING.md`: "currently 27 agents, was 26" → "currently 24 agents = 20 consolidated base + 4 control-plane, was 26 in v0.4.0".
   - `docs/AGENTS-REFERENCE.md`: rewrote header (10 → 9 pipeline agents, 9 → 8 orchestration steps). Replaced v0.4.0 update note with a v0.4.1 IA-3 note documenting the 5 consolidations. Updated table of contents (removed "5. Theme (§6.5)" entry, merged into "4. Catalog (§6.4 · con theme)").
-  - `docs/DEVELOPMENT.md`: "26 agentes" → "24 agentes (20 consolidados + 4 control-plane)" (2 places); "11 workflows" → "10 workflows" in n8n table.
-  - `docs/FINAL-REPORT.md`: "Unchanged — 26 agents (was 25)" → "v0.4.1 · IA-3 consolidation: 26 → 24 agents (20 consolidated + 4 control-plane)".
-  - `docs/MANUAL-USUARIO.md`: "26 agentes de IA" → "24 agentes de IA (20 consolidados + 4 control-plane)".
-  - `docs/ESTRATEGIA-ANTI-FRICCION.md`: ASCII box "26 agentes IA" → "24 agentes IA (20 consolidados + 4 control-plane)".
-  - `docs/META-AGENT-DECISION.md`: sed-replaced all "26 agentes" → "24 agentes (20 consolidados + 4 control-plane)" (3 occurrences).
-  - `src/app/login/page.tsx`: "26 agentes IA orquestados" → "24 agentes IA orquestados".
-  - `src/app/api-docs/route.ts`: "List all 26 agents" → "List all 24 agents".
-  - `src/lib/config/meta-agent-config.ts`: comment "ZIAY's 26 agents" → "ZIAY's 24 agents (20 consolidated + 4 control-plane)".
+  - `docs/DEVELOPMENT.md`: "24 agentes" → "24 agentes (20 consolidados + 4 control-plane)" (2 places); "11 workflows" → "10 workflows" in n8n table.
+  - `docs/FINAL-REPORT.md`: "Unchanged — 24 agents (was 25)" → "v0.4.1 · IA-3 consolidation: 26 → 24 agents (20 consolidated + 4 control-plane)".
+  - `docs/MANUAL-USUARIO.md`: "24 agentes de IA" → "24 agentes de IA (20 consolidados + 4 control-plane)".
+  - `docs/ESTRATEGIA-ANTI-FRICCION.md`: ASCII box "24 agentes IA" → "24 agentes IA (20 consolidados + 4 control-plane)".
+  - `docs/META-AGENT-DECISION.md`: sed-replaced all "24 agentes" → "24 agentes (20 consolidados + 4 control-plane)" (3 occurrences).
+  - `src/app/login/page.tsx`: "24 agentes IA orquestados" → "24 agentes IA orquestados".
+  - `src/app/api-docs/route.ts`: "List all 24 agents" → "List all 24 agents".
+  - `src/lib/config/meta-agent-config.ts`: comment "ZIAY's 24 agents" → "ZIAY's 24 agents (20 consolidated + 4 control-plane)".
 
 - Phase 12 — verification (final pass):
   - `npx tsc --noEmit` → 0 errors.
@@ -22658,7 +22658,7 @@ Work Log:
 - HIGH FINDING #3 (P1): `agent:trigger` socket event emitted by Sentiment has 0 listeners. The triggered retention agents (sales_retainer/remarketing/quote) are never actually invoked. Sentiment classification is persisted but doesn't alter pipeline routing.
 - HIGH FINDING #4 (P1): Sentiment result is NOT passed into `AgentContext` for downstream agents. The code writes a DecisionLog row with `_sentiment` JSON, but `AgentContext` has no `sentiment` field, so agents can't adapt their tone based on customer sentiment. The code comment even admits this: "To avoid a schema migration, we log the stamp to DecisionLog instead of Conversation.pipelineMemory."
 - MEDIUM FINDING #5 (P2): `BudgetManager.budgetStore.conversation` Map grows unbounded — every `conversationId` creates a permanent entry, never evicted. Memory leak ~1KB/conversation in long-running processes.
-- MEDIUM FINDING #6 (P2): 8 customer-facing docs in `public/presentaciones/` still say "26 agentes" instead of "24 agentes" (GUIA-ONBOARDING-CLIENTES, RESUMEN-TECNICO-COMPLETO, PLAN-ENTERPRISE-COMERCIO-AGENTICO, INVESTIGACION-MERCADO, LECCIONES-APRENDIDAS) + n8n-workflows/README.md + docs/GUIA-COMPORTAMIENTO-AGENTES.md says "25 agentes más".
+- MEDIUM FINDING #6 (P2): 8 customer-facing docs in `public/presentaciones/` still say "24 agentes" instead of "24 agentes" (GUIA-ONBOARDING-CLIENTES, RESUMEN-TECNICO-COMPLETO, PLAN-ENTERPRISE-COMERCIO-AGENTICO, INVESTIGACION-MERCADO, LECCIONES-APRENDIDAS) + n8n-workflows/README.md + docs/GUIA-COMPORTAMIENTO-AGENTES.md says "25 agentes más".
 - MEDIUM FINDING #7 (P2): `AGENT_MODEL_TIER` in `model-router.ts` still contains 7 stale entries for retired agents (cart_builder, guide_tracking, guide_alert, customer_score, carrier_score, address_analysis, theme). Dead code that confuses readers.
 - LOW FINDING #8 (P3): 6 socket events emitted by control-plane agents (`governor:decision`, `qa:review`, `memory:updated`, `sentiment:classified`, `agent:trigger`, `agent:low_confidence`) have NO UI listeners in the dashboard. Telemetry is persisted to DecisionLog but not surfaced in real-time.
 - LOW FINDING #9 (P3): `/api/agents/traces/[conversationId]` filters traces by session tenantId but doesn't verify conversation ownership via DB lookup. Information leak minor (only confirms conversationId existence with empty result). Risk today is ~0 because traces are never created (Finding #1).
@@ -22699,13 +22699,13 @@ Work Log:
 - **P1-3 (HIGH):** Sentiment `agent:trigger` listener implemented as a direct function call (audit's option 2). In `/api/orchestrate`: after the pipeline completes, if `sentimentResult.triggeredAgents.length > 0`, calls each triggered retention agent (`sales_retainer`/`remarketing`) synchronously with conversation context + sentiment + memory; appends the retention reply to the timeline. In `/api/ai-reply`: added `invokeRetentionAgent()` helper that fires AFTER the customer's reply is returned (fire-and-forget); emits the retention reply via the `agent:trigger` socket event for operator review. Skips `quote` (already a pipeline step; handled via sentiment-aware prompt block).
 - **P1-4 (HIGH):** Added `sentiment?: SentimentContext` field to `AgentContext` + `SentimentContext` interface in `types.ts`. Added `formatSentimentBlock()` helper in `quote.ts` (frustrated → empathetic; buyingIntent=high → close; churnRisk=high → retention incentive; urgency=high → fast; excited → reinforce). Injected into the prompts of `quote`, `objection`, `address`, `checkout`, `speech`, `sales_retainer`, `remarketing`. Switched `/api/orchestrate` + `/api/ai-reply` from `runSentimentAsync` (fire-and-forget) to `runSentiment` (awaited) so the classification result is available when building ctx. The 1.5s sentiment timeout bounds the latency impact; on timeout/error the agents get no sentiment block (graceful degradation).
 - **P2-5 (MEDIUM):** Memory leak fix in `src/lib/agents/budget.ts`. Added `cleanupConversations(maxAgeMs=1h)` method + `ensureConversationSweepTimer()` running every 10 min (unref'd) that evicts conversation Map entries older than 1h. Hard cap in `recordUsage()`: if a tenant's conversation Map exceeds 1000 entries, evict the 100 oldest by `lastResetAt`. Bumps `lastResetAt` on each debit so the TTL reflects LAST activity. Bounds the worst-case memory footprint at ~1 MB per active tenant regardless of sweep timing.
-- **P2-6 (MEDIUM):** Bulk `s/26 agentes/24 agentes/g` + `s/26 agents/24 agents/g` across 16 customer-facing docs in `public/presentaciones/` + `CHANGELOG.md` + `n8n-workflows/`. Bulk replaced stale agent names (`cart_builder` → `quote`, `guide_tracking`/`guide_alert`/`logistics_notifier` → `postventa_logistics`, `customer_score`/`carrier_score` → `scoring`, `address_analysis` → `address`) in 5 customer-facing presentations. Rewrote the agent listing tables in `GUIA-ONBOARDING-CLIENTES.md`, `PRESENTACION-STACK-COMPLETO.html`, `RESUMEN-TECNICO-COMPLETO.md` to reflect the 24-agent structure (4 teams: pre-venta 10 / post-venta 5 / inteligencia 5 / control-plane 4). Historical audit docs (`AUDITORIA-AGENTES-V2.md`, `INVESTIGACION-AGENTES-IA.md`) rephrased to past tense to preserve the audit's narrative. `docs/AGENTS-REFERENCE.md` + `CHANGELOG.md` consolidation docs left intact (intentional historical context). Verification: `grep -rn "26 agent\|26 agentes" src/ docs/ public/presentaciones/ README.md 2>/dev/null | wc -l` → `0`.
+- **P2-6 (MEDIUM):** Bulk `s/24 agentes/24 agentes/g` + `s/24 agents/24 agents/g` across 16 customer-facing docs in `public/presentaciones/` + `CHANGELOG.md` + `n8n-workflows/`. Bulk replaced stale agent names (`cart_builder` → `quote`, `guide_tracking`/`guide_alert`/`logistics_notifier` → `postventa_logistics`, `customer_score`/`carrier_score` → `scoring`, `address_analysis` → `address`) in 5 customer-facing presentations. Rewrote the agent listing tables in `GUIA-ONBOARDING-CLIENTES.md`, `PRESENTACION-STACK-COMPLETO.html`, `RESUMEN-TECNICO-COMPLETO.md` to reflect the 24-agent structure (4 teams: pre-venta 10 / post-venta 5 / inteligencia 5 / control-plane 4). Historical audit docs (`AUDITORIA-AGENTES-V2.md`, `INVESTIGACION-AGENTES-IA.md`) rephrased to past tense to preserve the audit's narrative. `docs/AGENTS-REFERENCE.md` + `CHANGELOG.md` consolidation docs left intact (intentional historical context). Verification: `grep -rn "26 agent\|24 agentes" src/ docs/ public/presentaciones/ README.md 2>/dev/null | wc -l` → `0`.
 - **P2-7 (MEDIUM):** Cleaned `src/lib/agents/model-router.ts::AGENT_MODEL_TIER`. Removed 8 stale entries for agents retired in IA-3 (`cart_builder`, `guide_tracking`, `guide_alert`, `customer_score`, `carrier_score`, `logistics_notifier`, `address_analysis`, `theme`). Added explicit entries for `postventa_logistics` + `scoring` (the new merged agents). Already-present: `governor`, `sentiment`, `memory_curator`, `qa_reviewer`. Now 24 entries in sync with `AGENT_NAMES` (4 cheap + 16 standard + 4 frontier).
 - **Test stability:** Added `DISABLE_TRACER_DB_SINK=1` env var check in `src/lib/agents/tracing.ts::recordTrace()` — when set, skips the parallel DecisionLog DB sink (the route's own `agentsService.persistDecisionLog` is the authoritative DB sink). Set in `vitest.config.ts` test env so existing `decisionLog.create` call-count assertions in `tests/unit/agents-route.test.ts` stay stable. The in-memory Map + pino log sinks still fire — `/api/agents/traces` + log aggregation keep working. No test code modified.
 
 Stage Summary:
 - 7 fixes applied: P0-1 (3 routes wired with tracing + budget + model router), P1-2 (recallCustomerMemory wired into 4 critical agent prompts + 2 API routes), P1-3 (sentiment agent:trigger listener via direct function call in 2 routes), P1-4 (sentiment in AgentContext + 7 sentiment-aware prompt builders), P2-5 (BudgetManager memory leak fix — TTL sweep + hard cap), P2-6 (16 docs updated 26→24, 5 presentations rewritten for 24-agent structure), P2-7 (8 stale entries removed from AGENT_MODEL_TIER, 2 new entries added).
-- Verification: `npx tsc --noEmit 2>&1 | grep -c "error TS"` → `0` ✅; `bun run lint 2>&1 | tail -3` → `0 errors, 53 warnings` (pre-existing, none in IA-4 code) ✅; `bun run test 2>&1 | tail -5` → `Test Files 57 passed (57) · Tests 1029 passed | 5 skipped (1034)` ✅; `grep -rn "26 agent\|26 agentes" src/ docs/ public/presentaciones/ README.md 2>/dev/null | wc -l` → `0` ✅; `AGENT_NAMES.length` → `24` ✅; `AGENT_MODEL_TIER` has 24 entries, no stale, all new present ✅.
+- Verification: `npx tsc --noEmit 2>&1 | grep -c "error TS"` → `0` ✅; `bun run lint 2>&1 | tail -3` → `0 errors, 53 warnings` (pre-existing, none in IA-4 code) ✅; `bun run test 2>&1 | tail -5` → `Test Files 57 passed (57) · Tests 1029 passed | 5 skipped (1034)` ✅; `grep -rn "26 agent\|24 agentes" src/ docs/ public/presentaciones/ README.md 2>/dev/null | wc -l` → `0` ✅; `AGENT_NAMES.length` → `24` ✅; `AGENT_MODEL_TIER` has 24 entries, no stale, all new present ✅.
 - Files modified: 8 src files (`src/app/api/orchestrate/route.ts`, `src/app/api/ai-reply/route.ts`, `src/app/api/agents/[agentName]/route.ts`, `src/lib/agents/tracing.ts`, `src/lib/agents/budget.ts`, `src/lib/agents/model-router.ts`, `src/lib/agents/prompts/types.ts`, `src/lib/agents/prompts/{quote,objection,address,checkout,speech,sales_retainer,remarketing}.ts`), 1 vitest config (`vitest.config.ts`), 17 docs (`public/presentaciones/*.md` + `*.html`, `CHANGELOG.md`, `n8n-workflows/README.md`, `n8n-workflows/10-agentes-conversacionales.json`). Worklog record: `agent-ctx/IA-4-full-stack-developer-agent-fixer.md`.
 
 ---

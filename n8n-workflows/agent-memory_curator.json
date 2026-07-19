@@ -1,13 +1,13 @@
 {
-  "name": "ZIAY — Agente Análisis de calidad de dirección",
+  "name": "ZIAY — Agente 6.1 memory_curator",
   "nodes": [
     {
       "parameters": {
         "httpMethod": "POST",
-        "path": "agent-address_analysis",
+        "path": "agent-memory_curator",
         "responseMode": "responseNode"
       },
-      "id": "webhook-address_analysis",
+      "id": "webhook-memory_curator",
       "name": "Webhook Entrada",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 1,
@@ -19,7 +19,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://app:3000/api/agents/address_analysis",
+        "url": "http://app:3000/api/agents/memory_curator",
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
@@ -62,8 +62,8 @@
           ]
         }
       },
-      "id": "call-agent-address_analysis",
-      "name": "Llamar Agente address_analysis",
+      "id": "call-agent-memory_curator",
+      "name": "Llamar Agente memory_curator",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
       "position": [
@@ -76,7 +76,7 @@
         "respondWith": "json",
         "responseBody": "={{ $json }}"
       },
-      "id": "respond-address_analysis",
+      "id": "respond-memory_curator",
       "name": "Responder",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
@@ -91,14 +91,14 @@
       "main": [
         [
           {
-            "node": "Llamar Agente address_analysis",
+            "node": "Llamar Agente memory_curator",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Llamar Agente address_analysis": {
+    "Llamar Agente memory_curator": {
       "main": [
         [
           {
@@ -115,10 +115,9 @@
     "executionOrder": "v1"
   },
   "_notes": [
-    "ZIAY Agente address_analysis — Análisis de calidad de dirección",
-    "Endpoint: POST http://app:3000/api/agents/address_analysis",
-    "Agregado en BUILD-AGENTS-LIB-001 (16 agentes adicionales sobre los 10 originales = 26 total).",
-    "Importar: n8n → Workflows → Import from File → seleccionar este JSON.",
+    "Agente 6.1 memory_curator — Clasifica mayorista/emprendedor/detal/regalo",
+    "Endpoint: POST http://app:3000/api/agents/memory_curator",
+    "Importar: n8n → Workflows → Import from File → seleccionar este JSON",
     "Activar workflow después de importar."
   ]
 }

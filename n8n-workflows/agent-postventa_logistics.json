@@ -1,13 +1,13 @@
 {
-  "name": "ZIAY — Agente Seguimiento de guía",
+  "name": "ZIAY — Agente 6.1 postventa_logistics",
   "nodes": [
     {
       "parameters": {
         "httpMethod": "POST",
-        "path": "agent-guide_tracking",
+        "path": "agent-postventa_logistics",
         "responseMode": "responseNode"
       },
-      "id": "webhook-guide_tracking",
+      "id": "webhook-postventa_logistics",
       "name": "Webhook Entrada",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 1,
@@ -19,7 +19,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://app:3000/api/agents/guide_tracking",
+        "url": "http://app:3000/api/agents/postventa_logistics",
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
@@ -62,8 +62,8 @@
           ]
         }
       },
-      "id": "call-agent-guide_tracking",
-      "name": "Llamar Agente guide_tracking",
+      "id": "call-agent-postventa_logistics",
+      "name": "Llamar Agente postventa_logistics",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
       "position": [
@@ -76,7 +76,7 @@
         "respondWith": "json",
         "responseBody": "={{ $json }}"
       },
-      "id": "respond-guide_tracking",
+      "id": "respond-postventa_logistics",
       "name": "Responder",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
@@ -91,14 +91,14 @@
       "main": [
         [
           {
-            "node": "Llamar Agente guide_tracking",
+            "node": "Llamar Agente postventa_logistics",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Llamar Agente guide_tracking": {
+    "Llamar Agente postventa_logistics": {
       "main": [
         [
           {
@@ -115,10 +115,9 @@
     "executionOrder": "v1"
   },
   "_notes": [
-    "ZIAY Agente guide_tracking — Seguimiento de guía",
-    "Endpoint: POST http://app:3000/api/agents/guide_tracking",
-    "Agregado en BUILD-AGENTS-LIB-001 (16 agentes adicionales sobre los 10 originales = 26 total).",
-    "Importar: n8n → Workflows → Import from File → seleccionar este JSON.",
+    "Agente 6.1 postventa_logistics — Clasifica mayorista/emprendedor/detal/regalo",
+    "Endpoint: POST http://app:3000/api/agents/postventa_logistics",
+    "Importar: n8n → Workflows → Import from File → seleccionar este JSON",
     "Activar workflow después de importar."
   ]
 }

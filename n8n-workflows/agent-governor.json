@@ -1,13 +1,13 @@
 {
-  "name": "ZIAY — Agente 6.5 Búsqueda por tema/personaje",
+  "name": "ZIAY — Agente 6.1 governor",
   "nodes": [
     {
       "parameters": {
         "httpMethod": "POST",
-        "path": "agent-theme",
+        "path": "agent-governor",
         "responseMode": "responseNode"
       },
-      "id": "webhook-theme",
+      "id": "webhook-governor",
       "name": "Webhook Entrada",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 1,
@@ -19,7 +19,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://app:3000/api/agents/theme",
+        "url": "http://app:3000/api/agents/governor",
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
@@ -62,8 +62,8 @@
           ]
         }
       },
-      "id": "call-agent-theme",
-      "name": "Llamar Agente theme",
+      "id": "call-agent-governor",
+      "name": "Llamar Agente governor",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
       "position": [
@@ -76,7 +76,7 @@
         "respondWith": "json",
         "responseBody": "={{ $json }}"
       },
-      "id": "respond-theme",
+      "id": "respond-governor",
       "name": "Responder",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
@@ -91,14 +91,14 @@
       "main": [
         [
           {
-            "node": "Llamar Agente theme",
+            "node": "Llamar Agente governor",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Llamar Agente theme": {
+    "Llamar Agente governor": {
       "main": [
         [
           {
@@ -115,8 +115,8 @@
     "executionOrder": "v1"
   },
   "_notes": [
-    "Agente 6.5 Búsqueda por tema/personaje — Stitch, Hello Kitty, etc.",
-    "Endpoint: POST http://app:3000/api/agents/theme",
+    "Agente 6.1 governor — Clasifica mayorista/emprendedor/detal/regalo",
+    "Endpoint: POST http://app:3000/api/agents/governor",
     "Importar: n8n → Workflows → Import from File → seleccionar este JSON",
     "Activar workflow después de importar."
   ]

@@ -25,7 +25,7 @@ El comercio agéntico es la evolución natural del comercio conversacional y el 
 | 2 | Autónomo supervisado | Agente compra, humano recibe notificación | "Compré el pijama Stitch en $25K, llega mañana" |
 | 3 | Autónomo total | Agente decide todo dentro de parámetros | "Compré semanalmente según tu presupuesto" |
 
-**ZIAY está en Nivel 1-2**: sus 26 agentes hacen el 95% del trabajo (investigan, perfilan, cotizan, cierran) y el humano solo supervisa casos edge.
+**ZIAY está en Nivel 1-2**: sus 24 agentes hacen el 95% del trabajo (investigan, perfilan, cotizan, cierran) y el humano solo supervisa casos edge.
 
 ---
 
@@ -75,7 +75,7 @@ El comercio agéntico es la evolución natural del comercio conversacional y el 
 ### Tendencia 1: De Chatbots a Agentes Inteligentes
 Los chatbots tradicionales ("Gracias por escribir, te contactaremos pronto") están siendo reemplazados por agentes que **entienden contexto, perfilan, recomiendan productos con imágenes, arman carritos, cotizan fletes y cierran ventas** — todo en una conversación.
 
-**Implicación para ZIAY:** ✅ ZIAY ya tiene 26 agentes especializados que hacen exactamente esto.
+**Implicación para ZIAY:** ✅ ZIAY ya tiene 24 agentes especializados que hacen exactamente esto.
 
 ### Tendencia 2: Protocolos Abiertos de Comercio Agéntico
 - **Agentic Commerce Protocol (ACP)** — Creado por OpenAI + Stripe (Q1 2025). Estandariza cómo los agentes de IA ejecutan compras.
@@ -161,7 +161,7 @@ ZIAY se posiciona en un **espacio único** que ningún competidor cubre completa
 ```
 
 **ZIAY es el ÚNICO** que combina:
-1. 26 agentes IA autónomos (pipeline completo)
+1. 24 agentes IA autónomos (pipeline completo)
 2. Atribución real de pauta (CPA/ROAS/ROI + CAPI)
 3. Wallet con 2FA para traffickers
 4. Multi-tenant real (varias marcas aisladas)
@@ -224,7 +224,7 @@ ZIAY se posiciona en un **espacio único** que ningún competidor cubre completa
 |---|---|---|---|
 | Meta cambia API de WhatsApp | Media | Alto | Multi-canal (Messenger, IG, Telegram ready) |
 | OpenAI/Google lanzan agente gratuito | Alta | Medio | ZIAY se diferencia con LATAM + atribución + wallet |
-| Competencia LATAM (Jelou, Aurora) agrega IA | Media | Medio | ZIAY tiene 10x features (26 agentes vs 1-3) |
+| Competencia LATAM (Jelou, Aurora) agrega IA | Media | Medio | ZIAY tiene 10x features (24 agentes vs 1-3) |
 | Regulación de IA en LATAM | Baja | Medio | ZIAY tiene audit trail, RLS, 2FA, redacción logs |
 | Cliente prefiere Shopify/WooCommerce | Media | Bajo | ZIAY se integra con ambos (adapters) |
 | Costo de LLM (ZAI/OpenAI) sube | Media | Medio | Multi-provider (Zai, OpenAI, xAI, Ollama local) |
@@ -290,7 +290,7 @@ El comercio agéntico es **la próxima revolución del retail**, comparable a lo
 
 **ZIAY está perfectamente posicionado** para capturar esta oportunidad porque:
 
-1. ✅ **Tiene 26 agentes IA** (cuando la competencia tiene 1-3)
+1. ✅ **Tiene 24 agentes IA** (cuando la competencia tiene 1-3)
 2. ✅ **Es LATAM-native** (WhatsApp, Dropi, MercadoPago, Wompi)
 3. ✅ **Tiene atribución real** (CPA/ROAS/ROI + CAPI server-side)
 4. ✅ **Tiene wallet con 2FA** (fintech layer para affiliates)

@@ -1,13 +1,13 @@
 {
-  "name": "ZIAY — Agente Notificaciones proactivas logísticas",
+  "name": "ZIAY — Agente 6.1 sentiment",
   "nodes": [
     {
       "parameters": {
         "httpMethod": "POST",
-        "path": "agent-logistics_notifier",
+        "path": "agent-sentiment",
         "responseMode": "responseNode"
       },
-      "id": "webhook-logistics_notifier",
+      "id": "webhook-sentiment",
       "name": "Webhook Entrada",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 1,
@@ -19,7 +19,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://app:3000/api/agents/logistics_notifier",
+        "url": "http://app:3000/api/agents/sentiment",
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
@@ -62,8 +62,8 @@
           ]
         }
       },
-      "id": "call-agent-logistics_notifier",
-      "name": "Llamar Agente logistics_notifier",
+      "id": "call-agent-sentiment",
+      "name": "Llamar Agente sentiment",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
       "position": [
@@ -76,7 +76,7 @@
         "respondWith": "json",
         "responseBody": "={{ $json }}"
       },
-      "id": "respond-logistics_notifier",
+      "id": "respond-sentiment",
       "name": "Responder",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
@@ -91,14 +91,14 @@
       "main": [
         [
           {
-            "node": "Llamar Agente logistics_notifier",
+            "node": "Llamar Agente sentiment",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Llamar Agente logistics_notifier": {
+    "Llamar Agente sentiment": {
       "main": [
         [
           {
@@ -115,10 +115,9 @@
     "executionOrder": "v1"
   },
   "_notes": [
-    "ZIAY Agente logistics_notifier — Notificaciones proactivas logísticas",
-    "Endpoint: POST http://app:3000/api/agents/logistics_notifier",
-    "Agregado en BUILD-AGENTS-LIB-001 (16 agentes adicionales sobre los 10 originales = 26 total).",
-    "Importar: n8n → Workflows → Import from File → seleccionar este JSON.",
+    "Agente 6.1 sentiment — Clasifica mayorista/emprendedor/detal/regalo",
+    "Endpoint: POST http://app:3000/api/agents/sentiment",
+    "Importar: n8n → Workflows → Import from File → seleccionar este JSON",
     "Activar workflow después de importar."
   ]
 }

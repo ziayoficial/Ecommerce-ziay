@@ -1,15 +1,15 @@
 # Guía de Deploy de Agentes en n8n
 
 > **Task ID:** DOCS-003
-> **Sistema:** ZIAY — 26 agentes conversacionales
-> **Objetivo:** Desplegar cada uno de los 26 agentes como workflows de n8n auto- hospedados, junto con los 3 pipelines de orquestación (Pre-venta, Post-venta, Inteligencia).
+> **Sistema:** ZIAY — 24 agentes conversacionales
+> **Objetivo:** Desplegar cada uno de los 24 agentes como workflows de n8n auto- hospedados, junto con los 3 pipelines de orquestación (Pre-venta, Post-venta, Inteligencia).
 > **Audiencia:** DevOps · Platform Engineers · Integradores LATAM
 
 ---
 
 ## 1. Introducción — ¿por qué n8n?
 
-ZIAY expone **26 agentes conversacionales** como endpoints REST bajo
+ZIAY expone **24 agentes conversacionales** como endpoints REST bajo
 `POST /api/agents/{agentName}`. Cada agente recibe un `tenantId` + contexto
 conversacional y devuelve una respuesta generada por LLM (z-ai-web-dev-sdk).
 
@@ -25,7 +25,7 @@ conversacional y devuelve una respuesta generada por LLM (z-ai-web-dev-sdk).
 4. **Encadenamiento** — el nodo `Execute Workflow` permite invocar un workflow
    desde otro, replicando exactamente el patrón del orquestador interno.
 
-El resultado: una red de **28 workflows** (26 agentes + 1 orquestador canónico + 1 legacy) que pueden ser monitoreados, versionados y debuggeados visualmente. Los pipelines A/B/C se ejecutan dentro del `master-orchestrator.json`.
+El resultado: una red de **26 workflows** (24 agentes + 1 orquestador canónico + 1 legacy) que pueden ser monitoreados, versionados y debuggeados visualmente. Los pipelines A/B/C se ejecutan dentro del `master-orchestrator.json`.
 
 ---
 
@@ -143,7 +143,7 @@ del docker-compose y que ambos servicios estén en el mismo `networks:` block.
 │              ┌─────────────┼─────────────┐                       │
 │              ▼             ▼             ▼                       │
 │        ┌──────────┐  ┌──────────┐  ┌──────────┐                  │
-│        │ profile  │  │ speech   │  │ catalog  │  ... 26 agentes  │
+│        │ profile  │  │ speech   │  │ catalog  │  ... 24 agentes  │
 │        │  (WF)    │  │  (WF)    │  │  (WF)    │                  │
 │        └──────────┘  └──────────┘  └──────────┘                  │
 └─────────────────────────────────────────────────────────────────┘
@@ -178,7 +178,7 @@ del docker-compose y que ambos servicios estén en el mismo `networks:` block.
 
 ---
 
-## 4. Los 26 agentes — tabla maestra
+## 4. Los 24 agentes — tabla maestra
 
 | # | agentName | Pipeline | Endpoint API | Webhook n8n |
 |---|---|---|---|---|
@@ -440,9 +440,9 @@ Respuesta esperada:
 
 ---
 
-## 7. Los 28 workflows — plantilla genérica
+## 7. Los 26 workflows — plantilla genérica
 
-Como los 26 agentes comparten estructura idéntica (solo cambia `agentName` y a
+Como los 24 agentes comparten estructura idéntica (solo cambia `agentName` y a
 veces un campo extra del contexto), se puede generar los 26 JSON de agentes con un script (más 2 JSON adicionales: el `master-orchestrator.json` y el `10-agentes-conversacionales.json` legacy).
 A continuación, la plantilla genérica en JavaScript para Node:
 
@@ -586,7 +586,7 @@ return [{
   };
 }
 
-// Generar los 26 archivos JSON de agentes (+ 2 orquestadores = 28 workflows totales)
+// Generar los 26 archivos JSON de agentes (+ 2 orquestadores = 26 workflows totales)
 const outDir = path.resolve('./n8n-workflows/agents');
 fs.mkdirSync(outDir, { recursive: true });
 AGENTS.forEach(agent => {
@@ -608,15 +608,15 @@ node scripts/generate-n8n-workflows.js
 # ✓ generated profile
 # ...
 # ✓ generated logistics_notifier
-# Total: 26 workflows de agentes + 2 orquestadores = 28 workflows en ./n8n-workflows/
+# Total: 26 workflows de agentes + 2 orquestadores = 26 workflows en ./n8n-workflows/
 ```
 
 ---
 
-## 8. Importar los 28 workflows en bulk
+## 8. Importar los 26 workflows en bulk
 
 n8n permite importar workflows desde la UI (Copy → Paste → Import) o via API
-REST. Para 28 workflows (26 agentes + 2 orquestadores), la API es más práctica.
+REST. Para 26 workflows (24 agentes + 2 orquestadores), la API es más práctica.
 
 ### 8.1 Import via API REST
 
@@ -643,7 +643,7 @@ for wf in n8n-workflows/agents/*.json; do
     "$N8N_URL/rest/workflows"
 done
 
-echo "✓ 28 workflows importados (26 agentes + 2 orquestadores)"
+echo "✓ 26 workflows importados (24 agentes + 2 orquestadores)"
 ```
 
 ### 8.2 Activar todos los workflows en bulk
@@ -1319,8 +1319,8 @@ N8N_ALLOWED_ORIGINS=https://dashboard.tudominio.com,http://localhost:3000
 ### Staging
 - [ ] docker-compose up -d levanta n8n en :5678 sin errores
 - [ ] Health check mutuo OK (n8n → CF API → n8n)
-- [ ] 28 workflows importados via API bulk import
-- [ ] 28 workflows en estado active
+- [ ] 26 workflows importados via API bulk import
+- [ ] 26 workflows en estado active
 - [ ] 3 workflows orquestador importados y linkeados (workflowId reales)
 - [ ] Smoke test: 28 webhooks devuelven 200
 - [ ] Smoke test: 3 orquestadores completan pipeline A/B/C
@@ -1350,7 +1350,7 @@ N8N_ALLOWED_ORIGINS=https://dashboard.tudominio.com,http://localhost:3000
 
 ## 18. ZIAY Bridge — integración n8n → ZIAY
 
-> **Sprints `SPRINT-ANTI-FRICCION-001` + `SPRINT-AJUSTE-EXCLUYENCIA-001`** — el ZIAY Bridge es el puente interno que permite a los 28 workflows de n8n delegar toda la lógica de negocio a ZIAY en lugar de hacer llamadas directas al LLM. Esto elimina la alucinación de precios, fletes estáticos, y la falta de identificación por imagen.
+> **Sprints `SPRINT-ANTI-FRICCION-001` + `SPRINT-AJUSTE-EXCLUYENCIA-001`** — el ZIAY Bridge es el puente interno que permite a los 26 workflows de n8n delegar toda la lógica de negocio a ZIAY en lugar de hacer llamadas directas al LLM. Esto elimina la alucinación de precios, fletes estáticos, y la falta de identificación por imagen.
 
 ### 18.1 Las 5 actions del ZIAY Bridge
 
@@ -1475,7 +1475,7 @@ docker compose exec n8n curl -s -X POST http://app:3000/api/ziay-bridge \
 
 | Aspecto | Si estuvieran en n8n | Con ZIAY centralizado |
 |---------|----------------------|----------------------|
-| Mantenimiento | Editar 28 workflows para cambiar 1 regla | Editar 1 archivo TypeScript |
+| Mantenimiento | Editar 26 workflows para cambiar 1 regla | Editar 1 archivo TypeScript |
 | Consistencia | Cada workflow puede tener versión distinta | Una sola fuente de verdad |
 | Validación | No hay post-check del output | `validateOutput` detecta violaciones |
 | Auditoría | Difícil — reglas dispersas | `GET /api/agents/rules` expone el catálogo |
@@ -1633,7 +1633,7 @@ Response: {
 
 ## 22. Referencias
 
-- **Código fuente**: `src/lib/agents/prompts.ts` (1333 líneas, 26 agentes)
+- **Código fuente**: `src/lib/agents/prompts.ts` (1333 líneas, 24 agentes)
 - **Orquestador**: `src/lib/orchestrator/constants.ts` (3 pipelines, 19 steps)
 - **API routes**: `src/app/api/agents/[agentName]/route.ts`
 - **Reglas**: `src/lib/agents/rules.ts` (46 reglas NUNCA/SIEMPRE) · `GET /api/agents/rules`

@@ -1,4 +1,4 @@
-// E2E: API routes — health, agents (26), tenants, webhooks, auth protection.
+// E2E: API routes — health, agents (24), tenants, webhooks, auth protection.
 // TASK: TESTS-CICD-001
 
 import { test, expect } from '@playwright/test'
@@ -16,7 +16,7 @@ test.describe('Public API routes', () => {
     expect(body).toHaveProperty('timestamp')
   })
 
-  test('/api/agents returns 26 agents (when authenticated)', async ({ request }) => {
+  test('/api/agents returns 24 agents (when authenticated)', async ({ request }) => {
     // /api/agents is protected — sign in first via NextAuth credentials.
     const csrfRes = await request.get('/api/auth/csrf')
     expect(csrfRes.ok()).toBeTruthy()
@@ -38,9 +38,9 @@ test.describe('Public API routes', () => {
     const res = await request.get('/api/agents')
     expect(res.status()).toBe(200)
     const body = await res.json()
-    expect(body.count).toBe(26)
+    expect(body.count).toBe(24)
     expect(Array.isArray(body.agents)).toBeTruthy()
-    expect(body.agents).toHaveLength(26)
+    expect(body.agents).toHaveLength(24)
     // Each agent has a name + a label.
     for (const a of body.agents) {
       expect(typeof a.name).toBe('string')

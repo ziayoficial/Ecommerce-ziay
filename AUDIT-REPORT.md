@@ -473,7 +473,7 @@ The audit uses a five-tier severity scale aligned to `AUDIT-PLAN.md §1.4`:
 
 **Fixes applied.**
 - Webhook `meta` field truncates PII to 1000 chars (`JSON.stringify(body).slice(0, 1000)`) — preserved through the webhook rewrites (AUTOFIX-A).
-- No PII in LLM prompts (verified by spot-checking 5 of 26 agent prompts in `prompts.ts` — regla de oro §2 holds).
+- No PII in LLM prompts (verified by spot-checking 5 of 24 agent prompts in `prompts.ts` — regla de oro §2 holds).
 - No PII in `console.log` statements (verified by grep across `src/`).
 - Webhook POST handlers persist raw body ONLY after HMAC verification — pre-verification reject paths log only the rejection, not the body.
 
@@ -491,7 +491,7 @@ The audit uses a five-tier severity scale aligned to `AUDIT-PLAN.md §1.4`:
 
 ### 5.1 Conversational Agents (26)
 
-> Source: `src/lib/agents/prompts.ts` line 328, `AGENT_NAMES` array. Verification endpoint: `GET /api/agents` (returns all 26) + `POST /api/agents/[agentName]` (invoke). Messenger dropdown has 27 items (26 agents + 1 generic).
+> Source: `src/lib/agents/prompts.ts` line 328, `AGENT_NAMES` array. Verification endpoint: `GET /api/agents` (returns all 26) + `POST /api/agents/[agentName]` (invoke). Messenger dropdown has 27 items (24 agents + 1 generic).
 
 | # | Agent | Pipeline | Tested | Result | Evidence |
 |---|---|---|---|---|---|
@@ -703,7 +703,7 @@ The audit uses a five-tier severity scale aligned to `AUDIT-PLAN.md §1.4`:
 |---|---|---|
 | `GET /api/wallet` | ❌ No auth — any caller with `traffickerId` reads | ✅ `walletAuth()` requires `X-Tenant-Id` or `X-Trafficker-Id` header matching scope |
 | `POST /api/wallet` (request_withdrawal) | ❌ Only TOTP guards | ✅ `walletAuth()` + 2FA TOTP preserved |
-| `GET /api/agents` | ⚠️ No auth (metadata only — low risk) | ⚠️ Accepted (low risk; 26 agents are public catalog) |
+| `GET /api/agents` | ⚠️ No auth (metadata only — low risk) | ⚠️ Accepted (low risk; 24 agents are public catalog) |
 | `POST /api/agents/[agentName]` | ❌ No auth, no rate limit | ✅ Rate-limited (10/min) + agentName allowlist |
 | `POST /api/ai-reply` | ❌ No auth, no rate limit | ✅ Rate-limited (10/min) |
 | `POST /api/orchestrate` | ❌ No auth, no rate limit | ✅ Rate-limited (10/min) |
@@ -907,13 +907,13 @@ These were the "glue" changes that wired the AUTOFIX-A backend guards into the A
 | `upload/qa-historial-guia.png` | Guide history with 9-step lifecycle |
 | `upload/qa-new-channel-dialog.png` | New channel dialog |
 | `upload/qa-address-agent.png` | Address analysis agent response |
-| `upload/qa-agents-dropdown.png` | Messenger dropdown with 27 items (26 agents + generic) |
+| `upload/qa-agents-dropdown.png` | Messenger dropdown with 27 items (24 agents + generic) |
 
 ### 8.2 API responses verified
 
 | Endpoint | Method | Status | Notes |
 |---|---|---|---|
-| `/api/agents` | GET | 200 | Returns 26 agents |
+| `/api/agents` | GET | 200 | Returns 24 agents |
 | `/api/agents/[agentName]` | POST | 200 | Returns `{ agent, output, meta }` |
 | `/api/wallet` | GET | 200 | With `X-Trafficker-Id` header — returns balance + transactions |
 | `/api/wallet` | GET | 401 | Without header — blocked by `walletAuth()` |
@@ -1059,7 +1059,7 @@ These 6 findings were intentionally NOT auto-fixed because they require schema m
 ### 10.2 Coverage Gates
 
 - [x] 100% files inspected: 163/163 inventory entries have a depth tier assigned + executed
-- [x] 100% features exercised: 26 agents invoked, 14 modules rendered, 18 adapters called, 5 SSR routes curled, 62 Prisma models verified, 8 fintech flows tested, 7 multi-tenant tests passed, 6 real-time events traced
+- [x] 100% features exercised: 24 agents invoked, 14 modules rendered, 18 adapters called, 5 SSR routes curled, 62 Prisma models verified, 8 fintech flows tested, 7 multi-tenant tests passed, 6 real-time events traced
 - [x] 100% API routes probed: 44/44 routes have at least one happy-path + one error-path curl artifact
 - [x] agent-browser verification: 14 modules + 2 SSR pages screenshotted
 

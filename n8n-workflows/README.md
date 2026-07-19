@@ -1,8 +1,8 @@
 # Guía de importación de workflows n8n (Saramantha §1.2, §11.2)
 
-Esta carpeta contiene **28 workflows n8n** listos para importar en tu instancia de n8n autoalojada (incluida en `docker-compose.yml`).
+Esta carpeta contiene **26 workflows n8n** listos para importar en tu instancia de n8n autoalojada (incluida en `docker-compose.yml`).
 
-> **SPRINT-FIXES-N8N-DEPLOY-001** — la carpeta se expandió de 12 workflows (los 10 agentes originales + el orquestador + el legacy) a **28 workflows**: los 12 originales renombrados (`CommerceFlow` → `ZIAY`) + **16 nuevos** para los agentes adicionales agregados en `BUILD-AGENTS-LIB-001` (24 agentes en total).
+> **SPRINT-FIXES-N8N-DEPLOY-001** — la carpeta se expandió de 12 workflows (los 10 agentes originales + el orquestador + el legacy) a **26 workflows**: los 12 originales renombrados (`CommerceFlow` → `ZIAY`) + **16 nuevos** para los agentes adicionales agregados en `BUILD-AGENTS-LIB-001` (24 agentes en total).
 
 ## Archivos
 

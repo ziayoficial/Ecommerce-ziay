@@ -260,7 +260,7 @@ src/lib/services/
 
 ### Implementación
 
-- **Ubicación:** `src/lib/agents/prompts/` (28 archivos — 26 agentes + types.ts + index.ts)
+- **Ubicación:** `src/lib/agents/prompts/` (28 archivos — 24 agentes + types.ts + index.ts)
 - **Cada agente:** función `build{Name}Prompt(ctx)` que retorna `{ system, user }`
 - **Fallback:** cada agente tiene un fallback determinístico si el LLM falla
 - **Orquestación:** POST /api/orchestrate con `action: 'full' | 'step'` y `pipeline: 'pre_sale' | 'post_sale' | 'intelligence'`
@@ -397,7 +397,7 @@ src/lib/services/
 
 ### Nivel de autonomía (según Deloitte)
 
-ZIAY está en **Nivel 1-2**: los 26 agentes hacen el 95% del trabajo (investigan, perfilan, cotizan, cierran) y el humano solo supervisa casos edge.
+ZIAY está en **Nivel 1-2**: los 24 agentes hacen el 95% del trabajo (investigan, perfilan, cotizan, cierran) y el humano solo supervisa casos edge.
 
 ### C-commerce (Comercio Conversacional)
 
@@ -437,7 +437,7 @@ ZIAY está en **Nivel 1-2**: los 26 agentes hacen el 95% del trabajo (investigan
 
 | Feature | Estado | Detalle |
 |---|---|---|
-| Agentes autónomos | ✅ | 26 agentes, 3 pipelines, 95% automatizado |
+| Agentes autónomos | ✅ | 24 agentes, 3 pipelines, 95% automatizado |
 | Perfilamiento automático | ✅ | Agent profile detecta tipo de cliente en tiempo real |
 | Detección de devolvedores | ✅ | Agent buyer_behavior revisa historial antes de vender |
 | Identificación por imagen | ✅ | Agent vision (VLM glm-4.6v) identifica productos desde fotos |
@@ -454,7 +454,7 @@ ZIAY está en **Nivel 1-2**: los 26 agentes hacen el 95% del trabajo (investigan
 | # | Diferenciador | Beneficio |
 |---|---|---|
 | 1 | Detección automática de devolvedores | $600K/mes ahorrado |
-| 2 | 26 agentes IA en equipo | 95% automatizado |
+| 2 | 24 agentes IA en equipo | 95% automatizado |
 | 3 | Atribución real de pauta | $900K/mes ahorrado |
 | 4 | Verdict engine automático | 24/7 optimización |
 | 5 | CAPI server-side | +30% tracking |
@@ -730,7 +730,7 @@ ZIAY está en **Nivel 1-2**: los 26 agentes hacen el 95% del trabajo (investigan
 | Documentation | 10.0 | 21 ADRs, OpenAPI 3.1 (93 paths / 136 operationIds / 20 tags), API cookbook, ERD, DR runbook |
 | Monitoring/DR | 10.0 | Prometheus + Grafana + Loki + Alertmanager + status page, RTO 4h / RPO 24h |
 | Legal Compliance | 10.0 | 6 módulos, 5 leyes (Ley 2573/1581/1480/1098 + Decreto 745 DIAN), Alegra adapter |
-| AI Agents | 10.0 | 26 agentes, LLM adapter (4 providers), budget tracking, eval harness, VLM |
+| AI Agents | 10.0 | 24 agentes, LLM adapter (4 providers), budget tracking, eval harness, VLM |
 | Tests | 10.0 | 891 tests en 48 archivos (unit + webhook + middleware + integration + eval) |
 | **Promedio** | **10.0** | ✅ Production-ready |
 
@@ -882,9 +882,9 @@ promtail (log shipper: pino → Loki)
 
 ---
 
-## 22. AI (26 agentes + LLM adapter + budget tracking + eval harness)
+## 22. AI (24 agentes + LLM adapter + budget tracking + eval harness)
 
-### 22.1 Los 26 agentes IA (6 stages)
+### 22.1 Los 24 agentes IA (6 stages)
 
 | Stage | Agentes |
 |---|---|

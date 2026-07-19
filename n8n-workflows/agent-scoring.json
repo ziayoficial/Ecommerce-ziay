@@ -1,13 +1,13 @@
 {
-  "name": "ZIAY — Agente Alertas operativas de guías",
+  "name": "ZIAY — Agente 6.1 scoring",
   "nodes": [
     {
       "parameters": {
         "httpMethod": "POST",
-        "path": "agent-guide_alert",
+        "path": "agent-scoring",
         "responseMode": "responseNode"
       },
-      "id": "webhook-guide_alert",
+      "id": "webhook-scoring",
       "name": "Webhook Entrada",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 1,
@@ -19,7 +19,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://app:3000/api/agents/guide_alert",
+        "url": "http://app:3000/api/agents/scoring",
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
@@ -62,8 +62,8 @@
           ]
         }
       },
-      "id": "call-agent-guide_alert",
-      "name": "Llamar Agente guide_alert",
+      "id": "call-agent-scoring",
+      "name": "Llamar Agente scoring",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
       "position": [
@@ -76,7 +76,7 @@
         "respondWith": "json",
         "responseBody": "={{ $json }}"
       },
-      "id": "respond-guide_alert",
+      "id": "respond-scoring",
       "name": "Responder",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
@@ -91,14 +91,14 @@
       "main": [
         [
           {
-            "node": "Llamar Agente guide_alert",
+            "node": "Llamar Agente scoring",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Llamar Agente guide_alert": {
+    "Llamar Agente scoring": {
       "main": [
         [
           {
@@ -115,10 +115,9 @@
     "executionOrder": "v1"
   },
   "_notes": [
-    "ZIAY Agente guide_alert — Alertas operativas de guías",
-    "Endpoint: POST http://app:3000/api/agents/guide_alert",
-    "Agregado en BUILD-AGENTS-LIB-001 (16 agentes adicionales sobre los 10 originales = 26 total).",
-    "Importar: n8n → Workflows → Import from File → seleccionar este JSON.",
+    "Agente 6.1 scoring — Clasifica mayorista/emprendedor/detal/regalo",
+    "Endpoint: POST http://app:3000/api/agents/scoring",
+    "Importar: n8n → Workflows → Import from File → seleccionar este JSON",
     "Activar workflow después de importar."
   ]
 }

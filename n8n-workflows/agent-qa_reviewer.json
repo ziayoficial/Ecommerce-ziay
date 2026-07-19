@@ -1,13 +1,13 @@
 {
-  "name": "ZIAY — Agente Scoring de transportadoras",
+  "name": "ZIAY — Agente 6.1 qa_reviewer",
   "nodes": [
     {
       "parameters": {
         "httpMethod": "POST",
-        "path": "agent-carrier_score",
+        "path": "agent-qa_reviewer",
         "responseMode": "responseNode"
       },
-      "id": "webhook-carrier_score",
+      "id": "webhook-qa_reviewer",
       "name": "Webhook Entrada",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 1,
@@ -19,7 +19,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://app:3000/api/agents/carrier_score",
+        "url": "http://app:3000/api/agents/qa_reviewer",
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
@@ -62,8 +62,8 @@
           ]
         }
       },
-      "id": "call-agent-carrier_score",
-      "name": "Llamar Agente carrier_score",
+      "id": "call-agent-qa_reviewer",
+      "name": "Llamar Agente qa_reviewer",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
       "position": [
@@ -76,7 +76,7 @@
         "respondWith": "json",
         "responseBody": "={{ $json }}"
       },
-      "id": "respond-carrier_score",
+      "id": "respond-qa_reviewer",
       "name": "Responder",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
@@ -91,14 +91,14 @@
       "main": [
         [
           {
-            "node": "Llamar Agente carrier_score",
+            "node": "Llamar Agente qa_reviewer",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Llamar Agente carrier_score": {
+    "Llamar Agente qa_reviewer": {
       "main": [
         [
           {
@@ -115,10 +115,9 @@
     "executionOrder": "v1"
   },
   "_notes": [
-    "ZIAY Agente carrier_score — Scoring de transportadoras",
-    "Endpoint: POST http://app:3000/api/agents/carrier_score",
-    "Agregado en BUILD-AGENTS-LIB-001 (16 agentes adicionales sobre los 10 originales = 26 total).",
-    "Importar: n8n → Workflows → Import from File → seleccionar este JSON.",
+    "Agente 6.1 qa_reviewer — Clasifica mayorista/emprendedor/detal/regalo",
+    "Endpoint: POST http://app:3000/api/agents/qa_reviewer",
+    "Importar: n8n → Workflows → Import from File → seleccionar este JSON",
     "Activar workflow después de importar."
   ]
 }

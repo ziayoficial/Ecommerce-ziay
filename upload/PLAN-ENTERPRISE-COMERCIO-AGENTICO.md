@@ -10,7 +10,7 @@
 ### De "IA que conversa" a "Revenue Operations con gobernanza"
 
 **Mensaje actual (demasiado amplio):**
-> "ZIAY es comercio conversacional + atribución de pauta con 26 agentes IA, wallet, marketplace y logística"
+> "ZIAY es comercio conversacional + atribución de pauta con 24 agentes IA, wallet, marketplace y logística"
 
 **Mensaje enterprise (condensado, en lenguaje de negocio):**
 > **"ZIAY es la capa enterprise que convierte conversaciones, agentes y canales digitales en ingresos trazables, con automatización operativa, gobernanza y conexión nativa a tu stack comercial."**
@@ -124,7 +124,7 @@ Si una de estas 4 patas no está clara, enterprise lo percibe como experimento, 
 
 | Feature | Usar internamente | NO liderar en venta enterprise |
 |---|---|---|
-| "26 agentes IA" | ✅ | ❌ (complejidad narrativa) |
+| "24 agentes IA" | ✅ | ❌ (complejidad narrativa) |
 | "95% automatizado" | ✅ | ❌ (suena a "no necesitas humanos") |
 | "Marketplace cross-brand" | ✅ | ❌ (suena a experimento) |
 | "Wallet para traffickers" | ✅ | ❌ (demasiado nicho) |
@@ -283,7 +283,7 @@ La ventaja competitiva es tener mejor **orquestación comercial con evidencia**.
 | Semana | Qué | Entregable |
 |---|---|---|
 | 1 | Onboarding | Marca configurada, catálogo importado, WhatsApp conectado |
-| 2 | Activación | 26 agentes activos, orquestador funcionando, pagos conectados |
+| 2 | Activación | 24 agentes activos, orquestador funcionando, pagos conectados |
 | 3 | Medición | Dashboard con KPIs reales: conversión, ROAS, tiempo de respuesta |
 | 4 | Reporte | Documento before/after con métricas demostrables |
 
@@ -408,7 +408,7 @@ Todas las fases del roadmap enterprise original están completas. ZIAY v0.3.0 es
 | Capability | Implementación |
 |---|---|
 | **Multi-tenant real** | `Tenant` model + `tenantId` en 63 modelos + `requireTenantAccess` + RLS policies en 10 tablas críticas |
-| **26 agentes IA** | Pipeline de 6 stages (discovery → evaluation → decision → payment → fulfillment → learning) + LLM adapter (4 providers) |
+| **24 agentes IA** | Pipeline de 6 stages (discovery → evaluation → decision → payment → fulfillment → learning) + LLM adapter (4 providers) |
 | **Multi-currency** | 7 monedas con live FX feed + cold-start DB persistence (ADR-0012, ADR-0017) |
 | **Multi-locale** | 4 locales (es-CO, es-MX, en-US, pt-BR) |
 | **Multi-payment** | 8 métodos (4 card + 4 local LATAM) con HMAC + idempotency + signature rotation |
@@ -446,7 +446,7 @@ Todas las fases del roadmap enterprise original están completas. ZIAY v0.3.0 es
 | Shopify/Meta lanzan agente gratuito | Alta | Medio | ZIAY se diferencia con LATAM + atribución + gobernanza |
 | Cliente enterprise exige SSO | Alta | Alto | Roadmap Q3 2026 (SAML/OIDC) |
 | Cliente exige on-premise | Media | Alto | Docker disponible, pero no hardening on-prem todavía |
-| Competencia LATAM agrega IA | Media | Medio | ZIAY tiene 10x features (26 agentes vs 1-3) |
+| Competencia LATAM agrega IA | Media | Medio | ZIAY tiene 10x features (24 agentes vs 1-3) |
 | SQLite no escala | 100% si creces | Crítico | Migración a PostgreSQL (1 día, env var) |
 | Regulación IA LATAM | Media | Medio | Audit trail + RLS + consent + redacción |
 

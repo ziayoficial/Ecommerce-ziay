@@ -237,7 +237,7 @@ docker compose exec app bun run scripts/backfill-embeddings.ts
 curl -s https://commerceflow.tudominio.com/api/health | jq '.summary'
 # Debe retornar: { "ok": 23, "warning": 0, "error": 0, "not_configured": 0 }
 
-# Verificar 26 agentes
+# Verificar 24 agentes
 curl -s https://commerceflow.tudominio.com/api/agents | jq '.agents | length'
 # Debe retornar: 26
 
@@ -696,7 +696,7 @@ Marca cada ítem como ✅ cuando verifiques:
 
 ### Aplicación
 - [ ] **Health 23/23**: `curl /api/health | jq '.summary'` → `{ "ok": 23, "warning": 0, "error": 0, "not_configured": 0 }`.
-- [ ] **26 agentes**: `curl /api/agents | jq '.agents | length'` → `26`.
+- [ ] **24 agentes**: `curl /api/agents | jq '.agents | length'` → `26`.
 - [ ] **21 módulos**: carga el dashboard y verifica que el sidebar muestra 21 ítems.
 - [ ] **5 SSR pages**: `curl /t/saramantha`, `curl /t/saramantha/p/<sku>`, `curl /sitemap.xml`, `curl /robots.txt` retornan 200.
 - [ ] **Socket.io**: en el dashboard, abre mensajería. La consola del browser muestra `socket connected`.

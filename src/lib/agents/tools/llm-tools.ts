@@ -530,7 +530,23 @@ export async function runToolLoopWithResilience(params: {
   const { withRetry } = await import('../retry')
   const { resolveFallbackChain } = await import('../model-router')
   const { getLogger } = await import('@/lib/logger')
+  const { circuitBreaker, buildCircuitKey } = await import('../circuit-breaker')
   const resLog = getLogger('agent:tools:resilience')
+
+  // ORC-1-FIX — circuit breaker pre-flight. If the circuit for this
+  // (tenantId, agentName) is OPEN, skip the LLM call entirely and throw
+  // so the caller uses its fallback reply. This protects ai-reply and
+  // /api/agents/[agentName] — the two real message-handling routes.
+  const agentName = params.ctx.__agentName
+  const circuitKey = buildCircuitKey(params.ctx.tenantId, agentName)
+  if (!circuitBreaker.canCall(circuitKey)) {
+    const state = circuitBreaker.getState(circuitKey)
+    resLog.warn(
+      { agentName, tenantId: params.ctx.tenantId, circuitKey, state },
+      '[CIRCUIT BREAKER] Circuit is OPEN — skipping LLM call in runToolLoopWithResilience',
+    )
+    throw new Error(`Circuit breaker open for ${agentName} (${state})`)
+  }
 
   const chain = resolveFallbackChain(params.primaryModel)
   const timeoutMs = params.timeoutMs ?? 15_000
@@ -580,6 +596,8 @@ export async function runToolLoopWithResilience(params: {
         // for LLM API calls.
         undefined,
       )
+      // ORC-1-FIX — record success in circuit breaker.
+      circuitBreaker.recordSuccess(circuitKey)
       return {
         ...result,
         fellBack: !isPrimary,
@@ -588,6 +606,11 @@ export async function runToolLoopWithResilience(params: {
         fallbackAttempts,
       }
     } catch (err) {
+      // ORC-1-FIX — record failure in circuit breaker (only on the final
+      // model in the chain — intermediate failures are retried via fallback).
+      if (i === chain.length - 1) {
+        circuitBreaker.recordFailure(circuitKey)
+      }
       const errMsg = err instanceof Error ? err.message : String(err)
       if (isPrimary) {
         primaryError = errMsg

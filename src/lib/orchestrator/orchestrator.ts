@@ -1,4 +1,15 @@
-// CommerceFlow OS — Orchestrator (Saramantha §12 — 4 end-to-end scenarios)
+// ZIAY — Orchestrator (Saramantha §12 — 4 end-to-end scenarios)
+//
+// ⚠️  DEPRECATED (ORC-1-FIX): This module is DEAD CODE — NOT imported by any
+// real API route. The real orchestration lives in:
+//   - src/app/api/orchestrate/route.ts  (1219 lines — pipeline executor)
+//   - src/app/api/ai-reply/route.ts     (708 lines — message handler)
+//
+// The circuit breaker, structured JSON parsing, and isDemo flag from ORC-1
+// have been correctly applied to the REAL routes in the ORC-1-FIX commit.
+// This file is kept for reference only and will be removed in a future
+// cleanup sprint. DO NOT add new features here — add them to the real routes.
+//
 // Sequences the agents automatically based on conversation state.
 // Each agent's output feeds the next. Mirrors the §12.1 narrative:
 //   profile → speech → catalog (con tema) → quote (con carrito) → objection → address (con análisis) → logistics → checkout

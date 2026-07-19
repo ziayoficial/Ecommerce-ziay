@@ -110,6 +110,10 @@ import { redactPII } from '@/lib/agents/pii-redactor'
 // and revises the plan if a step fails. Falls back to the linear
 // pipeline when planning fails or returns a 1-step plan.
 import { planner, type AgentContextForPlanning } from '@/lib/agents/planning'
+// ORC-1-FIX — circuit breaker protects every real LLM call from persistent
+// failures. After 5 consecutive failures for a (tenantId, agentName) pair,
+// the circuit opens and subsequent calls return a fallback immediately.
+import { circuitBreaker, buildCircuitKey } from '@/lib/agents/circuit-breaker'
 
 const log = getLogger('api:orchestrate')
 
@@ -261,6 +265,26 @@ async function callAgent(
   const span = agentTracer.startSpan(agentName, ctx)
   span.setContext({ tenantId: ctx.tenantId, conversationId: ctx.conversationId })
 
+  // ORC-1-FIX — circuit breaker pre-flight. If this (tenantId, agentName)
+  // circuit is OPEN (after 5 consecutive failures), skip the LLM call
+  // entirely and return a fallback. Prevents wasting resources on a
+  // persistently broken agent.
+  const circuitKey = buildCircuitKey(ctx.tenantId, agentName)
+  if (!circuitBreaker.canCall(circuitKey)) {
+    const cbState = circuitBreaker.getState(circuitKey)
+    log.warn(
+      { tenantId: ctx.tenantId, agentName, circuitKey, state: cbState },
+      '[CIRCUIT BREAKER] Circuit is OPEN — skipping LLM call, returning fallback',
+    )
+    span.setError(`Circuit breaker open (${cbState})`)
+    return {
+      reply: `(agente ${agentName} temporalmente no disponible — intenta nuevamente en 1 minuto)`,
+      confidence: 0.1,
+      error: `Circuit breaker open (${cbState})`,
+      latencyMs: 0,
+    }
+  }
+
   const { system, user } = await buildAgentPrompt(agentName, ctx)
   const startTime = Date.now()
   // FIX-AI-AGENTS-001 §A-1: system prompt con rol `system`
@@ -349,7 +373,12 @@ async function callAgent(
         'LLM call used fallback model (primary failed after retries)',
       )
     }
+    // ORC-1-FIX — record success in circuit breaker.
+    circuitBreaker.recordSuccess(circuitKey)
   } catch (err) {
+    // ORC-1-FIX — record failure in circuit breaker.
+    // After 5 consecutive failures, the circuit opens.
+    circuitBreaker.recordFailure(circuitKey)
     // Propagar el error con el metadata del LLM (vacío — no hubo usage)
     // para que el caller pueda persistirlo en el DecisionLog.
     const message = err instanceof Error ? err.message : 'unknown error'

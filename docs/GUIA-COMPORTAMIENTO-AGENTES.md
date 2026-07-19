@@ -1,6 +1,6 @@
 # Guía Maestra: Configuración de Comportamiento de Agentes IA
 
-**Versión:** v0.3.0
+**Versión:** v0.4.0
 **Fecha:** Julio 2026
 **Aplica para:** ZIAY + n8n + ChateaPro + Cualquier plataforma LLM
 
@@ -660,4 +660,4 @@ return result.content
 
 ---
 
-*ZIAY v0.3.0 · ZIAY SAS © 2026 · Bogotá, Colombia*
+*ZIAY v0.4.0 · ZIAY SAS © 2026 · Bogotá, Colombia*

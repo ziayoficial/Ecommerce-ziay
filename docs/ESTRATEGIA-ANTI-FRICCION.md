@@ -1,6 +1,6 @@
 # Estrategia Anti-Fricción: Motor de Cotización ZIAY
 
-**Versión:** v0.3.0
+**Versión:** v0.4.0
 **Fecha:** Julio 2026
 **Aplica para:** Cualquier marca, nicho y mercado (nacional e internacional)
 
@@ -338,4 +338,4 @@ Consulta las 46 reglas NUNCA/SIEMPRE (29 prohibidas + 17 obligatorias).
 
 ---
 
-*ZIAY v0.3.0 · ZIAY SAS © 2026 · Bogotá, Colombia*
+*ZIAY v0.4.0 · ZIAY SAS © 2026 · Bogotá, Colombia*

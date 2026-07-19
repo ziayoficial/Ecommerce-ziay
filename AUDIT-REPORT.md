@@ -1,12 +1,22 @@
-# CommerceFlow OS — Final Audit Report
+# ZIAY — Final Audit Report
 
 > **Task ID:** REPORT-001
 > **Owner:** Senior Audit Reporter
-> **System under audit:** CommerceFlow OS — conversational commerce + ad-attribution platform (LATAM, multi-tenant)
+> **System under audit:** ZIAY — conversational commerce + ad-attribution platform (LATAM, multi-tenant)
 > **Audit framework:** `AUDIT-PLAN.md` (1399 lines, 12 workstreams, 272 checklist items, 163-file inventory)
 > **Inputs consolidated:** 3 inventory reports (INV-BACKEND-001, INV-FRONTEND-001, INV-DATA-001) + 4 auto-fix reports (AUTOFIX-A/B/C/D) + cross-agent integration fixes + end-to-end verification
 > **Report status:** FINAL
 > **Verdict:** **CONDITIONAL PRODUCTION-READY** (see §1.2 and §10)
+>
+> **v0.4.0 update note:** This is the cycle-1 final report. All 6 open findings
+> documented in §1.2 have since been resolved across 3 audit/remediation
+> iterations (V1: 5.5 → V2: 7.7 → V3: **8.8/10** fintech score). See
+> `public/presentaciones/AUDITORIA-FINTECH-V3-FINAL.md` (latest fintech audit),
+> `public/presentaciones/AUDITORIA-FULL-SECURITY-CODE-TEST.md` (security + code
+> + testing), and `public/presentaciones/AUDITORIA-FULL-UX-SEO-DOCS-DEPLOY.md`
+> (UX + SEO + docs + deploy) for the v0.4.0 verdict. Current counts:
+> **78 Prisma models / 114 API routes / 27 agents / 986 unit tests + 52 E2E /
+> 35 RLS policies / 22 ADRs / 6/6 CI green**.
 
 ---
 
@@ -14,7 +24,7 @@
 
 ### 1.1 Audit scope, methodology, duration
 
-**Scope.** The audit covered the full CommerceFlow OS codebase at `/home/z/my-project/`:
+**Scope.** The audit covered the full ZIAY codebase at `/home/z/my-project/`:
 
 - **163 inventory entries** — 146 TS/TSX files in `src/` + 2 in `prisma/` + 3 in `mini-services/` + 2 in `examples/` + 9 root configs + 1 context doc.
 - **44 API routes** under `src/app/api/**` (1 root + 43 business).
@@ -843,7 +853,7 @@ The audit uses a five-tier severity scale aligned to `AUDIT-PLAN.md §1.4`:
 - First restart attempt with `nohup … & disown` failed (process died after boot). Switched to `setsid bash -c 'exec bun --hot index.ts > /home/z/my-project/chat-service.log 2>&1' < /dev/null & disown` — stable at PID 20403, port 3003 listening.
 - Boot log:
   ```
-  ✅ CommerceFlow chat-service running on port 3003
+  ✅ ZIAY chat-service running on port 3003
      CORS origins: http://localhost:3000
      Strict auth:  disabled (dev fallback tenant=ten-saramantha)
   ```
@@ -1199,4 +1209,4 @@ Production deploy: CONDITIONAL — approved once conditions 1-3 are resolved
 
 **End of AUDIT-REPORT.md**
 
-> *This report is the authoritative executive deliverable of the CommerceFlow OS audit cycle. Any deviation from the conditions in §10.6 must be approved by the audit lead and recorded in `worklog.md` under a new Task ID.*
+> *This report is the authoritative executive deliverable of the ZIAY audit cycle. Any deviation from the conditions in §10.6 must be approved by the audit lead and recorded in `worklog.md` under a new Task ID.*

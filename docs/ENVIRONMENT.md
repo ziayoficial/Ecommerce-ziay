@@ -1,9 +1,16 @@
-# Referencia de Variables de Entorno — CommerceFlow OS
+# Referencia de Variables de Entorno — ZIAY
 
-Este documento describe **todas** las variables de entorno que CommerceFlow OS puede consumir, agrupadas por categoría. El archivo `.env.example` contiene los placeholders vacíos — este documento explica cada una.
+Este documento describe **todas** las variables de entorno que ZIAY puede consumir, agrupadas por categoría. El archivo `.env.example` (creado en v0.4.0) contiene los placeholders vacíos para **135 variables** (128 activas + 7 comentadas opcionales) agrupadas en 14 categorías — este documento explica cada una.
 
 > 📖 Para la guía de setup de desarrollo ver [`DEVELOPMENT.md`](./DEVELOPMENT.md).
 > 📖 Para el checklist de producción ver [`PRODUCTION-CHECKLIST.md`](./PRODUCTION-CHECKLIST.md).
+>
+> ⚠️ **v0.4.0 fail-closed policy**: las siguientes variables son **REQUIRED in
+> production** — la app se reusa a arrancar o el endpoint devuelve 500 si no
+> están seteadas: `NEXTAUTH_SECRET`, `ENCRYPTION_KEY`, `NEXTAUTH_URL`,
+> `NEXT_PUBLIC_BASE_URL`, `DATABASE_URL`, `CRON_SECRET`, `WA_VERIFY_TOKEN`,
+> `META_VERIFY_TOKEN`, `NOCODB_WEBHOOK_SECRET` (más las condicionales
+> `CORS_ALLOWED_ORIGINS`, `REDIS_URL`, `META_APP_SECRET`, `SENTRY_DSN`).
 
 ---
 
@@ -39,10 +46,11 @@ Todas las variables se cargan vía `process.env` en el servidor. Las variables c
 
 | Variable | Requerido | Default | Descripción |
 |----------|-----------|---------|-------------|
-| `DOMAIN` | ✅ prod | `commerceflow.example.com` | Dominio principal del deployment. Usado por Caddy y por los webhooks salientes para construir URLs absolutas. |
-| `NEXTAUTH_URL` | ✅ prod | `https://commerceflow.example.com` | URL canónica de la app para NextAuth. Debe incluir el protocolo (`https://`). |
+| `DOMAIN` | ✅ prod | `ziay.co` | Dominio principal del deployment. Usado por Caddy y por los webhooks salientes para construir URLs absolutas. |
+| `NEXTAUTH_URL` | ✅ prod | `https://ziay.co` | URL canónica de la app para NextAuth. Debe incluir el protocolo (`https://`). |
+| `NEXT_PUBLIC_BASE_URL` | ✅ prod | `https://ziay.co` | URL pública base para construir URLs SSR / OG / canonical / sitemap. |
 | `N8N_PROTOCOL` | ❌ | `https` | Protocolo para construir URLs de n8n (`http` o `https`). |
-| `WEBHOOK_URL` | ❌ | `https://commerceflow.example.com/n8n` | URL base para registrar webhooks en n8n. |
+| `WEBHOOK_URL` | ❌ | `https://ziay.co/n8n` | URL base para registrar webhooks en n8n. |
 
 ### Ejemplo
 
@@ -73,7 +81,7 @@ DATABASE_URL="file:./dev.db"
 ### Ejemplo prod (Postgres)
 
 ```bash
-DATABASE_URL="postgresql://commerceflow:super_secret_password@postgres:5432/commerceflow?schema=public"
+DATABASE_URL="postgresql://ziay_app:super_secret_password@postgres:5432/ziay?schema=public"
 POSTGRES_PASSWORD=super_secret_password
 ```
 
@@ -86,7 +94,9 @@ POSTGRES_PASSWORD=super_secret_password
 | Variable | Requerido | Default | Descripción |
 |----------|-----------|---------|-------------|
 | `NEXTAUTH_SECRET` | ✅ prod | `generate_with_openssl_rand_hex_32` | Secreto para firmar sesiones JWT de NextAuth. Generar con `openssl rand -hex 32`. |
+| `ENCRYPTION_KEY` | ✅ prod (**fail-closed**) | (no set) | Clave de 32 bytes hex para cifrado AES-256-GCM de secretos TOTP + credenciales de gateways de pago en la DB. Generar con `openssl rand -hex 32`. **La app se reusa a arrancar en prod si no está seteada** (`src/lib/totp.ts:getEncryptionKey()` lanza `throw` + Sentry `captureError`). En dev, hay un default `'dev-encryption-key-change-me'` con un warning loud. |
 | `N8N_ENCRYPTION_KEY` | ✅ prod | `generate_with_openssl_rand_hex_32` | Secreto para cifrar credenciales almacenadas en n8n. Generar con `openssl rand -hex 32`. |
+| `CRON_SECRET` | ✅ prod (**fail-closed**) | (no set) | Secreto compartido para autorizar los cron jobs internos (`/api/cron/*`). Sin esto, los cron endpoints rechazan con 401. |
 
 ### Generación
 
@@ -105,9 +115,11 @@ Estos tokens se configuran en el dashboard de Meta (developers.facebook.com) y d
 
 | Variable | Requerido | Default | Descripción |
 |----------|-----------|---------|-------------|
-| `WA_VERIFY_TOKEN` | ✅ | `commerceflow_verify_change_me` | Token para verificar la subscripción del webhook de WhatsApp Cloud API. |
-| `META_VERIFY_TOKEN` | ✅ | `commerceflow_verify_change_me` | Token para verificar la subscripción del webhook de Messenger / Instagram. Puede ser igual o diferente al de WA. |
+| `WA_VERIFY_TOKEN` | ✅ prod (**fail-closed**) | `dev-wa-verify-token-change-me` (dev) | Token para verificar la subscripción del webhook de WhatsApp Cloud API. **En prod, si no está seteado, el webhook devuelve 500** (no hay fallback). |
+| `META_VERIFY_TOKEN` | ✅ prod (**fail-closed**) | `dev-meta-verify-token-change-me` (dev) | Token para verificar la subscripción del webhook de Messenger / Instagram. Puede ser igual o diferente al de WA. **Fail-closed en prod**. |
 | `META_APP_SECRET` | ✅ prod | (no set) | App Secret de tu app de Meta. Habilita la verificación HMAC de `X-Hub-Signature-256` en los webhooks entrantes. **Sin esto, los webhooks no verifican firma**. |
+| `NOCODB_WEBHOOK_SECRET` | ✅ prod (**fail-closed**) | (no set) | HMAC secret para verificar los webhooks entrantes de NocoDB. **Fail-closed en prod**. |
+| `MERCADOPAGO_WEBHOOK_SECRET` | ✅ prod | (no set) | Secreto HMAC para verificar firmas de webhooks de MercadoPago (distinto del `MERCADOPAGO_ACCESS_TOKEN`). |
 
 ### Ejemplo
 
@@ -259,19 +271,19 @@ AVEONLINE_API_KEY=avo_xxxxxxxxxxxxxxxxxxxxxxxx
 
 ## 8. NocoDB bidireccional
 
-NocoDB se usa como capa de visualización y edición de pedidos para operadores (Saramantha §10). CommerceFlow envía cambios a NocoDB (webhook out) y recibe cambios de NocoDB (webhook in).
+NocoDB se usa como capa de visualización y edición de pedidos para operadores (Saramantha §10). ZIAY envía cambios a NocoDB (webhook out) y recibe cambios de NocoDB (webhook in).
 
 | Variable | Requerido | Default | Descripción |
 |----------|-----------|---------|-------------|
-| `NOCODB_PUBLIC_URL` | ✅ prod | `https://commerceflow.example.com/nocodb` | URL pública de la instancia NocoDB (ruteada por Caddy). |
-| `NOCODB_WEBHOOK_URL` | ✅ prod | `https://commerceflow.example.com/nocodb/api/v1/db/data/noco/commerceflow/orders` | Endpoint al que CommerceFlow envía webhooks salientes hacia NocoDB. |
-| `NOCODB_WEBHOOK_SECRET` | ✅ prod | `commerceflow_nocodb_change_me` | Token secreto compartido. Se envía en el header `X-NocoDB-Secret` en ambos sentidos. |
+| `NOCODB_PUBLIC_URL` | ✅ prod | `https://ziay.co/nocodb` | URL pública de la instancia NocoDB (ruteada por Caddy). |
+| `NOCODB_WEBHOOK_URL` | ✅ prod | `https://ziay.co/nocodb/api/v1/db/data/noco/ziay/orders` | Endpoint al que ZIAY envía webhooks salientes hacia NocoDB. |
+| `NOCODB_WEBHOOK_SECRET` | ✅ prod | `change-me-in-prod` | Token secreto compartido. Se envía en el header `X-NocoDB-Secret` en ambos sentidos. |
 
 ### Ejemplo
 
 ```bash
 NOCODB_PUBLIC_URL=https://ziay.co/nocodb
-NOCODB_WEBHOOK_URL=https://ziay.co/nocodb/api/v1/db/data/noco/commerceflow/orders
+NOCODB_WEBHOOK_URL=https://ziay.co/nocodb/api/v1/db/data/noco/ziay/orders
 NOCODB_WEBHOOK_SECRET=ziay_nocodb_secret_xyz_2026
 ```
 
@@ -301,9 +313,9 @@ MINIO_ROOT_PASSWORD=super_secret_minio_password_2026
 
 ## 10. n8n (orquestación externa)
 
-n8n se usa como capa opcional de orquestación externa. Los 11 workflows JSON en `n8n-workflows/` se importan en la instancia n8n y llaman a las APIs de CommerceFlow.
+n8n se usa como capa opcional de orquestación externa. Los 11 workflows JSON en `n8n-workflows/` se importan en la instancia n8n y llaman a las APIs de ZIAY.
 
-Las variables de n8n se configuran en el contenedor Docker, no en `.env` de CommerceFlow directamente. Ver `docker-compose.yml` servicio `n8n`:
+Las variables de n8n se configuran en el contenedor Docker, no en `.env` de ZIAY directamente. Ver `docker-compose.yml` servicio `n8n`:
 
 | Variable | Servicio | Descripción |
 |----------|----------|-------------|
@@ -351,7 +363,7 @@ Caddy se configura vía `Caddyfile` (dev) o `Caddyfile.prod` (prod). Las variabl
 
 | Variable | Requerido | Default | Descripción |
 |----------|-----------|---------|-------------|
-| `DOMAIN` | ✅ prod | `commerceflow.example.com` | Dominio para el que Caddy gestiona certificados TLS. |
+| `DOMAIN` | ✅ prod | `ziay.co` | Dominio para el que Caddy gestiona certificados TLS. |
 | `ACME_EMAIL` | ❌ | `admin@{$DOMAIN}` | Email para registros ACME (Let's Encrypt / ZeroSSL). |
 
 ### Certificados
@@ -370,8 +382,8 @@ Caddy obtiene certificados automáticamente:
 ```bash
 # .env (dev)
 DATABASE_URL="file:./dev.db"
-WA_VERIFY_TOKEN=commerceflow_verify_dev
-META_VERIFY_TOKEN=commerceflow_verify_dev
+WA_VERIFY_TOKEN=dev-wa-verify-token-change-me
+META_VERIFY_TOKEN=dev-wa-verify-token-change-me
 # Todo lo demás: vacío → modo stub
 ```
 
@@ -381,7 +393,7 @@ META_VERIFY_TOKEN=commerceflow_verify_dev
 # .env (staging)
 DOMAIN=staging.ziay.co
 NEXTAUTH_URL=https://staging.ziay.co
-DATABASE_URL=postgresql://commerceflow:pass@postgres:5432/commerceflow
+DATABASE_URL=postgresql://ziay_app:pass@postgres:5432/ziay
 NEXTAUTH_SECRET=$(openssl rand -hex 32)
 N8N_ENCRYPTION_KEY=$(openssl rand -hex 32)
 WA_VERIFY_TOKEN=ziay_staging_wa_xyz

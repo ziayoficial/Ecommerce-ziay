@@ -1,6 +1,6 @@
 # Entity Relationship Diagram
 
-This document describes the core data model of ZIAY (Comercio Conversacional + Atribución Inteligente). The Prisma schema (`prisma/schema.prisma`) defines **71 models**, of which **63 are tenant-scoped** (carry a `tenantId` FK) and **8 are global** (`Setting`, `Tenant`, `AuditLog`, etc.).
+This document describes the core data model of ZIAY (Comercio Conversacional + Atribución Inteligente). The Prisma schema (`prisma/schema.prisma`) defines **78 models** in v0.4.0 (was 71 in v0.3.0), of which the tenant-scoped majority carry a `tenantId` FK and a small set are global (`Setting`, `Tenant`, `AuditLog`, etc.).
 
 > **Auto-generated ERD:** `bunx prisma generate` now emits an SVG diagram at [`docs/erd.svg`](./erd.svg) via [`prisma-erd-generator`](https://github.com/kevinswiber/prisma-erd-generator) + [`@mermaid-js/mermaid-cli`](https://github.com/mermaid-js/mermaid-cli). The SVG is the canonical visual reference; the Mermaid block below is a hand-curated overview of the key models.
 
@@ -117,9 +117,17 @@ The `MCP` route (`/api/mcp`) exposes the 4 UCP capabilities as JSON-RPC 2.0 tool
 
 ## Model Count
 
-- **Total models:** 71
-- **Tenant-scoped:** 63
+- **Total models:** 78 (v0.4.0)
+- **Tenant-scoped:** majority (FraudEvent, FraudBlocklistEntry, VelocityWindow, Refund, AuditLogExport + all v0.3.0 tenant-scoped models)
 - **Global:** 8 (Setting, Tenant, AuditLog, WebhookEvent, ApiKey, McpSession, Migration, User)
+
+## New Models in v0.4.0 (Audit & Remediation Cycle)
+
+- **`FraudBlocklistEntry`** — blocklist of card hashes, emails, IPs, device fingerprints. Queried by `fraud.service.ts` before payment link creation.
+- **`FraudEvent`** — immutable log of fraud detections (velocity trigger, OFAC match, amount-mismatch, CVV/AVS fail, chargeback received). RLS-protected (PII-bearing).
+- **`VelocityWindow`** — sliding window counters per card/IP/email for the anti-fraud velocity check.
+- **`Refund`** — refund ledger (partial/full, post-retracto, gateway dispute). Fed by `POST /api/orders/[id]/refund` + Stripe refund/dispute webhooks.
+- **`AuditLogExport`** — manifest of each JSONL export to `data/cold-storage/` with SHA-256 checksum. Required before any `AuditLog` row deletion (Ley 1581 retention).
 
 ## New Models in v0.3.0 (Sprint 12-14)
 

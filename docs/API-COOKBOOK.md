@@ -121,3 +121,63 @@ curl -b cookies.txt -X POST http://localhost:3000/api/llm/budget \
     "monthlyBudgetUsd": 300
   }'
 ```
+
+## Issue a Refund (v0.4.0)
+
+Admin or operator can issue a refund against an order; the refund is recorded
+in the `Refund` ledger with audit trail, and (if a gateway transaction is
+referenced) a fire-and-forget gateway refund is dispatched.
+
+```bash
+curl -b cookies.txt -X POST http://localhost:3000/api/orders/order-123/refund \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tenantId": "ten-saramantha",
+    "amount": 50000,
+    "currency": "COP",
+    "reason": "post-retracto Ley 1480 Art 47",
+    "gatewayRef": "pi_3OxyzStripePaymentIntent"
+  }'
+```
+
+## List Refunds for an Order (v0.4.0)
+
+```bash
+curl -b cookies.txt "http://localhost:3000/api/orders/order-123/refunds?tenantId=ten-saramantha"
+```
+
+## Retry a Failed DIAN Submission (v0.4.0)
+
+If an invoice's DIAN submission ended up in `pending` or `error` state, an
+admin can re-trigger submission via Alegra:
+
+```bash
+curl -b cookies.txt -X POST http://localhost:3000/api/compliance/dian-retry \
+  -H "Content-Type: application/json" \
+  -d '{
+    "invoiceId": "inv-abc123",
+    "tenantId": "ten-saramantha"
+  }'
+```
+
+## Migrate Gateway Credentials to AES-256-GCM (v0.4.0)
+
+One-shot admin tool to migrate existing plaintext gateway credentials in the
+DB to encrypted (AES-256-GCM) form. Idempotent — already-encrypted rows are
+skipped. Requires `ENCRYPTION_KEY` to be set.
+
+```bash
+curl -b cookies.txt -X POST http://localhost:3000/api/admin/migrate-credentials \
+  -H "Content-Type: application/json" \
+  -d '{ "dryRun": false }'
+```
+
+## Fetch Dynamic OG Image (v0.4.0)
+
+The `/og` route returns a 1200×630 PNG (Edge runtime, ISR 1h) suitable for
+social-media sharing. Override the default title/subtitle via query params:
+
+```bash
+curl -o og.png "http://localhost:3000/og?title=Mi%20Pedido&subtitle=Saramantha"
+# → 200 OK, Content-Type: image/png, ~135 KB
+```

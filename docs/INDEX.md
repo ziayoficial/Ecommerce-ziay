@@ -1,27 +1,27 @@
 # ZIAY Documentation Index
 
-> **v0.3.0** · Score 10.0/10 · 71 Prisma models · 94 API routes · 891 tests · 21 ADRs · 5 protocols (AP2/UCP/ACP/MCP/A2A) · 7 currencies · 4 locales · 8 payment methods · 16 Docker services · 26 AI agents.
+> **v0.4.0** · Fintech audit **8.8/10** (3 iterations: V1 5.5 → V2 7.7 → V3 8.8) · 78 Prisma models · 114 API routes · 986 unit tests + 52 E2E · 22 ADRs · 5 protocols (AP2/UCP/ACP/MCP/A2A) · 7 currencies · 4 locales · 8 functional payment methods (4 card + 4 local: PSE/PIX/OXXO/SPEI) · 16 Docker services · 27 AI agents · 35 RLS policies · CI 6/6 green.
 
 ## Top-Level Docs
 
 - [README](../README.md) — Quick Start + Tech Stack + Status badges
-- [Changelog](../CHANGELOG.md) — Keep-a-Changelog format (v0.1.0 → v0.3.0)
-- [Release Notes](../RELEASE-NOTES.md) — v0.3.0 highlights + migration guide
-- [Final Report](./FINAL-REPORT.md) — v0.3.0 scorecard + journey (10.0/10)
+- [Changelog](../CHANGELOG.md) — Keep-a-Changelog format (v0.1.0 → v0.4.0)
+- [Release Notes](../RELEASE-NOTES.md) — v0.4.0 highlights + migration guide
+- [Final Report](./FINAL-REPORT.md) — v0.4.0 scorecard + 3-iteration audit journey (8.8/10)
 - [Production Checklist](../PRODUCTION-CHECKLIST.md) — pre-launch items + ✅ status
-- [Contributing](../CONTRIBUTING.md) — dev setup + commit conventions
+- [Contributing](../CONTRIBUTING.md) — dev setup + commit conventions + CI pipeline
 
 ## Architecture
 
 - [Master Architecture](../upload/MAESTRO-arquitectura.md) — design, stack, modeling, security, scaling
 - [Technical Summary](../upload/RESUMEN-TECNICO-COMPLETO.md) — full technical deep dive
 - [Enterprise Plan](../upload/PLAN-ENTERPRISE-COMERCIO-AGENTICO.md) — Revenue Operations positioning
-- [ERD (auto-generated SVG)](./erd.svg) — 71 Prisma models
+- [ERD (auto-generated SVG)](./erd.svg) — 78 Prisma models
 - [ERD (Mermaid)](./ERD.md) — hand-curated relationship diagram
-- [ADRs (21)](./adr/README.md) — architectural decisions (README + 0001-0020)
+- [ADRs (22)](./adr/README.md) — architectural decisions (README + 0001-0021)
 - [Meta Agent Decision](./META-AGENT-DECISION.md) — own_stack vs Meta Business Agent
 
-## ADRs (Architecture Decision Records) — 21 files
+## ADRs (Architecture Decision Records) — 22 files
 
 - [README](./adr/README.md) — ADR index + format
 - [0001 Multi-tenant RBAC](./adr/0001-multi-tenant-rbac.md)
@@ -44,6 +44,15 @@
 - [0018 Webhook Signature Rotation](./adr/0018-webhook-signature-rotation.md)
 - [0019 Automated Refund Post-Retracto](./adr/0019-automated-refund-retracto.md)
 - [0020 DIAN Alegra Integration](./adr/0020-dian-alegra-integration.md)
+- [0021 Escrow Design](./adr/0021-escrow-design.md)
+
+## Audit Reports (v0.4.0 cycle)
+
+- [Fintech Audit V3 (Final)](../public/presentaciones/AUDITORIA-FINTECH-V3-FINAL.md) — score 8.8/10, 28-item backlog closed
+- [Fintech Audit V2](../public/presentaciones/AUDITORIA-FINTECH-V2.md) — score 7.7/10, mid-cycle
+- [Fintech Audit V1](../public/presentaciones/AUDITORIA-FINTECH.md) — score 5.5/10, baseline
+- [Full Security + Code + Test Audit](../public/presentaciones/AUDITORIA-FULL-SECURITY-CODE-TEST.md) — non-fintech dimensions
+- [Full UX + SEO + Docs + Deploy Audit](../public/presentaciones/AUDITORIA-FULL-UX-SEO-DOCS-DEPLOY.md) — UX/SEO/docs/deploy
 
 ## Onboarding
 
@@ -67,7 +76,7 @@
 
 - [OpenAPI 3.1 Spec](./openapi.yaml) — 93 paths, 136 operationIds, 20 tags
 - [API Docs (ReDoc)](/docs) — tag-grouped sidebar
-- [API Manifest](/api-docs) — JSON list of routes
+- [API Manifest](/api-docs) — JSON list of routes (114 total)
 
 ## Compliance
 
@@ -90,18 +99,23 @@
 
 | Metric | Value |
 |--------|-------|
-| Prisma models | 71 |
-| API routes | 94 |
-| Tests | 891 (48 files) |
-| ADRs | 21 |
+| Prisma models | 78 (was 71) |
+| API routes | 114 (was 94) |
+| Unit tests | 986 (51 files, was 964) |
+| E2E tests (Playwright) | 52 passing |
+| ADRs | 22 (README + 0001-0021) |
 | OpenAPI paths | 93 |
 | Docker services | 16 |
-| Dashboard views | 21 |
-| LLM agents | 26 |
+| Dashboard views | 16 (was 14) |
+| LLM agents | 27 (was 26) |
 | Protocols | 5 (AP2/UCP/ACP/MCP/A2A) |
 | Currencies | 7 |
 | Locales | 4 |
-| Payment methods | 8 |
-| Lint / TSC / Redocly errors | 0 / 0 / 0 |
-| Build time | 30.2s |
-| Score | 10.0/10 |
+| Payment methods | 8 functional (4 card + 4 local: PSE/PIX/OXXO/SPEI) |
+| Anti-fraud service | Full (velocity, blocklist, OFAC, 3DS, CVV/AVS) |
+| Credential encryption | AES-256-GCM at-rest |
+| RLS policies | 35 (was 10) |
+| Lint / TSC / Redocly errors | 0 / 0 / 0 (was 58 TSC errors before remediation) |
+| CI pipeline | 6/6 green (lint, typecheck, unit, openapi, build, e2e) |
+| Build time | 32.4s |
+| Fintech audit score | 8.8/10 (3 iterations) |

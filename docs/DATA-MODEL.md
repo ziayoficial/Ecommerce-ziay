@@ -1,9 +1,31 @@
-# Modelo de Datos — CommerceFlow OS
+# Modelo de Datos — ZIAY
 
-Documentación de los **31 modelos Prisma** de CommerceFlow OS, organizados por sección funcional, con su propósito, campos clave, relaciones y referencia a la sección del documento Saramantha que implementan.
+Documentación de los **31 modelos Prisma** originales de ZIAY, organizados por sección funcional, con su propósito, campos clave, relaciones y referencia a la sección del documento Saramantha que implementan.
 
 > 📖 Para la referencia de API que consume estos modelos ver [`API-REFERENCE.md`](./API-REFERENCE.md).
 > 📖 Para el archivo de schema completo ver [`../prisma/schema.prisma`](../prisma/schema.prisma) (SQLite dev) y [`../prisma/postgres/schema.postgres.prisma`](../prisma/postgres/schema.postgres.prisma) (Postgres + pgvector prod).
+
+> **v0.4.0 update**: El schema total ahora tiene **78 modelos Prisma** (era 71
+> en v0.3.0, 31 en el doc original). Los modelos nuevos del ciclo de audit +
+> remediation son:
+>
+> - **`FraudBlocklistEntry`** — blocklist de hashes de tarjeta, emails, IPs y
+>   device fingerprints (anti-fraud service, v0.4.0).
+> - **`FraudEvent`** — log inmutable de eventos de fraude detectados
+>   (velocity, OFAC match, amount-mismatch, CVV/AVS fail). Cubierto por RLS
+>   (PII-bearing).
+> - **`VelocityWindow`** — ventanas deslizantes por tarjeta/IP/email para el
+>   velocity check del anti-fraud service.
+> - **`Refund`** — ledger de reembolsos (parcial/full, post-retracto, gateway
+>   dispute). Alimenta el dashboard financiero y los webhooks de Stripe
+>   refund/dispute.
+> - **`AuditLogExport`** — manifiesto de cada export JSONL al cold-storage
+>   (`data/cold-storage/`) con SHA-256 checksum. Pre-requisito del delete
+>   físico de `AuditLog` rows (Ley 1581 retention policy).
+>
+> Otros modelos añadidos en sprints 8-14: ver `prisma/schema.prisma` para el
+> listado completo (Wallet, Withdrawal, CommissionEntry, IdentityVerification,
+> ConsentRecord, StatusCheck, StatusIncident, UcpCheckoutSession, etc.).
 
 ---
 
@@ -101,7 +123,7 @@ Documentación de los **31 modelos Prisma** de CommerceFlow OS, organizados por 
 
 ### `Tenant`
 
-**Propósito**: Modelo central del multi-tenant. Cada fila representa una marca/cliente que usa CommerceFlow OS. Implementa `clientes_plataforma` del documento Saramantha §1.
+**Propósito**: Modelo central del multi-tenant. Cada fila representa una marca/cliente que usa ZIAY. Implementa `clientes_plataforma` del documento Saramantha §1.
 
 **Saramantha**: §1 (multi-tenant), §2 (configuración de marca)
 
@@ -495,7 +517,7 @@ Documentación de los **31 modelos Prisma** de CommerceFlow OS, organizados por 
 
 ### `CartSync`
 
-**Propósito**: Sincronización bidireccional del pedido entre CommerceFlow y la plataforma de ecommerce del tenant.
+**Propósito**: Sincronización bidireccional del pedido entre ZIAY y la plataforma de ecommerce del tenant.
 
 **Saramantha**: §2 (carrito_sync)
 

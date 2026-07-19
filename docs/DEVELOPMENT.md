@@ -1,4 +1,4 @@
-# Guía de Desarrollo — CommerceFlow OS
+# Guía de Desarrollo — ZIAY
 
 Esta guía te lleva desde cero hasta tener el dashboard corriendo localmente con datos reales, los 9 módulos funcionando, y te explica cómo extender el sistema (nuevos agentes, nuevos adaptadores).
 
@@ -53,8 +53,8 @@ bun --version
 ### 1. Clonar el repo
 
 ```bash
-git clone https://github.com/ziay/commerceflow-os.git
-cd commerceflow-os
+git clone https://github.com/ziayoficial/Ecommerce-ziay.git
+cd Ecommerce-ziay
 ```
 
 ### 2. Instalar dependencias
@@ -83,11 +83,20 @@ Las demás variables son opcionales — si no las configuras, los adaptadores y 
 ### 4. Crear la base de datos y generar el cliente Prisma
 
 ```bash
-bun run db:push      # Crea/actualiza el schema SQLite
+bun run db:push      # Crea/actualiza el schema (auto-detecta SQLite/Postgres via scripts/db-push.ts)
 bun run db:generate  # Regenera el cliente Prisma tipado
 ```
 
-> ⚠️ **Importante**: si modificas `prisma/schema.prisma`, **siempre** corre `db:push` + `db:generate` antes de levantar el dev server. Si el dev server sigue mostrando "db.X is undefined" para un modelo nuevo, mata el proceso `next dev` (puede tener un `globalThis.prisma` cacheado) y reinicia. Ver [Troubleshooting](#troubleshooting).
+> 💡 **v0.4.0**: `bun run db:push` y `bun run db:seed` son **smart scripts**
+> (`scripts/db-push.ts` y `scripts/db-seed.ts`) que auto-detectan el provider
+> de Prisma (`sqlite` para dev / `postgresql` para staging+prod) y rutean en
+> consecuencia — no necesitas editar manualmente `schema.prisma`.
+>
+> ⚠️ **Importante**: si modificas `prisma/schema.prisma`, **siempre** corre
+> `db:push` + `db:generate` antes de levantar el dev server. Si el dev server
+> sigue mostrando "db.X is undefined" para un modelo nuevo, mata el proceso
+> `next dev` (puede tener un `globalThis.prisma` cacheado) y reinicia. Ver
+> [Troubleshooting](#troubleshooting).
 
 ---
 
@@ -163,7 +172,8 @@ Luego accede al dashboard vía `http://localhost:81` (en vez de `:3000`). Esto t
 ### Seed base — 4 marcas ZIAY + tenant INTL
 
 ```bash
-bun run prisma/seed.ts
+bun run db:seed   # Smart script (scripts/db-seed.ts) — auto-detecta provider
+# o equivalentemente: bun run prisma/seed.ts
 ```
 
 Crea:
@@ -318,6 +328,7 @@ Si todos devuelven 200 con datos coherentes, el sistema está sano.
 ```bash
 bun run lint
 # → Debe dar 0 errores. Warnings aceptables pero se prefieren resolver.
+#    En v0.4.0 hay 38 warnings (pre-existentes en scripts/tests/legacy adapters).
 ```
 
 Configuración en `eslint.config.mjs` (ESLint 9 flat config + `eslint-config-next`).
@@ -327,7 +338,33 @@ Configuración en `eslint.config.mjs` (ESLint 9 flat config + `eslint-config-nex
 ```bash
 npx tsc --noEmit
 # → 0 errores esperados en src/, scripts/, prisma/
-# (puede haber errores en examples/ y skills/ que están fuera de scope)
+#    En v0.4.0: 0 errores (fue 58 antes de la remedación del audit cycle).
+#    `next.config.ts` tiene `typescript.ignoreBuildErrors: false` (gate real).
+```
+
+### Tests (v0.4.0)
+
+```bash
+bun run test        # 986 unit tests (51 archivos) — fue 964 antes del audit cycle
+bun run test:e2e    # 52 tests Playwright (7 spec files)
+```
+
+### CI Pipeline
+
+El repo tiene CI configurado en `.github/workflows/ci.yml` con **6 jobs** que se
+corren en cada push / PR a `main`:
+
+1. **lint** — `bun run lint` (0 errores)
+2. **typecheck** — `npx tsc --noEmit` (0 errores)
+3. **unit-tests** — `bun run test` (986 tests)
+4. **openapi** — `bun run openapi:validate` (valida `docs/openapi.yaml`)
+5. **build** — `bun run build` (Next.js production build con provider PostgreSQL)
+6. **e2e** — `bun run test:e2e` (52 tests Playwright)
+
+Todos los 6 jobs deben estar **green** antes de mergear un PR. Pre-flight local:
+
+```bash
+bun run lint && npx tsc --noEmit && bun run test && bun run test:e2e
 ```
 
 ### Si rompes algo
@@ -344,7 +381,7 @@ bunx eslint src/ --quiet
 
 ## Cómo añadir un nuevo agente conversacional
 
-Sigue el patrón de los 10 agentes en `src/lib/agents/prompts.ts`. Ver [`CONTRIBUTING.md`](../CONTRIBUTING.md#cómo-añadir-un-nuevo-agente-conversacional) para el ejemplo paso a paso.
+Sigue el patrón de los **27 agentes** en `src/lib/agents/prompts.ts`. Ver [`CONTRIBUTING.md`](../CONTRIBUTING.md#cómo-añadir-un-nuevo-agente-conversacional) para el ejemplo paso a paso.
 
 Resumen:
 
@@ -505,8 +542,8 @@ Reinicia el dev server y vuelve a probar.
 
 ## Próximos pasos
 
-- 📖 Lee [`docs/DATA-MODEL.md`](./DATA-MODEL.md) para entender el schema.
-- 📖 Lee [`docs/AGENTS-REFERENCE.md`](./AGENTS-REFERENCE.md) para entender los 10 agentes.
+- 📖 Lee [`docs/DATA-MODEL.md`](./DATA-MODEL.md) para entender el schema (78 modelos Prisma).
+- 📖 Lee [`docs/AGENTS-REFERENCE.md`](./AGENTS-REFERENCE.md) para entender los 27 agentes.
 - 📖 Lee [`docs/ADAPTERS.md`](./ADAPTERS.md) para entender la capa de adaptadores.
 - 📖 Lee [`docs/PRODUCTION-CHECKLIST.md`](./PRODUCTION-CHECKLIST.md) antes de desplegar.
 - 📖 Lee [`upload/onboarding-end-to-end.md`](../upload/onboarding-end-to-end.md) para el onboarding completo de 2.006 líneas.

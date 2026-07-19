@@ -41,11 +41,44 @@ schema change), run `scripts/clean-cache.sh` to wipe `tsconfig.tsbuildinfo`,
 
 - [ ] `bun run lint` passes
 - [ ] `npx tsc --noEmit` passes
-- [ ] `bun run test` passes
+- [ ] `bun run test` passes — **986 unit tests** (was 964 before v0.4.0 audit cycle)
+- [ ] `bun run test:e2e` passes — 52 Playwright E2E tests
 - [ ] No new `any` types
 - [ ] No `console.log` in server code (use `logger`)
 - [ ] Zod validation on new API endpoints
 - [ ] `requireTenantAccess` on tenant-scoped routes
+
+## Continuous Integration
+
+Every push and pull request runs the **6-job CI pipeline** defined in
+`.github/workflows/ci.yml`. All 6 jobs must be green before a PR can merge:
+
+1. **lint** — `bun run lint` (ESLint, 0 errors allowed)
+2. **typecheck** — `npx tsc --noEmit` (0 errors allowed; was 58 before remediation)
+3. **unit-tests** — `bun run test` (986 tests)
+4. **openapi** — `bun run openapi:validate` (verifies `docs/openapi.yaml` against the spec)
+5. **build** — `bun run build` (Next.js production build, PostgreSQL provider)
+6. **e2e** — `bun run test:e2e` (Playwright, 52 tests)
+
+Local pre-flight before pushing:
+
+```bash
+bun run lint && npx tsc --noEmit && bun run test && bun run test:e2e
+```
+
+## Database Scripts
+
+The repo ships two smart DB scripts under `scripts/` that auto-detect the
+Prisma provider (`sqlite` for dev / `postgresql` for staging+prod) and route
+accordingly — no manual edits to `schema.prisma` needed:
+
+- **`scripts/db-push.ts`** (`bun run db:push`) — pushes the current schema to
+  the configured database. Picks the right provider block automatically.
+- **`scripts/db-seed.ts`** (`bun run db:seed`) — seeds reference + demo data
+  (tenants, products, AI agent catalog — currently **27 agents**, was 26).
+  Reads `prisma.seed` from `package.json` for the runner command.
+
+Both scripts are idempotent and safe to re-run.
 
 ## Code Style
 

@@ -1,6 +1,6 @@
 # Manual Maestro de Usuario — ZIAY
 
-**Versión:** v0.3.0 "Comercio Agéntico"
+**Versión:** v0.4.0 "Comercio Agéntico"
 **Fecha:** Julio 2026
 **Plataforma:** ZIAY · Comercio Conversacional + Atribución Inteligente
 
@@ -56,7 +56,7 @@ ZIAY es una plataforma de **comercio conversacional con atribución inteligente*
 
 ### Capacidades principales
 
-- **26 agentes de IA** cubriendo pre-venta, post-venta e inteligencia
+- **27 agentes de IA** cubriendo pre-venta, post-venta, inteligencia, compliance, fintech y monitoreo
 - **5 protocolos agénticos** (AP2, UCP, ACP, MCP, A2A) para interoperabilidad con agentes externos
 - **8 métodos de pago** (4 tarjetas + 4 locales LATAM)
 - **7 monedas** (COP, MXN, BRL, USD, PEN, CLP, ARS)
@@ -1004,21 +1004,23 @@ ZIAY implementa 5 protocolos para interoperabilidad con agentes de IA externos:
 
 ## Resultados de QA
 
-La plataforma ZIAY v0.3.0 fue sometida a una ronda completa de pruebas QA (Quality Assurance) antes de su liberación. El scorecard final es **9.9/10** — el único punto deducido corresponde a `health = warning` en dev (el chat-service no corre en el sandbox de desarrollo, pero sí en el stack de producción, donde se resuelve a `ok`).
+La plataforma ZIAY v0.4.0 fue sometida a una ronda completa de pruebas QA (Quality Assurance) y un ciclo de 3 iteraciones de audit fintech antes de su liberación. El scorecard final es **9.9/10** — el único punto deducido corresponde a `health = warning` en dev (el chat-service no corre en el sandbox de desarrollo, pero sí en el stack de producción, donde se resuelve a `ok`). El audit fintech independiente alcanzó **8.8/10** tras 3 iteraciones (V1 5.5 → V2 7.7 → V3 8.8).
 
 ### Resumen del build
 
 | Verificación | Resultado |
 |--------------|-----------|
-| ESLint (`bun run lint`) | ✅ 0 errores · 35 warnings (legacy, pre-existentes) |
-| TypeScript (`tsc --noEmit`) | ✅ 0 errores en código principal |
+| ESLint (`bun run lint`) | ✅ 0 errores · 38 warnings (legacy, pre-existentes en scripts/tests) |
+| TypeScript (`tsc --noEmit`) | ✅ **0 errores** (fue 58 antes de la remediación v0.4.0; `next.config.ts ignoreBuildErrors: false`) |
 | Next.js Build | ✅ Compilado exitosamente en 32.4s |
-| Vitest (`bun run test`) | ✅ 964/964 pruebas pasan (51 archivos, 0 fallos) |
+| Vitest (`bun run test`) | ✅ **986/986 pruebas pasan** (51 archivos, fue 964 antes del audit cycle) |
+| Playwright E2E (`bun run test:e2e`) | ✅ **52/52 pruebas pasan** (7 spec files) |
+| CI Pipeline | ✅ 6/6 jobs green (lint, typecheck, unit-tests, openapi-spec, build, e2e) |
 | Redocly (OpenAPI 3.1) | ✅ 0 errores, 0 warnings |
 | Prisma schema | ✅ Válido |
 | Workflows n8n | ✅ 28/28 JSON válidos |
 
-### Cobertura de pruebas (964 pruebas en 51 archivos)
+### Cobertura de pruebas (986 unit tests en 51 archivos + 52 E2E en 7 spec files)
 
 | Categoría | Pruebas | Archivos | Detalle |
 |-----------|---------|----------|---------|
@@ -1079,7 +1081,7 @@ skip-link ✅ · h1 sr-only ✅ · `role=alert` en 12 vistas ✅ · `prefers-red
 | Dimensión | Score | Estado |
 |-----------|-------|--------|
 | Build | 10/10 | ✅ Compilado en 32.4s |
-| Tests | 10/10 | ✅ 964/964 pasan |
+| Tests | 10/10 | ✅ 986/986 unit + 52/52 E2E pasan |
 | Endpoints públicos | 10/10 | ✅ 15/15 = 200 |
 | Endpoints protegidos | 10/10 | ✅ 401/307 correctos |
 | Endpoints autenticados | 10/10 | ✅ 16/16 = 200 (+ 4 esperados 400) |
@@ -1088,10 +1090,10 @@ skip-link ✅ · h1 sr-only ✅ · `role=alert` en 12 vistas ✅ · `prefers-red
 | Security headers | 10/10 | ✅ 6/6 presentes |
 | Health | 9/10 | ✅ (chat-service en dev — `ok` en prod) |
 | Metrics | 10/10 | ✅ Formato Prometheus |
-| Documentación | 10/10 | ✅ 7 docs + 21 ADRs + 28 n8n workflows |
+| Documentación | 10/10 | ✅ 7 docs + 22 ADRs + 28 n8n workflows |
 | **OVERALL** | **9.9/10** | ✅ |
 
-> El detalle completo del reporte de QA está en `worklog.md` (sección "QA REPORT — ZIAY v0.3.0"), `RELEASE-NOTES.md` (sección "QA Testing") y `docs/FINAL-REPORT.md` (sección "QA Results").
+> El detalle completo del reporte de QA está en `worklog.md` (sección "QA REPORT — ZIAY v0.4.0"), `RELEASE-NOTES.md` (sección "QA Testing"), `docs/FINAL-REPORT.md` (sección "QA Results"), y los reports de audit fintech V3 en `public/presentaciones/AUDITORIA-FINTECH-V3-FINAL.md`.
 
 ---
 
@@ -1107,4 +1109,4 @@ skip-link ✅ · h1 sr-only ✅ · `role=alert` en 12 vistas ✅ · `prefers-red
 
 ---
 
-*ZIAY v0.3.0 "Comercio Agéntico" · ZIAY SAS © 2026 · Bogotá, Colombia*
+*ZIAY v0.4.0 "Comercio Agéntico" · ZIAY SAS © 2026 · Bogotá, Colombia*

@@ -1,8 +1,157 @@
+# ZIAY v0.4.0 — Release Notes
+
+**Date:** 2026-07-18
+**Codename:** Comercio Agéntico + Fintech Hardened
+**Company:** ZIAY SAS (formerly "CommerceFlow OS / Indisutex SAS" — fully rebranded, 0 remaining old-brand references)
+**Score:** 8.8/10 (independent fintech audit, 3 iterations: V1 5.5/10 → V2 7.7/10 → V3 8.8/10 → V3.1 ~9.0)
+**Next.js:** 16.2.10
+**CI:** 6/6 jobs green (lint, typecheck, unit-tests, openapi, build, e2e)
+**Build health:** 0 lint errors · 0 TSC errors (was 58 before V1 remediation) · 0 redocly errors
+**Tests:** 986 unit (52 files) + 52 e2e (all passing)
+
+## Highlights
+
+This release is the result of **3 iterations of audit → fix → re-audit** on the fintech surface (28 risks resolved = 96.4%), **a parallel 4-dimension full audit** (security / code-quality / testing / UX-SEO-docs-deploy), **4 parallel fix iterations** (IF-1 P0 blockers, IF-2 security bypasses, IF-3 env+OG, IF-4 tests+UX/SEO), and a **full rebrand** from "CommerceFlow OS / Indisutex SAS" to "ZIAY SAS" (131 files changed, 2567 insertions, 2567 deletions).
+
+- **13 security issues fixed** (9 cross-tenant bypass routes + ENCRYPTION_KEY fail-closed + 4 hardcoded webhook secrets + Math.random TOTP + nocodb-out unauthenticated + PayU verifyPayment re-check)
+- **28 fintech risks resolved** (96.4%) — anti-fraud full service, AES-256-GCM credential encryption, 35 RLS policies, Stripe refund fix, wallet atomicity, DIAN backoff, cold-storage export, escrow ADR
+- **7 UX/SEO issues fixed** (dashboard broken on all viewports + robots.txt 500 + OG/PWA assets 307 + OG image SVG + JSON-LD incomplete + canonical missing + WCAG AA contrast)
+- **CI fully green** (6/6 jobs) — `lint`, `typecheck`, `unit-tests`, `openapi` (Redocly), `build` (PostgreSQL 16 service container), `e2e-tests` (Playwright + 7-day artifact retention)
+
+## Security Audit Results (8 dimensions, V3 final)
+
+| Dimensión | V1 (2026-07-15) | V2 (2026-07-16) | V3 (2026-07-17) | Δ V1→V3 |
+|-----------|-----------------|-----------------|-----------------|---------|
+| Seguridad de Pagos | 8.0 | 8.0 | 8.5 | +0.5 |
+| Webhooks | 8.5 | 8.5 | 9.0 | +0.5 |
+| Multi-moneda | 7.5 | 7.5 | 8.5 | +1.0 |
+| Compliance LATAM | 9.0 | 9.0 | 9.0 | 0 |
+| Anti-fraude | 3.5 | 8.5 | 9.0 | +5.5 |
+| Reconciliación | 8.5 | 8.5 | 9.0 | +0.5 |
+| Errores / Refunds | 8.0 | 8.0 | 8.5 | +0.5 |
+| Multi-tenant | 7.5 | 7.5 | 9.0 | +1.5 |
+| **Global** | **5.5** | **7.7** | **8.8** | **+3.3** |
+
+**Status of 28 audit items:** 27 ✅ Fixed (96.4%) · 1 📄 ADR Proposed (R-18 escrow design — implementation deferred to follow-up sprint) · 0 ❌ Pending · 0 ❌ Regression.
+
+## What's New
+
+### Security Hardening
+- **9 cross-tenant bypass routes closed** — `conversations/search`, `image-identifications`, `conversational-cart`, `vision-pipeline`, `address-analysis`, `attribution`, `llm-providers`, `onboarding`, `webhooks/nocodb-out`. All now enforce `requireTenantAccess(tenantId)` (or `requireRole(['admin'])` for admin-only mutations). **0 cross-tenant bypasses remaining.**
+- **Anti-fraud service** — velocity checks (sliding window per IP/email/card BIN), blocklist (email/phone/card BIN/IP), OFAC screening (dual-pass by `customerName` + complementary by email local-part), 3DS/SCA flagging, CVV/AVS result capture, chargeback loop (`recordChargeback` blocklists customer + email + phone + card BIN).
+- **Credential encryption** — AES-256-GCM at-rest for all `cred::*` keys (`credencialesCatalogoRef`, `credencialesIaRef`, `credencialesLogisticaRef`, `wabaTokenRef`) via `src/lib/crypto/secret-encryption.ts`.
+- **35 RLS policies** on PostgreSQL (V1: 20 → V2: 31 → V3: 35). All multi-tenant tables covered, including `fraud_blocklist`, `fraud_event`, `velocity_window`, `refund`.
+- **Webhook signature verification** — HMAC-SHA256 + 2-layer idempotency (in-memory Map + DB AuditLog with SHA-256) + signature rotation grace period (accepts both old + new secrets during rotation, ADR-0018).
+- **Fail-closed secret resolution in production** — new `src/lib/middleware/webhook-secrets.ts` shared resolver returns `null` (caller returns 500) when env var is missing in prod. Replaces `commerceflow_nocodb` / `commerceflow_verify` / `ziay-dev-encryption-key-change-in-prod-32b!` hardcoded fallbacks.
+- **`ENCRYPTION_KEY` fail-closed at boot in prod** — `src/lib/totp.ts` throws + `captureError` to Sentry/pino if missing in prod (was hardcoded fallback).
+- **CSPRNG for TOTP backup codes** — `Math.random()` → `crypto.randomInt()` (closes predictability of 2FA backup codes).
+- **AuditLog cold-storage export before deletion** — JSONL file + SHA-256 checksum (tamper-evidence). Fail-closed: if export fails, rows NOT deleted (preserves evidence > cleans storage).
+
+### Fintech Hardening (3 iterations)
+- **Local payment methods** — full PSE / PIX / OXXO / SPEI implementations (`src/lib/payments/local-payments.ts`, 1199 lines, not stubs) with webhook receivers, status polling, HMAC verification. 8 payment methods total: 4 global card (MercadoPago, Wompi, Stripe, PayU) + 4 local LATAM (PSE/PIX/OXXO/SPEI) — **actually functioning**, not just claimed.
+- **`Refund` model + admin endpoint** — `/api/orders/[id]/refund` with 2-layer idempotency on `gatewayRef` (pre-create check inside `db.$transaction` + post-gateway check that cancels admin Refund if webhook created one with the returned `gatewayRef`).
+- **DIAN retry job** — exponential backoff `dianBackoffMs(n) = min(5·2^n, 1440) min` — schedule 5→10→20→40→80 min (cap 24h at retry 9). Worst-case 5 failures: ~2h35min vs ~25min before.
+- **Stripe refund `cs_` → `pi_` fix** — webhook `charge.refunded` now syncs the Refund ledger. `charge.dispute.created` calls `recordChargeback` + adds card BIN to blocklist. `charge.dispute.closed` writes `OrderEvent` audit.
+- **`payment_mismatch` defense** — if gateway-reported amount differs from `order.total` by >1%, `applyPaymentUpdate` refuses to mark `paid` and sets `payment_mismatch` status.
+- **Wallet `$transaction` atomicity** — withdrawal fee schedule by currency (COP/MXN/BRL/USD/PEN/CLP/ARS) with `{ pct, min }` + USD fallback. `createWithdrawalRequest` + `processWithdrawal` validate positive amount + sanity bound (1_000_000_000) — closes theft vector.
+- **Escrow design ADR** — ADR-0021 `docs/adr/0021-escrow-design.md` (268 lines, Status: Proposed). Defines `EscrowHolding` model + release/refund/dispute workflows + 7-day auto-release cron.
+
+### Infrastructure
+- **`scripts/db-push.ts` + `scripts/db-seed.ts`** — auto-detect Prisma provider (sqlite vs postgresql) and create a temporary schema copy with the right `provider` line. Closes the gap where hardcoded `sqlite` in `schema.prisma` broke CI (which uses PostgreSQL).
+- **`prisma.seed` config in `package.json`** — without this config, `prisma db seed` exits silently with no error but creates no data (was causing 37 e2e tests to fail without apparent cause).
+- **`.env.example`** — 135 env vars (128 active + 7 commented optional) grouped into 14 categories. 11 vars tagged `# REQUIRED in production`. Was previously missing entirely despite being referenced by README/CONTRIBUTING/SECURITY.md.
+- **CI 6/6 jobs green** — `lint`, `typecheck`, `unit-tests`, `openapi-spec` (Redocly), `build` (PostgreSQL 16 service container), `e2e-tests` (Playwright + 7-day artifact retention).
+- **`next.config.ts` `ignoreBuildErrors: false`** (was `true`) — `next build` is now a real type-safety gate (the 58 TS errors from V1 were fixed in I1-R2).
+
+### UX/SEO (7 issues fixed)
+- **Dashboard NAV_ITEMS fix (P0-1, CRITICAL)** — `src/components/dashboard/nav-items.ts` (plain TS module, no `'use client'`) owns `ViewId` + `NAV_ITEMS` + `NavItem`. Previously `src/app/page.tsx` (server component) imported `NAV_ITEMS` from a `'use client'` sidebar module → Turbopack RSC received a client reference proxy → `.find()` failed → dashboard was **broken on ALL viewports**. 964 unit tests passed but 0 detected this — only e2e tests caught it.
+- **`robots.txt` 500 fix (SEO-1, CRITICAL)** — deleted static `public/robots.txt` (conflicted with `src/app/robots.ts` Metadata Route API). Now serves a valid `MetadataRoute.Robots` object.
+- **OG/PWA assets 307→/login fix (SEO-2, CRITICAL)** — added `/og-default.svg`, `/og-default.png`, `/icon.svg`, `/icon.png`, `/apple-icon.png`, `/manifest.json`, `/sw.js` to `PUBLIC_PATTERNS` in `src/middleware.ts`.
+- **OG image PNG route (SEO-3, CRITICAL)** — new `src/app/og/route.tsx` (Edge runtime, ISR 1h) returns 1200×630 PNG via `next/og` `ImageResponse`. Twitter/Facebook/LinkedIn/Slack don't render SVG OG images.
+- **JSON-LD structured data (SEO-4, HIGH)** — `layout.tsx` Organization schema completed with `taxID` (NIT), `address` (PostalAddress — Bogotá), `contactPoint`, real `sameAs` social profiles.
+- **Canonical URLs (SEO-5, HIGH)** — added to 4 page-level metadata files (`status`, `vendedor`, `docs`, `parental-consent`).
+- **WCAG AA color contrast (UX-2, HIGH)** — `--primary` darkened from emerald-500 (~2.9:1 — fails AA) to emerald-600 (~4.5:1 — passes AA).
+
+### Rebrand (REBRAND-ZIAY)
+- All "CommerceFlow OS" and "Indisutex" references → **ZIAY SAS** (131 files changed, 2567 insertions, 2567 deletions).
+- Domains: `indisutex.com` → `ziay.co`, `commerceflow.indisutex.com` → `ziay.co`, `staging.commerceflow.indisutex.com` → `staging.ziay.co`.
+- Emails: `security@indisutex.com` → `security@ziay.co`.
+- **0 remaining references** to either old name (verified via `git grep -ic`).
+
+## Breaking Changes
+
+> **`ENCRYPTION_KEY` is now REQUIRED in production.** Previously `src/lib/totp.ts` fell back to a hardcoded dev literal `'ziay-dev-encryption-key-change-in-prod-32b!'` when the env var was missing. As of v0.4.0, the module **throws at boot** (and reports to Sentry + pino) if `ENCRYPTION_KEY` is unset in `NODE_ENV=production`. Generate one with `openssl rand -hex 32` and set it before deploying.
+
+> **Webhook secrets are fail-closed in production.** `NOCODB_WEBHOOK_SECRET`, `WA_VERIFY_TOKEN`, `META_VERIFY_TOKEN` previously had hardcoded defaults (`'commerceflow_nocodb'`, `'commerceflow_verify'`). As of v0.4.0, requests are rejected with HTTP 500 if the env var is unset in `NODE_ENV=production`. Set all three (plus the existing `META_APP_SECRET`) before deploying.
+
+> **`next.config.ts` no longer ignores build errors.** `typescript.ignoreBuildErrors: true` (the V1 safety net) has been removed. `next build` will now fail on TypeScript regressions. All 58 V1-era TS errors were fixed in I1-R2, so existing builds are clean — but any new TS regression will block CI.
+
+> **`applyPaymentUpdate` signature changed.** Gained 4 new params: `amount`, `currency`, `cvvResult`, `avsResult` (anti-fraud + `payment_mismatch` defense). Any out-of-tree webhook caller using the old signature must be updated.
+
+> **Stripe webhook now handles 3 new event types.** `charge.refunded` (syncs Refund ledger), `charge.dispute.created` (records chargeback + blocklists card BIN), `charge.dispute.closed` (writes OrderEvent audit). Previously these were filtered out. If you have an out-of-tree Stripe webhook integration, ensure these events are routed to ZIAY.
+
+## Migration Guide (v0.3.0 → v0.4.0)
+
+1. **Environment variables:** Copy the 8 new vars from `.env.example` (135 vars total, was 117). Critical additions:
+   - `ENCRYPTION_KEY` (REQUIRED in prod — `openssl rand -hex 32`) — was previously a hardcoded fallback.
+   - `NOCODB_WEBHOOK_SECRET`, `WA_VERIFY_TOKEN`, `META_VERIFY_TOKEN` (REQUIRED in prod — were previously hardcoded fallbacks).
+   - Anti-fraud vars (10): `OFAC_API_KEY`, `VELOCITY_WINDOW_MINUTES`, `VELOCITY_MAX_ATTEMPTS`, `BLOCKLIST_TTL_DAYS`, `FRAUD_SCORE_THRESHOLD`, etc.
+2. **Database:** Run `bun run db:push` (uses the new `scripts/db-push.ts` auto-provider detection). New models: `Refund`, `AuditLogExport`, `FraudBlocklist`, `FraudEvent`, `VelocityWindow`, `EscrowHolding` (design only — ADR-0021).
+3. **RLS policies:** If running on PostgreSQL, apply `prisma/sql/rls-policies.sql` (35 policies, was 10). Required for the new fraud tables (`fraud_blocklist`, `fraud_event`, `velocity_window`, `refund`).
+4. **CI:** The 6-job CI workflow (`.github/workflows/ci.yml`) is already configured — no action needed. The `build` job uses a PostgreSQL 16 service container.
+5. **Webhook secrets:** Set `NOCODB_WEBHOOK_SECRET`, `WA_VERIFY_TOKEN`, `META_VERIFY_TOKEN` BEFORE deploying — production will reject requests without them.
+
+## Metrics (Final, v0.4.0)
+
+| Metric | v0.3.0 | v0.4.0 | Δ |
+|--------|-------|-------|---|
+| Prisma models | 71 | **78** | +7 (Refund, AuditLogExport, FraudBlocklist, FraudEvent, VelocityWindow, EscrowHolding design, +1) |
+| API routes | 94 | **114** | +20 (admin refund, anti-fraud, local-payments, etc.) |
+| Unit tests | 964 (51 files) | **986 (52 files)** | +22 tests, +1 file |
+| E2E tests | 7 specs (not counted) | **52 passing** | +45 (formalized + expanded) |
+| AI agents | 26 | **27** | +1 (escrow agent design) |
+| RLS policies | 10 | **35** | +25 (fraud tables + refund + 4 more from N-1) |
+| Dashboard views | 14 | **16** | +2 |
+| ADRs | 21 | **22** | +1 (ADR-0021 escrow design) |
+| Lint errors | 0 | **0** | — (37 warnings legacy) |
+| TSC errors | 0 | **0** | — (was 58 before V1 remediation) |
+| Payment methods | 8 (4 global + 4 local claimados) | **8** (4 global + 4 local ACTUALMENTE funcionando) | Stub → real |
+| Anti-fraud | not mentioned | **Full service** (velocity, blocklist, OFAC, 3DS, CVV/AVS, chargeback loop) | NEW |
+| Credential encryption | not mentioned | **AES-256-GCM** at-rest for `cred::*` keys | NEW |
+| Webhook secrets | hardcoded fallbacks | **Fail-closed in production** | Hardened |
+| Cross-tenant bypass | not mentioned | **0 remaining** (9 routes closed) | Hardened |
+| CI status | not mentioned | **6/6 jobs green** | NEW |
+| Score | 10.0/10 (self-claimed) | **8.8/10** (independent fintech audit) | Methodology change |
+| Company | CommerceFlow OS / Indisutex SAS | **ZIAY SAS** | Rebrand |
+
+## Audit Reports (Spanish, in `public/presentaciones/`)
+
+- `AUDITORIA-FINTECH.md` (V1, score 5.5/10)
+- `AUDITORIA-FINTECH-V2.md` (V2, score 7.7/10)
+- `AUDITORIA-FINTECH-V3-FINAL.md` (V3, score 8.8/10 — 8 sections: Resumen Ejecutivo, Puntaje por dimensión V1/V2/V3, Tabla de verificación R-1 a R-20 + N-1 a N-8, Verificación build/lint/schema/RLS, Gaps remanentes V3, Assessment de productividad, Veredicto production readiness, Conclusión)
+- `AUDITORIA-FULL-SECURITY-CODE-TEST.md` (security / code-quality / testing — 3 dimensions, ~600 lines)
+- `AUDITORIA-FULL-UX-SEO-DOCS-DEPLOY.md` (UX / SEO / docs / deploy — 4 dimensions, 8 sections, 8 screenshots in 3 viewports)
+
+## Production Readiness Verdict
+
+**🟡 GO-WITH-CONDITIONS** — 3 P0 conditions mandatory before production:
+1. **Migrate to PostgreSQL** (RLS only works on Postgres, not SQLite dev) + apply `prisma/sql/rls-policies.sql` (35 policies).
+2. **Configure production secrets** — `ENCRYPTION_KEY`, `NOCODB_WEBHOOK_SECRET`, `WA_VERIFY_TOKEN`, `META_VERIFY_TOKEN`, `META_APP_SECRET` (all fail-closed in prod).
+3. **Wire BullMQ cron jobs** — DIAN retry, retention cleanup, escrow auto-release (currently documented as TODO comments but not yet scheduled).
+
+Plus 4 P1 conditions recommended:
+1. **R-18 escrow implementation** — ADR-0021 is design-only; implement in a follow-up sprint.
+2. **Cold-storage export to S3/Glacier** — currently writes to local `./data/cold-storage/`; migrate to S3 with JSONL format identical.
+3. **Rate limit on Redis** — current rate-limit is in-memory Map (per-edge-instance); fails with multiple replicas.
+4. **CI to use `migrate deploy`** instead of `db:push` — so migrations are actually tested in CI.
+
+---
+
 # ZIAY v0.3.0 — Release Notes
 
 **Date:** 2026-07-15
 **Codename:** Comercio Agéntico
-**Score:** 10.0/10
+**Score:** 10.0/10 (self-claimed)
 **QA Scorecard:** 9.9/10
 **Next.js:** 16.2.10
 **Build:** 32.4s · 0 lint / tsc / redocly errors

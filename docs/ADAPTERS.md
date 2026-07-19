@@ -1,4 +1,4 @@
-# Capa de Adaptadores — CommerceFlow OS
+# Capa de Adaptadores — ZIAY
 
 Documentación de la capa de adaptadores que desacopla los agentes conversacionales y el orquestador de las plataformas concretas de ecommerce, logística y LLM. Sigue el patrón **Registry** para resolver la implementación concreta en runtime según la configuración del tenant.
 

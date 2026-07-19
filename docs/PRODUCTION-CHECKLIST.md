@@ -1,9 +1,26 @@
-# Checklist de Producción — CommerceFlow OS
+# Checklist de Producción — ZIAY
 
-Checklist exhaustivo para verificar que un deployment de CommerceFlow OS está listo para go-live. Cada ítem debe marcarse ✅ antes del cutover a producción.
+Checklist exhaustivo para verificar que un deployment de ZIAY está listo para go-live. Cada ítem debe marcarse ✅ antes del cutover a producción.
 
 > 📖 Para la guía de deploy completa ver [`../upload/GUIA-DEPLOY-PRODUCCION.md`](../upload/GUIA-DEPLOY-PRODUCCION.md).
 > 📖 Para referencia de variables de entorno ver [`ENVIRONMENT.md`](./ENVIRONMENT.md).
+
+> **v0.4.0 — items adicionales obligatorios** (no estaban en v0.3.0):
+>
+> - ⚠️ `ENCRYPTION_KEY` seteada (32 bytes hex, `openssl rand -hex 32`) —
+>   **fail-closed**: la app se reusa a arrancar en prod sin esta var.
+> - ⚠️ `WA_VERIFY_TOKEN` / `META_VERIFY_TOKEN` / `NOCODB_WEBHOOK_SECRET`
+>   seteados — **fail-closed** en prod (devuelve 500 si faltan).
+> - ⚠️ Políticas RLS aplicadas en PostgreSQL — ejecutar
+>   `prisma/sql/rls-policies.sql` (35 políticas, era 10 en v0.3.0).
+> - ⚠️ Servicio anti-fraud activo — `src/lib/fraud/fraud.service.ts` cableado
+>   en `create-link` + `payments/local` (velocity, blocklist, OFAC, 3DS,
+>   CVV/AVS).
+> - ⚠️ Directorio de cold-storage escribible — `data/cold-storage/` debe
+>   existir y tener permisos de escritura para el proceso app (necesario para
+>   el export JSONL pre-delete del cron de retention, Ley 1581).
+> - ⚠️ `prisma.seed` presente en `package.json` — verificar antes de correr
+>   `prisma db seed` (está configurado como `tsx prisma/seed.ts`).
 
 ---
 
@@ -76,7 +93,7 @@ Cada ítem tiene:
 - [ ] ⚠️ PostgreSQL 15+ corriendo (contenedor `pgvector/pgvector:pg16`)
 - [ ] ⚠️ `POSTGRES_PASSWORD` es una contraseña fuerte (mínimo 24 caracteres, generada con `openssl rand -hex 24`)
 - [ ] ⚠️ `POSTGRES_USER` no es `postgres` (usar `commerceflow` o similar)
-- [ ] Database `commerceflow` creada
+- [ ] Database `ziay` creada
 - [ ] Conexión desde la app funciona (`curl /api/health` → `database: ok`)
 
 ### Schema y migraciones
@@ -178,10 +195,10 @@ Cada ítem tiene:
 - [ ] Contenedor NocoDB accesible en `https://ziay.co/nocodb/`
 - [ ] Proyecto `commerceflow` creado
 - [ ] Tabla `orders` creada con columnas mapeadas al schema Prisma
-- [ ] Webhook saliente de NocoDB → CommerceFlow configurado con header `X-NocoDB-Secret`
-- [ ] Webhook entrante de CommerceFlow → NocoDB configurado
+- [ ] Webhook saliente de NocoDB → ZIAY configurado con header `X-NocoDB-Secret`
+- [ ] Webhook entrante de ZIAY → NocoDB configurado
 - [ ] `NOCODB_WEBHOOK_SECRET` coincide en ambos extremos
-- [ ] Prueba end-to-end: editar pedido en NocoDB → ver reflejado en Kanban CommerceFlow
+- [ ] Prueba end-to-end: editar pedido en NocoDB → ver reflejado en Kanban ZIAY
 
 ### Webhooks Meta (WhatsApp + Messenger + Instagram)
 
@@ -251,7 +268,7 @@ Para cada tenant con plataforma/BD/proveedor externo:
 
 - [ ] ⚠️ `META_APP_SECRET` configurado → HMAC verification activa en `/api/webhooks/whatsapp` y `/api/webhooks/meta`
 - [ ] `/api/webhooks/nocodb-in` rechaza requests sin header `X-NocoDB-Secret` válido (probar con `curl` sin header → 403)
-- [ ] Verify tokens NO son strings triviales (`commerceflow_verify` está prohibido en prod)
+- [ ] Verify tokens NO son strings triviales (`commerceflow_verify` (or any trivial string) is prohibited en prod)
 
 ### RLS y aislamiento multi-tenant
 

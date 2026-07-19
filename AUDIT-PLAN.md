@@ -1,11 +1,19 @@
-# CommerceFlow OS — Full-Stack Audit Plan
+# ZIAY — Full-Stack Audit Plan
 
 > **Task ID:** PLAN-AUDIT-001
 > **Owner:** Plan (Senior Auditor Architect)
-> **Target system:** CommerceFlow OS — conversational commerce + ad attribution platform (LATAM, multi-tenant)
+> **Target system:** ZIAY — conversational commerce + ad attribution platform (LATAM, multi-tenant)
 > **Date issued:** 2025-01 (cycle 1)
 > **Status:** PLAN APPROVED FOR EXECUTION
 > **Acceptance owner:** Engineering lead + Security officer
+>
+> **v0.4.0 update note:** This is the original cycle-1 audit plan (issued against
+> the v0.2.0-era codebase). The current audit cycle (3 iterations, fintech
+> score **8.8/10**) lives in `public/presentaciones/AUDITORIA-FINTECH-V3-FINAL.md`,
+> `public/presentaciones/AUDITORIA-FULL-SECURITY-CODE-TEST.md`, and
+> `public/presentaciones/AUDITORIA-FULL-UX-SEO-DOCS-DEPLOY.md`. Counts below
+> (62 models, 44 routes, 26 agents) reflect the codebase at planning time;
+> v0.4.0 has **78 models / 114 routes / 27 agents / 986 tests / 35 RLS policies**.
 
 ---
 

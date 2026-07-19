@@ -1,9 +1,31 @@
-# Referencia API — CommerceFlow OS
+# Referencia API — ZIAY
 
-Documentación completa de las **34 rutas API** de CommerceFlow OS. Todas las rutas están bajo el prefijo `/api` y son servidas por Next.js 16 (App Router) en el puerto 3000 (detrás del gateway Caddy en el puerto 81).
+Documentación de las **34 rutas API** originales de ZIAY. Todas las rutas están bajo el prefijo `/api` y son servidas por Next.js 16 (App Router) en el puerto 3000 (detrás del gateway Caddy en el puerto 81).
 
 > 📖 Para la guía de desarrollo local ver [`DEVELOPMENT.md`](./DEVELOPMENT.md).
 > 📖 Para la documentación del modelo de datos ver [`DATA-MODEL.md`](./DATA-MODEL.md).
+
+> **v0.4.0 update**: El código ahora tiene **114 rutas API** en total (era 94
+> en v0.3.0, 34 en el doc original). Las rutas adicionales se documentan en
+> `GET /api-docs` (manifest JSON autogenerado) y en `docs/openapi.yaml`
+> (ReDoc en `/docs`). Los endpoints nuevos del ciclo de audit + remediation
+> son:
+>
+> - `POST /api/orders/[id]/refund` — emite un reembolso (admin/operator)
+>   registrándolo en el `Refund` ledger + audit trail.
+> - `GET /api/orders/[id]/refunds` — lista los reembolsos de un pedido.
+> - `POST /api/compliance/dian-retry` — reintentar la submission DIAN de una
+>   factura que quedó en estado `pending` o `error` (admin only).
+> - `POST /api/admin/migrate-credentials` — migra credenciales de gateway en
+>   claro a cifrado AES-256-GCM (one-shot admin tool, v0.4.0).
+> - `POST /api/webhooks/chargeback` — recibe notificaciones de chargeback
+>   de Stripe (alimenta el `Refund` ledger + fraud blocklist).
+> - `GET /og` — imagen OG dinámica (1200×630 PNG, Edge runtime, ISR 1h)
+>   reemplazando al SVG estático (`/og-default.svg`).
+>
+> Más endpoints: webhook rotation grace, MCP `tools/list`, ACP bearer auth,
+> AP2 mandates CRUD, UCP checkout sessions, status incidents, admin
+> retention runs — ver `GET /api-docs` para el manifest actualizado.
 
 ---
 
@@ -727,7 +749,7 @@ Crea un nuevo tenant self-service.
   "tenantId": "ten-xxxx",
   "nextSteps": [
     "Conectar WhatsApp Business API (registrar WABA)",
-    "Configurar webhook Meta: https://commerceflow.example.com/api/webhooks/whatsapp",
+    "Configurar webhook Meta: https://ziay.co/api/webhooks/whatsapp",
     "Sincronizar catálogo: POST /api/catalog/sync",
     "Configurar politica de pago por canal: PATCH /api/payments/config"
   ]

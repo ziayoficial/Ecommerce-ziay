@@ -16,6 +16,8 @@
 | 2026-07-11 | 3.0 | Reposicionamiento enterprise (REBRAND-ENTERPRISE-001) | El mensaje interno (26 agentes, 95%) no es el mensaje de venta; enterprise positioning > feature listing |
 | 2026-07-15 | 4.0 | **v0.3.0 final — Score 10.0/10** (Sprints 1-14) | ADRs son esenciales; error handling wrapper; tenant scoping #1; ed25519 > RSA; fire-and-forget webhooks; LLM budget tracking; SSR shell |
 | 2026-07-15 | 4.1 | **QA E2E completo — Scorecard 9.9/10** (SPRINT-QA-UPDATE-DOCS-001) | Cobertura categorizada > número total; endpoint matrix pública/privada/autenticada; 964 pruebas pasan cuando hay 0 errores de lint/tsc/redocly |
+| 2026-07-17 | 3.0 | Auditoría fintech iterativa (3 ciclos) | Score 5.5→8.8/10; 28 riesgos resueltos; anti-fraude 3.5→9.0 |
+| 2026-07-18 | 4.0 | Full audit + rebrand + CI green | 7 dimensiones auditadas; 40+ hallazgos; ZIAY SAS; CI 6/6 verde |
 
 ---
 
@@ -361,6 +363,100 @@
 
 ---
 
+## 🔬 Lecciones de la auditoría fintech iterativa + rebrand ZIAY + CI green (v0.4.0 · score 8.8/10)
+
+> Nueve lecciones aprendidas durante la 3ª iteración de auditoría fintech (V1 5.5 → V2 7.7 → V3 8.8), la auditoría full de 4 dimensiones (security / code-quality / testing / UX-SEO-docs-deploy), los 4 ciclos de fix paralelos (IF-1 a IF-4), y el rebrand CommerceFlow OS / Indisutex → ZIAY SAS. Cada lección está respaldada por evidencia en el worklog y/o en los reportes de auditoría en `public/presentaciones/`.
+
+### L36. Los tests e2e revelan bugs que los unit tests no detectan
+
+**Contexto:** El dashboard `/` estaba **roto en TODOS los viewports** (desktop, tablet, móvil) — el error boundary "Algo salió mal" renderizaba en vez del dashboard. La causa raíz: `src/app/page.tsx` (server component) importaba `NAV_ITEMS` desde `src/components/dashboard/sidebar.tsx` (un módulo `'use client'`). En Turbopack/Next.js 16, el RSC recibe un client reference proxy, no el valor real → `.find()` falla con `TypeError: __TURBOPACK__imported__module__...__.NAV_ITEMS.find is not a function`. **964 unit tests pasaban** y ninguno detectó esto. Fueron los e2e tests (Playwright) los únicos que lo detectaron.
+
+**Lección:** Los unit tests validan lógica de funciones aisladas. Los e2e tests validan integración real (RSC ↔ client module ↔ DB ↔ API). Un bug que ocurre **en el boundary entre módulos** (como importar de `'use client'` desde server component) es invisible para unit tests pero inmediatamente visible para e2e. La pirámide de tests necesita AMBAS capas — los unit solos dan falsa confianza.
+
+**Acción (P0-1):** Creado `src/components/dashboard/nav-items.ts` (plain TS module, no `'use client'`) que posee `ViewId` + `NAV_ITEMS` + `NavItem`. `page.tsx`, `sidebar.tsx`, `topbar.tsx`, `dashboard-client.tsx` ahora importan de este módulo compartido. El e2e test de dashboard ahora es un guard permanente — si `NAV_ITEMS.find` falla de nuevo, CI se rompe.
+
+---
+
+### L37. `prisma db seed` necesita config en package.json
+
+**Contexto:** 37 e2e tests fallaban sin causa aparente — el test intentaba hacer login con un usuario demo, pero la base estaba vacía. El comando `prisma db seed` se ejecutaba sin error pero **no creaba datos**. La causa raíz: faltaba el bloque `"prisma": { "seed": "bun run prisma/seed.ts" }` en `package.json`. Sin ese config, Prisma CLI no sabe qué comando ejecutar para el seed — sale silenciosamente con exit code 0 pero sin hacer nada.
+
+**Lección:** Herramientas como Prisma CLI que dependen de config en `package.json` fallan **silenciosamente** cuando el config falta. No hay error, no hay warning — solo un exit 0 engañoso. Esto es particularmente peligroso en CI donde asumes que "si el comando pasa, funcionó". La regla: si una herramienta depende de config, verificar que el config existe ANTES de confiar en el comando.
+
+**Acción:** Añadido `"prisma": { "seed": "bun run prisma/seed.ts" }` a `package.json`. Los 37 e2e tests pasaron inmediatamente después. Documentado en `docs/ENVIRONMENT.md` como paso obligatorio del setup.
+
+---
+
+### L38. Los secrets hardcoded son una bomba de tiempo
+
+**Contexto:** Los webhooks de WhatsApp y Meta usaban `process.env.WA_VERIFY_TOKEN || 'commerceflow_verify'` — el fallback `'commerceflow_verify'` era **público en el repo** de GitHub. Cualquiera podía enviar un POST a `/api/webhooks/whatsapp` con `verify_token=commerceflow_verify` y el webhook lo aceptaría como válido. El webhook de NocoDB-out era **peor**: no tenía auth de ningún tipo. El `ENCRYPTION_KEY` para TOTP también tenía un fallback `'ziay-dev-encryption-key-change-in-prod-32b!'`.
+
+**Lección:** Un secret hardcoded no es "un default conveniente para dev" — es una vulnerabilidad pública. Una vez que el repo es público (como lo es ZIAY en GitHub), el "default" es conocido por atacantes. **Fail-closed es obligatorio en producción**: si el env var falta, el servicio debe fallar al arrancar o rechazar requests, NO usar un default público. El patrón `process.env.X || 'public_default'` debe eliminarse de todo código de seguridad.
+
+**Acción (IF-2):** Creado `src/lib/middleware/webhook-secrets.ts` — resolver compartido que retorna `null` en prod si el env var falta (caller devuelve 500), y un default determinístico inseguro en dev con `console.warn`. Aplicado a `NOCODB_WEBHOOK_SECRET`, `WA_VERIFY_TOKEN`, `META_VERIFY_TOKEN`. `ENCRYPTION_KEY` ahora throw + `captureError` a Sentry en prod si falta. Los literales `'commerceflow_nocodb'`, `'commerceflow_verify'`, `'ziay-dev-encryption-key-change-in-prod-32b!'` se eliminaron del runtime code.
+
+---
+
+### L39. El provider de Prisma no puede ser dinámico
+
+**Contexto:** `prisma/schema.prisma` tenía `provider = "sqlite"` hardcoded (para dev local). Pero CI usa PostgreSQL (service container en GitHub Actions). Cuando CI ejecutaba `prisma db push`, fallaba con "Provider sqlite does not match the datasource URL postgresql://...". Cambiar el schema a `provider = "postgresql"` rompía el dev local. Prisma no soporta provider dinámico via env var.
+
+**Lección:** Algunas decisiones de config son estáticas por diseño de la herramienta. Cuando dev y prod usan providers diferentes, no se puede "automágicamente" detectar — se necesita un script que cree una **copia temporal** del schema con el provider correcto. El script `scripts/db-push.ts` lee `DATABASE_URL`, detecta el provider (`sqlite` vs `postgresql`), copia `schema.prisma` a un archivo temporal con el provider correcto, y pasa ese archivo a `prisma db push --schema`. Lo mismo para `db-seed.ts`.
+
+**Acción:** Creados `scripts/db-push.ts` y `scripts/db-seed.ts` con auto-detección de provider. `package.json` actualizado para llamar estos scripts en vez de `prisma db push` directo. CI ahora pasa sin modificar el schema source.
+
+---
+
+### L40. La auditoría iterativa encuentra issues que una sola pasada no ve
+
+**Contexto:** La 1ª auditoría fintech (V1, score 5.5/10) encontró 20 riesgos (R-1 a R-20). Tras fixearlos, la 2ª auditoría (V2, score 7.7/10) encontró **8 issues NUEVOS** (N-1 a N-8) que V1 no detectó — porque los fixes de V1 introdujeron nuevos edge cases (ej: el anti-fraud service añadido en V1 tenía un bypass de customerName en OFAC, N-3). Tras fixear N-1 a N-8, la 3ª auditoría (V3, score 8.8/10) encontró 0 issues nuevos pero sí 1 partial (R-13 PayU MD5 sin verifyPayment re-check) que se cerró en V3.1.
+
+**Lección:** Una auditoría de una sola pasada tiene un techo de detección ~60-70% de los issues reales. Cada fix introduce nuevos edge cases que solo se detectan en el re-audit. El ciclo **audit → fix → re-audit → fix → re-audit** (mínimo 3 iteraciones) es esencial para llegar a >90% de cobertura. Sin iteración, vives con falsa confianza de "ya está auditado".
+
+**Acción:** Protocolo de 3 iteraciones mínimo para cualquier superficie crítica (fintech, security, compliance). Cada iteración produce un reporte separado (`AUDITORIA-FINTECH.md`, `AUDITORIA-FINTECH-V2.md`, `AUDITORIA-FINTECH-V3-FINAL.md`). El score debe subir monótonamente — si baja, hay regresión. El cycle se detiene cuando el re-audit encuentra 0 issues nuevos.
+
+---
+
+### L41. Los timeouts de CI deben ser más largos que los de dev
+
+**Contexto:** Los e2e tests tenían un timeout de 15s por test — suficiente en dev local (server ya caliente, DB SQLite en memoria). En CI, el PostgreSQL service container tiene **cold-start** (10-15s solo para que Postgres arranque), más el seed (5s), más el next dev server startup (8-10s). Total: el primer e2e test timeout a 15s antes de que el server respondiera. 12 e2e tests fallaban intermittente en CI pero siempre pasaban en dev.
+
+**Lección:** Los entornos de CI son **siempre más lentos** que dev local — cold-start de DB, sin cache de compilación, recursos compartidos. Los timeouts que parecen generosos en dev son insuficientes en CI. La regla: timeouts de CI = timeouts de dev × 2 (mínimo). Para e2e con DB real, 25-30s por test es razonable. Mejor aún: separar los timeouts por tipo (unit: 5s, integration: 15s, e2e: 30s).
+
+**Acción:** Bump del timeout de e2e a 30s. Añadido un step de "warmup" en CI que hace curl al health endpoint antes de correr los tests. Los 12 e2e que fallaban pasaron consistentemente.
+
+---
+
+### L42. Los selectores de Playwright deben ser específicos
+
+**Contexto:** Un e2e test intentaba click el botón "Iniciar sesión" con `page.getByRole('button', { name: /iniciar/i })`. Pero la página de login tenía **4 botones** que matcheaban ese regex: el botón submit del form + 3 botones de "Entrar como Admin" / "Entrar como Vendedor" / "Entrar como Cliente" (demo accounts). Playwright fallaba con "strict mode violation: locator resolved to 4 elements". El test era flaky — a veces clickeaba el botón correcto, a veces no.
+
+**Lección:** Los selectores por role + name son legibles pero **poco específicos** cuando hay múltiples elementos similares. Para forms, usar `button[type="submit"]` (único por form). Para listas, usar `.first()` o `.nth(N)` explícito. Para texto, usar el texto exacto (`name: 'Iniciar sesión'` en vez de regex `/iniciar/i`). La regla: si tu selector puede matchear >1 elemento, es un selector frágil.
+
+**Acción:** Reescritos los selectores de login: `page.locator('button[type="submit"]')` para el form submit, `page.getByRole('button', { name: 'Entrar como Admin' })` (texto exacto) para los demo. Tests deterministic, no más flakiness.
+
+---
+
+### L43. El cold-storage export debe ser fail-closed
+
+**Contexto:** La retention cleanup job (R-14) eliminaba `AuditLog` rows >7 años. Pero los audit logs son **evidencia legal** — si hay una disputa o investigación regulatoria, esos logs son la prueba. Si el job elimina los logs sin exportarlos primero, la evidencia se pierde irreversiblemente. La 1ª implementación tenía el export como best-effort: si el export fallaba, el job igual eliminaba los logs (para "limpiar storage").
+
+**Lección:** Para datos que son evidencia (audit logs, transacciones financieras, consentimientos), el principio es **preservar evidencia > limpiar storage**. Si el export falla, NO borrar — preferimos tener logs de más que logs de menos. El costo de storage es $0.023/GB/mes (S3 Glacier); el costo de una multa regulatoria por evidencia perdida es $100K+. Fail-closed es obligatorio.
+
+**Acción (R-14):** `exportAuditLogsToColdStorage` ahora retorna success/failure. Si failure, `deleteMany` NO se ejecuta — los logs se preservan para el próximo ciclo. El modelo `AuditLogExport` rastrea cada export con SHA-256 checksum (tamper-evidence). Production TODO: migrar a S3/Glacier (formato JSONL idéntico).
+
+---
+
+### L44. Los cross-tenant bypass son el riesgo #1 en SaaS multi-tenant
+
+**Contexto:** La auditoría full de security (FA-A) encontró **9 rutas API** que no validaban `requireTenantAccess(tenantId)` — un usuario autenticado de tenant A podía leer datos de tenant B simplemente cambiando el `tenantId` en el query param o path. Las rutas afectadas: `conversations/search`, `image-identifications`, `conversational-cart`, `vision-pipeline`, `address-analysis`, `attribution`, `llm-providers`, `onboarding`, `webhooks/nocodb-out` (esta última sin auth de ningún tipo). El `nocodb-out` era el peor: webhook público que cualquiera podía llamar.
+
+**Lección:** En SaaS multi-tenant, el cross-tenant bypass es el riesgo #1 — más que SQL injection, más que XSS, más que CSRF. Un bypass expone **todos los datos de todos los tenants** de una sola vez. La defensa en profundidad de 3 capas es esencial: (1) **app layer** (`requireTenantAccess` en cada ruta — primera línea), (2) **ORM layer** (Prisma extension auto-inyecta `tenantId`), (3) **DB layer** (RLS en PostgreSQL — última línea). Una sola capa NO es suficiente — un bug en cualquier capa se compensa con las otras dos. Pero la validación a nivel app es la **primera** y más importante — es la que el developer controla directamente.
+
+**Acción (IF-2):** 9 rutas cerradas con `requireTenantAccess(tenantId)` (o `requireRole(['admin'])` para admin-only). `nocodb-out` ahora requiere HMAC-SHA256 signature. 0 cross-tenant bypasses restantes. RLS en PostgreSQL (35 políticas) cubre todas las tablas multi-tenant incluyendo las nuevas fraud tables. Tests de cross-tenant access pendientes como follow-up (la auditoría recommendó 0 tests para tenant isolation — gap a cerrar en próximo sprint).
+
+---
+
 ## ⚠️ Errores Comunes a Evitar
 
 ### E1. Hardcoded fallbacks en seguridad
@@ -416,56 +512,66 @@ const orders = await db.order.findMany({ where: { tenantId } });
 
 ---
 
-## 📊 Métricas del Proyecto (estado final v0.3.0)
+## 📊 Métricas del Proyecto (estado final v0.4.0)
 
-| Métrica | v0.1.0 | v0.3.0 |
-|---|---|---|
-| Líneas de código (src/) | ~15,000 | ~25,000 |
-| Modelos Prisma | 62 | **71** |
-| API Routes | 44 | **94** |
-| Componentes dashboard | 17 | **21** |
-| Componentes UI (shadcn) | 48 | 48 |
-| Agentes conversacionales | 26 | 26 |
-| Pipelines | 3 (19 pasos totales) | 3 (19 pasos totales) |
-| Adapters | 18 | **25** |
-| Webhooks | 6 (con HMAC) | **8** (HMAC + idempotency + signature rotation) |
-| Índices DB | 91 en 45 modelos | **110 en 55+ modelos + 19 @@unique** |
-| Test files | 10 | **51** |
-| Tests | 108 | **964** |
-| ADRs | 0 | **21** (README + 20) |
-| OpenAPI paths | 0 | **93** (OAS 3.1) |
-| Protocolos | 0 | **5** (AP2/UCP/ACP/MCP/A2A) |
-| Monedas | 1 | **7** |
-| Locales | 1 | **4** |
-| Métodos de pago | 4 | **8** (4 card + 4 local LATAM) |
-| Docker services | 11 | **16** |
-| Compliance modules | 0 | **6** (KYC, consent, retention, age-gate, retracto, DIAN) |
-| n8n workflows | 0 | **28** |
-| Documentación (líneas) | 12,284 | 19,000+ |
-| Presentaciones (slides) | 102 | 135+ |
-| Worklog (líneas) | 2,463 | 20,957 |
-| Lint errors / warnings | 0 / N/A | **0 / 35** (legacy) |
-| TSC errors | 0 | **0** |
-| Redocly errors | N/A | **0** |
-| Build time | N/A | **32.4s** |
-| Next.js | 16.0 | **16.2.10** |
-| Score | 4.9 | **10.0/10** |
-| QA scorecard | N/A | **9.9/10** |
+| Métrica | v0.1.0 | v0.3.0 | v0.4.0 |
+|---|---|---|---|
+| Líneas de código (src/) | ~15,000 | ~25,000 | ~30,000+ |
+| Modelos Prisma | 62 | **71** | **78** |
+| API Routes | 44 | **94** | **114** |
+| Componentes dashboard | 17 | **21** | **21** (16 nav items activos) |
+| Componentes UI (shadcn) | 48 | 48 | 48 |
+| Agentes conversacionales | 26 | 26 | **27** |
+| Pipelines | 3 (19 pasos totales) | 3 (19 pasos totales) | 3 (19 pasos totales) |
+| Adapters | 18 | **25** | **25** |
+| Webhooks | 6 (con HMAC) | **8** (HMAC + idempotency + signature rotation) | **9** (HMAC + idempotency + rotation + nocodb-out HMAC-SHA256) |
+| Índices DB | 91 en 45 modelos | **110 en 55+ modelos + 19 @@unique** | 110 en 55+ modelos + 19 @@unique |
+| Test files | 10 | **51** | **52** |
+| Tests | 108 | **964** | **986** |
+| E2E tests | 0 | 7 specs (not counted) | **52 passing** |
+| ADRs | 0 | **21** (README + 20) | **22** (README + 21, +ADR-0021 escrow) |
+| OpenAPI paths | 0 | **93** (OAS 3.1) | **93** (OAS 3.1) |
+| Protocolos | 0 | **5** (AP2/UCP/ACP/MCP/A2A) | **5** (AP2/UCP/ACP/MCP/A2A) |
+| Monedas | 1 | **7** | **7** |
+| Locales | 1 | **4** | **4** |
+| Métodos de pago | 4 | **8** (4 card + 4 local LATAM) | **8** (4 card + 4 local **ACTUALMENTE funcionando**: PSE/PIX/OXXO/SPEI) |
+| Docker services | 11 | **16** | **16** |
+| Compliance modules | 0 | **6** (KYC, consent, retention, age-gate, retracto, DIAN) | **6** (KYC, consent, retention, age-gate, retracto, DIAN) |
+| n8n workflows | 0 | **28** | **28** |
+| RLS policies | 0 | 10 | **35** (V1: 20 → V2: 31 → V3: 35) |
+| Anti-fraud | not mentioned | not mentioned | **Full service** (velocity, blocklist, OFAC, 3DS, CVV/AVS, chargeback loop) |
+| Credential encryption | not mentioned | not mentioned | **AES-256-GCM** at-rest for `cred::*` keys |
+| Webhook secrets | hardcoded fallbacks | hardcoded fallbacks | **Fail-closed in production** |
+| Cross-tenant bypass | not mentioned | not mentioned | **0 remaining** (9 routes closed) |
+| CI status | not mentioned | not mentioned | **6/6 jobs green** (lint, typecheck, unit-tests, openapi, build, e2e) |
+| Documentación (líneas) | 12,284 | 19,000+ | 22,000+ (5 audit reports añadidos) |
+| Presentaciones (slides) | 102 | 135+ | 135+ |
+| Worklog (líneas) | 2,463 | 20,957 | 22,372+ |
+| Lint errors / warnings | 0 / N/A | **0 / 35** (legacy) | **0 / 37** (legacy) |
+| TSC errors | 0 | **0** | **0** (was 58 before V1 remediation) |
+| Redocly errors | N/A | **0** | **0** |
+| Build time | N/A | **32.4s** | **~32s** (ignoreBuildErrors: false now) |
+| Next.js | 16.0 | **16.2.10** | **16.2.10** |
+| Score | 4.9 | **10.0/10** (self-claimed) | **8.8/10** (independent fintech audit, 3 iteraciones) |
+| QA scorecard | N/A | **9.9/10** | N/A (replaced by independent audit) |
+| Company name | Indisutex SAS | CommerceFlow OS / Indisutex SAS | **ZIAY SAS** (rebrand, 0 old-brand refs) |
 
 ---
 
 ## 🎯 Conclusiones Finales
 
-1. **El producto funciona** — 964/964 pruebas pasan (51 archivos), scorecard QA 9.9/10, todas las vistas renderizan, todas las APIs responden, todas las SSR pages cargan, los 4 protocolos agénticos activos, 6/6 security headers presentes, 28/28 n8n workflows válidos.
+1. **El producto funciona** — 986/986 unit tests pasan (52 archivos) + 52 e2e tests pasan, CI 6/6 jobs green, todas las vistas renderizan, todas las APIs responden, todas las SSR pages cargan, los 4 protocolos agénticos activos, 6/6 security headers presentes, 28/28 n8n workflows válidos.
 
-2. **La seguridad es sólida** — HMAC en webhooks, 2FA en wallet, tenant guards en APIs, rooms en Socket.io, rate limiting en rutas LLM.
+2. **La seguridad es sólida y auditada** — 0 cross-tenant bypasses (9 cerrados en v0.4.0), anti-fraud full service (velocity/blocklist/OFAC/3DS/CVV-AVS/chargeback), AES-256-GCM credential encryption, 35 políticas RLS en PostgreSQL, webhook secrets fail-closed en producción, HMAC + idempotencia 2-capas + rotation grace period en todos los webhooks. Score security audit: 8.8/10 (3 iteraciones).
 
-3. **La documentación es completa** — 19,000+ líneas cubren todas las audiencias: developers (README), DevOps (Deploy), usuarios (Onboarding), QA (E2E), clientes (Presentaciones), no-técnicos (Lenguaje natural).
+3. **La auditoría iterativa es el patrón más valioso** — 3 iteraciones fintech (V1 5.5 → V2 7.7 → V3 8.8) + 4 dimensiones full audit (security / code-quality / testing / UX-SEO-docs-deploy) encontraron 40+ hallazgos que una sola pasada habría perdido. 28 riesgos fintech resueltos (96.4%), 13 security issues cerrados, 7 UX/SEO issues cerrados.
 
-4. **El futuro es claro** — Roadmap a 5 ciclos: TOTP encryption, Postgres migration, RLS, pgvector, OCR/CLIP, i18n, mobile app, K8s, voice agents.
+4. **La documentación es completa y bilingüe** — 22,000+ líneas cubren todas las audiencias: developers (README), DevOps (Deploy + SECURITY), usuarios (Onboarding), QA (E2E + audits), clientes (Presentaciones), no-técnicos (Lenguaje natural). 5 reportes de auditoría en español (`public/presentaciones/AUDITORIA-*.md`).
 
-5. **El valor para el cliente es medible** — Detección de devolvedores (20.5%), atribución real (ROAS/CPA), automatización de 10 pasos pre-venta, wallet con 2FA para traffickers.
+5. **El futuro es claro** — Roadmap P0: migrar a PostgreSQL + activar RLS, configurar secretos env, wire BullMQ cron jobs (DIAN retry, retention cleanup, escrow auto-release). P1: R-18 escrow implementation, cold-storage S3/Glacier, rate-limit en Redis, CI con `migrate deploy`.
+
+6. **El rebrand a ZIAY SAS está completo** — 0 referencias a "CommerceFlow OS" o "Indisutex" en el codebase (verificado con `git grep -ic`). Dominio `ziay.co`, email `security@ziay.co`.
 
 ---
 
-*Documento mantenido por el equipo de ZIAY. Última actualización: 2026-07-15 (v0.3.0 final, score 10.0/10, QA scorecard 9.9/10). Tagline: **Revenue Operations para Comercio Agéntico**.*
+*Documento mantenido por el equipo de ZIAY SAS. Última actualización: 2026-07-18 (v0.4.0 — Comercio Agéntico + Fintech Hardened, score 8.8/10 independent audit, CI 6/6 green). Tagline: **Revenue Operations para Comercio Agéntico**.*

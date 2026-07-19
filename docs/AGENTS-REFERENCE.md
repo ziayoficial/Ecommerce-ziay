@@ -1,10 +1,21 @@
-# Referencia de Agentes — CommerceFlow OS
+# Referencia de Agentes — ZIAY
 
-Documentación de los **10 agentes conversacionales** de CommerceFlow OS, con su nombre, endpoint, system prompt resumido, tablas que consultan, side-effects y cuándo usarlos. Incluye la **secuencia de orquestación de 9 pasos** y los **4 escenarios del §12** del documento Saramantha.
+Documentación de los **10 agentes conversacionales** originales de ZIAY, con su nombre, endpoint, system prompt resumido, tablas que consultan, side-effects y cuándo usarlos. Incluye la **secuencia de orquestación de 9 pasos** y los **4 escenarios del §12** del documento Saramantha.
 
 > 📖 Código fuente: [`../src/lib/agents/prompts.ts`](../src/lib/agents/prompts.ts)
 > 📖 Orquestador: [`../src/lib/orchestrator/orchestrator.ts`](../src/lib/orchestrator/orchestrator.ts)
 > 📖 API: [`POST /api/agents/[agentName]`](./API-REFERENCE.md#5-agents)
+
+> **v0.4.0 update**: El código ahora define **27 agentes conversacionales**
+> (era 26 en v0.3.0, 10 en el doc original). Los 10 agentes documentados aquí
+> son el núcleo del orquestador Saramantha. Los 17 agentes adicionales cubren:
+> speech/voice (Vapi AI), 6 compliance agents (KYC, consent, retracto, age
+> gate, DIAN invoicing, retention), 3 fintech agents (wallet balance,
+> withdrawal, compensation), 3 monitoring agents (incident triage, alert
+> routing, status page), 2 governance agents (mandate enforcement, escalation
+> queue), y el agente anti-fraud (velocity + OFAC + blocklist). Ver
+> `src/lib/agents/prompts.ts` y `AGENT_NAMES` / `AGENT_LABELS` para el
+> catálogo completo.
 
 ---
 
@@ -408,7 +419,7 @@ El documento Saramantha §12 define 4 escenarios end-to-end que el orquestador d
 - `plataformaCatalogo`: `catalogo_nuestro`
 - `bdCatalogo`: `supabase_nuestro`
 
-**Flujo**: cuando un cliente no tiene su propio catálogo, CommerceFlow provisiona una Supabase dedicada y le carga el catálogo. El cliente puede gestionar su catálogo vía la UI de Supabase o vía el dashboard de CommerceFlow. El `SupabaseCatalogAdapter` en modo `nuestro` tiene read-write completo.
+**Flujo**: cuando un cliente no tiene su propio catálogo, ZIAY provisiona una Supabase dedicada y le carga el catálogo. El cliente puede gestionar su catálogo vía la UI de Supabase o vía el dashboard de ZIAY. El `SupabaseCatalogAdapter` en modo `nuestro` tiene read-write completo.
 
 ---
 

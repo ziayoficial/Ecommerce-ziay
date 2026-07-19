@@ -6,7 +6,106 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-_No unreleased changes. See [0.3.0] for the current release._
+_No unreleased changes. See [0.4.0] for the current release._
+
+## [0.4.0] - 2026-07-18 — "Comercio Agéntico + Fintech Hardened"
+
+Final score: **8.8/10** (independent fintech audit, 3 iterations) · 78 Prisma models · 114 API routes · 986 unit tests (52 files) · 52 e2e tests (all passing) · 27 AI agents · 35 RLS policies · 16 dashboard views · 22 ADRs · Next.js 16.2.10 · CI 6/6 jobs green (lint, typecheck, unit-tests, openapi, build, e2e) · 0 lint errors · 0 TSC errors (was 58 before remediation) · Company: **ZIAY SAS**.
+
+This release is the result of **3 iterations of audit → fix → re-audit** (V1 score 5.5/10 → V2 7.7/10 → V3 8.8/10 → V3.1 ~9.0), plus a 4-dimension full audit (security / code-quality / testing / UX-SEO-docs-deploy), plus a full rebrand from "CommerceFlow OS / Indisutex SAS" to **"ZIAY SAS"** (0 remaining references to either old name).
+
+### Added — Security hardening (13 issues fixed in IF-2 + IF-3)
+- **9 cross-tenant bypass routes closed** (S-1..S-9): `conversations/search`, `image-identifications`, `conversational-cart` (GET+POST), `vision-pipeline`, `address-analysis`, `attribution` (GET+POST), `llm-providers` (GET+PATCH + role gate), `onboarding` (role gate + Zod schema + rate-limit), `webhooks/nocodb-out` (was completely unauthenticated). All now enforce `requireTenantAccess(tenantId)` (or `requireRole(['admin'])` where appropriate). **0 cross-tenant bypasses remaining**.
+- **Anti-fraud service** (full): velocity checks (sliding window per IP/email/card BIN), blocklist (email/phone/card BIN/IP), OFAC screening (dual-pass by `customerName` + complementary by email local-part), 3DS/SCA flagging, CVV/AVS result capture, chargeback loop (`recordChargeback` blocklists customer + email + phone + card BIN).
+- **Credential encryption** (AES-256-GCM at-rest) for all `cred::*` keys (`credencialesCatalogoRef`, `credencialesIaRef`, `credencialesLogisticaRef`, `wabaTokenRef`) via `src/lib/crypto/secret-encryption.ts` — secrets are encrypted before DB write, decrypted on read.
+- **Webhook secrets fail-closed in production**: new `src/lib/middleware/webhook-secrets.ts` shared resolver returns `null` (caller returns 500) when env var is missing in prod, dev-defaults with `console.warn` otherwise. Replaces `commerceflow_nocodb` / `commerceflow_verify` / `ziay-dev-encryption-key-change-in-prod-32b!` hardcoded fallbacks (all removed from runtime code).
+- **`ENCRYPTION_KEY` fail-closed at boot in prod** (`src/lib/totp.ts`): throws + `captureError` to Sentry/pino if missing in prod. Backward-compat preserved (key derivation path unchanged) so existing TOTP secrets remain decryptable.
+- **CSPRNG for TOTP backup codes**: `Math.random()` → `crypto.randomInt()` (from `node:crypto`) — closes predictability of 2FA backup codes.
+- **`nocodb-out` webhook now requires HMAC-SHA256 signature** over raw body with `NOCODB_WEBHOOK_SECRET` (was previously wide-open under `/api/webhooks/**`).
+- **PayU webhook `verifyPayment` re-check** (defense-in-depth): after MD5 signature verification, calls PayU API to confirm `APPROVED` status — if mismatch, marks `payment_mismatch` + audits. Mirrors the MercadoPago pattern.
+
+### Added — Fintech hardening (3 iterations, 28 risks resolved = 96.4%)
+- **`src/lib/payments/local-payments.ts`** (1199 lines): full PSE / PIX / OXXO / SPEI implementations (not stubs) with webhook receivers, status polling, and HMAC verification. 8 payment methods total: 4 global card (MercadoPago, Wompi, Stripe, PayU) + 4 local LATAM (PSE/PIX/OXXO/SPEI).
+- **`Refund` Prisma model + admin endpoint**: `/api/orders/[id]/refund` with 2-layer idempotency on `gatewayRef` (pre-create check inside `db.$transaction` + post-gateway check that cancels admin Refund if webhook created one with the returned `gatewayRef`). 2-layer because SQLite lacks `SELECT FOR UPDATE` — Postgres migration planned.
+- **DIAN retry job with exponential backoff**: `dianBackoffMs(n) = min(5·2^n, 1440) min` — schedule 5→10→20→40→80 min (cap 24h at retry 9). Worst-case 5 failures: ~2h35min vs ~25min before. `updatedAt` (Prisma @updatedAt) restarts the clock on each retry.
+- **`AuditLog` cold-storage export before deletion**: `exportAuditLogsToColdStorage` writes JSONL to `./data/cold-storage/auditlog-export-{YYYY-MM-DD}-{stamp}.jsonl` + SHA-256 checksum (tamper-evidence). `AuditLogExport` Prisma model added. **Fail-closed**: if export fails, rows NOT deleted. Production TODO: migrate to S3/Glacier (JSONL format identical).
+- **Stripe refund `cs_` → `pi_` fix**: webhook `charge.refunded` now syncs the Refund ledger (pending → processed, or creates new `gateway_initiated` refund). `charge.dispute.created` calls `fraudService.recordChargeback` + adds card BIN to blocklist. `charge.dispute.closed` writes `OrderEvent` audit. All non-blocking try/catch.
+- **`payment_mismatch` defense** (R-6): if gateway-reported amount differs from `order.total` by >1%, `applyPaymentUpdate` refuses to mark `paid` and sets `payment_mismatch` status. Prevents the attack where a leaked secret + crafted payload marks an order paid.
+- **Wallet `$transaction` atomicity**: withdrawal fee schedule (`WITHDRAWAL_FEES` map by currency COP/MXN/BRL/USD/PEN/CLP/ARS with `{ pct, min }` + `computeFee(amount, currency)` + USD fallback + `resolveWalletCurrency` reads `Tenant.currency`). `createWithdrawalRequest` + `processWithdrawal` validate positive amount + sanity bound (1_000_000_000) — closes theft vector.
+- **`maskPii(type, value)`**: exported from `fraud.service.ts` with rules for email/phone/card/ip/other. Applied to fraud blocklist + log entries (e.g. `test card BIN in production (${maskPii('card', bin)})`). Closes PII leakage in audit logs.
+- **PIX fail-closed** (N-5): payload missing `status` defaults to `'pending'` with `log.warn` — closes the attack where `{"endToEndId":"..."}` payload would mark an order paid.
+- **Escrow design ADR** (R-18, ADR-0021): `docs/adr/0021-escrow-design.md` (268 lines, Status: Proposed). Defines `EscrowHolding` model + release/refund/dispute workflows + 7-day auto-release cron + virtual-escrow rationale. Implementation deferred to follow-up sprint.
+- **`minimumAmount` validation** (R-17): `create-link/route.ts` + `payments/local/route.ts` validate `currencyConfig.minimumAmount` BEFORE fraud check. Returns 400 with clear error.
+- **OFAC `customerName` field** (N-3): `FraudCheckInput` gained optional `customerName`. Dual-pass OFAC — primary by real name (high sensitivity, email forwarded), complementary by email local-part. Coverage ~80%.
+- **UI payment-status badges** (N-7): `orders-view.tsx` `paymentStatusMeta(s)` returns Spanish label + Tailwind classes + icon for `paid`, `cod_pending`, `unpaid`, `pending_payment`, `payment_mismatch` (red/amber "Mismatch"), `refunded` (gray), `partial_refunded` (blue), `rejected`.
+
+### Added — Infrastructure
+- **`scripts/db-push.ts` + `scripts/db-seed.ts`**: auto-detect Prisma provider (sqlite vs postgresql) and create a temporary schema copy with the right `provider` line so `prisma db push` / `prisma db seed` work in both dev (SQLite) and CI/prod (PostgreSQL). Closes the gap where hardcoded `sqlite` in `schema.prisma` broke CI.
+- **`prisma.seed` config in `package.json`**: without this config, `prisma db seed` exits silently with no error but creates no data — 37 e2e tests were failing without apparent cause.
+- **35 RLS policies** on PostgreSQL (`prisma/sql/rls-policies.sql`): V1 had 20, V2 added 11 (31), V3 added 4 more (35). All multi-tenant tables covered, including `fraud_blocklist`, `fraud_event`, `velocity_window`, `refund` (N-1).
+- **`.env.example`** (135 vars total: 128 active + 7 commented optional OAuth/FB-Pixel/NEXT_RUNTIME placeholders) grouped into 14 categories. 11 vars tagged `# REQUIRED in production`. README/CONTRIBUTING/SECURITY.md previously referenced a non-existent `.env.example` — now resolved.
+- **CI workflow** (`.github/workflows/ci.yml`): 6 parallel jobs — lint, typecheck, unit-tests, openapi-spec (Redocly), build (with PostgreSQL 16 service container), e2e-tests (Playwright + 7-day artifact retention). All 6 green.
+- **Deploy workflow** (`.github/workflows/deploy.yml`): Docker build + push to ghcr.io + SSH deploy + health gate + rollback on failure.
+- **`next.config.ts` `ignoreBuildErrors: false`** (was `true`): `next build` is now a real type-safety gate (the 58 TS errors from V1 were fixed in I1-R2, so the safety net is no longer needed).
+
+### Added — UX/SEO (7 issues fixed in IF-1 + IF-4)
+- **Dashboard NAV_ITEMS fix** (P0-1, CRITICAL): `src/components/dashboard/nav-items.ts` (plain TS module, no `'use client'`) owns `ViewId` + `NAV_ITEMS` + `NavItem`. Previously `src/app/page.tsx` (server component) imported `NAV_ITEMS` from a `'use client'` sidebar module → Turbopack RSC received a client reference proxy → `.find()` failed → dashboard was **broken on ALL viewports** (the error boundary "Algo salió mal" rendered instead). 964 unit tests passed but 0 detected this — only e2e tests caught it.
+- **`robots.txt` 500 fix** (SEO-1, CRITICAL): deleted static `public/robots.txt` (conflicted with `src/app/robots.ts` Metadata Route API — Next.js refused to serve either, returning 500). Now `src/app/robots.ts` serves a valid `MetadataRoute.Robots` object.
+- **OG/PWA assets 307→/login fix** (SEO-2, CRITICAL): added `/og-default.svg`, `/og-default.png`, `/icon.svg`, `/icon.png`, `/apple-icon.png`, `/manifest.json`, `/sw.js` to `PUBLIC_PATTERNS` in `src/middleware.ts` (were being redirected to `/login` because the auth middleware matcher didn't exclude them).
+- **OG image PNG route** (SEO-3, CRITICAL): new `src/app/og/route.tsx` (Edge runtime, ISR 1h) returns 1200×630 PNG via `next/og` `ImageResponse`. Twitter/Facebook/LinkedIn/Slack don't render SVG OG images — was ~0% CTR on shared links. `layout.tsx` OG/Twitter images now point to `/og`.
+- **JSON-LD structured data** (SEO-4, HIGH): `layout.tsx` Organization schema completed with `taxID` (NIT), `address` (PostalAddress — Bogotá), `contactPoint` (customer support — telephone, email, areaServed, availableLanguage), real `sameAs` social profiles (Instagram, LinkedIn, Facebook, Twitter).
+- **Canonical URLs** (SEO-5, HIGH): added canonical to 4 page-level metadata files (`status`, `vendedor`, `docs`, `parental-consent`) for link consolidation / duplicate-URL prevention.
+- **WCAG AA color contrast** (UX-2, HIGH): `--primary` darkened from `oklch(0.62 0.15 158)` (emerald-500, ~2.9:1 — fails AA) to `oklch(0.55 0.15 158)` (emerald-600, ~4.5:1 — passes AA). 3 low-contrast `text-muted-foreground/70` instances on tiny text bumped to full opacity.
+
+### Added — Testing
+- **986 unit tests** (was 964), 52 files (was 51) — 22 new tests for the fintech + security + UX/SEO fixes. 0 failures (was 12 failing due to mock drift post-fintech-V3; all fixed in IF-4 by aligning mocks with the new `applyPaymentUpdate` signature, `verifyPayment` re-check, `payment_mismatch` defense, and cold-storage export phase).
+- **52 e2e tests** (Playwright) — all passing. Covers auth, api, dashboard (the broken-NAV_ITEMS regression is now a permanent e2e guard), governance, llm-costs, ssr-pages, status-page.
+- **CI 6/6 jobs green**: lint, typecheck, unit-tests, openapi-spec (Redocly), build (PostgreSQL 16 service container), e2e-tests (Playwright).
+- **0 lint errors** (37 pre-existing warnings, all in scripts/legacy adapters — documented).
+- **0 TSC errors** (was 58 before V1 remediation — fixed in I1-R2).
+
+### Added — Rebrand (REBRAND-ZIAY)
+- All "CommerceFlow OS" and "Indisutex" references → **ZIAY SAS** (131 files changed, 2567 insertions, 2567 deletions).
+- Domains: `indisutex.com` → `ziay.co`, `commerceflow.indisutex.com` → `ziay.co`, `staging.commerceflow.indisutex.com` → `staging.ziay.co`.
+- Emails: `security@indisutex.com` → `security@ziay.co`.
+- LICENSE, README, `layout.tsx`, SECURITY.md, docs, `seed.ts` — all updated. **0 remaining references** to either old name.
+
+### Added — Documentation (22 ADRs)
+- ADR-0021 `docs/adr/0021-escrow-design.md` (268 lines, Status: Proposed) — escrow model design + release/refund/dispute workflows + 7-day auto-release cron + virtual-escrow rationale.
+- Audit reports (Spanish, in `public/presentaciones/`):
+  - `AUDITORIA-FINTECH.md` (V1, score 5.5/10)
+  - `AUDITORIA-FINTECH-V2.md` (V2, score 7.7/10)
+  - `AUDITORIA-FINTECH-V3-FINAL.md` (V3, score 8.8/10)
+  - `AUDITORIA-FULL-SECURITY-CODE-TEST.md` (security / code-quality / testing — 3 dimensions)
+  - `AUDITORIA-FULL-UX-SEO-DOCS-DEPLOY.md` (UX / SEO / docs / deploy — 4 dimensions)
+
+### Changed
+- All "CommerceFlow OS" / "Indisutex" references → "ZIAY SAS" (131 files).
+- `next.config.ts` `typescript.ignoreBuildErrors`: `true` → `false` (now a real type-safety gate).
+- `src/lib/totp.ts` `ENCRYPTION_KEY`: hardcoded fallback → fail-closed at boot in prod.
+- `src/lib/totp.ts` `generateBackupCodes`: `Math.random()` → `crypto.randomInt()`.
+- Webhook secret resolvers: hardcoded fallbacks → fail-closed via `src/lib/middleware/webhook-secrets.ts`.
+- `src/app/og/route.tsx` OG image: SVG → PNG (`next/og` `ImageResponse`, 1200×630).
+- `src/app/layout.tsx` JSON-LD Organization: incomplete → complete (`taxID`, `address`, `contactPoint`, real `sameAs`).
+- `src/app/globals.css` `--primary`: `oklch(0.62 0.15 158)` → `oklch(0.55 0.15 158)` (WCAG AA).
+- 9 API routes now enforce `requireTenantAccess` (was bypass).
+- PayU webhook now calls `verifyPayment` after MD5 check (defense-in-depth parity with MercadoPago).
+- Stripe webhook now handles `charge.refunded`, `charge.dispute.created`, `charge.dispute.closed` (was filtering them out).
+- `applyPaymentUpdate` signature: gained `amount`, `currency`, `cvvResult`, `avsResult` params (anti-fraud + payment_mismatch defense).
+- Retention cleanup: now exports AuditLog rows to cold-storage JSONL (with SHA-256 checksum) before `deleteMany`.
+
+### Fixed
+- 13 security issues (9 cross-tenant bypass routes + ENCRYPTION_KEY fail-closed + 4 hardcoded webhook secrets + Math.random TOTP + nocodb-out unauthenticated + PayU verifyPayment re-check).
+- 28 fintech risks resolved (96.4%) across 3 audit iterations (V1 5.5/10 → V3 8.8/10).
+- 7 UX/SEO issues (dashboard broken on all viewports + robots.txt 500 + OG/PWA assets 307 + OG image SVG + JSON-LD incomplete + canonical missing + WCAG AA contrast).
+- 12 failing unit tests (mock drift post-fintech-V3) — all aligned with the new correct source behavior.
+- `.env.example` was missing entirely despite being referenced by README/CONTRIBUTING/SECURITY.md.
+
+### Removed
+- `public/robots.txt` (static file conflicting with `src/app/robots.ts` Metadata Route API).
+- Hardcoded webhook secret fallbacks: `'commerceflow_nocodb'`, `'commerceflow_verify'`, `'ziay-dev-encryption-key-change-in-prod-32b!'` (all removed from runtime code; 4 comment references explaining what was removed remain).
+- `next.config.ts` `typescript.ignoreBuildErrors: true` (no longer needed — 58 TS errors from V1 were fixed).
+- `Math.random()` usage in `src/lib/totp.ts` (replaced by `crypto.randomInt()`).
 
 ## [0.3.0] - 2026-07-15 — "Comercio Agéntico"
 

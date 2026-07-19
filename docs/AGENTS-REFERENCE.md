@@ -6,7 +6,7 @@ Documentación de los **10 agentes conversacionales** originales de ZIAY, con su
 > 📖 Orquestador: [`../src/lib/orchestrator/orchestrator.ts`](../src/lib/orchestrator/orchestrator.ts)
 > 📖 API: [`POST /api/agents/[agentName]`](./API-REFERENCE.md#5-agents)
 
-> **v0.4.0 update**: El código ahora define **27 agentes conversacionales**
+> **v0.4.0 update**: El código ahora define **26 agentes conversacionales**
 > (era 26 en v0.3.0, 10 en el doc original). Los 10 agentes documentados aquí
 > son el núcleo del orquestador Saramantha. Los 17 agentes adicionales cubren:
 > speech/voice (Vapi AI), 6 compliance agents (KYC, consent, retracto, age

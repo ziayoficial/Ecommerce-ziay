@@ -381,7 +381,7 @@ bunx eslint src/ --quiet
 
 ## Cómo añadir un nuevo agente conversacional
 
-Sigue el patrón de los **27 agentes** en `src/lib/agents/prompts.ts`. Ver [`CONTRIBUTING.md`](../CONTRIBUTING.md#cómo-añadir-un-nuevo-agente-conversacional) para el ejemplo paso a paso.
+Sigue el patrón de los **26 agentes** en `src/lib/agents/prompts.ts`. Ver [`CONTRIBUTING.md`](../CONTRIBUTING.md#cómo-añadir-un-nuevo-agente-conversacional) para el ejemplo paso a paso.
 
 Resumen:
 
@@ -543,7 +543,7 @@ Reinicia el dev server y vuelve a probar.
 ## Próximos pasos
 
 - 📖 Lee [`docs/DATA-MODEL.md`](./DATA-MODEL.md) para entender el schema (78 modelos Prisma).
-- 📖 Lee [`docs/AGENTS-REFERENCE.md`](./AGENTS-REFERENCE.md) para entender los 27 agentes.
+- 📖 Lee [`docs/AGENTS-REFERENCE.md`](./AGENTS-REFERENCE.md) para entender los 26 agentes.
 - 📖 Lee [`docs/ADAPTERS.md`](./ADAPTERS.md) para entender la capa de adaptadores.
 - 📖 Lee [`docs/PRODUCTION-CHECKLIST.md`](./PRODUCTION-CHECKLIST.md) antes de desplegar.
 - 📖 Lee [`upload/onboarding-end-to-end.md`](../upload/onboarding-end-to-end.md) para el onboarding completo de 2.006 líneas.

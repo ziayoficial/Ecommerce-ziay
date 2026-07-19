@@ -6,7 +6,7 @@
 [![Security: Hardened](https://img.shields.io/badge/security-hardened-success.svg)](public/presentaciones/AUDITORIA-FULL-SECURITY-CODE-TEST.md)
 [![Lint: 0 errors](https://img.shields.io/badge/lint-0%20errors-success.svg)](PRODUCTION-CHECKLIST.md)
 
-Plataforma de comercio agéntico para LATAM. WhatsApp, Messenger, Instagram con atribución de pauta, 27 agentes IA y compliance regulatorio LATAM (DIAN, Ley 1581, Ley 1480, LGPD, LFPDPPP).
+Plataforma de comercio agéntico para LATAM. WhatsApp, Messenger, Instagram con atribución de pauta, 26 agentes IA y compliance regulatorio LATAM (DIAN, Ley 1581, Ley 1480, LGPD, LFPDPPP).
 
 **Versión:** v0.4.0 "Comercio Agéntico + Fintech Hardened" · **Next.js:** 16.2.10
 

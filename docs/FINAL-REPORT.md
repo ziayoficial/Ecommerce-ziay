@@ -65,7 +65,7 @@ The v0.4.0 cycle was a deliberate audit-driven remediation. Three iterations of 
 | Docs | 10.0 (self) | 8.5 | New audit dimension |
 | Deploy | 10.0 (self) | 7.0 | New audit dimension |
 | Legal Compliance | 10.0 | 10.0 | Unchanged — 6 modules, 5 laws |
-| AI Agents | 10.0 | 10.0 | Unchanged — 27 agents (was 26) |
+| AI Agents | 10.0 | 10.0 | Unchanged — 26 agents (was 25) |
 | **CI pipeline** | — | **6/6 green** | New in v0.4.0 |
 
 ## Key Achievements

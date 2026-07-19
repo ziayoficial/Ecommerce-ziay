@@ -1,11 +1,11 @@
 # Investigación de Mercado — ZIAY
-## Plataforma SaaS de Comercio Conversacional para LATAM (27 agentes IA sobre WhatsApp)
+## Plataforma SaaS de Comercio Conversacional para LATAM (26 agentes IA sobre WhatsApp)
 
 **Autor:** Agente de Investigación de Mercado (ZIAY Project)
 **Fecha:** 2025
 **Versión:** 1.0
 **Mercado objetivo:** Colombia, México, Perú, Chile, Brasil (LATAM hispano + Brasil)
-**Producto:** SaaS multi-tenant B2B con 27 agentes de IA que venden por WhatsApp 24/7
+**Producto:** SaaS multi-tenant B2B con 26 agentes de IA que venden por WhatsApp 24/7
 
 ---
 
@@ -35,7 +35,7 @@ Sin embargo, el mercado está fragmentado entre **(i) incumbentes globales de CP
 El espacio donde ZIAY opera —**SaaS conversacional con agentes IA agénticos para SMB retail en LATAM**— tiene un TAM realista de **USD 18.2 mil millones (mercado conversacional LATAM 2025)**, un SAM de **USD 4.2 mil millones (SMB retail con WhatsApp Business en los 5 países foco)** y un SOM de **USD 30–60 millones en año 3** (0.7–1.5% del SAM, ~2,000–4,000 merchants activos pagando ARPU promedio USD 200/mes + 4.5% comisión GMV).
 
 **Las tres oportunidades de mayor impacto para ZIAY son:**
-1. **Multi-agente agéntico (27 agentes + Governor) en SMB**: ningún competidor LATAM ha industrializado la orquestación multi-agente con modelo de confianza 0–1 y validación de output; Gartner proyecta que para 2028 el 33% del software enterprise incluirá IA agéntica (vs <1% en 2024), pero la categoría SMB está vacía.
+1. **Multi-agente agéntico (26 agentes + Governor) en SMB**: ningún competidor LATAM ha industrializado la orquestación multi-agente con modelo de confianza 0–1 y validación de output; Gartner proyecta que para 2028 el 33% del software enterprise incluirá IA agéntica (vs <1% en 2024), pero la categoría SMB está vacía.
 2. **Cross-border + multi-currency + DDP pricing**: el 90% del volumen eCommerce LATAM se concentra en 6 mercados; el cross-border Colombia–México crece 52%, Perú 58%, Chile 31% — pero ningún competidor ofrece cotización DDP nativa con arancel incluido.
 3. **Unit economics SaaS+comisión 4.5% GMV**: con WhatsApp Business API con conversaciones de servicio **gratuitas desde el 1 de noviembre de 2024** y LLMs que cayeron a USD 0.10–0.60 por millón de tokens, el costo marginal por conversación es de **USD 0.02–0.05**, dejando gross margin >70% incluso al precio de USD 99–299/mes del plan SMB.
 
@@ -651,7 +651,7 @@ Desde julio 2026, los nuevos clientes WhatsApp Business en Brasil solo podrán f
 | Plan | Precio USD/mes | Incluye | Target |
 |---|---|---|---|
 | **Starter** | 99 | 1,000 conversaciones/mes, 3 agentes IA, 1 canal, 1 moneda | Micro merchant (<USD 5K GMV/mes) |
-| **Business** | 299 | 5,000 conversaciones/mes, 27 agentes, 3 canales, multi-moneda, VLM, bundles | SMB establecido (USD 5K–50K GMV/mes) |
+| **Business** | 299 | 5,000 conversaciones/mes, 26 agentes, 3 canales, multi-moneda, VLM, bundles | SMB establecido (USD 5K–50K GMV/mes) |
 | **Enterprise** | 999 | Conversaciones ilimitadas, multi-tenant, marketplace, embed SDK, SLA 99.9% | Multi-tienda (USD 50K+ GMV/mes) |
 | **+ Comisión GMV** | 4.5% | Opcional en Starter (obligatoria en Business+) | Aligna incentivos, captura upside |
 | **+ Marketplace fee** | 5% | Solo en Enterprise cuando se hace smart routing cross-tenant | Network effect revenue |

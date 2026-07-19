@@ -562,6 +562,26 @@ export const POST = withWebhookErrorHandling(async (req: NextRequest) => {
       messageId: message.id,
       waMessageId: parsed.messageId,
     }
+
+    // GAP-FIX-1: Human takeover — if the bot is paused for this conversation
+    // (botEnabled=false), emit a `conversation:bot_paused` event so the
+    // dashboard shows a "human takeover" badge, but do NOT trigger the AI
+    // reply pipeline. The message is still persisted (above) and visible in
+    // the human agent's inbox.
+    if (conversation.botEnabled === false) {
+      emitToTenant(tenantId, 'message:new', livePayload)
+      emitToTenant(tenantId, 'message:received', { conversationId: conversation.id, message: livePayload })
+      emitToTenant(tenantId, 'conversation:bot_paused', {
+        conversationId: conversation.id,
+        customerId: customer.id,
+        message: 'Bot is paused — human agent should respond',
+      })
+      log.info(
+        { conversationId: conversation.id, tenantId, customerPhone: parsed.from },
+        'Inbound message received but bot is paused — human takeover active',
+      )
+      return NextResponse.json({ received: true, status: 'bot_paused' })
+    }
     emitToTenant(tenantId, 'message:new', livePayload)
     emitToTenant(tenantId, 'message:received', { conversationId: conversation.id, message: livePayload })
 

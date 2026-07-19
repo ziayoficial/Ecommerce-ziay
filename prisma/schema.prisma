@@ -398,6 +398,16 @@ model Conversation {
   // turnos de conversaciones multi-turno (el cliente responde al resultado
   // del pipeline y se corre un sub-pipeline con contexto del anterior).
   pipelineMemory   String?
+  // GAP-FIX-1: Human takeover — when false, the AI bot is paused for this
+  // conversation and inbound messages are NOT processed by the agent pipeline.
+  // A human agent (assigneeId) takes over. The bot resumes when set back to true.
+  // This is the "pause bot / take control" feature that the conversational
+  // commerce market expects (Kommo, SleekFlow, Tecca all have it).
+  botEnabled       Boolean  @default(true)
+  // When botEnabled was toggled to false, record who paused it + when.
+  pausedAt         DateTime?
+  pausedBy         String? // userId of the human who paused the bot
+  pausedReason     String? // 'human_takeover' | 'customer_request' | 'maintenance' | 'manual'
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

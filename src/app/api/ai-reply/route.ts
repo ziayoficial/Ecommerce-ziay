@@ -158,6 +158,23 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   const { error } = await requireTenantAccess(conv.tenantId)
   if (error) return error
 
+  // GAP-FIX-1: Human takeover — if the bot is paused for this conversation
+  // (botEnabled=false), do NOT generate an AI reply. A human agent has taken
+  // over. Return 409 Conflict so the client knows the bot is paused and can
+  // show the human agent's inbox instead.
+  if (conv.botEnabled === false) {
+    return NextResponse.json(
+      {
+        error: 'Bot is paused for this conversation — human agent has taken over',
+        code: 'BOT_PAUSED',
+        botEnabled: false,
+        pausedAt: conv.pausedAt,
+        pausedReason: conv.pausedReason,
+      },
+      { status: 409 },
+    )
+  }
+
   // SPRINT-AI-AGENTS-003 §3 — verificar el presupuesto diario del tenant
   // antes de la llamada LLM. Si excedió el budget, devolvemos 429 para que
   // el cliente sepa que debe esperar al reset diario (o contactar al admin

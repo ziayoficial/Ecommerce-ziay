@@ -19,6 +19,7 @@ import { useTenantId } from '@/hooks/use-tenant'
 import { t } from '@/lib/i18n'
 import { timeAgo, shortDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
+import { CircuitBreakerDashboard } from './circuit-breaker-dashboard'
 
 // ───────────────────────────────────────────────────────────────────────────
 // SPRINT-FRONTEND-VIEWS-001 · §2 — Vista de Gobernanza.
@@ -304,6 +305,9 @@ export function GovernanceView() {
           )}
         </TabsContent>
       </Tabs>
+
+      {/* GAP-FIX-2: Circuit breaker dashboard — ops health monitoring */}
+      <CircuitBreakerDashboard />
     </section>
   )
 }

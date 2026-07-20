@@ -202,3 +202,51 @@ describe('Meta Agent Config — hybrid intent classification regression', () => 
     expect(shouldEscalateToOwnAgent({ intent, orderValue: 50_000 })).toBe(false)
   })
 })
+
+describe('Meta Agent Config — classifyIntentKeywords (exported function)', () => {
+  // RE-AUDIT #5 FIX: these tests import the REAL function from
+  // meta-agent-config.ts — no more duplicated regex in the test file.
+  // If someone edits the regex in the source, these tests will catch it.
+  it('classifies checkout intent from keywords', async () => {
+    const { classifyIntentKeywords } = await import('@/lib/config/meta-agent-config')
+    expect(classifyIntentKeywords('quiero hacer un pedido y pagar con wompi')).toBe('checkout')
+    expect(classifyIntentKeywords('confirmar mi orden por favor')).toBe('checkout')
+    expect(classifyIntentKeywords('pago con tarjeta nequi')).toBe('checkout')
+  })
+
+  it('classifies novedad intent from keywords', async () => {
+    const { classifyIntentKeywords } = await import('@/lib/config/meta-agent-config')
+    expect(classifyIntentKeywords('tengo un problema, no llegó mi pedido')).toBe('novedad')
+    expect(classifyIntentKeywords('quiero un reembolso')).toBe('novedad')
+    expect(classifyIntentKeywords('devolución del producto')).toBe('novedad')
+  })
+
+  it('classifies complaint intent from keywords', async () => {
+    const { classifyIntentKeywords } = await import('@/lib/config/meta-agent-config')
+    expect(classifyIntentKeywords('quiero poner una queja, el servicio fue pésimo')).toBe('complaint')
+    expect(classifyIntentKeywords('esto es una estafa')).toBe('complaint')
+  })
+
+  it('classifies catalog_query intent (including shipping questions)', async () => {
+    const { classifyIntentKeywords } = await import('@/lib/config/meta-agent-config')
+    expect(classifyIntentKeywords('tienes catálogo de productos?')).toBe('catalog_query')
+    expect(classifyIntentKeywords('¿hacen envíos a mi dirección en Bogotá?')).toBe('catalog_query')
+    expect(classifyIntentKeywords('qué precio tiene el pijama?')).toBe('catalog_query')
+  })
+
+  it('classifies simple FAQ (no keywords match)', async () => {
+    const { classifyIntentKeywords } = await import('@/lib/config/meta-agent-config')
+    expect(classifyIntentKeywords('hola, a qué hora abren?')).toBe('faq')
+    expect(classifyIntentKeywords('buenos días')).toBe('faq')
+    expect(classifyIntentKeywords('')).toBe('faq')
+  })
+
+  it('RE-AUDIT #5: envío/dirección do NOT trigger checkout (avoid over-escalation)', async () => {
+    const { classifyIntentKeywords } = await import('@/lib/config/meta-agent-config')
+    // These are pre-sale logistics questions, NOT checkout intent
+    expect(classifyIntentKeywords('¿hacen envíos a Bogotá?')).not.toBe('checkout')
+    expect(classifyIntentKeywords('¿cuál es la dirección de la tienda?')).not.toBe('checkout')
+    // They should be catalog_query (pre-sale inquiry)
+    expect(classifyIntentKeywords('¿hacen envíos a Bogotá?')).toBe('catalog_query')
+  })
+})

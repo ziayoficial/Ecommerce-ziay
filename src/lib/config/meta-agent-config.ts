@@ -152,3 +152,52 @@ export function shouldEscalateToOwnAgent(context: {
   }
   return false // simple FAQ / catalog handled by Meta
 }
+
+/**
+ * Lightweight keyword-based intent pre-classification.
+ *
+ * RE-AUDIT FIX: Previously the webhook had this regex inline AND the test
+ * had a copy of it — they could drift apart. Now it's a single exported
+ * function imported by both the webhook and the test.
+ *
+ * This is NOT a full NLU classification — it's a fast keyword matcher that
+ * catches the high-value intents (checkout, complaint, novedad) that should
+ * always go to ZIAY's own agents in hybrid mode. The Governor agent (which
+ * runs later in the pipeline) does the full classification.
+ *
+ * RE-AUDIT #5: Moved envío/dirección from checkout to catalog_query to
+ * avoid over-escalating simple logistics questions like "¿hacen envíos a
+ * mi dirección en Bogotá?" (FAQ, not checkout).
+ */
+export type MessageIntent = 'faq' | 'catalog_query' | 'checkout' | 'novedad' | 'complaint'
+
+export function classifyIntentKeywords(text: string): MessageIntent {
+  const msg = (text || '').toLowerCase()
+
+  // Novedad: post-sale issues (delivery, returns, refunds) — check FIRST
+  // because a message like "tengo un problema con mi pedido" contains
+  // both 'pedido' (checkout keyword) and 'problema' (novedad keyword).
+  // Novedad should win because it's a post-sale issue, not a new purchase.
+  if (/novedad|reclamo|problema|no llegó|no llego|devolución|devolucion|reembolso|reclama/.test(msg)) {
+    return 'novedad'
+  }
+
+  // Complaint: negative sentiment / escalation — also high priority
+  if (/queja|mal|pésimo|pesimo|terrible|estafa|denuncia/.test(msg)) {
+    return 'complaint'
+  }
+
+  // Checkout: customer is ready to buy / pay / confirm
+  if (/pedido|orden|comprar|pago|wompi|nequi|tarjeta|confirmar/.test(msg)) {
+    return 'checkout'
+  }
+
+  // Catalog query: product questions (including shipping questions — these
+  // are pre-sale inquiries, not checkout intent)
+  if (/catálogo|catalogo|producto|precio|talla|color|tienes|disponible|envío|envio|dirección|direccion/.test(msg)) {
+    return 'catalog_query'
+  }
+
+  // Default: simple FAQ (stays with Meta in hybrid mode)
+  return 'faq'
+}

@@ -604,24 +604,15 @@ export const POST = withWebhookErrorHandling(async (req: NextRequest) => {
     // always go to ZIAY's own agents. The Governor agent (which runs later
     // in the pipeline) does the full classification.
     try {
-      const { shouldEscalateToOwnAgent, getMetaAgentStrategy } = await import('@/lib/config/meta-agent-config')
+      const { shouldEscalateToOwnAgent, getMetaAgentStrategy, classifyIntentKeywords } = await import('@/lib/config/meta-agent-config')
       const strategy = getMetaAgentStrategy()
 
       // Only do intent classification in hybrid mode (own_stack always
       // escalates, meta_native never does — no classification needed).
       if (strategy.strategy === 'hybrid') {
-        const msgLower = (parsed.text || '').toLowerCase()
-        // Lightweight keyword-based intent pre-classification
-        let intent: 'faq' | 'catalog_query' | 'checkout' | 'novedad' | 'complaint' = 'faq'
-        if (/pedido|orden|comprar|pago|wompi|nequi|tarjeta|confirmar|envío|envio|dirección|direccion/.test(msgLower)) {
-          intent = 'checkout'
-        } else if(/novedad|reclamo|problema|no llegó|no llego|devolución|devolucion|reembolso|reclama/.test(msgLower)) {
-          intent = 'novedad'
-        } else if(/queja|mal|pésimo|pesimo|terrible|estafa|denuncia/.test(msgLower)) {
-          intent = 'complaint'
-        } else if(/catálogo|catalogo|producto|precio|talla|color|tienes|disponible/.test(msgLower)) {
-          intent = 'catalog_query'
-        }
+        // RE-AUDIT FIX: use the exported classifyIntentKeywords function
+        // (not inline regex) so the test and the webhook share the same code.
+        const intent = classifyIntentKeywords(parsed.text || '')
 
         const escalateToOwn = shouldEscalateToOwnAgent({
           intent,

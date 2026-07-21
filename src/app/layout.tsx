@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as SonnerToaster } from "@/components/ui/sonner";
@@ -12,15 +12,18 @@ import { RegisterSW } from "@/components/pwa/register-sw";
 // explicitly so FOUT (Flash Of Unstyled Text) is locked in across Next
 // versions (P2 finding #18 from AUDIT-SEO-001).
 // ───────────────────────────────────────────────────────────────────────────
-const geistSans = Geist({
+// P2.8 FIX: migrated from next/font/google to next/font/local so the build
+// doesn't require internet access to fonts.googleapis.com. Uses woff2 files
+// served from /public/fonts/ — no external dependency at build time.
+const geistSans = localFont({
+  src: "../../public/fonts/Geist-Variable.woff2",
   variable: "--font-geist-sans",
-  subsets: ["latin"],
   display: "swap",
 });
 
-const geistMono = Geist_Mono({
+const geistMono = localFont({
+  src: "../../public/fonts/GeistMono-Variable.woff2",
   variable: "--font-geist-mono",
-  subsets: ["latin"],
   display: "swap",
 });
 

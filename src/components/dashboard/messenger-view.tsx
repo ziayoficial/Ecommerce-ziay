@@ -36,6 +36,9 @@ type ConvListItem = {
   channel: { id: string; type: string; displayName: string; paymentStrategy: string }
   assignee: { id: string; name: string } | null
   lastMessage: { body: string; direction: string; createdAt: string } | null
+  // GAP #1 FIX: botEnabled + pausedReason so the list can show a "bot paused" badge
+  botEnabled?: boolean
+  pausedReason?: string | null
 }
 
 type ConvDetail = {
@@ -313,6 +316,13 @@ export function MessengerView() {
                     </p>
                     <div className="flex items-center gap-1.5 mt-1">
                       <span className={cn('text-[10px] px-1.5 py-0.5 rounded', sm.cls)}>{sm.label}</span>
+                      {/* GAP #1 FIX: show "Bot pausado" badge in the list so agents can see
+                          which conversations have human takeover active */}
+                      {c.botEnabled === false && (
+                        <Badge variant="outline" className="text-[9px] h-4 px-1 gap-0.5 text-amber-600 border-amber-300">
+                          <User className="size-2.5" /> Humano
+                        </Badge>
+                      )}
                     </div>
                   </div>
                 </button>

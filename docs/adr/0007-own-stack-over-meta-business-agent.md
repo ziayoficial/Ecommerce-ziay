@@ -28,13 +28,13 @@ Meta Business Agent is free (until Aug 2026) and handles basic FAQ + product sug
 | **AP2/UCP/ACP/MCP/A2A protocols** (agent interoperability) | ❌ | ✅ |
 | **Anti-fraud** (velocity, blocklist, OFAC, 3DS, CVV/AVS) | ❌ | ✅ |
 | **Circuit breaker + retry + fallback** (production resilience) | ❌ | ✅ |
-| **Cost per conversation** | $2.00 (from Aug 2026) | $0.02 (100× cheaper) |
+| **Cost per conversation** | ~$0.04-0.05 (Meta charges ~$2.00 per million tokens from Aug 2026; a typical conversation uses ~20K tokens) | ~$0.02 (ZIAY uses cheap-tier models for classification + standard for reasoning) |
 | **Data ownership** | Shared with Meta | 100% tenant-owned |
 
 **Target customer:** SMB merchants and agencies in LATAM who need more than FAQ bots — they need real sales orchestration with logistics, payments, and multi-tenant white-label.
 
 ## Consequences
-- **Positive:** 100x cheaper per conversation ($0.02 vs $2.00)
+- **Positive:** Cheaper per conversation ($0.02 vs ~$0.04-0.05) — the cost advantage is ~2× not 100× as previously stated (corrected: Meta charges per million tokens, not per conversation)
 - **Positive:** Full control of conversation data (no Meta data sharing)
 - **Positive:** AP2/UCP compliance requires control of the signing service (impossible with Meta Native)
 - **Positive:** Multi-tenant white-label (Meta Business Agent is per-business, not a platform)
@@ -42,3 +42,17 @@ Meta Business Agent is free (until Aug 2026) and handles basic FAQ + product sug
 - **Negative:** Must maintain WhatsApp Cloud API integration ourselves
 - **Mitigation:** `shouldEscalateToOwnAgent()` routing function enables hybrid mode if needed
 - **Future:** When WhatsApp Pay arrives in Colombia (expected 2026), evaluate `hybrid` mode where Meta handles payments natively and ZIAY handles orchestration
+
+## Regulatory Risk — WhatsApp Business Terms of Service (Jan 2026)
+
+**Risk:** The WhatsApp Business Terms of Service (effective January 15, 2026) include a clause that prohibits using the API if the "primary service" of the business is an AI chatbot. This is under active litigation in the EU and Brazil (CADE ordered a preliminary suspension in January 2026).
+
+**ZIAY's position:** ZIAY is NOT primarily a chatbot — it is a **commerce platform** that uses WhatsApp as a channel. The primary service is selling products (catalog, quoting, checkout, logistics), not providing a conversational AI. The AI agents are a mechanism to automate the sales process, analogous to how Shopify uses AI for product recommendations — the AI is a feature, not the product.
+
+**Mitigation:**
+1. ZIAY's marketing and onboarding materials describe it as "comercio conversacional" (conversational commerce), not as a "chatbot platform"
+2. The handoff-to-human feature (botEnabled/pausedReason) ensures a human is always in the loop — the AI never fully replaces human oversight
+3. ZIAY operates as a Business Solution Provider (BSP) under Meta's official partner program, not as an unauthorized API wrapper
+4. If the litigation outcome restricts AI-on-WhatsApp, ZIAY can pivot to Instagram DM + Messenger (same API, different ToS) or to its own web chat (Embed SDK)
+
+**Monitoring:** The legal team should track the CADE (Brazil) and EU DSA cases. If a final ruling prohibits AI agents on WhatsApp, the `meta_native` strategy (ADR-0007) becomes the fallback — let Meta's own agent handle the conversation layer while ZIAY handles the commerce layer via webhooks.

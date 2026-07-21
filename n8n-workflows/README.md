@@ -1,6 +1,26 @@
 # Guía de importación de workflows n8n (Saramantha §1.2, §11.2)
 
-Esta carpeta contiene **26 workflows n8n** listos para importar en tu instancia de n8n autoalojada (incluida en `docker-compose.yml`).
+> ⚠️ **AVISO IMPORTANTE — Material de demo/onboarding, NO production-ready**
+>
+> Esta carpeta contiene workflows n8n generados como material de demostración
+> y onboarding para equipos no técnicos. **No están pensados para producción
+> sin hardening adicional.** Específicamente:
+> - **Sin autenticación de webhook**: los 26 workflows aceptan cualquier
+>   request sin verificar shared-secret o HMAC.
+> - **Sin retry/timeout aplicado**: aunque `GUIA-DEPLOY-AGENTES-N8N.md` §11-12
+>   documenta `retryOnFail: true` + `timeout: 30000`, estos valores NO están
+>   aplicados en los archivos JSON reales.
+> - **Sin Error Trigger workflow**: no hay notificación automática ante fallos.
+>
+> Para producción, usa los **API endpoints nativos** de ZIAY
+> (`/api/orchestrate`, `/api/ai-reply`, `/api/agents/[agentName]`) que sí
+> tienen: autenticación (NextAuth + requireTenantAccess), circuit breaker,
+> retry con backoff, fallback de modelo, tracing, budget manager, Governor,
+> QA Reviewer, y todas las capas de resiliencia documentadas en el ADR-0007.
+
+Esta carpeta contiene **26 workflows n8n** como material de demostración para
+equipos que quieren visualizar el flujo de agentes sin escribir código. Para
+producción, usa los API endpoints nativos de ZIAY (ver arriba).
 
 > **SPRINT-FIXES-N8N-DEPLOY-001** — la carpeta se expandió de 12 workflows (los 10 agentes originales + el orquestador + el legacy) a **26 workflows**: los 12 originales renombrados (`CommerceFlow` → `ZIAY`) + **16 nuevos** para los agentes adicionales agregados en `BUILD-AGENTS-LIB-001` (24 agentes en total).
 
@@ -21,7 +41,6 @@ Esta carpeta contiene **26 workflows n8n** listos para importar en tu instancia 
 | `agent-speech.json`     | 6.2 Discurso de ventas por perfil | `POST /api/agents/speech` |
 | `agent-quote.json`      | 6.3 Cotización cruzada            | `POST /api/agents/quote` |
 | `agent-catalog.json`    | 6.4 Catálogo visual-primero       | `POST /api/agents/catalog` |
-| `agent-theme.json`      | 6.5 Búsqueda por tema/personaje   | `POST /api/agents/theme` |
 | `agent-objection.json`  | 6.6 Manejo de objeciones          | `POST /api/agents/objection` |
 | `agent-address.json`    | 6.7 Confirmación de datos (10 campos) | `POST /api/agents/address` |
 | `agent-logistics.json`  | 6.8 Logística de fletes           | `POST /api/agents/logistics` |
@@ -33,21 +52,14 @@ Esta carpeta contiene **26 workflows n8n** listos para importar en tu instancia 
 | Archivo | Agente | Endpoint |
 |---|---|---|
 | `agent-buyer_behavior.json`     | Análisis de comportamiento de compra    | `POST /api/agents/buyer_behavior` |
-| `agent-cart_builder.json`       | Constructor de carrito NL               | `POST /api/agents/cart_builder` |
-| `agent-guide_tracking.json`     | Seguimiento de guía                     | `POST /api/agents/guide_tracking` |
 | `agent-novedades.json`          | Manejo de novedades logísticas          | `POST /api/agents/novedades` |
 | `agent-redelivery.json`         | Coordinación de re-entrega              | `POST /api/agents/redelivery` |
 | `agent-remarketing.json`        | Re-enganche de leads fríos              | `POST /api/agents/remarketing` |
-| `agent-guide_alert.json`        | Alertas operativas de guías             | `POST /api/agents/guide_alert` |
 | `agent-sales_retainer.json`     | Retención de ventas en riesgo           | `POST /api/agents/sales_retainer` |
-| `agent-logistics_notifier.json` | Notificaciones proactivas logísticas    | `POST /api/agents/logistics_notifier` |
-| `agent-customer_score.json`     | Scoring de clientes (LTV/churn)         | `POST /api/agents/customer_score` |
-| `agent-carrier_score.json`      | Scoring de transportadoras              | `POST /api/agents/carrier_score` |
 | `agent-product_enrichment.json` | Enriquecimiento de catálogo (SEO/alt)   | `POST /api/agents/product_enrichment` |
 | `agent-marketplace.json`        | Sincronización con marketplaces         | `POST /api/agents/marketplace` |
 | `agent-affiliator.json`         | Gestión de afiliados e influencers      | `POST /api/agents/affiliator` |
 | `agent-traffic_orchestrator.json` | Orquestador de tráfico pagado         | `POST /api/agents/traffic_orchestrator` |
-| `agent-address_analysis.json`   | Análisis de calidad de dirección        | `POST /api/agents/address_analysis` |
 
 ## Cómo importar
 
@@ -99,28 +111,20 @@ Una vez activados los workflows, n8n expone estos webhooks:
 | Discurso             | `POST /webhook/agent-speech`             | `{tenantId, perfil}` |
 | Cotización           | `POST /webhook/agent-quote`              | `{tenantId, items, perfil}` |
 | Catálogo             | `POST /webhook/agent-catalog`            | `{tenantId, query}` |
-| Tema                 | `POST /webhook/agent-theme`              | `{tenantId, tema}` |
 | Objeciones           | `POST /webhook/agent-objection`          | `{tenantId, message}` |
 | Dirección            | `POST /webhook/agent-address`            | `{tenantId, partialAddress}` |
 | Logística            | `POST /webhook/agent-logistics`          | `{tenantId, ciudad, unidades}` |
 | Visión               | `POST /webhook/agent-vision`             | `{tenantId, imageUrl}` |
 | Checkout             | `POST /webhook/agent-checkout`           | `{tenantId, customerId, items}` |
 | Buyer Behavior       | `POST /webhook/agent-buyer_behavior`     | `{tenantId, customerId}` |
-| Cart Builder         | `POST /webhook/agent-cart_builder`       | `{tenantId, message, customerId?}` |
-| Guide Tracking       | `POST /webhook/agent-guide_tracking`     | `{tenantId, guideNumber}` |
 | Novedades            | `POST /webhook/agent-novedades`          | `{tenantId, guideNumber, novedad}` |
 | Redelivery           | `POST /webhook/agent-redelivery`         | `{tenantId, guideNumber, slot}` |
 | Remarketing          | `POST /webhook/agent-remarketing`        | `{tenantId, customerId}` |
-| Guide Alert          | `POST /webhook/agent-guide_alert`        | `{tenantId, guideNumber, alertType}` |
 | Sales Retainer       | `POST /webhook/agent-sales_retainer`     | `{tenantId, orderId, reason}` |
-| Logistics Notifier   | `POST /webhook/agent-logistics_notifier` | `{tenantId, guideNumber, milestone}` |
-| Customer Score       | `POST /webhook/agent-customer_score`     | `{tenantId, customerId}` |
-| Carrier Score        | `POST /webhook/agent-carrier_score`      | `{tenantId, carrierId}` |
 | Product Enrichment   | `POST /webhook/agent-product_enrichment` | `{tenantId, productId}` |
 | Marketplace          | `POST /webhook/agent-marketplace`        | `{tenantId, productId, marketplace}` |
 | Affiliator           | `POST /webhook/agent-affiliator`         | `{tenantId, affiliateCode}` |
 | Traffic Orchestrator | `POST /webhook/agent-traffic_orchestrator` | `{tenantId, campaignId}` |
-| Address Analysis     | `POST /webhook/agent-address_analysis`   | `{tenantId, address}` |
 
 ## WhatsApp Cloud API → n8n
 
@@ -146,7 +150,6 @@ curl -X POST http://localhost:5678/webhook/agent-profile \
   -d '{"tenantId":"ten-saramantha","message":"para surtir mi tienda"}'
 
 # Test a new agent (e.g. guide_tracking)
-curl -X POST http://localhost:5678/webhook/agent-guide_tracking \
   -H 'Content-Type: application/json' \
   -d '{"tenantId":"ten-saramantha","guideNumber":"TRACK-12345"}'
 

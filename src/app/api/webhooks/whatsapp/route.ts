@@ -600,14 +600,21 @@ export const POST = withWebhookErrorHandling(async (req: NextRequest) => {
     //
     // In meta_native mode, it always returns false — Meta handles everything.
     //
-    // RE-AUDIT FIX: Previously the intent was hardcoded as 'faq' which broke
-    // hybrid mode (everything was treated as FAQ → nothing escalated to ZIAY).
-    // Now we do a lightweight intent classification from the message text
-    // BEFORE calling shouldEscalateToOwnAgent. This is NOT a full NLU
-    // classification — it's a keyword-based pre-classification that catches
-    // the high-value intents (checkout, complaint, novedad) that should
-    // always go to ZIAY's own agents. The Governor agent (which runs later
-    // in the pipeline) does the full classification.
+    // GAP-FIX #4: The keyword-based classifyIntentKeywords is a FAST
+    // pre-classification that runs in the webhook (before ai-reply). It's
+    // intentionally conservative — when in doubt, it escalates to ZIAY
+    // (better to over-escalate than to lose a checkout to Meta's FAQ bot).
+    //
+    // The Governor agent (which runs in ai-reply/route.ts AFTER this webhook)
+    // does the FULL classification with LLM reasoning. If the Governor
+    // determines the message is simpler than the keyword classifier thought,
+    // it can redirect back to Meta — but that's a future enhancement.
+    //
+    // For now, this two-stage approach is correct:
+    //   1. Webhook: keyword pre-classification (fast, conservative)
+    //   2. ai-reply: Governor LLM classification (accurate, slower)
+    // The keyword step is a gatekeeper — it prevents simple FAQs from
+    // consuming ZIAY LLM tokens in hybrid mode.
     try {
       const { shouldEscalateToOwnAgent, getMetaAgentStrategy, classifyIntentKeywords } = await import('@/lib/config/meta-agent-config')
       const strategy = getMetaAgentStrategy()

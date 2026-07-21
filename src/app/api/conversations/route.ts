@@ -84,6 +84,10 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
     utm: c.utm,
     sourceAdId: c.sourceAdId,
     sourceCampaign: c.sourceCampaign,
+    // GAP #1 FIX: include botEnabled + pausedReason so the conversation list
+    // can show a "Humano" badge when the bot is paused for a conversation.
+    botEnabled: c.botEnabled,
+    pausedReason: c.pausedReason,
     customer: { id: c.customer.id, name: c.customer.name, phone: c.customer.phone, psid: c.customer.psid, country: c.customer.country, avatarUrl: null },
     channel: { id: c.channel.id, type: c.channel.type, displayName: c.channel.displayName, paymentStrategy: c.channel.paymentStrategy },
     assignee: c.assignee ? { id: c.assignee.id, name: c.assignee.name } : null,

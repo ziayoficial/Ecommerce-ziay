@@ -216,6 +216,11 @@ export const POST = withWebhookErrorHandling(async (req: NextRequest) => {
     return NextResponse.json({ received: true, status: 'no_channel' })
   }
 
+  // GAP-FIX #2: declared BEFORE the try block so the catch block can
+  // access it for pipeline-failure escalation.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let conversation: any = null
+
   try {
     // ── Idempotency layer 3: WA message ID dedup ────────────────────────
     // Meta can retry the same inbound message up to ~24h. The webhookId
@@ -251,7 +256,7 @@ export const POST = withWebhookErrorHandling(async (req: NextRequest) => {
     // ── Resolve / create open Conversation ─────────────────────────────
     // Look up by (tenantId, customerPhone, status=open). The composite
     // index added in SPRINT-WHATSAPP-FUNCTIONAL-001 makes this cheap.
-    let conversation = await db.conversation.findFirst({
+    conversation = await db.conversation.findFirst({
       where: { tenantId, customerPhone: parsed.from, status: 'open' },
     })
     if (!conversation) {
@@ -702,10 +707,55 @@ export const POST = withWebhookErrorHandling(async (req: NextRequest) => {
       channelId,
       from: parsed.from,
     })
+
+    // GAP-FIX #2: if the pipeline fails completely, escalate to human
+    // takeover so the message is not lost silently. The conversation is
+    // marked with botEnabled=false + pausedReason='pipeline_failure' so:
+    //   (a) future inbound messages go to the human inbox
+    //   (b) the dashboard shows a "Humano" badge
+    //   (c) an alert is fired
+    if (conversation?.id) {
+      try {
+        await db.conversation.update({
+          where: { id: conversation.id },
+          data: {
+            botEnabled: false,
+            pausedAt: new Date(),
+            pausedReason: 'pipeline_failure',
+          },
+        })
+        log.warn(
+          { conversationId: conversation.id, tenantId, from: parsed.from },
+          'Pipeline failure — conversation escalated to human takeover (pausedReason=pipeline_failure)',
+        )
+
+        // Fire alert for the pipeline failure
+        const { sendAlert } = await import('@/lib/alerts')
+        void sendAlert({
+          tenantId,
+          title: 'Fallo total del pipeline de IA',
+          message: `El pipeline de IA falló al procesar un mensaje de ${parsed.from}. La conversación ${conversation.id} fue escalada a handoff humano automáticamente. Revisa los logs para más detalle.`,
+          severity: 'critical',
+          source: 'pipeline',
+          metadata: {
+            conversationId: conversation.id,
+            from: parsed.from,
+            error: err instanceof Error ? err.message : String(err),
+          },
+        }).catch(() => {})
+      } catch (escalateErr) {
+        // If escalation fails, log it — the message is still persisted
+        log.error(
+          { err: escalateErr instanceof Error ? escalateErr.message : String(escalateErr) },
+          'Failed to escalate conversation to human takeover after pipeline failure',
+        )
+      }
+    }
+
     log.error(
       { err: err instanceof Error ? err.message : String(err), from: parsed.from, tenantId },
       'WA inbound processing failed — ACKing 200 to stop Meta retries',
     )
-    return NextResponse.json({ received: true, status: 'processing_failed' })
+    return NextResponse.json({ received: true, status: 'processing_failed', escalated: !!conversation?.id })
   }
 })

@@ -123,6 +123,9 @@ export class CircuitBreakerManager {
 
   /**
    * Record a failed call. Opens the circuit if failures exceed threshold.
+   *
+   * GAP-FIX #1: when the circuit transitions to OPEN, fires an alert via
+   * the alert service (log + Sentry + socket + optional Slack webhook).
    */
   recordFailure(circuitKey: string): void {
     const entry = this.getOrCreate(circuitKey)
@@ -138,6 +141,8 @@ export class CircuitBreakerManager {
         { circuitKey, failures: entry.failures },
         'Circuit breaker HALF-OPEN → OPEN (test call failed)',
       )
+      // GAP-FIX #1: fire alert on transition to open
+      this.fireAlert(circuitKey, entry, 'half-open → open (test call failed)')
       return
     }
 
@@ -148,7 +153,41 @@ export class CircuitBreakerManager {
         { circuitKey, failures: entry.failures, threshold: this.config.failureThreshold },
         'Circuit breaker CLOSED → OPEN (failure threshold exceeded)',
       )
+      // GAP-FIX #1: fire alert on transition to open
+      this.fireAlert(circuitKey, entry, `closed → open (${entry.failures} consecutive failures)`)
     }
+  }
+
+  /**
+   * Fire an operational alert when a circuit opens.
+   * Best-effort — if the alert service fails, the circuit still opened.
+   */
+  private fireAlert(circuitKey: string, entry: CircuitEntry, reason: string): void {
+    // Parse tenantId and agentName from the circuit key (format: "tenantId:agentName")
+    const [tenantId, agentName] = circuitKey.split(':')
+    // Fire-and-forget — don't block the circuit breaker on alert delivery
+    import('@/lib/alerts')
+      .then(({ sendAlert }) =>
+        sendAlert({
+          tenantId: tenantId || 'platform',
+          title: `Circuit breaker abierto: ${agentName || circuitKey}`,
+          message: `El circuit breaker para el agente "${agentName}" se abrió (${reason}). El agente está temporalmente no disponible — las llamadas usan fallback hasta que el circuito se resetee en ${this.config.resetTimeoutMs / 1000}s.`,
+          severity: 'critical',
+          source: 'circuit-breaker',
+          metadata: {
+            circuitKey,
+            agentName,
+            failures: entry.failures,
+            threshold: this.config.failureThreshold,
+            reason,
+          },
+        }),
+      )
+      .catch(() => {
+        // Alert delivery failed — the circuit still opened, just the
+        // notification didn't fire. Log so it's visible.
+        log.warn({ circuitKey }, 'Failed to fire circuit breaker alert (non-blocking)')
+      })
   }
 
   /**

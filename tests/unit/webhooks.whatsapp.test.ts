@@ -649,7 +649,7 @@ describe('WhatsApp webhook · error handling', () => {
 
     expect(res.status).toBe(200)
     const data = await res.json()
-    expect(data).toEqual({ received: true, status: 'processing_failed' })
+    expect(data).toEqual({ received: true, status: 'processing_failed', escalated: false })
 
     expect(captureErrorMock.captureError).toHaveBeenCalledWith(
       expect.any(Error),

@@ -33,6 +33,8 @@ import { ANTI_INJECTION_PREFIX, wrapUserInput } from './sanitize'
 import type { AgentContext } from './prompts/types'
 import type { ChatMessage } from 'z-ai-web-dev-sdk'
 import { emitToTenant } from '@/lib/chat-emit'
+// GAP-FIX #1: alert when Governor exceeds SLA 3+ times in 5 min
+import { recordGovernorSlaViolation } from '@/lib/alerts'
 
 const log = getLogger('agent:governor')
 
@@ -193,6 +195,11 @@ export async function runGovernor(input: {
       { err: llmError, tenantId: input.tenantId, conversationId: input.conversationId },
       'Governor LLM call failed — failing open (allow + no redirect)',
     )
+    // GAP-FIX #1: record SLA violation for alert threshold tracking.
+    // If the Governor exceeds its SLA 3+ times in 5 min, an alert fires.
+    if (result.latencyMs > GOVERNOR_SLA_MS) {
+      void recordGovernorSlaViolation(input.tenantId, result.latencyMs).catch(() => {})
+    }
     void persistGovernorDecision(input, result, null).catch(() => {})
     return result
   }

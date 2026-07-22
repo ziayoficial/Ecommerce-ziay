@@ -1,9 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { db } from '@/lib/db'
 import { buildAgentPrompt } from '@/lib/agents/prompts'
 import ZAI from 'z-ai-web-dev-sdk'
 import { rateLimit } from '@/lib/middleware/rate-limit'
 import { requireTenantAccess } from '@/lib/auth-helpers'
+
+// Zod validation for request body
+const AddressAnalysisSchema = z.object({
+  tenantId: z.string().min(1),
+  direccion: z.string().min(1).max(500),
+  country: z.string().length(2).default('CO'),
+  ciudad: z.string().max(100).optional(),
+  departamento: z.string().max(100).optional(),
+})
 
 // POST /api/address-analysis
 // Body: { tenantId, direccion, country, ciudad, departamento }
@@ -18,10 +28,11 @@ export async function POST(req: NextRequest) {
   if (rateLimit(req, { max: 10, windowMs: 60_000 })) {
     return NextResponse.json({ error: 'Too Many Requests' }, { status: 429 })
   }
-  const { tenantId, direccion, country = 'CO', ciudad, departamento } = await req.json()
-  if (!tenantId || !direccion) {
-    return NextResponse.json({ error: 'tenantId and direccion required' }, { status: 400 })
+  const parsed = AddressAnalysisSchema.safeParse(await req.json().catch(() => ({})))
+  if (!parsed.success) {
+    return NextResponse.json({ error: 'Invalid body', details: parsed.error.flatten() }, { status: 400 })
   }
+  const { tenantId, direccion, country, ciudad, departamento } = parsed.data
 
   // IF-2 · S-5 — verify the caller may access this tenant BEFORE the LLM call.
   const { error } = await requireTenantAccess(tenantId)

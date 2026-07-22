@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { db } from '@/lib/db'
 import { recomputeAttributionWeights, getCreditedRevenueByAd, AttributionModel } from '@/lib/attribution/engine'
 import { requireTenantAccess } from '@/lib/auth-helpers'
+
+const AttributionPostSchema = z.object({
+  tenantId: z.string().min(1),
+  model: z.enum(['last_click', 'first_click', 'linear', 'time_decay']),
+})
 
 // GET /api/attribution?tenantId=...&model=last_click|first_click|linear|time_decay
 // Returns credited revenue per ad using the selected attribution model.
@@ -39,8 +45,9 @@ export async function GET(req: NextRequest) {
 // param is gated by `requireTenantAccess` BEFORE `recomputeAttributionWeights`
 // (which rewrites data) + AuditLog insert.
 export async function POST(req: NextRequest) {
-  const { tenantId, model } = await req.json()
-  if (!tenantId || !model) return NextResponse.json({ error: 'tenantId and model required' }, { status: 400 })
+  const parsed = AttributionPostSchema.safeParse(await req.json().catch(() => ({})))
+  if (!parsed.success) return NextResponse.json({ error: 'Invalid body', details: parsed.error.flatten() }, { status: 400 })
+  const { tenantId, model } = parsed.data
 
   // IF-2 · S-6 — verify the caller may access this tenant before recomputing
   // attribution weights (data rewrite) and writing the AuditLog row.

@@ -1,7 +1,7 @@
 # ADR-0021: Escrow for Marketplace Transactions
 
-**Status:** Proposed
-**Date:** 2026-07-22
+**Status:** Accepted
+**Date:** 2026-07-22 (implemented 2026-07-22)
 
 ## Context
 

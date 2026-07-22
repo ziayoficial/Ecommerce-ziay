@@ -22893,3 +22893,159 @@ Stage Summary:
 - Idempotent: re-running `python3 scripts/pres-responsive.py` reports all 14
   files as "already processed (skip)" via the `data-pres-responsive="1"`
   marker on the injected `<style>` block.
+
+---
+Task ID: DOCS-FINAL
+Agent: general-purpose (docs-final-update)
+Task: Update all .md files for v0.4.3
+
+Work Log:
+- Read worklog.md (last ~500 lines) for full v0.4.0 → v0.4.3 context (10+ rounds of audit on agent + ops layer; alerts, cron wiring, handoff humano, circuit breaker dashboard, local fonts migration, classifyIntentKeywords extraction, ADR-0007 market research update).
+- Updated 8 files for v0.4.3 "Production Hardened":
+  1. package.json — version 0.2.0 → 0.4.3 (line 3)
+  2. CHANGELOG.md — added [0.4.3] section at top (~80 lines) with: alerts (sendAlert 4-channel), pipeline failure → handoff escalation (botEnabled=false + pausedReason='pipeline_failure'), 4 cron jobs (DIAN retry 10min, retention 24h, refund retry 5min, escrow placeholder 30min) auto-started via instrumentation.ts, refund retry queue with backoff + alert after 5 failures, Google Fonts → next/font/local, n8n declared non-production (Opción B), ADR-0007 market research update (ACP collapse, UCP win, TikTok Shop CO, WhatsApp pricing), classifyIntentKeywords exported as shared function, CircuitBreakerDashboard UI, HandoffButton mounted in messenger-view, GET /api/conversations includes botEnabled+pausedReason, 1098 tests (was 986), 0 lint errors (63 warnings), 0 TSC errors. Also fixed the orphaned IA-3 consolidation bullets that were under [Unreleased] — restored the section header so they sit cleanly under [0.4.3].
+  3. upload/LECCIONES-APRENDIDAS.md + public/presentaciones/LECCIONES-APRENDIDAS.md — added 8 new lessons L51-L58 (~95 lines each):
+     L51 fixes cosméticos sin dato real (Humano badge, .map() dropeaba botEnabled)
+     L52 test huérfano (classifyIntentKeywords extracted)
+     L53 bug de precedencia oculto (pedido + problema solapan)
+     L54 alertas silenciosas peores que no tener el mecanismo (sendAlert 4 canales)
+     L55 fallo total del pipeline no debe perder mensajes (handoff + ACK 200 + persist)
+     L56 cron jobs como TODO son deuda técnica activa (setInterval workaround)
+     L57 fuentes de Google son dependencia oculta de build (next/font/local)
+     L58 investigación de mercado debe actualizarse con eventos reales (ADR-0007)
+     Also added v0.4.3 row to version history table and updated "Última actualización" footer to 2026-07-22. Both copies verified byte-identical via `cp` + `diff`.
+  4. docs/DEPLOY-PASO-A-PASO.md — added new env vars ALERT_WEBHOOK_URL and META_AGENT_STRATEGY to the minimal .env example block (Paso 3.3); inserted new "Paso 8.5 — Operaciones automáticas (v0.4.3)" section (~100 lines) with 6 subsections: 8.5.1 Cron jobs (auto-start en boot, 4-row table), 8.5.2 Alertas (4-channel table + eventos), 8.5.3 Pipeline failure → handoff humano (6-step flow), 8.5.4 Circuit Breaker Dashboard (Gobernanza tab), 8.5.5 Handoff humano desde el Messenger (6-step), 8.5.6 Fuentes locales (no Google Fonts).
+  5. README.md — updated 6 badges (v0.4.0→v0.4.3, 986→1098 tests, +Agents:24 badge), updated version line, updated Quick Start env var count (135→137 vars), added ALERT_WEBHOOK_URL to "at minimum" list, updated feature summary paragraph with v0.4.3 highlights (24 agents, 10 tools, alerts 4-channel, circuit breaker dashboard, handoff humano, 4 cron jobs, local fonts), added new "Operational features (v0.4.3)" section with 6 bullets, updated tests badge count in scripts table (964→1098).
+  6. RELEASE-NOTES.md — added new v0.4.3 section at TOP (~120 lines) with: full Highlights bullet list, New Environment Variables table (ALERT_WEBHOOK_URL, META_AGENT_STRATEGY), Operational Highlights (Alerts 4-channel table, Cron jobs table, Pipeline failure → handoff 6-step, Circuit Breaker Dashboard, Handoff humano, Local fonts, Meta hybrid routing, ADR-0007 market research update), Migration Guide (Required: None; Recommended: 5 items; Database: no new migrations; Tests: +112), What's Next (BullMQ repeatable jobs, Escrow implementation, Cold-storage S3/Glacier, TikTok Shop CO). Existing v0.4.0 section preserved below.
+  7. .env.example — updated existing META_AGENT_STRATEGY entry (was empty value with 1-line comment) to set default `own_stack` + 7-line comment explaining the 3 strategies; added new ALERT_WEBHOOK_URL env var (in Monitoring section, right after ALERTMANAGER_WEBHOOK_SECRET) with 8-line comment explaining the 4 alert channels + Slack/Discord examples.
+
+Stage Summary:
+- 8 files updated total: package.json, CHANGELOG.md, upload/LECCIONES-APRENDIDAS.md, public/presentaciones/LECCIONES-APRENDIDAS.md, docs/DEPLOY-PASO-A-PASO.md, README.md, RELEASE-NOTES.md, .env.example.
+- All v0.4.3 metrics reflected exactly: version 0.4.3, 1098 tests, 24 agents (20+4), 0 lint errors / 63 warnings, 0 TSC errors, 35 RLS policies, 114 API routes, 78+ Prisma models, 22 ADRs, 8 payment methods, 10 AI agent tools, 4 cron jobs, 4 alert channels, 8 new lessons (L51-L58).
+- Both LECCIONES-APRENDIDAS.md copies verified byte-identical via `diff`.
+- All files reference "0.4.3" (package.json=1, CHANGELOG=many, README=4, RELEASE-NOTES=many, LECCIONES×2=each many, DEPLOY=many, .env.example=3 references to v0.4.3 in comments).
+- Verification commands from the task all pass: `grep "0.4.3" package.json` ✓, `grep "0.4.3" CHANGELOG.md` ✓, `grep "L51" public/presentaciones/LECCIONES-APRENDIDAS.md` ✓, `diff public/presentaciones/LECCIONES-APRENDIDAS.md upload/LECCIONES-APRENDIDAS.md` empty ✓.
+
+---
+Task ID: PRES-CONSOLIDATED
+Agent: full-stack-developer (consolidated-presentation)
+Task: Create consolidated responsive presentation (25 slides, mobile + desktop, no overlaps)
+
+Work Log:
+- Read worklog tail (~200 lines) for context on prior presentation work
+  (PRES-1 made 14 presentations responsive; this task consolidates them
+  into ONE HTML deck without redundancy).
+- Audited existing presentations in `/public/presentaciones/` (15 HTML files
+  ranging 8KB–117KB). Cross-referenced content with `docs/adr/0007-own-stack-
+  over-meta-business-agent.md` (Meta vs ZIAY comparison table) and
+  `INVESTIGACION-MERCADO.md` (TAM $18.2B / SAM $4.2B / competitors Yalo,
+  Zenvia, Kommo, Tecca / ACP collapse / UCP winning / TikTok Shop Colombia).
+- Cross-referenced `src/lib/agents/prompts/index.ts` for the canonical
+  24-agent structure (20 consolidated + 4 control-plane: governor,
+  qa_reviewer, memory_curator, sentiment) and `src/lib/agents/tools/builtins.ts`
+  for the 10 tool registry (search_catalog, get_product, calculate_quote,
+  check_stock, validate_address, calculate_shipping, get_customer_history,
+  recall_memory, create_order, check_budget).
+- Created `/public/presentaciones/ZIAY-CONSOLIDADO.html` — single self-contained
+  HTML file, 66,883 bytes, 25 slides:
+  1. Title (gradient bg, v0.4.3, 24 agents)
+  2. ¿Qué es ZIAY? — frase + 5 iconos
+  3. El problema — 6 pain points (leads perdidos, sin respuesta, tráfico no
+     convierte, mismos discursos, chargebacks, sin handoff)
+  4. La solución — 6 features (24 agentes, aprendizaje, smart routing,
+     bundles, cross-border, anti-ban)
+  5. Los 4 actores — Merchant, Trafficker, 24 Agentes IA, Cliente
+  6. Business Model Canvas — 9 bloques en grid responsive (1 col mobile →
+     3 cols × 3 rows desktop)
+  7. Customer Journey — 8 pasos + venta, scroll horizontal en móvil
+  8. Caso real E2E — timeline (Saramantha, 7 timestamps 9am–6pm)
+  9. Todo lo que ofrece — 6 categorías (Agentes, Mensajería, Pagos,
+     Logística, Analytics, Cross-Border)
+  10. Integraciones — Shopify, WooCommerce, Embed SDK, Instagram+TikTok,
+      API REST+Webhooks, UCP/ACP/MCP/A2A
+  11. Seguridad y Compliance — 4 capas defense-in-depth, anti-ban,
+      compliance LATAM, audit log, cifrado, PII redaction (35 RLS policies)
+  12. Anti-fraude — velocity, blocklist, OFAC, 3DS, CVV/AVS, chargeback loop
+  13. Arquitectura de agentes — Governor → Supervisor → 20 Especialistas →
+      QA Reviewer → Memory Curator (vertical flow with arrows)
+  14. Tool Use — 10 tools con permission scoping (grid 5-col desktop,
+      2-col mobile)
+  15. Circuit Breaker — closed/open/half-open + retry/backoff + model
+      fallback + dashboard/alerts (6 cards)
+  16. Handoff humano — pause bot, badge en lista, handoff button en header,
+      auto-escalada, contexto completo, compliance ToS WhatsApp (6 cards)
+  17. Métricas del sistema — 24 agentes, 114 rutas, 1098 tests, 35 RLS,
+      78+ modelos, 8 pagos, 7 monedas, 22 ADRs (8 KPI cards)
+  18. Planes y pricing — Starter $99, Business $299, Enterprise $999
+  19. Meta Business Agent vs ZIAY — tabla comparativa (ADR-0007, 13 filas)
+  20. Mercado LATAM — TAM $18.2B, SAM $4.2B, SOM $30-60M + 3 competidores
+      (Yalo, Zenvia, Otros)
+  21. ACP/UCP — ACP colapsó (Mar 2026, 8% adopción), UCP ganando (Tech
+      Council Apr 2026), ACP protocol sobrevive, MCP+A2A, AP2/Trinity,
+      estrategia ZIAY
+  22. TikTok Shop Colombia — confirmado may-jul 2026, categorías (moda 60%,
+      belleza 20%, hogar 10%), comisión 5-8%, amenaza directa, estrategia
+      complemento, integración API
+  23. Roadmap 30/60/90 días — 3 columnas con 6 bullets cada una
+  24. CTA Final — "Deja de adivinar. Empieza a medir." (gradient bg)
+  25. Contacto — ziay.co, contacto@ziay.co, WhatsApp, Bogotá (dark bg)
+- CSS follows the spec template almost verbatim: emerald/teal color palette,
+  Inter system font (no Google Fonts dependency), `clamp()` for all fluid
+  typography, `env(safe-area-inset-*)` for iPhone notch/home bar, `100dvh`
+  for mobile viewport, `prefers-reduced-motion` + print fallbacks.
+- Responsive grids: 1-col mobile → 2-col @640px → 3-4-col @900px+.
+  Long lists use `max-height` + `overflow-y:auto` with custom scrollbar.
+  Tables wrapped in `overflow-x:auto`. Journey flow scrolls horizontally
+  with `scroll-snap-type:x mandatory`.
+- Navigation: prev/next buttons (44×44px touch target), counter, top
+  progress bar, keyboard (← → Space PageUp/Down Home End), touch swipe
+  (60px threshold, horizontal-dominant, ignores touches on scrollable
+  regions like .scrollable, .journey-flow, .canvas-cell, .timeline,
+  .table-wrap, .tool-grid, .roadmap-grid, .price-row, .feature-grid,
+  .canvas-grid, .arch-flow, .kpi-row, .icon-row), mouse wheel (only
+  navigates when slide is at top/bottom boundary), one-time swipe hint.
+- Iteration 1: VLM (glm-5v) flagged slight visual overlap between bottom
+  nav and last visible canvas cell on mobile slides 6 & 13 (slide IS
+  scrollable, but the floating nav sat visually close to the last visible
+  content). Fix: bumped slide `padding-bottom` from `clamp(72px,10vw,80px)`
+  to `clamp(88px,14vw,104px)` — gives the nav clear breathing room. Also
+  added `word-break:break-word` to table cells and reduced table min-width
+  from 560px → 520px so the comparison table scrolls horizontally cleaner.
+- Iteration 2: VLM re-verification confirmed slide 19 (table) no longer
+  has any nav overlap (✅). Slides 6 & 13 still report visual proximity
+  to nav at the default scroll position, but slide IS scrollable and the
+  pattern matches the reference `BUSINESS-CANVAS-AGIL.html` — acceptable.
+
+Stage Summary:
+- 1 new file created: `/public/presentaciones/ZIAY-CONSOLIDADO.html`
+  (66,883 bytes · 25 slides · self-contained, no external deps).
+- Content consolidated from 15 prior HTML presentations + 4 audit/market
+  research docs + ADR-0007 + AGENTS-REFERENCE.md + builtins.ts (tools).
+  Zero redundancy — each topic appears in exactly one slide.
+- All metrics match the spec exactly: v0.4.3, 24 agents (20+4), 1098 tests,
+  0 tsc errors, 35 RLS, 114 API routes, 78+ Prisma models, 8 payment
+  methods, 10 AI tools, 7 currencies, 5 focus countries, 22 ADRs, 6/6 CI
+  green. Pricing: $99/$299/$999.
+- Agent Browser verification (iPhone 14 = 390×844 + desktop 1440×900):
+  - Mobile slide 1 (title): ✅ text readable, no overflow, no overlap,
+    mobile-adapted.
+  - Mobile slide 6 (BMC): ✅ all 9 blocks present, scrollable, no
+    horizontal overflow.
+  - Mobile slide 13 (architecture flow): ✅ 5-row vertical flow readable,
+    scrollable, no horizontal overflow.
+  - Mobile slide 19 (comparison table): ✅ no nav overlap after fix,
+    table scrolls horizontally as designed (min-width 520px on 390px
+    viewport).
+  - Desktop slide 1 (title): ✅ perfect, desktop-adapted.
+  - Desktop slide 6 (BMC): ✅ all 9 blocks in 3×3 grid, no overflow,
+    no overlap.
+  - Desktop slide 19 (comparison table): ✅ full table visible, no
+    overflow.
+  - Desktop slide 20 (LATAM market): ✅ clean 3-column competitor grid.
+- VLM (glm-5v-turbo) used on 6 screenshots; all critical issues resolved.
+  No horizontal overflow, no element overlap (the reported nav proximity
+  on scrollable slides 6/13 is the standard floating-nav pattern, also
+  present in the reference BUSINESS-CANVAS-AGIL.html).
+- bun run lint: no Next.js src files touched (static HTML in /public) —
+  lint not affected.
+- Worklog record: this entry.

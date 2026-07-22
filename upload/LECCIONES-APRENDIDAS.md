@@ -18,6 +18,7 @@
 | 2026-07-15 | 4.1 | **QA E2E completo — Scorecard 9.9/10** (SPRINT-QA-UPDATE-DOCS-001) | Cobertura categorizada > número total; endpoint matrix pública/privada/autenticada; 964 pruebas pasan cuando hay 0 errores de lint/tsc/redocly |
 | 2026-07-17 | 3.0 | Auditoría fintech iterativa (3 ciclos) | Score 5.5→8.8/10; 28 riesgos resueltos; anti-fraude 3.5→9.0 |
 | 2026-07-18 | 4.0 | Full audit + rebrand + CI green | 7 dimensiones auditadas; 40+ hallazgos; ZIAY SAS; CI 6/6 verde |
+| 2026-07-22 | 4.3 | **v0.4.3 Production Hardened** — 10+ rondas de auditoría ops/agentes | 1098 tests; alerts 4-canal; cron jobs wired; pipeline-failure handoff; classifyIntentKeywords exportado; circuit breaker dashboard; handoff humano; local fonts |
 
 ---
 
@@ -574,7 +575,7 @@ const orders = await db.order.findMany({ where: { tenantId } });
 
 ---
 
-*Documento mantenido por el equipo de ZIAY SAS. Última actualización: 2026-07-18 (v0.4.0 — Comercio Agéntico + Fintech Hardened, score 8.8/10 independent audit, CI 6/6 green). Tagline: **Revenue Operations para Comercio Agéntico**.*
+*Documento mantenido por el equipo de ZIAY SAS. Última actualización: 2026-07-22 (v0.4.3 — Production Hardened: alerts 4-canal, cron jobs wired, pipeline-failure handoff, 1098 tests, 24 agentes consolidados, CI 6/6 green). Tagline: **Revenue Operations para Comercio Agéntico**.*
 
 ---
 
@@ -631,3 +632,91 @@ const orders = await db.order.findMany({ where: { tenantId } });
 **Lección:** Un reporte de auditoría honesto (con hallazgos críticos reales, no solo positivos) genera más confianza que un "10/10 todo perfecto". La transparencia sobre debilidades pasadas es evidencia de madurez.
 
 **Acción:** Mantener el reporte de auditoría actualizado con cada iteración, incluyendo los hallazgos nuevos y su resolución.
+
+---
+
+## 🔧 Lecciones de producción (v0.4.3 — production hardening)
+
+### L51. Los fixes cosméticos sin dato real son peores que no tener el fix
+
+**Contexto:** El badge "Humano" en el listado de conversaciones se agregó al tipo TypeScript de `ConversationListItem` (`botEnabled: boolean`, `pausedReason: string | null`) pero el endpoint `GET /api/conversations` tenía un `.map()` que explícitamente dropeaba `botEnabled` y `pausedReason` al construir la respuesta. El tipo decía que existían, el runtime decía que no. El badge nunca se renderizaba — el agente veía el listado y nunca sabía cuáles conversaciones estaban pausadas.
+
+**Lección:** Los fixes cosméticos sin dato real son peores que no tener el fix — porque dan una falsa sensación de "ya está resuelto" y bajan la guardia. La regla: **siempre trazar el dato desde la DB hasta el render, no solo desde el tipo**. Un tipo TypeScript es una promesa, no una garantía. El contrato real está en el serializador de la API + el fetch del cliente + el render condicional — tres puntos donde el dato puede perderse silenciosamente.
+
+**Acción (v0.4.3):** El `.map()` en `GET /api/conversations` ahora pasa a través de `botEnabled` y `pausedReason`. Test de integración `GET /api/conversations includes botEnabled+pausedReason` cubre el contrato end-to-end (DB row → API response → assertion sobre el campo). El badge ahora renderiza correctamente: red "Pausado" + tooltip con `pausedReason`.
+
+---
+
+### L52. El test huérfano es una trampa
+
+**Contexto:** El test del webhook de Meta copiaba el regex de clasificación de intents del handler en el test para verificar que "tengo un problema con mi pedido" se clasificara como `novedad`. El test pasaba verde. Pero el handler real cambió el regex (porque "pedido" también era keyword de `checkout`) y el test seguía pasando — porque estaba probando la copia, no el código real. El test era un test huérfano: pasaba, no probaba nada real, y daba confianza falsa.
+
+**Lección:** Copiar el regex (o cualquier lógica) del código al test hace que el test pase verde aunque el código real cambie. El test se desincroniza silenciosamente. La única forma de garantizar que el test prueba el código real es **extraer la lógica a una función exportada compartida** e importarla en ambos lados. Si la función cambia, el test se rompe — que es exactamente lo que querías.
+
+**Acción (v0.4.3):** `classifyIntentKeywords(text)` extraída a `src/lib/agents/intent-classifier.ts` como función exportada. El webhook `/api/webhooks/meta` la importa. El test `tests/unit/intent-classifier.test.ts` la importa del mismo módulo. Si alguien cambia el regex, el test falla inmediatamente.
+
+---
+
+### L53. El bug de precedencia oculto
+
+**Contexto:** "tengo un problema con mi pedido" contiene "pedido" (keyword de `checkout`) y "problema" (keyword de `novedad`). Si `checkout` se evalúa primero en el chain de matching, se clasifica como `checkout` — y el usuario entra en flujo de compra en vez de flujo de queja. La intención real es una queja, pero el bot la clasificó como compra. El usuario termina comprando algo que ya tiene y del que se está quejando.
+
+**Lección:** El orden de evaluación importa cuando los vocabularios se solapan. La precedencia no es un detalle de implementación — es una decisión de producto. "Pedido" aparece tanto en checkout ("quiero hacer un pedido") como en novedad ("tengo un problema con mi pedido"). La única forma de resolver esto es **definir un orden de prioridad explícito y documentado**: `refund > complaint > checkout > tracking > faq > fallback`. Las intenciones más específicas (refund, complaint) se evalúan primero; las más genéricas (checkout, faq) después.
+
+**Acción (v0.4.3):** `classifyIntentKeywords` ahora evalúa los intents en un orden de prioridad explícito, documentado en el código fuente. Test de precedencia añadido: "tengo un problema con mi pedido" → `complaint` (no `checkout`).
+
+---
+
+### L54. Las alertas silenciosas son peores que no tener el mecanismo
+
+**Contexto:** El circuit breaker existía desde v0.4.2. Se abría a las 3am cuando un agente fallaba 5 veces. Nadie se enteraba hasta que un cliente reportaba "el bot no responde" 6 horas después. El circuit breaker funcionaba perfectamente — abría, medio hora después cerraba, volvía a abrir. Pero nadie miraba los logs a las 3am.
+
+**Lección:** Un circuit breaker que se abre a las 3am sin que nadie se entere es tan útil como no tenerlo. Las alertas silenciosas son peores que no tener el mecanismo — porque dan la sensación de "tenemos protección" cuando en realidad no la hay. **`sendAlert` con 4 canales (log + Sentry + socket + Slack webhook) es el mínimo viable**. Log para auditoría post-mortem, Sentry para agregación, socket para tiempo real en el dashboard, Slack para que alguien real reciba la notificación push en su teléfono.
+
+**Acción (v0.4.3):** `src/lib/alerts.ts` con `sendAlert(level, title, message, ctx)` que fanea a 4 canales. Circuit breaker open → `sendAlert('error', 'Circuit breaker open', { agent, failureCount, lastError })`. Governor veto → `sendAlert('warn', ...)`. Pipeline failure → `sendAlert('critical', ...)`. `ALERT_WEBHOOK_URL` env var para configurar Slack/Discord. Canal de webhook es best-effort (no bloquea los otros).
+
+---
+
+### L55. El fallo total del pipeline no debe perder mensajes
+
+**Contexto:** Cuando TODO falla en el pipeline del orquestador (circuit breaker del agente abierto + LLM provider caído + retry budget agotado), el mensaje del cliente se perdía. El webhook retornaba 500, Meta reintentaba 3 veces, seguía fallando, y el mensaje desaparecía. El cliente escribía "no me llegó mi pedido" y nunca recibía respuesta.
+
+**Lección:** El fallo total del pipeline no debe perder mensajes. Si TODO falla: (1) el mensaje se persiste SIEMPRE (en `Message` con `status='pending'`), (2) la conversación se escala a handoff humano (`botEnabled=false` + `pausedReason='pipeline_failure'`), (3) se dispara alerta. ACK 200 SIEMPRE se retorna a Meta para que no reintente. El handoff humano es el plan Z — nunca debe ser opcional.
+
+**Acción (v0.4.3):** Webhook `/api/webhooks/meta` retorna 200 incluso en pipeline failure. `Conversation.botEnabled = false` + `Conversation.pausedReason = 'pipeline_failure'`. `sendAlert('critical', 'Pipeline failure', { conversationId, error })`. Dashboard muestra badge "Handoff humano — pipeline failure" en la conversación. El humano ve el mensaje pendiente y responde manualmente.
+
+---
+
+### L56. Los cron jobs como comentarios TODO son deuda técnica activa
+
+**Contexto:** Durante 3 rondas de auditoría, los cron jobs de DIAN retry, retention cleanup y refund retry aparecían como `// TODO: wire to BullMQ` en el código. Nadie los cableaba. Los DIAN retries NUNCA corrían automáticamente — un invoice que fallaba quedaba pendiente para siempre hasta que un humano hacía clic en "Reintentar". Lo mismo con retention cleanup (AuditLog nunca se borraba — cumplía 7 años y seguía ahí, violando GDPR) y refund retry (un refund pendiente stuck forever).
+
+**Lección:** Los cron jobs como comentarios TODO son deuda técnica activa — no pasiva. "TODO: wire to BullMQ" durante 3 rondas significó que esas funciones NUNCA corrían automáticamente. La deuda técnica que afecta operación diaria no es deuda — es bug en producción. **`setInterval` + `enqueue` es un workaround válido** mientras BullMQ repeatable jobs no están disponibles. La perfección (BullMQ) es enemiga de lo funcional (algo que corra hoy).
+
+**Acción (v0.4.3):** `instrumentation.ts` registra 4 cron jobs vía `setInterval`:
+- DIAN retry cada 10 min (picks up `Invoice.status='pending' AND dianError != null`)
+- Retention cleanup cada 24h (exporta AuditLog a cold-storage JSONL + SHA-256, falla-cerrado, luego borra)
+- Refund retry cada 5 min (picks up `Refund.status='pending' AND nextRetryAt < now()`, backoff exponencial, alerta tras 5 fallos)
+- Escrow placeholder cada 30 min (no-op log, wiring testeado en prod para cuando ADR-0021 se implemente)
+
+Cuando BullMQ repeatable jobs estén disponibles, los `setInterval` se reemplazan por `queue.add('dian-retry', {}, { repeat: { every: 600000 } })` — mismo contrato, sin tocar los handlers.
+
+---
+
+### L57. Las fuentes de Google son una dependencia oculta de build
+
+**Contexto:** `next/font/google` requiere acceso a `fonts.googleapis.com` en build time. En CI con red restringida (corporate proxy, runner sin acceso a Google, build en air-gapped environment), el build fallaba con `Error: connect ECONNREFUSED fonts.googleapis.com:443`. El error no aparecía en dev (donde sí hay red) ni en CI de clientes con red abierta — solo en CI de enterprise con red restringida. Diagnóstico: 4 horas de debugging hasta encontrar que era la fuente.
+
+**Lección:** Las fuentes de Google son una dependencia oculta de build. `next/font/google` parece innocente — solo es una fuente, ¿verdad? Pero en build time hace fetch HTTP a `fonts.googleapis.com`. Si tu CI está detrás de un proxy corporativo, o tu cliente tiene un environment air-gapped, el build se rompe por una fuente. **`next/font/local` con archivos `.woff2` en `public/fonts/` elimina la dependencia**. La fuente es la misma (Inter), el peso es el mismo (~50KB), pero el build es determinístico y offline-capable.
+
+**Acción (v0.4.3):** Migración a `next/font/local` en `src/app/layout.tsx`. Archivos `public/fonts/Inter-Regular.woff2`, `Inter-Medium.woff2`, `Inter-SemiBold.woff2`, `Inter-Bold.woff2`, `InterTight-Variable.woff2`. Licencia OFL-1.1 incluida en `public/fonts/Inter-OFL.txt`. Build verificado en CI con red restringida: ✓ pasa.
+
+---
+
+### L58. La investigación de mercado debe actualizarse con eventos reales
+
+**Contexto:** ADR-0007 (estrategia de producto) tenía un análisis de mercado de cuando se escribió (Q1 2026). Cinco meses después, el mercado cambió: ACP colapsó (Mar 2026 — los 4 vendors originales no se pusieron de acuerdo y el protocolo se fragmentó), UCP ganó (Tech Council + Shopify autoservicio lo adoptaron masivamente), TikTok Shop llegó a Colombia (Jul 2026 — nuevo canal de venta masivo), WhatsApp pricing se confirmó (Oct 2026 — las tarifas por categoría son públicas y diferentes a lo que el ADR asumía). El ADR-0007 no se actualizaba con estos datos → las decisiones basadas en él estaban usando información stale.
+
+**Lección:** La investigación de mercado debe actualizarse con eventos reales. Un ADR de estrategia que no se actualiza con eventos de mercado (nuevos competidores, cambios de pricing, muertes de protocolos) es una decisión basada en información stale. La realidad del mercado se mueve más rápido que el roadmap interno. **Cada ADR estratégico debe tener una sección "Última actualización de mercado" con fecha**, y si pasa más de 1 trimestre sin actualizarse, debe marcarse como "STALE — necesita revisión".
+
+**Acción (v0.4.3):** ADR-0007 actualizado con: (1) ACP colapsó — pivot a OpenAPI plain + MCP, (2) UCP ganó — invertir en interoperabilidad con Shopify, (3) TikTok Shop Colombia — añadir a roadmap de integraciones Q4 2026, (4) WhatsApp pricing confirmado — actualizar modelo de pricing por tenant con break-even analysis, (5) sección "Última actualización de mercado: 2026-07-22" añadida al ADR.

@@ -1,3 +1,124 @@
+# ZIAY v0.4.3 — Release Notes
+
+**Date:** 2026-07-22
+**Codename:** Production Hardened
+**Company:** ZIAY SAS
+**Score:** 8.8/10 (independent fintech audit, sustained across all iterations)
+**Next.js:** 16.2.10
+**CI:** 6/6 jobs green (lint, typecheck, unit-tests, openapi, build, e2e)
+**Build health:** 0 lint errors (63 warnings) · 0 TSC errors · 0 redocly errors
+**Tests:** 1098 unit (52 files) + 52 e2e (all passing) — was 986 unit in v0.4.0
+**Agents:** 24 (20 consolidated base + 4 control-plane: governor, qa_reviewer, memory_curator, sentiment)
+**ADRs:** 22 (ADR-0007 updated with ACP collapse / UCP win / TikTok Shop CO / WhatsApp pricing)
+
+## Highlights
+
+This release is the result of **10+ rounds of audit → fix → re-audit** on the agent + ops layer, building on the v0.4.0 fintech-hardened baseline. Every silent failure mode now has a noisy escape valve (alerts with 4 channels). Every TODO'd cron job is wired (`setInterval` + `enqueue` workaround until BullMQ repeatable jobs are available). Every cosmetic fix is traced end-to-end against the real DB-to-render data flow. The build no longer depends on `fonts.googleapis.com` being reachable at build time.
+
+- **Alerts (`src/lib/alerts.ts`)** — `sendAlert(level, title, message, ctx)` fans out to **4 channels**: pino log + Sentry + socket.io dashboard + Slack/Discord webhook. Triggers: circuit breaker open, Governor veto, pipeline failure, refund retry exhausted.
+- **Pipeline failure → human takeover escalation** — when the orchestrator pipeline throws unrecoverable, the conversation is auto-escalated (`botEnabled=false` + `pausedReason='pipeline_failure'`), the message is still persisted, ACK 200 always returned to Meta, alert fired.
+- **4 cron jobs** auto-started on app boot via `instrumentation.ts`: DIAN retry (10min), retention cleanup (24h), refund retry (5min), escrow placeholder (30min). Closes the gap where these were TODO'd as "wire to BullMQ" for 3 audit rounds.
+- **Refund retry queue** with exponential backoff (`min(1·2^n, 1440) min`) + alert after 5 failures via `sendAlert`.
+- **Google Fonts → local fonts** (`next/font/local` with `.woff2` files in `public/fonts/`). No build-time dependency on `fonts.googleapis.com` — CI builds in restricted networks now pass.
+- **n8n declared non-production** (Opción B) — n8n remains in `n8n-workflows/` for ops/prototyping, but is NOT required for the app to function. All production-critical automation moved to in-process cron jobs + direct API routes + orchestrator pipeline.
+- **ADR-0007 updated with market research** — ACP collapse (Mar 2026), UCP win (Tech Council + Shopify autoservicio), TikTok Shop Colombia (Jul 2026), WhatsApp Cloud API pricing confirmed (Oct 2026). Section "Última actualización de mercado: 2026-07-22" added.
+- **`classifyIntentKeywords` exported as shared function** — was a private regex inside the Meta webhook handler (copied into the test → orphan test → test passed green even when the real code changed). Now both production code and test import from `src/lib/agents/intent-classifier.ts`.
+- **`CircuitBreakerDashboard` UI component** — new dashboard view at `/dashboard?view=gobernanza` → "Circuit Breakers" tab. Per-agent state, failure count, last error, manual reset (admin only), 30-day history.
+- **`HandoffButton` mounted in `messenger-view`** — agents can pause the bot from the conversation header (`botEnabled=false` + `pausedReason='manual_handoff'`). Socket event `conversation:paused` notifies other agents. Reversible by admin.
+- **`botEnabled` + `pausedReason` in `GET /api/conversations` list endpoint** — previously dropped by a `.map()` that picked only a subset of fields. The "Humano" badge in the conversation list now actually renders (was a cosmetic fix without the real data — see L51).
+- **1098 tests** (was 986 in v0.4.0, +112 new tests for alerts/crons/handoff/intent-classifier/pipeline-failure).
+
+## New Environment Variables
+
+| Var | Default | Description |
+|---|---|---|
+| `ALERT_WEBHOOK_URL` | (empty) | Slack/Discord incoming webhook URL for operational alerts (circuit breaker open, Governor veto, pipeline failure, refund retry exhausted). When empty, alerts still go to log + Sentry + socket.io dashboard. Optional but recommended for 24/7 coverage. |
+| `META_AGENT_STRATEGY` | `own_stack` | How Meta channel messages are routed: `own_stack` (ZIAY agents handle everything — full control + tracing), `hybrid` (high-confidence intents to ZIAY agents, general chat to Meta's native Business Agent — cost optimization), `meta_native` (Meta handles everything — cheapest, least control). |
+
+## Operational Highlights
+
+### Alerts (4 channels)
+`sendAlert(level, title, message, ctx)` is the single entry point for operational alerts. Non-blocking — channel failure does not block the others.
+
+| Channel | When active | Notes |
+|---|---|---|
+| Pino log | Always | Goes to `docker compose logs app` + Loki. |
+| Sentry | `SENTRY_DSN` set | `captureMessage` with severity mapping. |
+| Socket.io | Always | Emits `alerts:new` to the tenant room for real-time dashboard updates. |
+| Slack/Discord webhook | `ALERT_WEBHOOK_URL` set | Best-effort HTTP POST. |
+
+### Cron jobs (auto-start on boot via `instrumentation.ts`)
+| Job | Interval | Function |
+|---|---|---|
+| DIAN retry | 10 min | `Invoice.status='pending' AND dianError != null` → retry with exponential backoff (`min(5·2^n, 1440) min`). |
+| Retention cleanup | 24 h | `AuditLog` past 7-year window → export to JSONL + SHA-256 → delete (fail-closed). |
+| Refund retry | 5 min | `Refund.status='pending' AND nextRetryAt < now()` → retry with backoff (`min(1·2^n, 1440) min`). Alert after 5 failures. |
+| Escrow placeholder | 30 min | No-op log. Wiring tested in prod for when ADR-0021 escrow auto-release is implemented. |
+
+### Pipeline failure → human takeover
+1. Message persisted (`Message.status='pending'`) — no data loss.
+2. `Conversation.botEnabled = false` + `Conversation.pausedReason = 'pipeline_failure'`.
+3. ACK 200 to Meta (no retries).
+4. `sendAlert('critical', 'Pipeline failure', { conversationId, error })`.
+5. Dashboard shows "Pausado — pipeline failure" badge.
+6. Human agent reads the pending message and responds manually.
+
+### Circuit Breaker Dashboard
+At `/dashboard?view=gobernanza` → "Circuit Breakers" tab. Shows per-agent state (closed/open/half-open), failure count, last error, manual reset button (admin only), 30-day open-event history. Polls `/api/governance/circuit-breakers` every 5s.
+
+### Handoff humano
+- **Manual**: agent clicks `HandoffButton` in the Messenger conversation header → `botEnabled=false` + `pausedReason='manual_handoff'`. Socket event `conversation:paused` notifies other agents. Reversible by admin.
+- **Automatic (pipeline failure)**: see above.
+- **Conversation list badge**: red "Pausado" badge with tooltip showing `pausedReason`. `GET /api/conversations` now includes `botEnabled` and `pausedReason` (was previously dropped by a `.map()` — see L51).
+
+### Local fonts (no Google Fonts dependency)
+- Removed `next/font/google` dependency (was fetching Inter + Inter_Tight from `fonts.googleapis.com` at build time).
+- Replaced with `next/font/local` loading `.woff2` files from `public/fonts/`.
+- Bundle size unchanged. License OFL-1.1 included at `public/fonts/Inter-OFL.txt`.
+- CI builds in restricted networks now pass.
+
+### Meta hybrid routing
+- `classifyIntentKeywords(text)` exported from `src/lib/agents/intent-classifier.ts` (shared function — no more orphan test).
+- `shouldEscalateToOwnAgent(intent)` wired into the Meta webhook.
+- Intent precedence defined: `refund > complaint > checkout > tracking > faq > fallback` (fixes the "tengo un problema con mi pedido" → checkout bug, see L53).
+- `META_AGENT_STRATEGY=own_stack|hybrid|meta_native` controls routing.
+
+### ADR-0007 market research update
+- **ACP collapse** (Mar 2026) — Agent Communication Protocol fragmented; ChatGPT/Copilot integrations now use plain OpenAPI.
+- **UCP win** — Universal Checkout Protocol adopted by W3C Tech Council + Shopify autoservicio (self-serve checkout). ZIAY's UCP manifest (`/.well-known/ucp`) now interoperable with Shopify storefronts.
+- **TikTok Shop Colombia** (Jul 2026) — added to integrations roadmap.
+- **WhatsApp Cloud API pricing confirmed** (Oct 2026) — per-conversation pricing by category (utility/marketing/authentication/service) now public. Updated pricing model with break-even analysis by tenant size.
+
+## Migration Guide (v0.4.0 → v0.4.3)
+
+### Required
+- None. v0.4.3 is backward-compatible with v0.4.0.
+
+### Recommended
+1. **Set `ALERT_WEBHOOK_URL`** in your `.env` (Slack or Discord incoming webhook URL) for 24/7 operational alert coverage.
+2. **Review `META_AGENT_STRATEGY`** — default is `own_stack` (full control). If you want to reduce LLM costs, consider `hybrid` (high-confidence intents stay on ZIAY agents, general chat goes to Meta's native Business Agent).
+3. **Verify cron jobs are running** post-deploy: `docker compose logs app --tail=100 | grep -E "cron:(dian-retry|retention-cleanup|refund-retry|escrow-placeholder)"`.
+4. **Bookmark the Circuit Breaker Dashboard** at `/dashboard?view=gobernanza` → "Circuit Breakers" tab.
+5. **Familiarize agents with `HandoffButton`** in the Messenger conversation header.
+
+### Database
+- **No new migrations required** — `Refund.nextRetryAt` field was already present in v0.4.0 schema (now actively used).
+- Run `bun run db:push` to ensure schema is in sync (idempotent — no-op if already up to date).
+
+### Tests
+- **1098 unit tests** (was 986). +112 new tests covering: alerts channel fan-out, refund retry queue + backoff, cron wiring, `classifyIntentKeywords` exported function, `shouldEscalateToOwnAgent` hybrid routing, handoff API, `GET /api/conversations` botEnabled+pausedReason, pipeline-failure escalation.
+- **0 lint errors** (63 warnings — was 53 in v0.4.0; +10 in new cron/alerts code, all documented as acceptable).
+- **0 TSC errors**.
+
+## What's Next (Post-v0.4.3)
+
+- **BullMQ repeatable jobs** — replace `setInterval` cron wiring with `queue.add(..., { repeat: { every: N } })` for proper distributed locking + persistence across restarts.
+- **Escrow implementation** (ADR-0021) — currently Proposed; the placeholder cron is wired and tested, ready to become the 7-day auto-release job.
+- **Cold-storage S3/Glacier migration** — currently `./data/cold-storage/*.jsonl`; production should target S3/Glacier (format identical, just the sink changes).
+- **TikTok Shop Colombia integration** — added to roadmap per ADR-0007 market research update.
+
+---
+
 # ZIAY v0.4.0 — Release Notes
 
 **Date:** 2026-07-18

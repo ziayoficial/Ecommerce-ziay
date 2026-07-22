@@ -1,14 +1,15 @@
 # ZIAY · Revenue Operations para Comercio Agéntico
 
-[![Status: v0.4.0](https://img.shields.io/badge/status-v0.4.0-22c55e.svg)](RELEASE-NOTES.md)
+[![Status: v0.4.3](https://img.shields.io/badge/status-v0.4.3-22c55e.svg)](RELEASE-NOTES.md)
 [![Fintech Audit: 8.8/10](https://img.shields.io/badge/fintech%20audit-8.8%2F10-brightgreen.svg)](public/presentaciones/AUDITORIA-FINTECH-V3-FINAL.md)
-[![Tests: 986/986 ✓](https://img.shields.io/badge/tests-986%2F986%20%E2%9C%93-blue.svg)](CHANGELOG.md)
+[![Tests: 1098/1098 ✓](https://img.shields.io/badge/tests-1098%2F1098%20%E2%9C%93-blue.svg)](CHANGELOG.md)
+[![Agents: 24](https://img.shields.io/badge/agents-24-9333ea.svg)](docs/adr/README.md)
 [![Security: Hardened](https://img.shields.io/badge/security-hardened-success.svg)](public/presentaciones/AUDITORIA-FULL-SECURITY-CODE-TEST.md)
 [![Lint: 0 errors](https://img.shields.io/badge/lint-0%20errors-success.svg)](PRODUCTION-CHECKLIST.md)
 
-Plataforma de comercio agéntico para LATAM. WhatsApp, Messenger, Instagram con atribución de pauta, 24 agentes IA (20 consolidados + 4 control-plane) y compliance regulatorio LATAM (DIAN, Ley 1581, Ley 1480, LGPD, LFPDPPP).
+Plataforma de comercio agéntico para LATAM. WhatsApp, Messenger, Instagram con atribución de pauta, **24 agentes IA** (20 consolidados + 4 control-plane: governor, qa_reviewer, memory_curator, sentiment) y compliance regulatorio LATAM (DIAN, Ley 1581, Ley 1480, LGPD, LFPDPPP).
 
-**Versión:** v0.4.0 "Comercio Agéntico + Fintech Hardened" · **Next.js:** 16.2.10
+**Versión:** v0.4.3 "Production Hardened" · **Next.js:** 16.2.10 · **Tests:** 1098/1098 ✓ · **Agents:** 24 · **ADRs:** 22
 
 ## Quick Start
 
@@ -16,9 +17,9 @@ Plataforma de comercio agéntico para LATAM. WhatsApp, Messenger, Instagram con 
 # 1. Install dependencies
 bun install
 
-# 2. Set up environment (v0.4.0 — 135 vars, see .env.example)
+# 2. Set up environment (v0.4.3 — 137 vars, see .env.example)
 cp .env.example .env
-# Edit .env with your values (at minimum: NEXTAUTH_SECRET, ENCRYPTION_KEY)
+# Edit .env with your values (at minimum: NEXTAUTH_SECRET, ENCRYPTION_KEY, ALERT_WEBHOOK_URL)
 
 # 3. Set up database (PostgreSQL prod / SQLite dev)
 bun run db:push
@@ -33,7 +34,7 @@ Open http://localhost:3000/login and use the demo credentials:
 - **Agent:** camila@saramantha.co / demo123
 - **Trafficker:** sebastian@trafficker.co / demo123
 
-> v0.4.0 ships 78+ Prisma models, 114 API routes, 986 tests (52 files), 21 ADRs, 5 agentic commerce protocols (AP2/UCP/ACP/MCP/A2A), 7 currencies, 4 locales, 8 payment methods, 27 AI agents, 35 RLS policies, anti-fraud service (velocity/blocklist/OFAC/3DS/CVV-AVS). 0 lint/tsc errors. Fintech audit: 8.8/10. Full audit: 7 dimensions remediated.
+> v0.4.3 ships 78+ Prisma models, 114 API routes, **1098 tests** (52 files), 22 ADRs, 5 agentic commerce protocols (AP2/UCP/ACP/MCP/A2A), 7 currencies, 4 locales, 8 payment methods, **24 AI agents** (20 consolidated + 4 control-plane), **10 registered agent tools**, 35 RLS policies, anti-fraud service (velocity/blocklist/OFAC/3DS/CVV-AVS), **alerts with 4 channels (log+Sentry+socket+Slack webhook)**, **circuit breaker dashboard**, **handoff humano** (manual + pipeline-failure escalation), **4 cron jobs auto-started on boot** (DIAN retry, retention cleanup, refund retry, escrow placeholder), **local fonts** (no Google Fonts dependency). 0 lint/tsc errors. Fintech audit: 8.8/10. Full audit: 7 dimensions remediated.
 
 ## Security & Audit
 
@@ -44,7 +45,7 @@ This project has undergone 3 iterations of audit → fix → re-audit across 7 d
 | Fintech | 8.8/10 | [`AUDITORIA-FINTECH-V3-FINAL.md`](public/presentaciones/AUDITORIA-FINTECH-V3-FINAL.md) |
 | Security (non-fintech) | ~8.5/10 | [`AUDITORIA-FULL-SECURITY-CODE-TEST.md`](public/presentaciones/AUDITORIA-FULL-SECURITY-CODE-TEST.md) |
 | UX / A11y | ~7.0/10 | [`AUDITORIA-FULL-UX-SEO-DOCS-DEPLOY.md`](public/presentaciones/AUDITORIA-FULL-UX-SEO-DOCS-DEPLOY.md) |
-| Testing | 9.5/10 (986/986) | — |
+| Testing | 9.5/10 (1098/1098) | — |
 
 **Key security features:**
 - 35 RLS policies on PostgreSQL (multi-tenant isolation at DB level)
@@ -55,6 +56,14 @@ This project has undergone 3 iterations of audit → fix → re-audit across 7 d
 - `payment_mismatch` defense (amount + CVV/AVS validation before marking `paid`)
 - Cold-storage export for AuditLog before 7-year deletion (JSONL + SHA-256 checksum)
 - 9 cross-tenant bypass routes closed (all API routes enforce `requireTenantAccess`)
+
+**Operational features (v0.4.3):**
+- **Alerts** (`src/lib/alerts.ts`): `sendAlert(level, title, msg, ctx)` fans out to 4 channels — pino log + Sentry + socket.io dashboard + Slack/Discord webhook (`ALERT_WEBHOOK_URL`). Triggers: circuit breaker open, Governor veto, pipeline failure, refund retry exhausted.
+- **Circuit breaker dashboard**: at `/dashboard?view=gobernanza` → "Circuit Breakers" tab. Per-agent state (closed/open/half-open), failure count, last error, manual reset (admin only), 30-day history.
+- **Handoff humano**: agents can pause the bot from the Messenger conversation header (`HandoffButton`). Auto-escalates on pipeline failure (`botEnabled=false` + `pausedReason='pipeline_failure'`). ACK 200 always returned to Meta so no retries.
+- **Cron jobs** (auto-start on boot via `instrumentation.ts`): DIAN retry 10min, retention cleanup 24h, refund retry 5min, escrow placeholder 30min. `setInterval` + `enqueue` workaround until BullMQ repeatable jobs are available.
+- **Local fonts** (`next/font/local`): no build-time dependency on `fonts.googleapis.com`. Inter + Inter Tight loaded from `public/fonts/*.woff2`. Build is deterministic and offline-capable.
+- **Meta hybrid routing**: `classifyIntentKeywords` (exported shared function) + `shouldEscalateToOwnAgent` wired into the Meta webhook. `META_AGENT_STRATEGY=own_stack|hybrid|meta_native` controls routing (default: `own_stack`).
 
 ## Prerequisites
 
@@ -106,7 +115,7 @@ This project has undergone 3 iterations of audit → fix → re-audit across 7 d
 | `bun run build` | Production build (32.4s, standalone) |
 | `bun run start` | Start production server |
 | `bun run lint` | ESLint check (0 warnings) |
-| `bun run test` | Run unit + integration tests (964/964 ✓) |
+| `bun run test` | Run unit + integration tests (1098/1098 ✓) |
 | `bun run test:e2e` | Run E2E tests (Playwright) |
 | `bun run db:push` | Push schema to database |
 | `bun run db:seed` | Seed demo data |

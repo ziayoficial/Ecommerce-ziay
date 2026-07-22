@@ -268,6 +268,22 @@ PSE_API_KEY=
 PIX_API_KEY=
 SPEI_BANK_CLABE=
 
+# ── Operational alerts (v0.4.3) ─────────────────────────────────────────────
+# Slack/Discord incoming webhook URL for operational alerts (circuit breaker
+# open, Governor veto, pipeline failure, refund retry exhausted). When empty,
+# alerts still go to log + Sentry + socket.io dashboard. Optional but
+# recommended for 24/7 coverage.
+ALERT_WEBHOOK_URL=
+
+# ── Meta Business Agent strategy (v0.4.3) ───────────────────────────────────
+# How Meta channel (WhatsApp/Messenger/Instagram) messages are routed:
+#   own_stack    → ZIAY agents handle everything (full control + tracing)
+#   hybrid       → high-confidence intents to ZIAY agents, general chat to
+#                  Meta's native Business Agent (cost optimization)
+#   meta_native  → Meta handles everything (cheapest, least control)
+# Default: own_stack
+META_AGENT_STRATEGY=own_stack
+
 # ── Chat service ────────────────────────────────────────────────────────────
 CHAT_CORS_ORIGIN=https://ziay.tudominio.com
 ```
@@ -347,8 +363,8 @@ docker run --rm -v $(pwd)/Caddyfile:/etc/caddy/Caddyfile:ro caddy:2-alpine caddy
 
 **Output esperado:**
 ```
-2024/xx/xx 12:00:00.000	INFO	using provided configuration	{"config_file": "/etc/caddy/Caddyfile", "config_adapter": ""}
-2024/xx/xx 12:00:00.000	INFO	validated configuration
+2024/xx/xx 12:00:00.000 INFO    using provided configuration    {"config_file": "/etc/caddy/Caddyfile", "config_adapter": ""}
+2024/xx/xx 12:00:00.000 INFO    validated configuration
 ```
 
 ### Troubleshooting
@@ -627,6 +643,104 @@ app-1  | {"level":"info","msg":"webhook received","gateway":"stripe","event":"ch
 - **El webhook responde 403 Forbidden**: el signature header no coincide con el secret del `.env`. Verifica que pegaste el secret completo (sin espacios).
 - **Meta no verifica el webhook**: el `WA_VERIFY_TOKEN` que pusiste en Meta debe ser EXACTAMENTE igual al del `.env`. Reinicia la app si lo cambiaste: `docker compose restart app`.
 - **El webhook llega pero la app no lo procesa**: revisa `docker compose logs app --tail=50` — busca errores de Zod validation o DB.
+
+---
+
+## Paso 8.5 — Operaciones automáticas (v0.4.3)
+
+> A partir de v0.4.3, los cron jobs y las alertas se arrancan automáticamente al iniciar la app (vía `instrumentation.ts` de Next.js). No requieren n8n ni configuración adicional. Esta sección documenta qué se ejecuta y dónde verlo.
+
+### 8.5.1 Cron jobs (auto-start en boot)
+
+Los siguientes 4 cron jobs se registran vía `setInterval` cuando la app arranca. No necesitan activación manual:
+
+| Cron job | Intervalo | Función | Qué hace |
+|---|---|---|---|
+| **DIAN retry** | 10 min | `src/lib/cron/dian-retry.ts` | Recoge `Invoice.status='pending' AND dianError != null` y reintenta envío a DIAN con backoff exponencial (`min(5·2^n, 1440) min`). |
+| **Retention cleanup** | 24 h | `src/lib/cron/retention-cleanup.ts` | Exporta `AuditLog` rows pasados los 7 años de retención a cold-storage JSONL (`./data/cold-storage/auditlog-export-{date}-{stamp}.jsonl` + SHA-256 checksum), luego los borra. **Fail-closed**: si el export falla, no borra. |
+| **Refund retry** | 5 min | `src/lib/cron/refund-retry.ts` | Recoge `Refund.status='pending' AND nextRetryAt < now()` y reintenta el gateway call con backoff exponencial. Tras 5 fallos, dispara alerta. |
+| **Escrow placeholder** | 30 min | `src/lib/cron/escrow-placeholder.ts` | No-op log. El feature de escrow (ADR-0021) sigue en Proposed; este cron asegura que el wiring está testeado en prod para cuando se implemente el auto-release de 7 días. |
+
+> **Workaround note:** BullMQ repeatable jobs no están todavía disponibles en este environment, por lo que usamos `setInterval` + `enqueue` (workaround válido). Cuando BullMQ repeatable esté disponible, se reemplazan los `setInterval` por `queue.add('job', {}, { repeat: { every: N } })` sin tocar los handlers.
+
+**Verificar que están corriendo:**
+```bash
+docker compose logs app --tail=100 | grep -E "(dian-retry|retention-cleanup|refund-retry|escrow-placeholder)"
+```
+
+**Output esperado:**
+```
+app-1  | {"level":"info","msg":"cron:dian-retry:tick","time":"...","processed":0}
+app-1  | {"level":"info","msg":"cron:refund-retry:tick","time":"...","processed":2,"retried":2,"failed":0}
+```
+
+### 8.5.2 Alertas (4 canales)
+
+`src/lib/alerts.ts` expone `sendAlert(level, title, message, ctx)` que fanea a 4 canales en paralelo (non-blocking):
+
+1. **Log (pino)** — siempre activo, va a `docker compose logs app` + Loki.
+2. **Sentry** — `captureMessage` cuando `SENTRY_DSN` está seteado.
+3. **Socket.io** — emite `alerts:new` al room del tenant para alertas en tiempo real en el dashboard.
+4. **Slack/Discord webhook** — HTTP POST a `ALERT_WEBHOOK_URL` (best-effort; si falla, no bloquea los otros canales).
+
+**Eventos que disparan alertas:**
+
+| Evento | Nivel | Cuándo |
+|---|---|---|
+| Circuit breaker open | `error` | Un agente falla 5 veces consecutivas (`CircuitBreaker.open()`). |
+| Governor veto | `warn` | El agente Governor bloquea una decisión (budget breach, policy violation, safety block). |
+| Pipeline failure | `critical` | El pipeline del orquestador falla unrecoverable → dispara handoff humano. |
+| Refund retry exhausted | `error` | Un `Refund` ha fallado 5 reintentos consecutivos. |
+
+**Verificar que las alertas llegan a Slack** (cuando `ALERT_WEBHOOK_URL` está seteado):
+```bash
+# Test manual desde dentro del contenedor app:
+docker compose exec app node -e "require('./src/lib/alerts').sendAlert('warn','deploy-test','manual test from deploy','verify')"
+```
+
+### 8.5.3 Pipeline failure → handoff humano
+
+Cuando el pipeline del orquestador falla de forma unrecoverable (circuit breaker del agente abierto + LLM provider caído + retry budget agotado):
+
+1. El mensaje se persiste SIEMPRE en `Message` con `status='pending'` (no se pierde).
+2. La conversación se escala: `Conversation.botEnabled = false` + `Conversation.pausedReason = 'pipeline_failure'`.
+3. El webhook retorna `200 OK` a Meta (para que no reintente).
+4. Se dispara `sendAlert('critical', 'Pipeline failure', { conversationId, error })`.
+5. El dashboard muestra un badge rojo "Pausado — pipeline failure" en la conversación.
+
+El agente humano entra al Messenger, ve el badge, lee el mensaje pendiente y responde manualmente. Un admin puede re-enablear el bot con el botón **HandoffButton** (header de la conversación).
+
+### 8.5.4 Circuit Breaker Dashboard (Gobernanza)
+
+Disponible en `https://ziay.tudominio.com/dashboard?view=gobernanza` → tab **"Circuit Breakers"**. Muestra:
+
+- Estado por agente: `closed` / `open` / `half-open` (verde / rojo / amarillo).
+- Failure count + last failure timestamp + last error message.
+- Botón **Reset** (solo admin) para forzar `closed` manualmente.
+- Histórico de open events (últimos 30 días).
+- Polling cada 5s vía `/api/governance/circuit-breakers`.
+
+### 8.5.5 Handoff humano desde el Messenger
+
+Cualquier agente con rol `agent` o `admin` puede pausar el bot en una conversación:
+
+1. Abrir la conversación en el Messenger view.
+2. En el header, clic en el botón **"Handoff"** (icono de mano).
+3. La conversación se marca: `botEnabled = false`, `pausedReason = 'manual_handoff'`.
+4. Socket event `conversation:paused` notifica a otros agentes viendo la misma conversación.
+5. Badge rojo "Pausado" aparece en la lista de conversaciones.
+6. Un admin puede revertirlo con el mismo botón (toggle).
+
+### 8.5.6 Fuentes locales (no Google Fonts)
+
+A partir de v0.4.3, el build ya no requiere acceso a `fonts.googleapis.com`. Las fuentes (Inter + Inter Tight) se cargan vía `next/font/local` desde `public/fonts/*.woff2`. Esto significa:
+
+- ✅ El build funciona en CI con red restringida (corporate proxy, air-gapped runners).
+- ✅ El build es determinístico — no depende de un servicio externo.
+- ✅ No hay requests adicionales a Google desde el browser del usuario final.
+- ✅ Las fuentes se cachean con el resto del bundle estático.
+
+Si necesitas cambiar las fuentes, coloca los archivos `.woff2` en `public/fonts/` y actualiza las referencias en `src/app/layout.tsx`.
 
 ---
 

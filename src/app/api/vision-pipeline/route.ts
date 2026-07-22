@@ -1,7 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { db } from '@/lib/db'
 import { identifyImage } from '@/lib/vision/pipeline'
 import { requireTenantAccess } from '@/lib/auth-helpers'
+
+const VisionPipelineSchema = z.object({
+  tenantId: z.string().min(1),
+  imageUrl: z.string().url(),
+  customerId: z.string().optional(),
+  conversationId: z.string().optional(),
+})
 
 // POST /api/vision-pipeline
 // Body: { tenantId, imageUrl, customerId?, conversationId? }
@@ -20,10 +28,13 @@ import { requireTenantAccess } from '@/lib/auth-helpers'
 // write so an attacker can no longer burn LLM budget or inject audit rows
 // on a victim tenant.
 export async function POST(req: NextRequest) {
-  const { tenantId, imageUrl, customerId, conversationId } = await req.json()
-  if (!tenantId || !imageUrl) {
-    return NextResponse.json({ error: 'tenantId and imageUrl required' }, { status: 400 })
+  const parsed = VisionPipelineSchema.safeParse(await req.json().catch(() => ({})))
+  if (!parsed.success) {
+    return NextResponse.json({ error: 'Invalid body', details: parsed.error.flatten() }, { status: 400 })
   }
+  const { tenantId, imageUrl, customerId, conversationId } = parsed.data
+
+  // tenantId and imageUrl already validated by Zod above
 
   // IF-2 · S-4 — verify the caller may access this tenant BEFORE invoking the
   // vision pipeline (closes LLM-cost abuse + audit-log injection).

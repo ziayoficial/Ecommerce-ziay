@@ -1,6 +1,12 @@
 import { NextResponse } from 'next/server'
+import { z } from 'zod'
 import { requireRole } from '@/lib/auth-helpers'
 import { circuitBreaker } from '@/lib/agents/circuit-breaker'
+
+const CircuitBreakerActionSchema = z.object({
+  action: z.enum(['reset', 'resetAll']),
+  circuitKey: z.string().min(1).max(200).optional(),
+})
 
 // GET /api/agents/circuit-breaker — returns the state of all circuit breakers.
 // Admin-only: lets the ops team see which agents are tripped (open circuit)
@@ -50,8 +56,14 @@ export async function POST(req: Request) {
   const { error: authError } = await requireRole(['admin'])
   if (authError) return authError
 
-  const body = await req.json().catch(() => ({}))
-  const { action, circuitKey } = body
+  const parsed = CircuitBreakerActionSchema.safeParse(await req.json().catch(() => ({})))
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: 'Invalid body', details: parsed.error.flatten() },
+      { status: 400 },
+    )
+  }
+  const { action, circuitKey } = parsed.data
 
   if (action === 'resetAll') {
     circuitBreaker.resetAll()

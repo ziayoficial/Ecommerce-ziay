@@ -1,6 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { db } from '@/lib/db'
 import { requireTenantAccess } from '@/lib/auth-helpers'
+
+const CartPostSchema = z.object({
+  tenantId: z.string().min(1),
+  conversationId: z.string().optional(),
+  action: z.enum(['add_items', 'confirm_all', 'convert_to_order']),
+  items: z.array(z.object({
+    productName: z.string().max(200),
+    unitPrice: z.number().min(0),
+    quantity: z.number().int().min(1),
+  }).passthrough()).optional(),
+  cartId: z.string().optional(),
+})
 
 // GET /api/conversational-cart?tenantId=...&conversationId=...
 //
@@ -34,8 +47,9 @@ export async function GET(req: NextRequest) {
 // while still preserving the call shape from the legacy client (extra fields
 // are accepted and ignored so callers don't break).
 export async function POST(req: NextRequest) {
-  const { tenantId, conversationId, action, items } = await req.json()
-  if (!tenantId) return NextResponse.json({ error: 'tenantId required' }, { status: 400 })
+  const parsed = CartPostSchema.safeParse(await req.json().catch(() => ({})))
+  if (!parsed.success) return NextResponse.json({ error: 'Invalid body', details: parsed.error.flatten() }, { status: 400 })
+  const { tenantId, conversationId, action, items, cartId } = parsed.data
 
   // IF-2 · S-3 — verify the caller may access this tenant before any write.
   const { error } = await requireTenantAccess(tenantId)
@@ -95,7 +109,7 @@ export async function POST(req: NextRequest) {
   }
 
   if (action === 'convert_to_order') {
-    const cart = await db.conversationalCart.findUnique({ where: { id: items?.cartId }, include: { items: true } })
+    const cart = await db.conversationalCart.findUnique({ where: { id: cartId }, include: { items: true } })
     if (!cart) return NextResponse.json({ error: 'cart not found' }, { status: 404 })
     await db.conversationalCart.update({ where: { id: cart.id }, data: { status: 'converted_to_order' } })
     // The actual order creation is handled by the checkout agent (6.10)

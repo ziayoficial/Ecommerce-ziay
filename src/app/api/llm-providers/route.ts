@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { db } from '@/lib/db'
 import { requireTenantAccess, requireRole } from '@/lib/auth-helpers'
+
+const LlmProviderPatchSchema = z.object({
+  tenantId: z.string().min(1),
+  proveedorIa: z.enum(['zai', 'chatgpt', 'xai', 'ollama']),
+  credencialesIaRef: z.string().max(500).optional(),
+})
 
 // GET /api/llm-providers?tenantId=...
 // Returns the IA provider config for a tenant + available providers + health check
@@ -76,15 +83,15 @@ export async function PATCH(req: NextRequest) {
   const { error: roleError } = await requireRole(['admin'])
   if (roleError) return roleError
 
-  const { tenantId, proveedorIa, credencialesIaRef } = await req.json()
-  if (!tenantId || !proveedorIa) return NextResponse.json({ error: 'tenantId and proveedorIa required' }, { status: 400 })
+  const parsed = LlmProviderPatchSchema.safeParse(await req.json().catch(() => ({})))
+  if (!parsed.success) return NextResponse.json({ error: 'Invalid body', details: parsed.error.flatten() }, { status: 400 })
+  const { tenantId, proveedorIa, credencialesIaRef } = parsed.data
 
   // IF-2 · S-7 — verify the caller may access this tenant before updating it.
   const { error } = await requireTenantAccess(tenantId)
   if (error) return error
 
-  const valid = ['zai', 'chatgpt', 'xai', 'ollama']
-  if (!valid.includes(proveedorIa)) return NextResponse.json({ error: `proveedorIa must be one of: ${valid.join(', ')}` }, { status: 400 })
+  // proveedorIa already validated by Zod enum above
 
   const updated = await db.tenant.update({
     where: { id: tenantId },

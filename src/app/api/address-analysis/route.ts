@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
       tenantId,
       country,
       mode: 'analyze',
-      partialAddress: { direccion, ciudad, departamento, pais: country },
+      partialAddress: { direccion, ciudad: ciudad || '', departamento: departamento || '', pais: country },
       message: direccion,
     })
 

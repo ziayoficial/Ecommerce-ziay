@@ -10,8 +10,15 @@
 import { NextResponse } from 'next/server'
 import { NUNCA_RULES, SIEMPRE_RULES, getRulesStats, getRulesForCategory, buildRulesBlock, buildRulesBlockVerbose } from '@/lib/agents/rules'
 import { withErrorHandling } from '@/lib/middleware/api-error-handler'
+import { requireAuth } from '@/lib/auth-helpers'
 
 export const GET = withErrorHandling(async () => {
+  // AUDIT-FIX F-02: route claimed @security "Requiere autenticación" but
+  // withErrorHandling does NOT include auth — it only wraps try/catch.
+  // Added requireAuth() to match the documented security contract.
+  const { error } = await requireAuth()
+  if (error) return error
+
   const stats = getRulesStats()
 
   return NextResponse.json({

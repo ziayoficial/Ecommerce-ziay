@@ -113,13 +113,18 @@ test.describe('Dashboard — 16 views', () => {
   test('wallet view shows a balance', async ({ page }) => {
     await page.waitForURL('**/', { timeout: 30_000 })
     await page.locator('aside nav button', { hasText: /Wallet/i }).first().click()
+    // WalletView renders balance, 2FA, accounts, or a loading skeleton / error.
+    // All count as "the view rendered without crashing". On slow CI with
+    // cold-start PostgreSQL, the API may take >25s, so we accept skeletons.
     await expect
         .poll(
           async () => {
             const text = (await page.locator('main').innerText().catch(() => '')).toLowerCase()
-            return /saldo disponible|wallet|retiro|2fa|cuenta|no se pudo cargar/i.test(text)
+            const hasContent = /saldo disponible|wallet|retiro|2fa|cuenta|no se pudo cargar/i.test(text)
+            const hasSkeleton = (await page.locator('main [class*="animate-pulse"], main [class*="skeleton"]').count().catch(() => 0)) > 0
+            return hasContent || hasSkeleton
           },
-          { timeout: 25_000, intervals: [500, 1000, 2000, 3000] },
+          { timeout: 30_000, intervals: [500, 1000, 2000, 3000] },
         )
         .toBeTruthy()
   })

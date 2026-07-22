@@ -47,7 +47,7 @@ export function Sidebar({ active, onChange, badges }: {
               aria-current={isActive ? 'page' : undefined}
               title={item.label}
               className={cn(
-                'group relative w-full flex items-center gap-3 rounded-lg pl-3 pr-2 py-2.5 text-sm transition-all duration-200',
+                'group relative w-full flex items-center gap-3 rounded-lg pl-3 pr-2 py-3 text-sm transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset',
                 isActive
                   ? 'bg-primary/15 text-primary-foreground shadow-sm'
                   : 'text-sidebar-foreground/90 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:translate-x-0.5 ring-1 ring-transparent hover:ring-sidebar-accent-foreground/10'

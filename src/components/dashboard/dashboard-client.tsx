@@ -279,7 +279,7 @@ export function DashboardClient({ session: _session }: DashboardClientProps) {
             onOpenSearch={() => setSearchOpen(true)}
             badges={badges}
           />
-          <main id="main-content" className="flex-1 overflow-y-auto scroll-thin">
+          <main id="main-content" tabIndex={-1} className="flex-1 overflow-y-auto scroll-thin scroll-mt-16 focus:outline-none">
             {/* sr-only h1 mirrors the server-rendered h1 in `src/app/page.tsx`
                 but updates with the active view so screen-reader users who
                 navigate by headings hear the context change. The server

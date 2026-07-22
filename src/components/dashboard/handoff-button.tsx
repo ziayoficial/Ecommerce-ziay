@@ -72,7 +72,7 @@ export function HandoffButton({
     return (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="sm" disabled={loading} className="gap-1.5">
+          <Button variant="outline" size="sm" disabled={loading} className="gap-1.5 focus-visible:ring-2 focus-visible:ring-ring" aria-label="Pausar bot — opciones de handoff humano">
             <Bot className="size-3.5 text-emerald-600" />
             <span className="hidden sm:inline">Bot activo</span>
             <ChevronDown className="size-3" />
@@ -83,15 +83,15 @@ export function HandoffButton({
             Pausar bot (tomar control)
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={() => toggle('pause', 'human_takeover')}>
+          <DropdownMenuItem onClick={() => toggle('pause', 'human_takeover')} aria-label="Tomar control manual del bot">
             <User className="size-3.5 mr-2" />
             Tomar control manual
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => toggle('pause', 'customer_request')}>
+          <DropdownMenuItem onClick={() => toggle('pause', 'customer_request')} aria-label="Pausar bot porque el cliente pidió hablar con humano">
             <Pause className="size-3.5 mr-2" />
             Cliente pidió hablar con humano
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => toggle('pause', 'maintenance')}>
+          <DropdownMenuItem onClick={() => toggle('pause', 'maintenance')} aria-label="Pausar bot por mantenimiento">
             <Pause className="size-3.5 mr-2" />
             Mantenimiento
           </DropdownMenuItem>
@@ -103,7 +103,7 @@ export function HandoffButton({
   // Bot is paused — show "resume" button + reason badge
   return (
     <div className="flex items-center gap-2">
-      <Badge variant="destructive" className="gap-1 text-xs">
+      <Badge variant="destructive" className="gap-1 text-xs" aria-label={`Bot pausado: ${pausedReason || 'manual'}`}>
         <User className="size-3" />
         {pausedReason === 'human_takeover'
           ? 'Humano'
@@ -116,7 +116,8 @@ export function HandoffButton({
         size="sm"
         disabled={loading}
         onClick={() => toggle('resume')}
-        className="gap-1.5"
+        className="gap-1.5 focus-visible:ring-2 focus-visible:ring-ring"
+        aria-label="Reactivar bot IA"
       >
         <Play className="size-3.5" />
         <span className="hidden sm:inline">Reactivar bot</span>

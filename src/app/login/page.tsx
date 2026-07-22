@@ -231,8 +231,9 @@ function LoginInner() {
                     <Label htmlFor="password">Contraseña</Label>
                     <button
                       type="button"
-                      className="text-xs text-muted-foreground hover:text-primary transition-colors"
+                      className="text-xs text-muted-foreground hover:text-primary transition-colors rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring px-1 py-0.5"
                       onClick={() => setShowPass((v) => !v)}
+                      aria-label={showPass ? 'Ocultar contraseña' : 'Mostrar contraseña'}
                     >
                       {showPass ? 'Ocultar' : 'Mostrar'}
                     </button>
@@ -250,9 +251,10 @@ function LoginInner() {
                     />
                     <button
                       type="button"
-                      className="absolute right-2 top-1/2 -translate-y-1/2 size-6 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+                      className="absolute right-1 top-1/2 -translate-y-1/2 size-9 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       onClick={() => setShowPass((v) => !v)}
                       aria-label={showPass ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                      aria-pressed={showPass}
                     >
                       {showPass ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                     </button>

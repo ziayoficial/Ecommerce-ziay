@@ -112,8 +112,8 @@ export function Topbar({ active, country, onCountryChange, onChangeView, onOpenS
           <Button
             variant="ghost"
             size="icon"
-            className="md:hidden size-10 shrink-0 focus-visible:ring-2 focus-visible:ring-ring"
-            aria-label="Abrir menú"
+            className="md:hidden size-11 shrink-0 focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label="Abrir menú de navegación"
             onClick={() => setMobileNavOpen(true)}
           >
             <Menu className="size-5" />
@@ -140,7 +140,7 @@ export function Topbar({ active, country, onCountryChange, onChangeView, onOpenS
                     onClick={() => handleMobileNavClick(navItem.id)}
                     aria-current={isActive ? 'page' : undefined}
                     className={cn(
-                      'group relative w-full flex items-center gap-3 rounded-lg pl-3 pr-2 py-2.5 text-sm transition-all',
+                      'group relative w-full flex items-center gap-3 rounded-lg pl-3 pr-2 py-3 text-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                       isActive
                         ? 'bg-primary/10 text-primary'
                         : 'text-foreground hover:bg-accent hover:translate-x-0.5'
@@ -171,7 +171,7 @@ export function Topbar({ active, country, onCountryChange, onChangeView, onOpenS
           <Breadcrumb>
             <BreadcrumbList className="text-[11px] md:text-xs">
               <BreadcrumbItem>
-                <BreadcrumbLink asChild><button type="button" className="hover:text-foreground transition-colors" onClick={() => onChangeView?.('overview')}>Dashboard</button></BreadcrumbLink>
+                <BreadcrumbLink asChild><button type="button" className="hover:text-foreground transition-colors rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => onChangeView?.('overview')}>Dashboard</button></BreadcrumbLink>
               </BreadcrumbItem>
               <BreadcrumbSeparator />
               <BreadcrumbItem>
@@ -239,7 +239,7 @@ export function Topbar({ active, country, onCountryChange, onChangeView, onOpenS
         <Button
           variant="ghost"
           size="icon"
-          className="md:hidden size-10"
+          className="md:hidden size-11 focus-visible:ring-2 focus-visible:ring-ring"
           aria-label="Buscar"
           onClick={() => onOpenSearch?.()}
         >
@@ -261,7 +261,7 @@ export function Topbar({ active, country, onCountryChange, onChangeView, onOpenS
         </Select>
 
         {/* Notification bell with badge count */}
-        <Button variant="ghost" size="icon" className="relative size-10" aria-label={`Notificaciones${notifCount > 0 ? ` (${notifCount} sin leer)` : ''}`}>
+        <Button variant="ghost" size="icon" className="relative size-11 focus-visible:ring-2 focus-visible:ring-ring" aria-label={`Notificaciones${notifCount > 0 ? ` (${notifCount} sin leer)` : ''}`}>
           <Bell className="size-4" />
           {notifCount > 0 && (
             <span className="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full bg-rose-500 text-white text-[9px] font-bold flex items-center justify-center tabular-nums">
@@ -271,7 +271,7 @@ export function Topbar({ active, country, onCountryChange, onChangeView, onOpenS
         </Button>
 
         <Button
-          variant="ghost" size="icon" className="size-10"
+          variant="ghost" size="icon" className="size-11 focus-visible:ring-2 focus-visible:ring-ring"
           onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
           aria-label="Cambiar tema"
         >

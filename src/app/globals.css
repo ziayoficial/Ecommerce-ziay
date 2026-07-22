@@ -127,8 +127,42 @@
   * {
     @apply border-border outline-ring/50;
   }
+  /* UX-FIX · mobile — prevent iOS Safari from auto-zooming text on
+     orientation change and honor the user's text-size setting. */
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+  /* UX-FIX · mobile — `100dvh` accounts for the iOS Safari URL bar so the
+     footer never sits behind the browser chrome. Falls back to `100vh`
+     for browsers that don't support `dvh` yet (the cascade keeps both). */
   body {
     @apply bg-background text-foreground;
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+  /* UX-FIX · a11y — visible keyboard focus ring on every interactive
+     element by default. Component-level `focus-visible:ring-*` classes
+     still override this for custom rings. */
+  :where(a, button, input, textarea, select, summary, [tabindex]):focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+  /* UX-FIX · a11y — skip-link target (#main-content) receives programmatic
+     focus via tabIndex={-1}; suppress the default outline so the focus
+     ring only appears on keyboard nav, not on the scroll target. */
+  [tabindex="-1"]:focus {
+    outline: none;
+  }
+  /* UX-FIX · mobile — respect the iOS safe-area insets so the fixed
+     bulk-action bar (orders-view) and floating buttons don't sit under
+     the home indicator on iPhone. */
+  @supports (padding: max(0px)) {
+    body {
+      padding-left: env(safe-area-inset-left);
+      padding-right: env(safe-area-inset-right);
+    }
   }
 }
 

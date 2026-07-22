@@ -18,6 +18,9 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import {
+  Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
+} from '@/components/ui/sheet'
 import { cn } from '@/lib/utils'
 import { timeAgo, shortTime, formatCurrency } from '@/lib/format'
 import { getSocket } from '@/lib/socket'
@@ -26,6 +29,7 @@ import { useTenantId } from '@/hooks/use-tenant'
 import {
   MessageCircle, Send, Sparkles, Phone, MapPin, Tag, Bot, User, Search,
   CircleDot, ArrowRight, ShoppingCart, RefreshCw, AlertCircle, Inbox, CornerDownLeft,
+  Info,
 } from 'lucide-react'
 import { HandoffButton } from './handoff-button'
 
@@ -87,6 +91,7 @@ export function MessengerView() {
   const [aiLoading, setAiLoading] = useState(false)
   const [connected, setConnected] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [customerSheetOpen, setCustomerSheetOpen] = useState(false)
   const threadRef = useRef<HTMLDivElement>(null)
 
   // Quick replies — common agent responses, single-tap to send.
@@ -372,6 +377,18 @@ export function MessengerView() {
                   setActive((prev) => prev ? { ...prev, botEnabled: newBotEnabled } : prev)
                 }}
               />
+              {/* Mobile-only "Customer info" trigger — opens a Sheet because the
+                  right-hand customer panel is hidden below the lg breakpoint. */}
+              <Button
+                variant="outline"
+                size="sm"
+                className="lg:hidden h-9 px-2.5 gap-1.5 focus-visible:ring-2 focus-visible:ring-ring"
+                onClick={() => setCustomerSheetOpen(true)}
+                aria-label="Ver datos del cliente"
+              >
+                <Info className="size-3.5" />
+                <span className="hidden sm:inline">Cliente</span>
+              </Button>
               <Select value={active.status} onValueChange={updateStatus}>
                 <SelectTrigger className="h-9 w-32 text-xs">
                   <SelectValue />
@@ -481,7 +498,7 @@ export function MessengerView() {
                     type="button"
                     onClick={() => send(reply)}
                     disabled={!activeId || aiLoading}
-                    className="text-[11px] px-2.5 py-1 rounded-full border bg-background hover:bg-primary/10 hover:border-primary/40 hover:text-primary transition-all disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring truncate max-w-full shadow-sm"
+                    className="text-[11px] px-3 py-1.5 rounded-full border bg-background hover:bg-primary/10 hover:border-primary/40 hover:text-primary transition-all disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring truncate max-w-full shadow-sm"
                     title={reply}
                   >
                     {reply.length > 42 ? reply.slice(0, 42) + '…' : reply}
@@ -504,7 +521,7 @@ export function MessengerView() {
                     onClick={() => send()}
                     disabled={!draft.trim() || !activeId || aiLoading}
                     aria-label="Enviar mensaje"
-                    className="absolute right-2 bottom-2 size-7 rounded-full bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="absolute right-1.5 bottom-1.5 size-9 rounded-full bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
                   >
                     <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M22 2L11 13" />
@@ -683,6 +700,106 @@ export function MessengerView() {
           </ScrollArea>
         )}
       </Card>
+
+      {/* Mobile customer Sheet — surfaces the customer panel (hidden below lg)
+          in a bottom-up sheet triggered from the thread header. */}
+      <Sheet open={customerSheetOpen} onOpenChange={setCustomerSheetOpen}>
+        <SheetContent side="right" className="w-full sm:max-w-md p-0 flex flex-col">
+          <SheetHeader className="px-4 py-3 border-b">
+            <SheetTitle className="text-sm flex items-center gap-2">
+              <User className="size-4 text-primary" />
+              {active?.customer.name ?? 'Cliente'}
+            </SheetTitle>
+            <SheetDescription className="text-xs">
+              Datos del cliente, atribución y pedidos
+            </SheetDescription>
+          </SheetHeader>
+          {active && (
+            <ScrollArea className="flex-1 scroll-thin">
+              <div className="p-4 space-y-4">
+                <div className="flex items-center gap-3">
+                  <Avatar className="size-12 rounded-full">
+                    <AvatarFallback className={cn('text-sm', channelMeta(active.channel.type).color)}>
+                      {active.customer.name.split(' ').map((n: string) => n[0]).slice(0, 2).join('')}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0">
+                    <div className="font-medium text-sm truncate">{active.customer.name}</div>
+                    <div className="text-xs text-muted-foreground">{active.customer.country} · {active.customer.city}</div>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5 text-xs">
+                  {active.customer.phone && (
+                    <div className="flex items-center gap-2 text-muted-foreground"><Phone className="size-3.5" /> {active.customer.phone}</div>
+                  )}
+                  {active.customer.address && (
+                    <div className="flex items-start gap-2 text-muted-foreground"><MapPin className="size-3.5 mt-0.5" /> {active.customer.address}</div>
+                  )}
+                  {active.customer.tags && (
+                    <div className="flex items-start gap-2 text-muted-foreground"><Tag className="size-3.5 mt-0.5" />
+                      <div className="flex flex-wrap gap-1">
+                        {active.customer.tags.split(',').map((t) => <Badge key={t} variant="secondary" className="text-[10px] h-4">{t}</Badge>)}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <Separator />
+
+                <div>
+                  <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Atribución</div>
+                  <div className="space-y-1.5 text-xs">
+                    <div className="flex justify-between gap-2"><span className="text-muted-foreground">Campaña</span><span className="font-medium text-right">{active.sourceCampaign || 'Orgánico'}</span></div>
+                    <div className="flex justify-between gap-2"><span className="text-muted-foreground">Canal</span><span className="font-medium">{active.channel.displayName}</span></div>
+                    <div className="flex justify-between gap-2"><span className="text-muted-foreground">Estrategia pago</span>
+                      <Badge variant="outline" className="text-[10px] h-4">{active.channel.paymentStrategy}</Badge>
+                    </div>
+                  </div>
+                </div>
+
+                <Separator />
+
+                <div>
+                  <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1.5"><ShoppingCart className="size-3.5" /> Pedidos del cliente</div>
+                  {active.orders.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">Sin pedidos aún</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {active.orders.map((o) => (
+                        <div key={o.id} className="p-2 rounded-lg border text-xs">
+                          <div className="flex items-center justify-between">
+                            <span className="font-mono font-medium">{o.number}</span>
+                            <span className="font-semibold">{formatCurrency(o.total, o.currency)}</span>
+                          </div>
+                          <div className="text-muted-foreground mt-0.5">{o.items.map(i => `${i.quantity}x ${i.name}`).join(', ')}</div>
+                          <div className="flex items-center gap-1.5 mt-1">
+                            <Badge variant="secondary" className="text-[9px] h-3.5">{o.status}</Badge>
+                            <Badge variant="outline" className="text-[9px] h-3.5">{o.paymentMode === 'cod' ? 'Contra entrega' : 'Anticipado'}</Badge>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="p-3 rounded-lg bg-primary/5 border border-primary/15 flex gap-2 text-xs">
+                  <Bot className="size-4 text-primary shrink-0 mt-0.5" />
+                  <p className="text-muted-foreground">
+                    {active.channel.paymentStrategy === 'advance' && 'Canal exige pago anticipado. Ofrece descuento y envía link del carrito.'}
+                    {active.channel.paymentStrategy === 'cod' && 'Canal solo contra entrega. Confirma dirección y ciudad antes de cerrar.'}
+                    {active.channel.paymentStrategy === 'hybrid' && `Híbrido: pedidos > ${formatCurrency(active.channel.requirePrepayMin || 0)} recomienda prepay (${active.channel.prepayDiscountPct || 0}% off).`}
+                  </p>
+                </div>
+
+                <Button variant="outline" size="sm" className="w-full gap-1.5">
+                  <ArrowRight className="size-3.5" /> Crear pedido desde chat
+                </Button>
+              </div>
+            </ScrollArea>
+          )}
+        </SheetContent>
+      </Sheet>
     </div>
   )
 }

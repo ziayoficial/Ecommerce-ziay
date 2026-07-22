@@ -326,7 +326,7 @@ export function OrdersView() {
               onClick={() => setStatusFilter(opt.value)}
               aria-pressed={isActive}
               className={cn(
-                'inline-flex items-center gap-1.5 h-8 px-3 rounded-full text-xs font-medium border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                'inline-flex items-center gap-1.5 h-9 px-3 rounded-full text-xs font-medium border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                 isActive
                   ? 'bg-primary text-primary-foreground border-primary'
                   : 'bg-background hover:bg-accent border-border'
@@ -422,7 +422,7 @@ export function OrdersView() {
           <div className="text-xs font-medium">{selectedCount} pedidos seleccionados</div>
           <div className="flex items-center gap-2 flex-wrap">
             <Select onValueChange={(v) => bulkUpdateStatus(v)} defaultValue="">
-              <SelectTrigger className="h-8 w-44 text-xs"><SelectValue placeholder="Mover selección a…" /></SelectTrigger>
+              <SelectTrigger className="h-9 w-44 text-xs"><SelectValue placeholder="Mover selección a…" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="paid">Marcar pagado</SelectItem>
                 <SelectItem value="preparing">Preparando</SelectItem>
@@ -569,7 +569,7 @@ export function OrdersView() {
                               const payMap: Record<string, string> = { paid: 'paid' }
                               updateStatus(o.id, v, payMap[v], eventMap[v])
                             }} defaultValue="">
-                              <SelectTrigger className="h-8 w-32 text-xs"><SelectValue placeholder="Mover a..." /></SelectTrigger>
+                              <SelectTrigger className="h-9 w-32 text-xs"><SelectValue placeholder="Mover a..." /></SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="paid">Marcar pagado</SelectItem>
                                 <SelectItem value="preparing">Preparando</SelectItem>

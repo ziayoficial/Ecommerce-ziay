@@ -80,14 +80,14 @@ export function initCronJobs(): void {
   )
   intervals.push(retentionInterval)
 
-  // 3. Escrow auto-release — every 30 minutes (placeholder — R-18 not yet implemented)
-  // When R-18 escrow is implemented, this will release funds to sellers
-  // after delivery confirmation (or 7-day auto-release if no dispute).
+  // 3. Escrow auto-release — every 30 minutes
+  // R-18 FIX: releases funds to sellers after delivery confirmation
+  // (or 7-day auto-release if no dispute).
   const escrowInterval = setInterval(
     async () => {
       try {
-        log.info('Cron: enqueuing escrow-auto-release job (placeholder — R-18 not yet implemented)')
-        // enqueue('escrow-auto-release', {})  // Uncomment when R-18 is implemented
+        log.info('Cron: enqueuing escrow-auto-release job')
+        await enqueue('escrow-auto-release', {})
       } catch (err) {
         log.error({ err: err instanceof Error ? err.message : String(err) }, 'Cron: escrow-auto-release enqueue failed')
       }
@@ -237,4 +237,14 @@ registerJobHandler('refund-retry', async () => {
       )
     }
   }
+})
+
+// Escrow auto-release handler (R-18 FIX)
+registerJobHandler('escrow-auto-release', async () => {
+  const { escrowService } = await import('@/lib/services/escrow.service')
+  const result = await escrowService.autoReleaseExpired()
+  log.info(
+    { released: result.released, errors: result.errors },
+    'escrow-auto-release job complete',
+  )
 })

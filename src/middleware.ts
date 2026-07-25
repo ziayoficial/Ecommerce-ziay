@@ -192,7 +192,8 @@ interface RateLimitEntry {
 }
 
 const RATE_LIMIT_MAP = new Map<string, RateLimitEntry>()
-const RATE_LIMIT_MAX = 60 // 60 req per minute per IP for protected APIs
+// Env-configurable so CI can raise the ceiling. Task ID: E2E-RATELIMIT-FIX-001.
+const RATE_LIMIT_MAX = parseInt(process.env.RATE_LIMIT_MAX ?? '60', 10) // default 60 req/min/IP
 const RATE_LIMIT_WINDOW = 60_000
 
 /**
@@ -226,7 +227,9 @@ function checkRateLimit(ip: string): boolean {
 // ───────────────────────────────────────────────────────────────────────────
 
 const AUTH_RATE_LIMIT_MAP = new Map<string, RateLimitEntry>()
-const AUTH_RATE_LIMIT_MAX = 5 // 5 req per minute per IP for auth endpoints
+// Env-configurable: 15 signIn() calls x retries can exhaust the 5/min default in CI.
+// Task ID: E2E-RATELIMIT-FIX-001.
+const AUTH_RATE_LIMIT_MAX = parseInt(process.env.AUTH_RATE_LIMIT_MAX ?? '5', 10) // default 5 req/min/IP
 const AUTH_RATE_LIMIT_WINDOW = 60_000
 
 /**

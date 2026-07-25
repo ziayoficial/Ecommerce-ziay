@@ -720,3 +720,60 @@ Cuando BullMQ repeatable jobs estén disponibles, los `setInterval` se reemplaza
 **Lección:** La investigación de mercado debe actualizarse con eventos reales. Un ADR de estrategia que no se actualiza con eventos de mercado (nuevos competidores, cambios de pricing, muertes de protocolos) es una decisión basada en información stale. La realidad del mercado se mueve más rápido que el roadmap interno. **Cada ADR estratégico debe tener una sección "Última actualización de mercado" con fecha**, y si pasa más de 1 trimestre sin actualizarse, debe marcarse como "STALE — necesita revisión".
 
 **Acción (v0.4.3):** ADR-0007 actualizado con: (1) ACP colapsó — pivot a OpenAPI plain + MCP, (2) UCP ganó — invertir en interoperabilidad con Shopify, (3) TikTok Shop Colombia — añadir a roadmap de integraciones Q4 2026, (4) WhatsApp pricing confirmado — actualizar modelo de pricing por tenant con break-even analysis, (5) sección "Última actualización de mercado: 2026-07-22" añadida al ADR.
+
+
+---
+
+### L59. Rate limits hardcoded + E2E tests desde una sola IP = falsos negativos en CI
+
+**Contexto:** El job `e2e-tests` de CI falló con 2 tests en rojo + 1 flaky de 68 (`critical-flows:187`, `llm-costs:50`, `dashboard:54`). El PR #47 (commit `82dfa85`) intentó arreglarlo añadiendo `429` y `405` a las accept-lists de 3 tests **no autenticados** — pero los 3 tests que seguían fallando **requieren autenticación**, y era el endpoint de auth el que devolvía 429. Fix cosmético típico: parchear el síntoma sin cerrar el root cause.
+
+El root cause real: `src/middleware.ts` tenía dos rate limiters in-memory con constantes hardcoded:
+- `RATE_LIMIT_MAX = 60` (todas las rutas `/api/**` protedidas, por IP)
+- `AUTH_RATE_LIMIT_MAX = 5` (`/api/auth/callback/credentials` + signin + signup, por IP)
+
+En CI, los 68 tests de Playwright corren desde `127.0.0.1` (un solo bucket por IP). La suite hace ~15 llamadas a `signIn()` (cada una = 1 POST a `/api/auth/callback/credentials`) + retries + polling a `/api/tenants` + decenas de llamadas autenticadas de los 65 tests que pasan. Total: bien más de 5 auth/min y más de 60 API/min desde la misma IP. Para cuando la suite llega a los tests del final, ambos buckets están agotados → 429 → `signIn()` nunca autentica → `/api/tenants` devuelve 401/302 → el poll devuelve 0 → `toBeGreaterThan(0)` timeoutea tras 30s.
+
+**Lección:** Todo rate limiter in-memory keyed by IP se agota cuando los tests E2E corren desde un solo runner de CI. Los rate limits hardcoded son un anti-patrón para cualquier proyecto con suite E2E: el límite de producción (5/min auth, 60/min API) es correcto para usuarios reales distribuidos, pero incorrecto para 68 tests serializados desde localhost. **Todo `const` de rate limiting debe ser `parseInt(process.env.X ?? 'default', 10)`** con defaults seguros para producción y overrides generosos en el job de CI que corre E2E. Segundo patrön: añadir códigos de error a accept-lists de tests sin cerrar el root cause es un fix cosmético prohibido por `AGENTS.md` — si un test falla con 429, la pregunta no es "¿acepto 429 en este test?" sino "¿por qué el sistema está rate-limitando en CI?".
+
+**Acción (E2E-RATELIMIT-FIX-001):** (1) `src/middleware.ts`: `RATE_LIMIT_MAX` y `AUTH_RATE_LIMIT_MAX` ahora env-configurables vía `parseInt(process.env.X ?? 'default', 10)` — defaults de producción (60 y 5) preservados. (2) `.github/workflows/ci.yml`: el job `e2e-tests` setea `RATE_LIMIT_MAX=10000` y `AUTH_RATE_LIMIT_MAX=1000` (scoped a ese job solo — los otros 5 jobs y producción no se ven afectados). (3) DRY: creado `e2e/helpers.ts` como única fuente de verdad para `signIn()` + creds, eliminadas 4 copias idénticas (-117 líneas de duplicación). (4) `CONTRIBUTING.md` actualizado con la regla + la trampa de `npx tsc` sin `npm install` previo (npx ofrece instalar `tsc@2.0.4` que NO es TypeScript — es un paquete squatteado).
+
+---
+
+### L60. Next.js middleware inlinea `process.env` en build time, no en runtime
+
+**Contexto:** Después de aplicar el fix L59 (rate limits env-configurables), los tests E2E seguían fallando localmente en Windows aunque las env vars estaban seteadas en el shell. El motivo: `next build` (con `output: 'standalone'`) **inlinea** las referencias `process.env.X` del middleware en el bundle compilado en BUILD TIME, no en runtime. Si corres `npm run build` SIN las env vars seteadas, el middleware queda con `process.env.RATE_LIMIT_MAX = undefined` → el `?? '60'` cae al default → el servidor standalone ya compilado tiene `60` hardcoded en el bundle, sin importar qué env vars setees después.
+
+**Lección:** En Next.js middleware (Edge Runtime), `process.env.X` es una referencia estática que se resuelve en build time. Setear env vars en el shell ANTES de `next start` no cambia el comportamiento del middleware si el build se hizo sin ellas. La secuencia correcta es: (1) setear env vars en el shell, (2) `npm run build` (con las env vars seteadas — el build las inlinea), (3) recién ahí `npx playwright test` o `node .next/standalone/server.js`. Esto NO aplica a rutas API en Node.js runtime (que sí leen `process.env` en runtime), solo a middleware y code que corre en Edge Runtime. Para que un cambio de env var afecte el middleware, **hay que rebuildar**.
+
+**Acción (E2E-RATELIMIT-FIX-001):** El script `run-tests.ps1` documentado en `CONTRIBUTING.md` setea las env vars ANTES de `npm run build`, no después. La secuencia correcta quedó: `$env:RATE_LIMIT_MAX=10000; npm run build; npx playwright test`. Cualquier dev que cambie `RATE_LIMIT_MAX` o `AUTH_RATE_LIMIT_MAX` debe rebuildar para que el middleware lo pick-up.
+
+---
+
+### L61. Windows + Git + archivos con `"` en el nombre = index corrupto irrecuperable sin `core.protectNTFS false`
+
+**Contexto:** Al clonar el repo en Windows, 10 archivos PNG en `upload/` con comillas dobles en el nombre (ej: `upload/audit-1-"Resumen".png`) no se pudieron check out — NTFS no permite `"` en nombres de archivo. El clone "funcionó" (descargó los 5457 objetos) pero el checkout falló con `error: invalid path 'upload/audit-1-"Resumen".png'`. Peor aún, esos archivos quedaron en el git index (staging area) como "deleted", y ningún comando git podía des-agregarlos: `git reset HEAD`, `git restore --staged`, `git reset HEAD -- "upload/"` todos fallaban con `error: invalid path 'upload/audit-1-"Resumen".png'` y `fatal: make_cache_entry failed for path`. Incluso borrar `.git/index` a mano y hacer `git reset` fallaba por la misma razón.
+
+**Lección:** Git en Windows no puede manejar archivos con caracteres inválidos para NTFS (comillas dobles `"`, `<`, `>`, `|`, `?`, `*`) ni siquiera para des-agregarlos del index. La solución es `git config core.protectNTFS false` ANTES de cualquier operación git que toque el index — esto le dice a git "no valides nombres contra NTFS" y permite que `git reset` reconstruya el index sin intentar leer los archivos problemáticos del working tree. Una vez hecho el reset, se puede hacer `git add` de solo los archivos que SÍ existen en disco y commitear normalmente. Los archivos con caracteres inválidos quedan como "deleted" en "Changes not staged" pero no bloquean el commit. **Recomendación para el repo:** evitar commitear archivos con caracteres NTFS-illegales en sus nombres; si ya están en el repo, renombrarlos en un commit separado para que los devs en Windows puedan clonar sin workarounds.
+
+**Acción (E2E-RATELIMIT-FIX-001):** Documentado en `CONTRIBUTING.md` sección "Windows + Git". El flujo de recuperación: (1) `git config core.protectNTFS false`, (2) `git reset` (reconstruye el index), (3) `git add` solo los archivos a commitear, (4) commit + push. Los 10 PNG con comillas quedaron fuera del commit y no bloquean el flujo.
+
+---
+
+### L62. `Set-Content -Encoding UTF8` en Windows PowerShell 5.x añade BOM y rompe JSON
+
+**Contexto:** Al editar `package.json` con `Set-Content -Encoding UTF8` desde Windows PowerShell 5.1 (no PowerShell Core 7+), el archivo quedó con un BOM (Byte Order Mark, `EF BB BF`) al inicio. Next.js build falló con `SyntaxError: Unexpected token '﻿', "﻿{ "nam"... is not valid JSON` — el parser JSON de V8 no tolera BOM antes del `{`. El BOM es invisible en la mayoría de editores, así que el archivo "se ve bien" pero no parsea.
+
+**Lección:** En Windows PowerShell 5.x, `Set-Content -Encoding UTF8` SIEMPRE añade BOM. En PowerShell Core 7+, `Set-Content -Encoding UTF8` NO añade BOM (comportamiento correcto). Para código que debe funcionar en ambos, NUNCA uses `Set-Content -Encoding UTF8` para archivos JSON o de código. Usa en su lugar: `[System.IO.File]::WriteAllText($path, $content, [System.Text.UTF8Encoding]::new($false))` — el `$false` como segundo argumento del constructor significa "sin BOM". Para leer archivos sin que PowerShell meta BOM al parsear, usa `[System.IO.File]::ReadAllBytes($path)` y procesa los bytes a mano si necesario.
+
+**Acción (E2E-RATELIMIT-FIX-001):** Todos los scripts PowerShell del proyecto (incluyendo `run-tests.ps1` documentado en `CONTRIBUTING.md`) usan `[System.IO.File]::WriteAllText` con `UTF8Encoding($false)` en lugar de `Set-Content -Encoding UTF8`. La regla quedó documentada en `CONTRIBUTING.md` sección "PowerShell + encoding".
+
+---
+
+### L63. Los scripts de build Unix-only (`cp -r`) rompen el desarrollo en Windows silenciosamente
+
+**Contexto:** El `package.json` tenía `"build": "next build && cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/"`. En Linux/macOS funciona perfecto. En Windows, `cp` no existe (PowerShell tiene `Copy-Item`, `cmd.exe` no tiene nada nativo). El build "funcionaba" para los devs en Linux, pero cualquier dev en Windows que intentara `npm run build` localmente obtenía `"cp" no se reconoce como un comando interno o externo` y el build fallaba DESPUÉS de que `next build` ya había compilado bien. El error era silencioso para los devs en Linux — nunca lo detectaban.
+
+**Lección:** Los scripts de `package.json` que usan comandos Unix-only (`cp`, `rm -rf`, `mv`, `ln -s`, `mkdir -p`) rompen el desarrollo en Windows sin que los devs en Linux lo noten. La solución es usar Node.js para operaciones de filesystem cross-platform: reemplazar `cp -r A B` por `node scripts/post-build.mjs` que usa `fs` module. Node.js ya está garantizado en el stack (es dependencia de Next.js), así que no añade dependencias. Alternativamente, usar `shx` (paquete npm que wraptea comandos Unix cross-platform), pero `node scripts/x.mjs` es más simple y no añade deps.
+
+**Acción (E2E-RATELIMIT-FIX-001):** Creado `scripts/post-build.mjs` (ESM, no `.js` para evitar el rule `@typescript-eslint/no-require-imports` de ESLint) que hace las dos copias con `fs` module. `package.json` actualizado: `"build": "next build && node scripts/post-build.mjs"`. Funciona idéntico en Windows, macOS y Linux.

@@ -152,6 +152,9 @@ jobs:
       STRIPE_WEBHOOK_SECRET: dev-stripe-webhook-secret-change-me
       WOMPI_EVENTS_SECRET: dev-wompi-events-secret-change-me
       PAYU_WEBHOOK_SECRET: dev-payu-webhook-secret-change-me
+      # E2E-RATELIMIT-FIX-001 - relax rate limits for CI (68 tests from 1 IP)
+      RATE_LIMIT_MAX: '10000'
+      AUTH_RATE_LIMIT_MAX: '1000'
       PLAYWRIGHT_BROWSERS_PATH: /home/runner/.cache/ms-playwright
 
     steps:

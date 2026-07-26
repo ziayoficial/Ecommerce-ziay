@@ -15,7 +15,7 @@ jobs:
       - name: Check commit messages
         run: |
           # Get all commit messages in the PR
-          COMMITS=$(git log --format='%s' origin/main..HEAD)
+          COMMITS=$(git log --no-merges --format='%s' origin/main..HEAD)
 
           for commit in $COMMITS; do
             # Check if it matches Conventional Commits format

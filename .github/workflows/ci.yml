@@ -6,6 +6,12 @@ on:
   pull_request:
     branches: [main]
 
+# PUPPETEER_SKIP_DOWNLOAD - puppeteer's postinstall downloads Chrome (~150MB) which fails with ECONNRESET ~30% of the time.
+# The project uses Playwright (not Puppeteer) for E2E, so the download is unnecessary.
+# Task ID: CLEANUP-QUICK-WINS-001
+env:
+  PUPPETEER_SKIP_DOWNLOAD: 'true'
+
 jobs:
   lint:
     runs-on: ubuntu-latest

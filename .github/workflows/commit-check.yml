@@ -15,9 +15,9 @@ jobs:
       - name: Check commit messages
         run: |
           # Get all commit messages in the PR
-          COMMITS=$(git log --format='%s' origin/main..HEAD)
+          COMMITS=$(git log --no-merges --format='%s' origin/main..HEAD)
 
-          for commit in $COMMITS; do
+          echo "$COMMITS" | while IFS= read -r commit; do
             # Check if it matches Conventional Commits format
             # Format: type(scope): description  OR  type: description
             if ! echo "$commit" | grep -qE '^(feat|fix|docs|style|refactor|test|chore|perf|ci|build|revert)(\(.+\))?: .+'; then

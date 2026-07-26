@@ -37,6 +37,7 @@ const log = getLogger('api/payments/local')
 //     customerId?:   string,             // link to existing Customer
 //     customerName?: string,             // create ad-hoc Customer if missing
 //     customerPhone?:string,
+//     customerEmail?:string,             // used for fraud blocklist + OFAC screening
 //   }
 //
 // Behaviour:
@@ -77,6 +78,7 @@ const CreateLocalPaymentSchema = z.object({
   customerId: z.string().optional(),
   customerName: z.string().optional(),
   customerPhone: z.string().optional(),
+  customerEmail: z.string().email().optional(),
 })
 
 /**
@@ -193,6 +195,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
           tenantId: body.tenantId,
           name: body.customerName ?? 'Cliente',
           phone: body.customerPhone ?? '',
+          email: body.customerEmail ?? null,
           country: body.countryCode,
         },
       })
@@ -222,6 +225,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
         tenantId: body.tenantId,
         customerId,
         customerName: body.customerName,
+        customerEmail: body.customerEmail,
         customerPhone: body.customerPhone,
         customerIp,
         amount,

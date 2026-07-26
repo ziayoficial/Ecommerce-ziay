@@ -66,6 +66,106 @@ Local pre-flight before pushing:
 bun run lint && npx tsc --noEmit && bun run test && bun run test:e2e
 ```
 
+## Windows development (E2E-RATELIMIT-FIX-001)
+
+The project was originally developed on Linux/macOS and some patterns
+needed adjustment to work on Windows. This section documents the traps
+and their fixes so future Windows devs don't redescovers them.
+
+### Next.js middleware inlines `process.env` at build time
+In Next.js middleware (Edge Runtime), `process.env.X` references are
+**inlined at build time**, not read at runtime. This means:
+
+```powershell
+# WRONG — build without env vars, then set them: middleware keeps default
+npm run build
+$env:RATE_LIMIT_MAX = "10000"
+npx playwright test  # middleware still uses 60 (default)
+
+# RIGHT — set env vars BEFORE build, then build, then test
+$env:RATE_LIMIT_MAX = "10000"
+$env:AUTH_RATE_LIMIT_MAX = "1000"
+npm run build         # middleware inlines 10000/1000 into the bundle
+npx playwright test   # middleware uses 10000/1000 ✅
+```
+
+This only applies to middleware + Edge Runtime code. API routes in
+Node.js runtime read `process.env` at runtime normally.
+
+### Git + files with `"` in the name
+The repo contains 10 PNG files in `upload/` with double-quotes in their
+names (e.g. `upload/audit-1-"Resumen".png`). NTFS doesn't allow `"` in
+filenames, so `git clone` on Windows fails the checkout step with:
+```
+error: invalid path 'upload/audit-1-"Resumen".png'
+fatal: unable to checkout working tree
+```
+
+The objects download fine, but the working tree stays empty. To recover:
+
+```powershell
+git config core.protectNTFS false
+git checkout -f HEAD -- .
+```
+
+This will checkout every file EXCEPT the 10 with `"` in the name (they
+stay as "deleted" in `git status`, which is fine — they're not needed
+for development). You can then work normally.
+
+### PowerShell + UTF-8 BOM
+Windows PowerShell 5.x (the default `powershell.exe`) adds a BOM
+(`EF BB BF`) when you use `Set-Content -Encoding UTF8`. This breaks
+JSON parsers and some TypeScript compilers. **Never use
+`Set-Content -Encoding UTF8` for code or JSON files.**
+
+Use this pattern instead (writes UTF-8 without BOM):
+
+```powershell
+[System.IO.File]::WriteAllText($path, $content, [System.Text.UTF8Encoding]::new($false))
+```
+
+PowerShell Core 7+ (`pwsh.exe`) does NOT add BOM with
+`Set-Content -Encoding UTF8`, so if you have `pwsh` installed, you can
+use the simple form. But for scripts that must work on both, use the
+`[System.IO.File]::WriteAllText` pattern.
+
+### Cross-platform build script
+The `package.json` `build` script uses `node scripts/post-build.mjs`
+(not `cp -r`) to copy `.next/static` and `public` into the standalone
+output. This makes the build work on Windows, macOS, and Linux without
+OS-specific commands. When adding new build steps, use Node.js scripts
+(`.mjs` extension for ESM) instead of shell commands.
+
+## Running E2E tests locally on Windows
+
+A complete script that sets env vars + builds + runs tests:
+
+```powershell
+# Save as run-tests.ps1 and run with: .\run-tests.ps1
+$env:RATE_LIMIT_MAX = "10000"
+$env:AUTH_RATE_LIMIT_MAX = "1000"
+$env:DATABASE_URL = "file:./db/custom.db"
+$env:NEXTAUTH_SECRET = "dev-secret-change-me"
+$env:ENCRYPTION_KEY = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+$env:WA_VERIFY_TOKEN = "dev-wa-verify"
+$env:META_VERIFY_TOKEN = "dev-meta-verify"
+$env:NOCODB_WEBHOOK_SECRET = "dev-nocodb-secret"
+$env:NEXTAUTH_URL = "http://localhost:3000"
+
+# Kill any existing server on port 3000
+$conn = Get-NetTCPConnection -LocalPort 3000 -ErrorAction SilentlyContinue
+if ($conn) { Stop-Process -Id $conn.OwningProcess -Force -ErrorAction SilentlyContinue }
+
+# Build (env vars MUST be set before build for middleware to pick them up)
+npm run build
+if ($LASTEXITCODE -ne 0) { Write-Host "BUILD FAILED" -ForegroundColor Red; exit 1 }
+
+# Run tests
+npx playwright test
+```
+
+**Important:** set env vars BEFORE `npm run build`, not after. See
+"Next.js middleware inlines `process.env` at build time" above.
 ## Database Scripts
 
 The repo ships two smart DB scripts under `scripts/` that auto-detect the

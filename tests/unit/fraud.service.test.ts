@@ -183,7 +183,7 @@ describe('fraudService.ofacScreen', () => {
 
   it('returns hit=false for empty/undefined name', async () => {
     expect((await fraudService.ofacScreen('')).hit).toBe(false)
-    expect((await fraudService.ofacScreen(undefined)).hit).toBe(false)
+    expect((await fraudService.ofacScreen('' as string)).hit).toBe(false)
   })
 
   it('falls back to local seed when OFAC API is configured but unreachable', async () => {

@@ -777,3 +777,25 @@ En CI, los 68 tests de Playwright corren desde `127.0.0.1` (un solo bucket por I
 **Lección:** Los scripts de `package.json` que usan comandos Unix-only (`cp`, `rm -rf`, `mv`, `ln -s`, `mkdir -p`) rompen el desarrollo en Windows sin que los devs en Linux lo noten. La solución es usar Node.js para operaciones de filesystem cross-platform: reemplazar `cp -r A B` por `node scripts/post-build.mjs` que usa `fs` module. Node.js ya está garantizado en el stack (es dependencia de Next.js), así que no añade dependencias. Alternativamente, usar `shx` (paquete npm que wraptea comandos Unix cross-platform), pero `node scripts/x.mjs` es más simple y no añade deps.
 
 **Acción (E2E-RATELIMIT-FIX-001):** Creado `scripts/post-build.mjs` (ESM, no `.js` para evitar el rule `@typescript-eslint/no-require-imports` de ESLint) que hace las dos copias con `fs` module. `package.json` actualizado: `"build": "next build && node scripts/post-build.mjs"`. Funciona idéntico en Windows, macOS y Linux.
+
+---
+
+### L64. Un servicio "bien integrado" sin tests es una bomba de relojería
+
+*Contexto:** El `fraudService` in `src/lib/services/fraud.service.ts` (961 líneas, 7 checks anti-fraude) estaba integrado en 4 API routes (`create-link`, `payments/local`, `webhooks/chargeback`, `webhooks/stripe`) — la integración era REAL, no orphan code. Pero *0 de los 65+ arquivos de test del proyecto* lo probaban. El servicio "probablemente funcionaba" pero nadie lo haía verificado con un caso real.
+
+**Lección:** Un servicio que está wired en el flujo de pago pero no tiene tests **no es un servicio verificado** — es un servicio que *probablemente* funciona. "Probablemente" no es suficiente para dinero real. La cobertura de tests no es un métrica de vanity — es la única forma de verificar que el código hace lo que dice hacer. **Todo servicio crítico (pagos, fraud, auth, wallet) debe tener tests unitarios antes de procesar transacciones reales.** La pregunta no es "¿funciona?" sk���[�������[[��X�[[��]YH�[��[ۘOȋ�����X��p�ۈ
+S�Q��UQU�T�Q�KLJN���ܙXY�\���[�]ٜ�]Y��\��X�K�\����ۈ��\��\�\��X��Y[����p�]���[��]Y�\��X�N�X\��ZK�X�Л���\�٘X��ܙY[��[��]P�X���X���[��X�[ۈ
+�����[��K�X�ܙ�\��X�X��YЛ���\�
+��X�Л���\���[�]�\���\��\�[�[Z\�[�]��ۈH[���]YH\���[�]��[]��\��X�K�\���
+�K��\�Y
+��K�[���	��X����X
+K���KKB������K�H�\�Y�X�X�p�ۈ[�]�X�Z]�[܈[��Y[��H�Y��]YH[��H�]�Y]���[��Y[��B�����۝^Ί��\�[�HH�\�Y�X�X�p�ۈ[��]Y�\��X�H
+S�Q��UQU�T�Q�KLJK�H[��۝���]YH^[Y[�����[ܛ�]K����\�X�H�\��Y\�[XZ[[��]Y�\��X�K��X���[��X�[ۊ
+X�[��H�]�Y]�[�\�[܈
+UQUQ�S�P����en codigo y no lo detectó - porque el código "se ve bien" porque los campos estaban en el input, solo faltaba pasar uno). Pero la verificación end-to-behavior (preguntar "¿qué datos llega al fraud check?") reveló que un fraudster blocklisteado por email pueda evadir el bloque usando PSE/PIX/OXXO/SPEI.
+
+*Lección:** El code review responde "¿el código está bien escrito?" pero no responde "‼el código hace lo que debieria hacer?"―(
+	'erificación end-to-behavior (trazar el flujo de datos desde el input hasta el destino final)) encuentra gaps que el code review no encuentra. **Para módulos críticos (pagos, fraud, auth), siempre hacer una verificación end-to-behavior además del code review.** La pregunta clave es: "‿qué datos llegan realmente a esta función?" no "¿la función está bien implementada?".
+
+**Acción (ANTIFRAUD-VERIFY-001):** Fix en PR #4 — añadido `customerEmail` al Zod schema, al `checkTransaction` call, y al `db.customer.create` en `payments/local/route.ts`. 4 cambios, 1 línea cada uno.

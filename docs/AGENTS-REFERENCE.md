@@ -16,7 +16,7 @@ Documentación de los **agentes conversacionales** de ZIAY, con su nombre, endpo
 > - `cart_builder` se integró en `quote` (modo `cart`)
 >
 > Los 9 agentes documentados aquí (8 originales del §6 + `vision`) son el núcleo
-> del orquestador Saramantha. Los 15 agentes restantes cubren: post-venta,
+> del orquestador Saramantha. Los 14 agentes restantes cubren: post-venta,
 > inteligencia de negocio, especializados y control-plane (governor, qa_reviewer,
 > memory_curator, sentiment). Ver `src/lib/agents/prompts.ts` y `AGENT_NAMES` /
 > `AGENT_LABELS` para el catálogo completo.

@@ -6,7 +6,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-_TBD_
+### Fixed - Anti-fraud service verification (ANTIFRAUD-VERIFY-001)
+- **Hallazgo #2 (HIGH - RESUELTO, PR #4):** payments/local no pasaba customerEmail al fraud check. Fix: anadido customerEmail al Zod schema y al checkTransaction call.
+- **Hallazgo #1 (CRITICAL - RESUELTO, PR #6):** El fraud service tenia 0% de cobertura de tests. Creado tests/unit/fraud.service.test.ts con 26 test cases.
+
+### Added - Documentation
+- PR #5: agent-ctx/ANTIFRAUD-VERIFY-001 reporte.
+- Lecciones L64-L65 en upload/LECCIONES-APRENDIDAS.md.
 
 ## [0.4.3] - 2026-07-22 — "Production Hardened"
 

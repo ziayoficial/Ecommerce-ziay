@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+- **Vision pipeline anti-injection** (PR #12): `src/lib/vision/pipeline.ts` now wraps system prompts with `ANTI_INJECTION_PREFIX` and user text with `wrapUserInput()` in both `identifyImage()` and `enrichProductImage()`, closing the last known prompt injection gap in the agent layer. All LLM call sites now follow the same pattern: `/api/agents/[agentName]`, `/api/ai-reply`, `/api/orchestrate`, `memory-curator.service`, and `vision/pipeline`.
+
+
 ### Fixed - Anti-fraud service verification (ANTIFRAUD-VERIFY-001)
 - **Hallazgo #2 (HIGH - RESUELTO, PR #4):** payments/local no pasaba customerEmail al fraud check. Fix: anadido customerEmail al Zod schema y al checkTransaction call.
 - **Hallazgo #1 (CRITICAL - RESUELTO, PR #6):** El fraud service tenia 0% de cobertura de tests. Creado tests/unit/fraud.service.test.ts con 26 test cases.

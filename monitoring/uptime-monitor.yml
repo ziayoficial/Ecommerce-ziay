@@ -1,0 +1,73 @@
+# Uptime monitor configuration for external monitoring.
+# SPRINT-MONITORING-FINAL-001 — closes Sprint 5A follow-up #4 (uptime
+# history) by wiring up a comprehensive external monitor list. Use with
+# Uptime Kuma (the docker-compose.yml already ships a Kuma container) or
+# any external monitoring service (BetterStack, Pingdom, statuspage.io).
+#
+# How to import into Uptime Kuma:
+#   1. Open the Kuma UI (default: http://localhost:3001).
+#   2. Settings → Backup → Import (this is JSON; Kuma doesn't natively
+#      import YAML, but the structure below maps 1:1 to Kuma's monitor
+#      schema — see `scripts/import-uptime-monitors.ts` for a converter).
+#   3. Or: add each monitor manually via "Add New Monitor" → HTTP(s).
+#
+# How to use with BetterStack / Pingdom:
+#   - Translate each `monitors[]` entry into a Uptime check on the
+#     provider's dashboard. The fields map directly:
+#       name             → check name
+#       url              → URL to ping
+#       interval         → check frequency (seconds)
+#       timeout          → request timeout (seconds)
+#       expected_status  → expected HTTP status code
+#
+# Why these specific monitors:
+#   - `/api/health` is the liveness probe (DB + chat-service + disk +
+#     memory all checked) — 30s interval catches outages within a minute.
+#   - `/status` is the public-facing page — 60s interval matches the
+#     page's own 30s ISR + crawler-friendly cadence.
+#   - `/t/saramantha` is the storefront — slow 200 vs fast 503 catches
+#     both full outages and per-tenant render failures.
+#   - Chat-service `/health` is the realtime layer — separate from the
+#     main app so a chat-service crash doesn't get masked by the main
+#     app returning 200.
+#   - `/.well-known/ucp` is the agentic discovery endpoint — slow 5m
+#     interval (it's static, only fails if the whole app is down).
+#   - `/api/metrics` is the Prometheus scrape target — 60s matches
+#     Prometheus's own scrape interval from `prometheus.yml`.
+
+monitors:
+  - name: ZIAY Dashboard
+    url: https://ziay.co/api/health
+    interval: 30
+    timeout: 10
+    expected_status: 200
+
+  - name: ZIAY Status Page
+    url: https://ziay.co/status
+    interval: 60
+    timeout: 10
+    expected_status: 200
+
+  - name: ZIAY Storefront (Saramantha)
+    url: https://ziay.co/t/saramantha
+    interval: 60
+    timeout: 10
+    expected_status: 200
+
+  - name: Chat Service
+    url: http://localhost:3003/health
+    interval: 30
+    timeout: 5
+    expected_status: 200
+
+  - name: UCP Manifest
+    url: https://ziay.co/.well-known/ucp
+    interval: 300
+    timeout: 10
+    expected_status: 200
+
+  - name: Prometheus Metrics
+    url: https://ziay.co/api/metrics
+    interval: 60
+    timeout: 10
+    expected_status: 200

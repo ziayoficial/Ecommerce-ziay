@@ -1,0 +1,196 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+# PUPPETEER_SKIP_DOWNLOAD - puppeteer's postinstall downloads Chrome (~150MB) which fails with ECONNRESET ~30% of the time.
+# The project uses Playwright (not Puppeteer) for E2E, so the download is unnecessary.
+# Task ID: CLEANUP-QUICK-WINS-001
+env:
+  PUPPETEER_SKIP_DOWNLOAD: 'true'
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - run: bun install
+      - run: bun run lint
+
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - run: bun install
+      - run: bunx tsc --noEmit
+
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - run: bun install
+      - run: bunx vitest run
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # openapi-spec job — Sprint 12D. Runs @redocly/cli lint against the
+  # OpenAPI spec.
+  #
+  # Sprint 13B (SPRINT-OPENAPI-FINAL-001): `continue-on-error` flipped from
+  # `true` → `false` (strict mode). The spec now carries `operationId` on
+  # every operation (136/136), has no `nullable: true` (migrated to the
+  # OpenAPI 3.1 `type: [X, 'null']` form), and the remaining stylistic
+  # warnings are suppressed via `.redocly.yaml`. The config file is passed
+  # explicitly with `--config` because Redocly's auto-discovery only looks
+  # for `redocly.yaml` (no leading dot) — keeping the dotfile name matches
+  # the task spec and the project's other dotfile conventions.
+  #
+  # Runs in parallel with lint / typecheck / unit-tests so it doesn't add
+  # wall-clock time.
+  # ──────────────────────────────────────────────────────────────────────────
+  openapi-spec:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - run: bun install
+      - name: Validate OpenAPI spec
+        run: npx @redocly/cli lint docs/openapi.yaml --config .redocly.yaml
+        # Now strict — operationId + nullable fixes should have cleared errors
+        continue-on-error: false
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # build job — pushes Prisma schema + runs `next build` against PostgreSQL
+  # so migrations are tested against the same DB engine as production.
+  # Sprint 5C: previously used SQLite (`file:./test.db`); now uses a real
+  # postgres:16-alpine service container matching docker-compose.yml.
+  # ──────────────────────────────────────────────────────────────────────────
+  build:
+    runs-on: ubuntu-latest
+    needs: [lint, typecheck, unit-tests]
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ziay_test
+          POSTGRES_PASSWORD: ziay_test
+          POSTGRES_DB: ziay_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://ziay_test:ziay_test@localhost:5432/ziay_test
+      NEXTAUTH_SECRET: test-secret-for-ci
+      ENCRYPTION_KEY: test-encryption-key-for-ci
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - run: bun install
+
+      - name: Push schema to PostgreSQL
+        run: bun run db:push
+
+      - name: Build Next.js app
+        run: bun run build
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # e2e-tests job — same PostgreSQL service as build; seeds + runs Playwright.
+  # Sprint 5C: previously used SQLite; now matches production engine so any
+  # PostgreSQL-specific migration (indexes, enums, JSONB) gets exercised.
+  #
+  # Sprint 15C (SPRINT-TESTS-COMPLETE-001): added the `actions/upload-artifact`
+  # step so Playwright HTML report + traces + screenshots are retained for 7
+  # days on every run (including passing runs — `if: always()`). Also added
+  # `NEXTAUTH_URL` to the env so NextAuth.js URL reconstruction works inside
+  # the runner (login callbacks + CORS origin checks).
+  # ──────────────────────────────────────────────────────────────────────────
+  e2e-tests:
+    runs-on: ubuntu-latest
+    needs: [build]
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ziay_test
+          POSTGRES_PASSWORD: ziay_test
+          POSTGRES_DB: ziay_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://ziay_test:ziay_test@localhost:5432/ziay_test
+      NEXTAUTH_URL: http://localhost:3000
+      NEXTAUTH_SECRET: test-secret-for-ci
+      ENCRYPTION_KEY: test-encryption-key-for-ci
+      NEXT_PUBLIC_BASE_URL: http://localhost:3000
+      WA_VERIFY_TOKEN: dev-wa-verify-token-change-me
+      META_VERIFY_TOKEN: dev-meta-verify-token-change-me
+      NOCODB_WEBHOOK_SECRET: dev-nocodb-webhook-secret-change-me
+      MERCADOPAGO_WEBHOOK_SECRET: dev-mp-webhook-secret-change-me
+      STRIPE_WEBHOOK_SECRET: dev-stripe-webhook-secret-change-me
+      WOMPI_EVENTS_SECRET: dev-wompi-events-secret-change-me
+      PAYU_WEBHOOK_SECRET: dev-payu-webhook-secret-change-me
+      # E2E-RATELIMIT-FIX-001 - relax rate limits for CI (68 tests from 1 IP)
+      RATE_LIMIT_MAX: '10000'
+      AUTH_RATE_LIMIT_MAX: '1000'
+      PLAYWRIGHT_BROWSERS_PATH: /home/runner/.cache/ms-playwright
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - run: bun install
+      - run: bunx playwright install --with-deps chromium
+
+      - name: Push schema to PostgreSQL
+        run: bun run db:push
+
+      - name: Build Next.js app
+        run: bun run build
+
+      - name: Seed database
+        run: bun run db:seed
+
+      - name: Run Playwright E2E tests
+        run: bunx playwright test
+
+      # Sprint 15C — upload Playwright HTML report + traces + screenshots on
+      # every run (including failures). `if: always()` ensures the artifact
+      # is uploaded even when the previous step fails so devs can debug.
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-results
+          path: |
+            test-results/
+            playwright-report/
+          retention-days: 7

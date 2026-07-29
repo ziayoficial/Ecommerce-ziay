@@ -1,0 +1,234 @@
+ 21730→Did NOT touch (per task contract):
+ 21731→- src/lib/adapters/local-payments.ts (parallel I1-R1 agent's file)
+ 21732→- src/lib/adapters/payment-registry.ts line 29 (parallel I1-R1 agent's import — already resolved when local-payments.ts was created)
+ 21733→- Test files (*.test.ts)
+ 21734→
+ 21735→Stage Summary:
+ 21736→- tsc error count before: 58 (audit baseline)
+ 21737→- tsc error count after: 0 (`npx tsc --noEmit` exits 0, no `error TS` lines)
+ 21738→- The expected "1 remaining local-payments error" did NOT remain because the parallel I1-R1 agent finished creating `src/lib/adapters/local-payments.ts` mid-sprint; both the missing-module error AND a new null-check error that surfaced after the file landed were fixed in this task.
+ 21739→- `bun run lint` passes with 0 errors (38 pre-existing warnings — console statements and unused vars in unrelated scripts/tests).
+ 21740→- Dev server stays healthy (verified `dev.log` — no compile errors, normal 200 responses on /login).
+ 21741→- No functionality deleted. Where legacy client contracts diverged from the current Prisma schema (conversational-cart), the route now accepts the legacy client shape and maps it to the real columns, so external callers don't break.
+ 21742→
+ 21743→---
+ 21744→Task ID: I2-R8R11R12
+ 21745→Agent: full-stack-developer (dian+refund)
+ 21746→Task: R-8 (DIAN NIT fix + retry job + retracto notice) + R-11 (admin refund endpoint) + R-12 (Refund model)
+ 21747→
+ 21748→Work Log:
+ 21749→- **Read context** — last 300 lines of `worklog.md` + the prior I1-R4567 agent's notes (R-4/R-5/R-6/R-7 fixes) to understand the existing patterns:
+ 21750→  - `requireRole([...])` + `requireTenantAccess(tenantId)` are the canonical auth helpers (verified in `src/lib/auth-helpers.ts`).
+ 21751→  - `applyPaymentUpdate` in `payment-webhook-utils.ts` already supports `amount`/`currency` opts from R-6 + uses `db.$transaction` for the order update + OrderEvent insert.
+ 21752→  - `submitToDian()` in `dian-invoicing.ts` already wired to Alegra adapter; the gap was: (1) NIT placeholders, (2) no retry, (3) no retracto notice.
+ 21753→  - Customer model had no `documentNumber`/`taxId` field; Tenant model had no `nit` field; Invoice model had no retry counter.
+ 21754→  - Stripe adapter `refund()` already handles `cs_`/`pi_`/`ch_` prefix resolution (R-7 fix).
+ 21755→
+ 21756→- **R-8.1 — Schema additions** (`prisma/schema.prisma`):
+ 21757→  - Added `Tenant.nit String?` — the tenant's tax ID (NIT/CPF-CNPJ/RFC). Required in prod for DIAN; optional in dev.
+ 21758→  - Added `Customer.documentNumber String?` — the customer's tax ID. Used as `receiverNit` in DIAN invoices; falls back to `'222222222'` (DIAN standard "consumidor final" placeholder).
+ 21759→  - Added `Invoice.dianRetryCount Int @default(0)` + `Invoice.dianLastError String?` — retry tracking.
+ 21760→  - Added the `Refund` model (R-12) with: id, orderId, tenantId, amount, currency, reason, partial, status, gatewayRef, gatewayName, initiatedBy, initiatedAt, processedAt, failureNote. Indexes on `[tenantId, initiatedAt]`, `[orderId]`, `[gatewayRef]`. `@@map("refund")`.
+ 21761→  - Added `refunds Refund[]` relation to the `Order` model.
+ 21762→  - Ran `bun run db:push` — schema applied cleanly, Prisma Client regenerated.
+ 21763→
+ 21764→- **R-8.2 — NIT resolution in `generateDianInvoice`** (`src/lib/compliance/dian-invoicing.ts`):
+ 21765→  - `emitterNit` now reads from `order.tenant?.nit`. If null/empty AND `process.env.NODE_ENV === 'production'`, throws `'Tenant NIT required for DIAN invoicing in production'`. In dev, falls back to `'000000000'` placeholder + logs a warning.
+ 21766→  - `receiverNit` now reads from `order.customer?.documentNumber`. Falls back to `'222222222'` (DIAN "consumidor final" placeholder per Resolución DIAN 165 de 2023 §4.1.3) — NEVER the email (the previous broken behaviour).
+ 21767→  - CUFE is now computed with real NITs → valid when Alegra is configured AND when it isn't (local PDF/QR stays correct).
+ 21768→
+ 21769→- **R-8.3 — `submitToDian` enhanced** (`src/lib/compliance/dian-invoicing.ts`):
+ 21770→  - Added `submitted?: boolean` to the return type. `true` when Alegra was configured AND `createInvoice()` returned a non-null result (the submission reached Alegra — even if DIAN's async validation is still pending). `false` for not-configured / network errors / missing metadata.
+ 21771→  - Persists `dianLastError` on every `submitted: false` branch via the new `safeUpdateDianError()` helper (best-effort, swallows DB errors so they don't mask the original submission error).
+ 21772→  - Clears `dianLastError` on success (so a subsequent retry doesn't show a stale failure reason).
+ 21773→
+ 21774→- **R-8.4 — `retryPendingDianInvoices(tenantId?)` function** (`src/lib/compliance/dian-invoicing.ts`):
+ 21775→  - Queries `Invoice` where `dianStatus='pending_submission'` AND `createdAt < now() - 5min` (don't race with fresh orders' synchronous submission).
+ 21776→  - Limits to 50 invoices per run (`MAX_INVOICES_PER_RUN`) — Alegra rate-limit protection.
+ 21777→  - For each, calls `submitToDian(invoiceId)`:
+ 21778→    - `submitted: true` → reset `dianRetryCount=0` (Alegra has the invoice; DIAN async validation is its problem).
+ 21779→    - `submitted: false` → increment `dianRetryCount`. If `>= MAX_DIAN_RETRIES` (5): atomically (in `$transaction`) mark `dianStatus='failed'` + create `AuditLog` row (`action='compliance.dian.submission_failed'`) with retryCount + lastError for manual review.
+ 21780→  - Defensive `try/catch` around each invoice so one bad invoice doesn't abort the batch.
+ 21781→  - Returns `DianRetryResult { processed, submitted, failed, permanentlyFailed, skipped }`.
+ 21782→
+ 21783→- **R-8.5 — `POST /api/compliance/dian-retry` endpoint** (`src/app/api/compliance/dian-retry/route.ts`):
+ 21784→  - `requireRole(['admin'])` — DIAN submission is regulated + the batch hits Alegra's rate-limit budget.
+ 21785→  - Optional body `{ tenantId?: string }` — tenant-bound admins always scope to their own tenant; platform admins can scope to any tenant (verified via `requireTenantAccess`) or omit to process all tenants.
+ 21786→  - Calls `retryPendingDianInvoices(effectiveTenantId)` + returns the batch summary.
+ 21787→  - TODO comment for wiring to a BullMQ cron (`dian-retry` queue, `*/10 * * * *` schedule) in a follow-up sprint.
+ 21788→
+ 21789→- **R-8.6 — Retracto notice OrderEvent** (`src/app/api/payments/create-link/route.ts`):
+ 21790→  - After the payment link is created + persisted, writes an `OrderEvent` with `type='retracto_notice'` and note `'Customer informed of 5-day retracto right per Ley 1480 Art 47 (Estatuto del Consumidor, Colombia). Ventas no presenciales — window expires on order.retractoWindowUntil.'`
+ 21791→  - This is the audit trail proving we informed the customer (compliance defense if the customer later disputes that they were unaware of the right).
+ 21792→  - Best-effort: wrapped in try/catch so a DB hiccup doesn't block the payment-link flow.
+ 21793→  - Imported `db` from `@/lib/db` for the direct `orderEvent.create` (the `orderService.updateOrder` already atomically wrote the `payment_link_created` event in the same transaction).
+ 21794→
+ 21795→- **R-11 — `POST /api/orders/[id]/refund` endpoint** (`src/app/api/orders/[id]/refund/route.ts`):
+ 21796→  - `requireRole(['admin', 'operator'])` + `requireTenantAccess(order.tenantId)`.
+ 21797→  - Body: `{ amount?: number, reason: 'retracto'|'customer_request'|'fraud'|'duplicate'|'product_issue'|'other', note?: string }` (Zod-validated).
+ 21798→  - Fetches order with `refunds` relation (filter status `in ['pending','processed']` — both reserve the budget).
+ 21799→  - Validates: order exists; `paymentStatus in ['paid','partial_refunded']` (NOT 'refunded' — full refund already done; NOT 'unpaid'/'cancelled' — nothing to refund); `refundAmount > 0`; `refundAmount <= order.total - alreadyRefunded`.
+ 21800→  - Resolves adapter via `getPaymentAdapter(order.paymentGateway)`. Returns 409 with a clear Spanish message if no gateway/ref or adapter doesn't support refunds (e.g. local methods pse/pix).
+ 21801→  - Creates `Refund` row `status='pending'` BEFORE calling the gateway (so we have a record even if the gateway call throws).
+ 21802→  - Calls `adapter.refund(order.paymentRef, refundAmount)`.
+ 21803→  - **On success:** `$transaction` — `Refund.status='processed'`, `gatewayRef`, `processedAt=now`; `OrderEvent type='refunded'` with structured JSON note (refundId, amount, currency, reason, partial, gateway, gatewayRef, initiatedBy, note); if full refund, `order.paymentStatus='refunded'`. Returns the updated Refund.
+ 21804→  - **On failure:** `$transaction` — `Refund.status='failed'`, `failureNote`; `OrderEvent type='refund_failed'` with structured JSON note. Returns 502 with the failure message + the Refund record.
+ 21805→
+ 21806→- **R-12 — `GET /api/orders/[id]/refunds` endpoint** (`src/app/api/orders/[id]/refunds/route.ts`):
+ 21807→  - `requireRole(['admin', 'operator', 'finance'])` — `finance` can READ the ledger (reconciliation) but not initiate refunds (separation of duties — only admin/operator can POST).
+ 21808→  - `requireTenantAccess(order.tenantId)`.
+ 21809→  - Returns `{ refunds: Refund[], total, currency, refundedAmount, remaining }` where `refundedAmount = sum of 'processed' refunds` and `remaining = order.total - refundedAmount`.
+ 21810→  - Refunds ordered by `initiatedAt DESC` (most recent first).
+ 21811→
+ 21812→- **R-12 — `applyPaymentUpdate` Refund sync** (`src/lib/adapters/payment-webhook-utils.ts`):
+ 21813→  - When a refund webhook arrives (`newStatus === 'refunded'`), AFTER the order's `paymentStatus` is updated + the `OrderEvent` is recorded, the function looks up a matching `Refund` row by `gatewayRef === paymentId` OR (fallback) `orderId + status='pending'` (handles gateways that send the original payment ID instead of the refund ID — there's at most one pending refund per order at a time because the POST endpoint serializes via the `remaining` budget check).
+ 21814→  - If found + status='pending': flips to `'processed'`, sets `gatewayRef` (if missing), `processedAt=now`. Logs the sync.
+ 21815→  - Best-effort — wrapped in its own try/catch so a DB failure here doesn't roll back the already-committed order update.
+ 21816→  - Closes the loop: admin POSTs refund → Refund row created (pending) → gateway called → gateway webhook arrives → Refund flipped to processed.
+ 21817→
+ 21818→- **Verification:**
+ 21819→  - `npx tsc --noEmit`: 0 errors (exit 0).
+ 21820→  - `bun run lint`: 0 errors, 37 pre-existing warnings — ZERO new warnings on any of the 6 changed/created files.
+ 21821→  - `bun run db:push`: schema applied cleanly, Prisma Client regenerated, ER diagram regenerated.
+ 21822→  - Dev server stays healthy (dev.log shows clean Next.js boot, normal 200 responses on /login).
+ 21823→
+ 21824→Stage Summary:
+ 21825→- **Files modified (5):**
+ 21826→  - `prisma/schema.prisma` — added `Tenant.nit`, `Customer.documentNumber`, `Invoice.dianRetryCount`, `Invoice.dianLastError`, `Refund` model + `Order.refunds` relation.
+ 21827→  - `src/lib/compliance/dian-invoicing.ts` — NIT resolution fix in `generateDianInvoice`; `submitToDian` enhanced with `submitted` flag + `dianLastError` persistence; new `retryPendingDianInvoices()` function + retry constants.
+ 21828→  - `src/app/api/payments/create-link/route.ts` — retracto_notice OrderEvent after payment link creation (imported `db`).
+ 21829→  - `src/lib/adapters/payment-webhook-utils.ts` — Refund ledger sync block when `newStatus === 'refunded'`.
+ 21830→- **Files created (3):**
+ 21831→  - `src/app/api/compliance/dian-retry/route.ts` — `POST /api/compliance/dian-retry` (admin-only manual trigger).
+ 21832→  - `src/app/api/orders/[id]/refund/route.ts` — `POST /api/orders/[id]/refund` (admin/operator).
+ 21833→  - `src/app/api/orders/[id]/refunds/route.ts` — `GET /api/orders/[id]/refunds` (admin/operator/finance).
+ 21834→- **New models:** `Refund` (id, orderId, tenantId, amount, currency, reason, partial, status, gatewayRef, gatewayName, initiatedBy, initiatedAt, processedAt, failureNote; indexes on `[tenantId, initiatedAt]`, `[orderId]`, `[gatewayRef]`; `@@map("refund")`).
+ 21835→- **New fields:** `Tenant.nit String?`, `Customer.documentNumber String?`, `Invoice.dianRetryCount Int @default(0)`, `Invoice.dianLastError String?`, `Order.refunds Refund[]`.
+ 21836→- **New endpoints:** `POST /api/compliance/dian-retry`, `POST /api/orders/[id]/refund`, `GET /api/orders/[id]/refunds`.
+ 21837→- **Verification:** tsc 0 errors · lint 0 errors (37 pre-existing warnings, none in changed files) · db:push clean · dev server healthy.
+ 21838→
+ 21839→---
+ 21840→Task ID: I2-R3
+ 21841→Agent: full-stack-developer (anti-fraud)
+ 21842→Task: R-3 — Build anti-fraud service (velocity, blocklist, OFAC, 3DS, chargeback loop, CVV/AVS)
+ 21843→
+ 21844→Work Log:
+ 21845→- Read previous agents' work (I1-R1, I1-R2, I1-R4567) — codebase compiles with 0 TS errors. Identified R-3 (anti-fraud scored 3.5/10) as the remaining critical gap.
+ 21846→- Added 3 Prisma models in `prisma/schema.prisma` (snake_case @@map convention):
+ 21847→  * `FraudBlocklistEntry @@map("fraud_blocklist")` — `(tenantId, type, value)` unique, supports 6 identifier types
+ 21848→  * `FraudEvent @@map("fraud_event")` — one row per `checkTransaction` call (audit log + dashboard source)
+ 21849→  * `VelocityWindow @@map("velocity_window")` — per-minute per-identifier buckets
+ 21850→  * Ran `bun run db:push` — schema applied successfully.
+ 21851→- Created `src/lib/services/fraud.service.ts` (~530 lines) with 7-layer `checkTransaction` pipeline:
+ 21852→  1. Blocklist (customer / email / ip / card_bin / device / phone) → instant BLOCK
+ 21853→  2. OFAC AML screening via `api.ofac-api.com` (3s timeout) + local seed fallback (9 SDN names) → instant BLOCK
+ 21854→  3. Sanctioned country (CU/IR/KP/SY/BY/RU default) → instant BLOCK
+ 21855→  4. Velocity windows (ip / card_bin / customer / device in last 1 min) — hard caps (60/min IP, 30/min BIN) → BLOCK; soft caps → +score
+ 21856→  5. First-purchase high-value (USD-equivalent via FxRate) → +score
+ 21857→  6. Test card BIN detection (Stripe/Adyen test bins in production) → +score
+ 21858→  7. Aggregation: ≥80 → BLOCK; ≥60 → REVIEW; else ALLOW
+ 21859→  * Always writes `FraudEvent` for audit; always increments `VelocityWindow` for next window (when not blocked).
+ 21860→  * Fail-open on every DB error (pipeline crash never blocks a legitimate payment).
+ 21861→  * Tunable thresholds via env (`FRAUD_VELOCITY_*`, `FRAUD_FIRST_PURCHASE_USD_THRESHOLD`, `FRAUD_SANCTIONED_COUNTRIES`).
+ 21862→- Wired `fraudService.checkTransaction` into `src/app/api/payments/create-link/route.ts`:
+ 21863→  * After fetching order + resolving adapter, before `adapter.createPaymentLink`.
+ 21864→  * BLOCK → 402 Payment Required with `{error, reasons, riskScore}`. No link created.
+ 21865→  * REVIEW → `OrderEvent.type='fraud_review'` via `orderService.updateOrder` (atomic), then proceeds.
+ 21866→  * ALLOW → proceeds normally. Fail-open on pipeline crash.
+ 21867→- Wired `fraudService.checkTransaction` into `src/app/api/payments/local/route.ts`:
+ 21868→  * After customer resolution, BEFORE order creation.
+ 21869→  * BLOCK → 402. No order created.
+ 21870→  * REVIEW → captures `fraudReviewNote`; AFTER order creation + paymentRef stamp, writes `fraud_review` `OrderEvent` ATOMICALLY via spread into the existing `$transaction` array.
+ 21871→  * ALLOW → proceeds normally.
+ 21872→- Enabled 3DS in `src/lib/adapters/stripe.ts` `createPaymentLink`:
+ 21873→  * Added `'payment_method_options[card][request_three_d_secure]': 'any'` to Checkout Session body.
+ 21874→  * Cited Brazil BACEN Resolução 4.658/2018 + EU PSD2 RTS Art. 18 + liability shift rationale in comment.
+ 21875→- Created `src/app/api/webhooks/chargeback/route.ts` (~190 lines):
+ 21876→  * HMAC-SHA256 verification with `CHARGEBACK_WEBHOOK_SECRET` (timingSafeEqual, mirrors Stripe webhook pattern).
+ 21877→  * Supports 2 signature formats: `x-chargeback-signature: <hex>` (generic) + `stripe-signature: t=<ts>,v1=<hex>` (forwarded Stripe disputes).
+ 21878→  * Rotation grace period via `CHARGEBACK_WEBHOOK_SECRET_OLD`. Dev-mode fallback (warn + accept when no secret).
+ 21879→  * 2 payload schemas: generic `{tenantId, orderId, reason, cardBin?}` + Stripe `{type:'charge.dispute.created', data:{object:{...}}}`.
+ 21880→  * Calls `fraudService.recordChargeback` (marks order `payment_mismatch` + blocklists customer/email/phone). Adds card BIN to blocklist when present.
+ 21881→  * 2-layer idempotency (in-memory Map + DB-backed AuditLog). Always ACKs 200.
+ 21882→- Extended `src/lib/adapters/payment-webhook-utils.ts` `applyPaymentUpdate`:
+ 21883→  * Added `cvvResult?: string` + `avsResult?: string` opts.
+ 21884→  * Added `isCvvFailure` / `isAvsFailure` helpers (accept 'N' / 'NO_MATCH' / 'FAIL').
+ 21885→  * When `shouldMarkPaid && !wasAlreadyPaid && (cvvFailed || avsFailed)`: refuses mark-paid, sets `paymentStatus='payment_mismatch'`, writes `OrderEvent.type='payment_mismatch'` with 'CVV check failed' / 'AVS check failed' note, returns early. Atomic + best-effort pattern.
+ 21886→  * Runs BEFORE the amount check (CVV/AVS failure is a stronger signal).
+ 21887→- Updated 4 webhook callers to extract + pass CVV/AVS:
+ 21888→  * `stripe/route.ts` — extracts `charges.data[0].payment_method_details.card_checks.{cvc_check, address_line1_check, address_zip_check}`. Combines line1+zip into single AVS verdict (both fail → 'FAIL'; one fails → 'A'/'Z' partial; both pass → 'Y').
+ 21889→  * `mercadopago/route.ts` — extracts `card.esc_status` (0 → 'N', 1 → 'M', else undefined). MP doesn't standardize AVS in webhook.
+ 21890→  * `wompi/route.ts` — extracts `payment_method.extra.cvc` / `.security_code` (CVV) and `.address` / `.address_line_1_check` (AVS).
+ 21891→  * `payu/route.ts` — extracts `cvv_response` / `cvc_response` (CVV) and `avs_response` (AVS) from top-level body fields.
+ 21892→  * When not present, `undefined` is passed — validation skips (backward compatible).
+ 21893→- Wrote `agent-ctx/I2-R3-full-stack-developer-anti-fraud.md` for handoff.
+ 21894→
+ 21895→Stage Summary:
+ 21896→- **Files created (2):** `src/lib/services/fraud.service.ts` (~530 lines), `src/app/api/webhooks/chargeback/route.ts` (~190 lines).
+ 21897→- **Files modified (8):** `prisma/schema.prisma` (+3 models), `src/app/api/payments/create-link/route.ts`, `src/app/api/payments/local/route.ts`, `src/lib/adapters/stripe.ts` (3DS), `src/lib/adapters/payment-webhook-utils.ts` (CVV/AVS), `src/app/api/webhooks/stripe/route.ts` (CVV/AVS extraction), `src/app/api/webhooks/mercadopago/route.ts` (CVV), `src/app/api/webhooks/wompi/route.ts` (CVV/AVS), `src/app/api/webhooks/payu/route.ts` (CVV/AVS).
+ 21898→- **Prisma models added (3):** `FraudBlocklistEntry`, `FraudEvent`, `VelocityWindow` (snake_case `@@map` convention).
+ 21899→- **Anti-fraud score improvement (estimated): 3.5 / 10 → ~8.5 / 10.** Layered pipeline now covers velocity (4 identifier types), blocklist (6 identifier types + chargeback feedback loop), OFAC AML screening (API + local fallback — unblocks USA expansion), 3DS/SCA enforced (BACEN + PSD2 compliance), CVV/AVS verification (refuses mark-paid on failure), first-purchase high-risk detection, test card BIN detection, sanctioned-country blocking. Device fingerprinting hook ready in the service but storefront collection deferred. KYC threshold (COP 2M) left as-is per task scope — covered by the new fraud pipeline below that threshold.
+ 21900→- **Verification:** `npx tsc --noEmit` → 0 errors. `bun run lint` → 0 errors, 37 pre-existing warnings (none in any modified file). `bun run db:push` → schema applied successfully. Dev server restarts cleanly, normal 200 responses.
+ 21901→
+ 21902→---
+ 21903→Task ID: I2-R9R10
+ 21904→Agent: full-stack-developer (crypto+rls)
+ 21905→Task: R-9 (encrypt cred::* Setting.value at-rest) + R-10 (extend RLS SQL to 13 missing tables)
+ 21906→
+ 21907→Work Log:
+ 21908→- **Read context first** — last ~300 lines of `worklog.md` (I1-R4567 fintech-fixer batch, I1-R2 tsc-fixer, plus the AUDITORIA-FINTECH.md findings) to confirm the R-9 + R-10 remediation scope and the existing crypto/RLS patterns. Confirmed:
+ 21909→  - `src/lib/totp.ts` has private `encrypt`/`decrypt` helpers using AES-256-GCM with the `iv:authTag:ciphertext` wire format (no version prefix) and the `ENCRYPTION_KEY` env var (with a `ziay-dev-encryption-key-change-in-prod-32b!` dev fallback). TOTP tests (`totp.test.ts`) exercise this format, so changing it would break stored secrets.
+ 21910→  - `prisma/sql/rls-policies.sql` (191 lines, 20 `CREATE POLICY` statements) uses `current_setting('app.tenant_id', true)` (NOT the `app_current_tenant_id()` pseudocode from the task spec — the existing convention is the source of truth). AuditLog uses the nullable-tenant pattern `tenant_id = X OR tenant_id IS NULL`.
+ 21911→  - `prisma/schema.prisma` (1823 lines): the 13 audit-listed tables resolve to — 11 with a `tenantId` column (RLS candidates), 2 without (`Setting`, `FxRate` → document only). The 3 fraud tables (`FraudBlocklistEntry`, `FraudEvent`, `VelocityWindow`) are NOT in the schema yet (parallel I2-R3 agent hasn't added them — confirmed via `rg "^model (Fraud|Velocity)"` returning 0 matches).
+ 21912→
+ 21913→- **R-9 — created `src/lib/crypto/secret-encryption.ts`** (new shared module, 305 lines):
+ 21914→  - Extracts the AES-256-GCM encrypt/decrypt logic into a reusable helper so `credentialsService` and (future) other secret-storing services share the same key + algorithm + wire format.
+ 21915→  - Wire format: `enc:v1:<iv-hex>:<authTag-hex>:<ciphertext-hex>` (12-byte IV, 16-byte auth tag — GCM standard). The `enc:v1:` prefix lets us distinguish encrypted vs legacy-plaintext values at read time and is forward-compatible (e.g. `enc:v2:` for a future KMS-backed scheme).
+ 21916→  - **Fail-closed policy** (R-9 spec): `encryptSecret` throws in production when `ENCRYPTION_KEY` is unset; in non-production it logs a loud warning and writes `enc:v0:<plaintext>` (clearly marked as unencrypted so the migration helper can re-encrypt it once a key is configured).
+ 21917→  - **Decrypt policy**: `decryptSecret` transparently handles `enc:v1:` (decrypt + GCM auth verify), `enc:v0:` (strip prefix, return plaintext), and legacy plaintext (return as-is). Throws only for `enc:v1:` ciphertexts that fail GCM verification (tampering / key mismatch) — surfaces security events instead of silent garbage.
+ 21918→  - Key derivation: accepts both 64-char hex (`openssl rand -hex 32`) and 32+ char UTF-8 passphrases (matches totp.ts behaviour so a key configured for TOTP also works here without a redeploy).
+ 21919→  - Exports: `encryptSecret`, `decryptSecret`, `encryptJson`, `decryptJson`, `isEncryptedSecret`, `isLegacyPlaintextSecret`, `ENC_PREFIX_V1`, `ENC_PREFIX_V0`.
+ 21920→
+ 21921→- **R-9 — modified `src/lib/services/credentials.service.ts`**:
+ 21922→  - Imported `encryptSecret`, `decryptSecret`, `isEncryptedSecret`, `isLegacyPlaintextSecret` from the new crypto module.
+ 21923→  - `upsertCredentialRow` and `updateCredentialValue` now encrypt the JSON value before writing (`encryptCredValue` private helper wraps `encryptSecret`). The caller still passes a plain JSON string; the service handles encryption transparently.
+ 21924→  - `parseCredValue` now decrypts the value before parsing as JSON. Handles all three wire formats (enc:v1, enc:v0, legacy plaintext) via `decryptSecret`. Catches decrypt/parse failures and returns `{}` so a single bad row doesn't crash the GET endpoint.
+ 21925→  - `listForNamespace` and `getForIntegration` are unchanged at the DB level (they still return raw Setting rows) — callers pass the value through `parseCredValue` to decrypt.
+ 21926→  - **Added `migrateLegacyCredentials(tenantId?)`**: scans all `Setting` rows whose key starts with `cred::` and whose value does NOT start with `enc:v1:`, re-encrypts each row in place. Per-row failures are captured into `summary.errors` (don't throw — so one bad row doesn't block the rest). Scan failures throw (operator needs to know).
+ 21927→  - **Added `auditCredentialEncryptionState(tenantId?)`**: dry-run diagnostic that returns `{ total, encryptedV1, legacy }` counts without writing. Used by the admin endpoint GET to report progress.
+ 21928→  - Updated the service-layer docstring to document the R-9 security contract (fail-closed in prod, enc:v0 dev fallback, lazy migration via read-time fallthrough + write-time re-encryption + admin-triggered bulk migration).
+ 21929→
+ 21930→- **R-9 — created `src/app/api/admin/migrate-credentials/route.ts`** (admin endpoint):
+ 21931→  - `POST /api/admin/migrate-credentials` — admin-only (`requireRole(['admin'])`). Body `{ tenantId?: string }` is optional. Tenant admins are scoped to their own tenantId (403 on cross-tenant). Platform admins (no tenantId on session) trigger a global migration across ALL namespaces (including `_global` and legacy `cred::{integrationId}` keys). Returns `{ ok, scope, tenantId, summary: { scanned, migrated, skipped, errors, errorSamples } }`.
+ 21932→  - `GET /api/admin/migrate-credentials?tenantId=...` — dry-run audit. Same scoping rules. Returns `{ ok, scope, tenantId, state: { total, encryptedV1, legacy } }`.
+ 21933→  - Mirrors the auth + scoping pattern of `/api/finance/refresh-rates` (the existing admin-only mutation endpoint).
+ 21934→
+ 21935→- **R-9 — updated `src/lib/services/index.ts`** barrel export to re-export `encryptSecret`, `decryptSecret`, `isEncryptedSecret`, `isLegacyPlaintextSecret`, `ENC_PREFIX_V1`, `ENC_PREFIX_V0` from the crypto module so callers don't need a second import.
+ 21936→
+ 21937→- **R-10 — extended `prisma/sql/rls-policies.sql`** (191 → 386 lines, 20 → 31 active `CREATE POLICY` statements):
+ 21938→  - Updated the top summary comment block to list ALL 31 tables covered, organized into Section 1 (strict), 1a (nullable-tenant), 1b (R-10 strict additions), 1c (R-10 dual-tenant), 2 (no RLS — documented), 3 (future fraud tables).
+ 21939→  - **Section 1a — nullable-tenant policies** (4 new): `WalletAccount`, `WalletTransaction`, `WithdrawalRequest`, `TwoFactorConfig`. All four have `tenantId String?` in the Prisma schema (wallet/2FA rows can be trafficker-owned with no tenant). Uses the AuditLog pattern `tenant_id = X OR tenant_id IS NULL` so webhook-originated / platform-level rows stay visible.
+ 21940→  - **Section 1b — strict-tenant policies** (6 new): `AP2Mandate`, `UcpCheckoutSession`, `IdentityVerification`, `ConsentRecord`, `DecisionLog`, `MarketplaceListing`. All have `tenantId String` (non-null). Uses the strict `tenant_id = current_setting('app.tenant_id', true)` pattern with the same `WITH CHECK` clause.
+ 21941→  - **Section 1c — dual-tenant policy** (1 new): `LeadReferral`. Has `fromTenantId` + `toTenantId` (no plain tenantId). Policy: `USING (from_tenant_id = X OR to_tenant_id = X) WITH CHECK (from_tenant_id = X OR to_tenant_id = X)` so a referral is visible to BOTH the sharing tenant and the receiving tenant (either can read or update the status — e.g. mark as converted).
+ 21942→  - **Section 2 — `Setting` SQL comment** (no policy, documented): explains that `Setting` has NO `tenant_id` column but stores BOTH tenant-scoped AND global key/value pairs. Tenant isolation for the `cred::*` namespace is enforced at the APPLICATION LAYER via the `cred::{tenantId}::{integrationId}` key convention (the credential service's `listForNamespace(ns)` / `getForIntegration(ns, id)` always filter by the full key prefix). R-9 (I2-R9R10) further hardens this by AES-256-GCM encrypting `cred::*` values at rest. Future migration: add a `tenant_id` column (nullable — global keys stay NULL) + a generated column / trigger to extract the tenantId from the key, then add an RLS policy.
+ 21943→  - **Section 2 — `FxRate` SQL comment** (no policy): documented as a global lookup (one row per ISO 4217 currency — market data, not tenant-scoped).
+ 21944→  - **Section 3 — fraud tables** (no policy, documented as future work): when `FraudBlocklistEntry`, `FraudEvent`, `VelocityWindow` are added to schema.prisma by the parallel I2-R3 anti-fraud agent, append their RLS policies. Included commented-out template policies (strict tenant_id) so the parallel agent has a copy-paste starting point. Noted that FraudBlocklistEntry may be GLOBAL (shared blocklist) — if so, omit its policy and document it in Section 2 instead.
+ 21945→  - Renumbered the existing "App role" section from 3 → 4 and the "pgvector" section from 4 → 5 to accommodate the new Section 3.
+ 21946→
+ 21947→- **Verification**:
+ 21948→  - `npx tsc --noEmit`: 0 errors (exit 0, no `error TS` lines).
+ 21949→  - `bun run lint`: 0 errors, 37 pre-existing warnings (none in any of the 4 changed files — verified with `grep -E "credentials\.service|secret-encryption|migrate-credentials|rls-policies"` returning no matches in the lint output).
+ 21950→  - `grep -c "^CREATE POLICY" prisma/sql/rls-policies.sql`: 31 (20 existing + 11 new). The task spec said "~32+" — we hit 31 active + 3 commented-out future fraud policies = 34 total `CREATE POLICY` references, within the expected range. The 2-table gap (Setting, FxRate have no tenantId → no policy) and 3-table gap (fraud tables don't exist yet) account for the difference.
+ 21951→  - Dev server stayed healthy throughout (verified `dev.log` — only normal 200 responses on `/login`, no compile errors).
+ 21952→
+ 21953→Stage Summary:
+ 21954→- **Files modified/created (5):**
+ 21955→  - `src/lib/crypto/secret-encryption.ts` (NEW — 305 lines, shared AES-256-GCM encrypt/decrypt with `enc:v1:`/`enc:v0:` wire format)
+ 21956→  - `src/lib/services/credentials.service.ts` (MODIFIED — encrypts on write, decrypts on read, adds `migrateLegacyCredentials` + `auditCredentialEncryptionState`)
+ 21957→  - `src/lib/services/index.ts` (MODIFIED — re-exports the crypto helpers)
+ 21958→  - `src/app/api/admin/migrate-credentials/route.ts` (NEW — admin-only POST to bulk-migrate + GET to dry-run audit)
+ 21959→  - `prisma/sql/rls-policies.sql` (MODIFIED — 191 → 386 lines, 20 → 31 active `CREATE POLICY` statements)
+ 21960→- **Encryption scheme:** AES-256-GCM (12-byte random IV + 16-byte auth tag) using `ENCRYPTION_KEY` env var (64-char hex preferred, 32+ char UTF-8 passphrase accepted). Wire format: `enc:v1:<iv-hex>:<authTag-hex>:<ciphertext-hex>`. Fail-closed in production (throws on missing key); dev-only `enc:v0:<plaintext>` fallback (clearly marked as unencrypted). Lazy migration on read (legacy plaintext falls through `decryptSecret` unchanged) + write (next save encrypts to `enc:v1:`) + admin-triggered bulk migration via `POST /api/admin/migrate-credentials`.
+ 21961→- **RLS policies added:** 11 new active policies (WalletAccount, WalletTransaction, WithdrawalRequest, TwoFactorConfig, AP2Mandate, UcpCheckoutSession, IdentityVerification, ConsentRecord, DecisionLog, MarketplaceListing, LeadReferral). 4 use the nullable-tenant pattern (`tenant_id = X OR tenant_id IS NULL`), 6 use the strict pattern (`tenant_id = X`), 1 uses the dual-tenant pattern (`from_tenant_id = X OR to_tenant_id = X`). Setting + FxRate documented as no-RLS with app-layer-isolation / global-lookup justification. 3 fraud-table template policies included as comments for the parallel I2-R3 agent.
+ 21962→- **tsc:** 0 errors. **lint:** 0 errors, 37 pre-existing warnings (none in changed files). **RLS policy count:** 31 active + 3 future templates = 34 total `CREATE POLICY` references.
+ 21963→

@@ -1,0 +1,59 @@
+# Promtool test rules for ZIAY alert rules.
+# SPRINT-MONITORING-FINAL-001 — closes Sprint 5A follow-up #8 (alert rule
+# unit tests). Run with:
+#
+#   cd monitoring && promtool test rules test-rules.yml
+#
+# What this verifies:
+#   - `alerts.yml` parses + loads cleanly via `rule_files: [alerts.yml]`.
+#   - `ZIAYDatabaseDown` fires at eval_time=1m when `ziay_db_connected == 0`
+#     for the full window (the rule's `for: 1m` window is satisfied at
+#     exactly 1m of continuous zero values).
+#   - `ZIAYHighPendingWithdrawals` fires at eval_time=10m when
+#     `ziay_withdrawals_pending > 10` for the full window (the rule's
+#     `for: 10m` window is satisfied at exactly 10m of continuous
+#     over-threshold values).
+#
+# Adding a new alert rule to `alerts.yml` → extend this file with a new
+# `alert_rule_test` block (or a new test group) covering the trigger
+# condition. Catches regressions when editing rule expressions (typos in
+# metric names, wrong `for:` windows, missing labels).
+
+rule_files:
+  - alerts.yml
+
+evaluation_interval: 30s
+
+tests:
+  - interval: 30s
+    # Two input series:
+    #   1. `ziay_db_connected` = 0 for 4 samples (0s, 30s, 60s, 90s) — covers
+    #      the 1m `for:` window of `ZIAYDatabaseDown`.
+    #   2. `ziay_withdrawals_pending` = 15 for 22 samples (~11m) then 23 for
+    #      16 samples (~8m) — covers the 10m `for:` window of
+    #      `ZIAYHighPendingWithdrawals` at eval_time=10m.
+    input_series:
+      - series: 'ziay_db_connected'
+        values: '0 0 0 0'
+      - series: 'ziay_withdrawals_pending'
+        values: '15 15 15 15 15 15 15 15 15 15 15 15 15 15 15 15 15 15 15 15 15 15 23 23 23 23 23 23 23 23 23 23 23 23 23 23 23 23 13'
+    alert_rule_test:
+      # `ZIAYDatabaseDown` has `for: 1m` — at eval_time=1m the condition
+      # `ziay_db_connected == 0` has been true for exactly 1m, so the alert
+      # is firing. Only the rule's labels (`severity`, `team`) are expected
+      # — the input series has no metric labels.
+      - eval_time: 1m
+        alertname: ZIAYDatabaseDown
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              team: ops
+      # `ZIAYHighPendingWithdrawals` has `for: 10m` — at eval_time=10m the
+      # condition `ziay_withdrawals_pending > 10` has been true for exactly
+      # 10m (values were 15 since t=0), so the alert is firing.
+      - eval_time: 10m
+        alertname: ZIAYHighPendingWithdrawals
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              team: finance

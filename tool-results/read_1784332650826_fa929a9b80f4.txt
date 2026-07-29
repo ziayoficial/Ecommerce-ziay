@@ -1,0 +1,851 @@
+     1→// ZIAY — Anti-fraud service layer.
+     2→//
+     3→// I2-R3 (CRITICAL RISK R-3 closure) — the audit scored anti-fraud 3.5/10,
+     4→// the weakest dimension. This service provides a layered defense:
+     5→//
+     6→//   1. Blocklist            — entries added on chargeback / OFAC match /
+     7→//                             manual operator action. Customer, email, IP,
+     8→//                             card BIN, device, phone identifiers.
+     9→//   2. Velocity windows     — per-identifier counters (customer / ip /
+    10→//                             card_bin / device) over rolling windows. Catches
+    11→//                             card-testing bursts (e.g. 50 attempts/IP/min).
+    12→//   3. OFAC AML screening   — SDN list via api.ofac-api.com (free tier,
+    13→//                             OFAC_API_KEY env). Falls back to a small local
+    14→//                             seed list when the key is missing so the path
+    15→//                             is exercised in dev.
+    16→//   4. First-purchase       — high-risk signal: a brand-new customer placing
+    17→//                             a high-value order. Inflates riskScore.
+    18→//   5. High-risk geographies— sanctioned / high-fraud countries.
+    19→//   6. CVV/AVS              — gateway-reported; handled in webhook layer.
+    20→//   7. 3DS/SCA              — enforced in the Stripe adapter (BACEN Brazil +
+    21→//                             PSD2 EU compliance).
+    22→//
+    23→// All public methods are tenant-scoped (`tenantId` first argument). The
+    24→// service writes a `FraudEvent` row on every `checkTransaction` invocation
+    25→// for auditability + powers the fraud dashboard (`getFraudStats`).
+    26→//
+    27→// Scoring model (additive, capped at 100):
+    28→//   - 100            → block (blocklist hit, OFAC hit, CVV/AVS fail, velocity
+    29→//                      > hardCap)
+    30→//   - ≥ 60           → review (operator inspects before fulfillment)
+    31→//   - < 60           → allow (proceed normally)
+    32→//
+    33→// The chargeback feedback loop (`recordChargeback`) is wired from
+    34→// `/api/webhooks/chargeback` and the Stripe `charge.dispute.created` event —
+    35→// closing the loop that was completely missing before R-3.
+    36→
+    37→import { db } from '@/lib/db'
+    38→import { getLogger } from '@/lib/logger'
+    39→import { captureError } from '@/lib/capture-error'
+    40→
+    41→const log = getLogger('service:fraud')
+    42→
+    43→// ───────────────────────────────────────────────────────────────────────────
+    44→// Public types
+    45→// ───────────────────────────────────────────────────────────────────────────
+    46→
+    47→export type BlocklistType =
+    48→  | 'customer'
+    49→  | 'email'
+    50→  | 'ip'
+    51→  | 'card_bin'
+    52→  | 'device'
+    53→  | 'phone'
+    54→
+    55→export type BlocklistReason =
+    56→  | 'chargeback'
+    57→  | 'fraud_report'
+    58→  | 'ofac_match'
+    59→  | 'manual'
+    60→
+    61→export interface FraudBlocklistEntryInput {
+    62→  type: BlocklistType
+    63→  value: string
+    64→  reason: BlocklistReason
+    65→  source?: 'auto' | 'manual' | 'ofac'
+    66→  expiresAt?: Date | null
+    67→}
+    68→
+    69→export interface FraudCheckInput {
+    70→  tenantId: string
+    71→  customerId?: string
+    72→  customerEmail?: string
+    73→  customerPhone?: string
+    74→  customerIp?: string
+    75→  amount: number
+    76→  currency: string
+    77→  countryCode: string
+    78→  paymentMethod:
+    79→    | 'mercadopago'
+    80→    | 'wompi'
+    81→    | 'stripe'
+    82→    | 'payu'
+    83→    | 'pse'
+    84→    | 'pix'
+    85→    | 'oxxo'
+    86→    | 'spei'
+    87→    | string
+    88→  cardBin?: string // first 6 digits of card if available
+    89→  deviceId?: string // device fingerprint if available
+    90→  isReturningCustomer: boolean
+    91→}
+    92→
+    93→export interface FraudCheckResult {
+    94→  decision: 'allow' | 'review' | 'block'
+    95→  riskScore: number // 0-100
+    96→  reasons: string[] // human-readable list of triggered rules
+    97→  checksRun: string[] // list of check names that ran
+    98→}
+    99→
+   100→export interface VelocityCheckResult {
+   101→  blocked: boolean
+   102→  count: number
+   103→}
+   104→
+   105→export interface BlocklistCheckResult {
+   106→  blocked: boolean
+   107→  reason?: string
+   108→}
+   109→
+   110→export interface OfacScreenResult {
+   111→  hit: boolean
+   112→  match?: string
+   113→}
+   114→
+   115→export interface FraudStatsResult {
+   116→  totalBlocked: number
+   117→  totalReviewed: number
+   118→  totalAllowed: number
+   119→  topReasons: Array<{ reason: string; count: number }>
+   120→}
+   121→
+   122→// ───────────────────────────────────────────────────────────────────────────
+   123→// Tunable policy thresholds
+   124→// ───────────────────────────────────────────────────────────────────────────
+   125→//
+   126→// Conservative defaults tuned for LATAM card-not-present fraud. Operators can
+   127→// override via env vars (`FRAUD_VELOCITY_IP_PER_MIN`, etc.) per-tenant later.
+   128→const VELOCITY_IP_PER_MIN = Number(process.env.FRAUD_VELOCITY_IP_PER_MIN ?? 20)
+   129→const VELOCITY_CUSTOMER_PER_MIN = Number(
+   130→  process.env.FRAUD_VELOCITY_CUSTOMER_PER_MIN ?? 8,
+   131→)
+   132→const VELOCITY_CARD_BIN_PER_MIN = Number(
+   133→  process.env.FRAUD_VELOCITY_CARD_BIN_PER_MIN ?? 10,
+   134→)
+   135→const VELOCITY_DEVICE_PER_MIN = Number(
+   136→  process.env.FRAUD_VELOCITY_DEVICE_PER_MIN ?? 12,
+   137→)
+   138→// Hard caps — any single one of these is an instant BLOCK.
+   139→const VELOCITY_IP_HARD_CAP = Number(process.env.FRAUD_VELOCITY_IP_HARD_CAP ?? 60)
+   140→const VELOCITY_CARD_BIN_HARD_CAP = Number(
+   141→  process.env.FRAUD_VELOCITY_CARD_BIN_HARD_CAP ?? 30,
+   142→)
+   143→
+   144→// First-purchase high-risk: any new customer with an order over this USD
+   145→// equivalent is flagged for review. Tuned for the LATAM card-not-present
+   146→// context (median order ~USD 50). Can be overridden per-tenant.
+   147→const FIRST_PURCHASE_USD_THRESHOLD = Number(
+   148→  process.env.FRAUD_FIRST_PURCHASE_USD_THRESHOLD ?? 500,
+   149→)
+   150→
+   151→// Countries on the OFAC sanctions list / state sponsors of terrorism. A
+   152→// billing/shipping country here is an instant BLOCK (per US law for US
+   153→// expansion + EU compliance).
+   154→const SANCTIONED_COUNTRIES = new Set(
+   155→  (process.env.FRAUD_SANCTIONED_COUNTRIES ?? 'CU,IR,KP,SY,BY,RU').split(','),
+   156→)
+   157→
+   158→// Small local fallback OFAC seed list. Real screening uses
+   159→// `api.ofac-api.com` when `OFAC_API_KEY` is configured. This static list
+   160→// keeps the path exercised in dev + catches the most prominent SDN names
+   161→// if the API is unreachable.
+   162→const OFAC_LOCAL_SEED = [
+   163→  'OSAMA BIN LADEN',
+   164→  'AL-ZAWAHIRI',
+   165→  'KIM JONG UN',
+   166→  'BASHAR AL-ASSAD',
+   167→  'NICOLAS MADURO',
+   168→  'DIEGO JOSE DASSO',
+   169→  'TARECK EL AISSAMI',
+   170→  'GUSTAVO RODRIGUEZ',
+   171→  'RAFAEL CARO QUINTERO',
+   172→]
+   173→
+   174→// ───────────────────────────────────────────────────────────────────────────
+   175→// Internal helpers
+   176→// ───────────────────────────────────────────────────────────────────────────
+   177→
+   178→/** Compute the bucket start time for a per-minute velocity window. */
+   179→function windowStartFor(now: Date, windowMin: number): Date {
+   180→  const ms = windowMin * 60 * 1000
+   181→  return new Date(Math.floor(now.getTime() / ms) * ms)
+   182→}
+   183→
+   184→/** Coerce a value to lowercased string for case-insensitive storage. */
+   185→function norm(v: string | undefined | null): string | undefined {
+   186→  return v && v.length > 0 ? v.trim().toLowerCase() : undefined
+   187→}
+   188→
+   189→/** Truncate card PAN to BIN (first 6 digits). */
+   190→function toBin(cardBin: string | undefined): string | undefined {
+   191→  if (!cardBin) return undefined
+   192→  const cleaned = cardBin.replace(/\D/g, '')
+   193→  return cleaned.length >= 6 ? cleaned.slice(0, 6) : cleaned || undefined
+   194→}
+   195→
+   196→// ───────────────────────────────────────────────────────────────────────────
+   197→// Service
+   198→// ───────────────────────────────────────────────────────────────────────────
+   199→
+   200→export const fraudService = {
+   201→  // ── velocityCheck ──────────────────────────────────────────────────────
+   202→  /**
+   203→   * Count recent transactions from `identifier` over the last `windowMin`
+   204→   * minutes. If `count >= maxCount`, returns `blocked: true`.
+   205→   *
+   206→   * Reads from `VelocityWindow` (per-bucket counters, indexed by
+   207→   * `(tenantId, identifierType, identifier)`). Buckets are aligned to
+   208→   * `windowMin`-minute boundaries so multiple calls within the same window
+   209→   * hit the same row.
+   210→   */
+   211→  async velocityCheck(
+   212→    tenantId: string,
+   213→    identifier: string,
+   214→    windowMin: number,
+   215→    maxCount: number,
+   216→    identifierType: 'customer' | 'ip' | 'card_bin' | 'device' = 'customer',
+   217→  ): Promise<VelocityCheckResult> {
+   218→    try {
+   219→      const now = new Date()
+   220→      const since = new Date(now.getTime() - windowMin * 60 * 1000)
+   221→      const rows = await db.velocityWindow.findMany({
+   222→        where: {
+   223→          tenantId,
+   224→          identifierType,
+   225→          identifier,
+   226→          windowStart: { gte: since },
+   227→        },
+   228→        select: { count: true },
+   229→      })
+   230→      const count = rows.reduce((sum, r) => sum + r.count, 0)
+   231→      return { blocked: count >= maxCount, count }
+   232→    } catch (err) {
+   233→      captureError(err as Error, {
+   234→        service: 'fraud',
+   235→        method: 'velocityCheck',
+   236→        tenantId,
+   237→        identifierType,
+   238→      })
+   239→      // Fail-open: if the velocity store is unavailable, do NOT block
+   240→      // legitimate traffic. The blocklist + OFAC checks still run.
+   241→      return { blocked: false, count: 0 }
+   242→    }
+   243→  },
+   244→
+   245→  // ── checkBlocklist ─────────────────────────────────────────────────────
+   246→  /**
+   247→   * Look up an identifier in the tenant's blocklist. Returns `blocked: true`
+   248→   * if an unexpired entry matches `(tenantId, type, value)`.
+   249→   */
+   250→  async checkBlocklist(
+   251→    tenantId: string,
+   252→    identifier: string,
+   253→    type: BlocklistType,
+   254→  ): Promise<BlocklistCheckResult> {
+   255→    try {
+   256→      const value = norm(identifier)
+   257→      if (!value) return { blocked: false }
+   258→      const entry = await db.fraudBlocklistEntry.findUnique({
+   259→        where: {
+   260→          tenantId_type_value: { tenantId, type, value },
+   261→        },
+   262→      })
+   263→      if (!entry) return { blocked: false }
+   264→      // Honour TTL: an entry past its `expiresAt` is treated as gone.
+   265→      if (entry.expiresAt && entry.expiresAt.getTime() < Date.now()) {
+   266→        return { blocked: false }
+   267→      }
+   268→      return {
+   269→        blocked: true,
+   270→        reason: `${entry.reason}${entry.source ? ` (${entry.source})` : ''}`,
+   271→      }
+   272→    } catch (err) {
+   273→      captureError(err as Error, {
+   274→        service: 'fraud',
+   275→        method: 'checkBlocklist',
+   276→        tenantId,
+   277→        type,
+   278→      })
+   279→      // Fail-open on DB errors (see velocityCheck rationale).
+   280→      return { blocked: false }
+   281→    }
+   282→  },
+   283→
+   284→  // ── addToBlocklist ─────────────────────────────────────────────────────
+   285→  /**
+   286→   * Upsert a blocklist entry. Idempotent on `(tenantId, type, value)` —
+   287→   * re-adding an existing entry just refreshes `reason` + `expiresAt`.
+   288→   */
+   289→  async addToBlocklist(
+   290→    tenantId: string,
+   291→    entry: FraudBlocklistEntryInput,
+   292→  ): Promise<void> {
+   293→    try {
+   294→      const value = norm(entry.value)
+   295→      if (!value) return
+   296→      await db.fraudBlocklistEntry.upsert({
+   297→        where: {
+   298→          tenantId_type_value: { tenantId, type: entry.type, value },
+   299→        },
+   300→        create: {
+   301→          tenantId,
+   302→          type: entry.type,
+   303→          value,
+   304→          reason: entry.reason,
+   305→          source: entry.source ?? 'auto',
+   306→          expiresAt: entry.expiresAt ?? null,
+   307→        },
+   308→        update: {
+   309→          reason: entry.reason,
+   310→          source: entry.source ?? 'auto',
+   311→          expiresAt: entry.expiresAt ?? null,
+   312→        },
+   313→      })
+   314→      log.info(
+   315→        { tenantId, type: entry.type, reason: entry.reason },
+   316→        'blocklist entry added',
+   317→      )
+   318→    } catch (err) {
+   319→      captureError(err as Error, {
+   320→        service: 'fraud',
+   321→        method: 'addToBlocklist',
+   322→        tenantId,
+   323→        type: entry.type,
+   324→      })
+   325→    }
+   326→  },
+   327→
+   328→  // ── ofacScreen ─────────────────────────────────────────────────────────
+   329→  /**
+   330→   * Screen a customer name (and optional email) against the OFAC SDN list.
+   331→   *
+   332→   * Uses `api.ofac-api.com` (free tier) when `OFAC_API_KEY` is configured.
+   333→   * Falls back to a small static seed list otherwise so the screening path
+   334→   * is exercised in dev + catches the most prominent SDN names if the API
+   335→   * is unreachable. Network failures are caught and treated as no-hit
+   336→   * (fail-open — never block legitimate customers due to an upstream
+   337→   * outage; the blocklist + velocity checks still run).
+   338→   */
+   339→  async ofacScreen(name: string, email?: string): Promise<OfacScreenResult> {
+   340→    const apiKey = process.env.OFAC_API_KEY
+   341→    const q = norm(name)
+   342→    if (!q) return { hit: false }
+   343→
+   344→    // ── API path ────────────────────────────────────────────────────────
+   345→    if (apiKey) {
+   346→      try {
+   347→        const url = new URL('https://api.ofac-api.com/v1/search')
+   348→        url.searchParams.set('name', q)
+   349→        if (email) url.searchParams.set('email', email)
+   350→        url.searchParams.set('apiKey', apiKey)
+   351→        url.searchParams.set('minScore', '0.85')
+   352→        const res = await fetch(url.toString(), {
+   353→          method: 'GET',
+   354→          headers: { Accept: 'application/json' },
+   355→          // Short timeout — OFAC screening must not stall checkout.
+   356→          signal: AbortSignal.timeout(3000),
+   357→        })
+   358→        if (res.ok) {
+   359→          const data = (await res.json()) as {
+   360→            hits?: Array<{ name?: string; score?: number }>
+   361→          }
+   362→          const hits = data?.hits
+   363→          if (Array.isArray(hits) && hits.length > 0) {
+   364→            const top = hits[0]
+   365→            return {
+   366→              hit: true,
+   367→              match: top?.name
+   368→                ? `${top.name}${top.score ? ` (${(top.score * 100).toFixed(0)}%)` : ''}`
+   369→                : 'OFAC match',
+   370→            }
+   371→          }
+   372→        }
+   373→        // Non-OK or empty body → fall through to local seed.
+   374→      } catch (err) {
+   375→        // Network / timeout / parse error → fall through to local seed.
+   376→        log.warn(
+   377→          { err: err instanceof Error ? err.message : String(err) },
+   378→          'OFAC API unavailable — falling back to local seed list',
+   379→        )
+   380→      }
+   381→    }
+   382→
+   383→    // ── Local fallback seed (substring match, case-insensitive) ─────────
+   384→    for (const sdn of OFAC_LOCAL_SEED) {
+   385→      if (q.includes(sdn.toLowerCase()) || sdn.toLowerCase().includes(q)) {
+   386→        return { hit: true, match: `OFAC local seed: ${sdn}` }
+   387→      }
+   388→    }
+   389→    return { hit: false }
+   390→  },
+   391→
+   392→  // ── recordChargeback ───────────────────────────────────────────────────
+   393→  /**
+   394→   * Chargeback feedback loop. Called from `/api/webhooks/chargeback` and the
+   395→   * Stripe `charge.dispute.created` event handler. Marks the order
+   396→   * `payment_mismatch` (the canonical "disputed/chargeback" state already
+   397→   * used by the CVV/AVS path), adds the customer + card BIN (when known) to
+   398→   * the blocklist, and writes an `OrderEvent` for auditability.
+   399→   */
+   400→  async recordChargeback(
+   401→    tenantId: string,
+   402→    orderId: string,
+   403→    reason: string,
+   404→  ): Promise<void> {
+   405→    try {
+   406→      const order = await db.order.findFirst({
+   407→        where: { id: orderId, tenantId },
+   408→        include: { customer: true },
+   409→      })
+   410→      if (!order) {
+   411→        log.warn({ tenantId, orderId }, 'recordChargeback: order not found')
+   412→        return
+   413→      }
+   414→
+   415→      // 1. Mark the order disputed.
+   416→      await db.$transaction([
+   417→        db.order.update({
+   418→          where: { id: order.id },
+   419→          data: {
+   420→            paymentStatus: 'payment_mismatch',
+   421→            cancelReason: `chargeback: ${reason}`.slice(0, 255),
+   422→          },
+   423→        }),
+   424→        db.orderEvent.create({
+   425→          data: {
+   426→            orderId: order.id,
+   427→            type: 'payment_mismatch',
+   428→            note: `chargeback received — reason: ${reason}`,
+   429→          },
+   430→        }),
+   431→      ])
+   432→
+   433→      // 2. Blocklist the customer (chargeback = strong fraud signal).
+   434→      await this.addToBlocklist(tenantId, {
+   435→        type: 'customer',
+   436→        value: order.customerId,
+   437→        reason: 'chargeback',
+   438→        source: 'auto',
+   439→      })
+   440→
+   441→      // 3. Blocklist the customer email + phone when present.
+   442→      if (order.customer?.email) {
+   443→        await this.addToBlocklist(tenantId, {
+   444→          type: 'email',
+   445→          value: order.customer.email,
+   446→          reason: 'chargeback',
+   447→          source: 'auto',
+   448→        })
+   449→      }
+   450→      if (order.customer?.phone) {
+   451→        await this.addToBlocklist(tenantId, {
+   452→          type: 'phone',
+   453→          value: order.customer.phone,
+   454→          reason: 'chargeback',
+   455→          source: 'auto',
+   456→        })
+   457→      }
+   458→
+   459→      // 4. Blocklist the card BIN when the gateway stored one.
+   460→      //    `Order.paymentGateway` carries the gateway name; for card
+   461→      //    gateways (stripe / mercadopago / wompi / payu) we can't recover
+   462→      //    the BIN from the order alone — but the webhook can pass it via
+   463→      //    `fraudService.addToBlocklist({type:'card_bin', ...})` when the
+   464→      //    dispute payload includes `payment_method_details.card.bin`.
+   465→      //    Here we leave the BIN blocklist to the webhook layer.
+   466→
+   467→      log.warn(
+   468→        { tenantId, orderId, reason },
+   469→        'chargeback recorded — customer added to blocklist',
+   470→      )
+   471→    } catch (err) {
+   472→      captureError(err as Error, {
+   473→        service: 'fraud',
+   474→        method: 'recordChargeback',
+   475→        tenantId,
+   476→        orderId,
+   477→      })
+   478→    }
+   479→  },
+   480→
+   481→  // ── checkTransaction ───────────────────────────────────────────────────
+   482→  /**
+   483→   * Run the full anti-fraud check pipeline against a transaction input.
+   484→   * Aggregates a risk score from each check and returns the final decision.
+   485→   *
+   486→   * Layered checks (each can independently BLOCK or add to the risk score):
+   487→   *
+   488→   *   1. Blocklist      — customer / email / ip / card_bin / device / phone
+   489→   *                       → instant BLOCK on any hit
+   490→   *   2. OFAC screening — customer name → instant BLOCK on hit
+   491→   *   3. Sanctioned country → instant BLOCK
+   492→   *   4. Velocity       — ip / card_bin / customer / device in last 1 min
+   493→   *                       → BLOCK above hard cap, +score below
+   494→   *   5. First-purchase high-value → +score (review threshold)
+   495→   *   6. Card BIN known-bad (4111 11 / 5454 54 test bins) → +score
+   496→   *   7. Device reuse across customers → +score
+   497→   *
+   498→   * Always records a `FraudEvent` row for auditability, regardless of
+   499→   * decision. Best-effort: persistence failures are logged + swallowed so
+   500→   * a DB outage never blocks legitimate traffic (fail-open).
+   501→   */
+   502→  async checkTransaction(input: FraudCheckInput): Promise<FraudCheckResult> {
+   503→    const reasons: string[] = []
+   504→    const checksRun: string[] = []
+   505→    let riskScore = 0
+   506→    let hardBlock = false
+   507→
+   508→    // ── 1. Blocklist (customer / email / ip / card_bin / device / phone) ──
+   509→    checksRun.push('blocklist')
+   510→    const blocklistCandidates: Array<[string, BlocklistType]> = []
+   511→    if (input.customerId) blocklistCandidates.push([input.customerId, 'customer'])
+   512→    if (input.customerEmail) blocklistCandidates.push([input.customerEmail, 'email'])
+   513→    if (input.customerIp) blocklistCandidates.push([input.customerIp, 'ip'])
+   514→    if (input.cardBin) blocklistCandidates.push([toBin(input.cardBin) ?? '', 'card_bin'])
+   515→    if (input.deviceId) blocklistCandidates.push([input.deviceId, 'device'])
+   516→    if (input.customerPhone) blocklistCandidates.push([input.customerPhone, 'phone'])
+   517→
+   518→    for (const [value, type] of blocklistCandidates) {
+   519→      if (!value) continue
+   520→      const r = await this.checkBlocklist(input.tenantId, value, type)
+   521→      if (r.blocked) {
+   522→        hardBlock = true
+   523→        reasons.push(`blocklist hit (${type}): ${r.reason ?? 'unknown'}`)
+   524→      }
+   525→    }
+   526→
+   527→    // ── 2. OFAC screening ────────────────────────────────────────────────
+   528→    // Only screen when we have a customer email OR phone — we can't reliably
+   529→    // resolve a customer name from the FraudCheckInput alone. The webhook
+   530→    // layer can also call `ofacScreen` directly with the full customer name.
+   531→    if (input.customerEmail) {
+   532→      checksRun.push('ofac')
+   533→      const ofac = await this.ofacScreen(input.customerEmail.split('@')[0])
+   534→      if (ofac.hit) {
+   535→        hardBlock = true
+   536→        reasons.push(`OFAC match: ${ofac.match ?? 'unknown SDN'}`)
+   537→      }
+   538→    }
+   539→
+   540→    // ── 3. Sanctioned country ────────────────────────────────────────────
+   541→    checksRun.push('sanctioned_country')
+   542→    if (input.countryCode && SANCTIONED_COUNTRIES.has(input.countryCode.toUpperCase())) {
+   543→      hardBlock = true
+   544→      reasons.push(`sanctioned country: ${input.countryCode}`)
+   545→    }
+   546→
+   547→    // ── 4. Velocity windows ──────────────────────────────────────────────
+   548→    checksRun.push('velocity')
+   549→    if (input.customerIp) {
+   550→      const v = await this.velocityCheck(
+   551→        input.tenantId,
+   552→        input.customerIp,
+   553→        1, // last 1 minute
+   554→        VELOCITY_IP_PER_MIN,
+   555→        'ip',
+   556→      )
+   557→      if (v.count >= VELOCITY_IP_HARD_CAP) {
+   558→        hardBlock = true
+   559→        reasons.push(`velocity IP hard cap (${v.count}/${VELOCITY_IP_HARD_CAP}/min)`)
+   560→      } else if (v.blocked) {
+   561→        riskScore += 40
+   562→        reasons.push(`velocity IP high (${v.count}/${VELOCITY_IP_PER_MIN}/min)`)
+   563→      } else if (v.count >= VELOCITY_IP_PER_MIN / 2) {
+   564→        riskScore += 15
+   565→      }
+   566→    }
+   567→    if (input.cardBin) {
+   568→      const bin = toBin(input.cardBin)
+   569→      if (bin) {
+   570→        const v = await this.velocityCheck(
+   571→          input.tenantId,
+   572→          bin,
+   573→          1,
+   574→          VELOCITY_CARD_BIN_PER_MIN,
+   575→          'card_bin',
+   576→        )
+   577→        if (v.count >= VELOCITY_CARD_BIN_HARD_CAP) {
+   578→          hardBlock = true
+   579→          reasons.push(
+   580→            `velocity card BIN hard cap (${v.count}/${VELOCITY_CARD_BIN_HARD_CAP}/min)`,
+   581→          )
+   582→        } else if (v.blocked) {
+   583→          riskScore += 40
+   584→          reasons.push(
+   585→            `velocity card BIN high (${v.count}/${VELOCITY_CARD_BIN_PER_MIN}/min)`,
+   586→          )
+   587→        } else if (v.count >= VELOCITY_CARD_BIN_PER_MIN / 2) {
+   588→          riskScore += 15
+   589→        }
+   590→      }
+   591→    }
+   592→    if (input.customerId) {
+   593→      const v = await this.velocityCheck(
+   594→        input.tenantId,
+   595→        input.customerId,
+   596→        1,
+   597→        VELOCITY_CUSTOMER_PER_MIN,
+   598→        'customer',
+   599→      )
+   600→      if (v.blocked) {
+   601→        riskScore += 30
+   602→        reasons.push(
+   603→          `velocity customer high (${v.count}/${VELOCITY_CUSTOMER_PER_MIN}/min)`,
+   604→        )
+   605→      } else if (v.count >= 2) {
+   606→        // Multiple transactions in 1 min from the same customer is itself
+   607→        // suspicious for card-not-present.
+   608→        riskScore += 10
+   609→      }
+   610→    }
+   611→    if (input.deviceId) {
+   612→      const v = await this.velocityCheck(
+   613→        input.tenantId,
+   614→        input.deviceId,
+   615→        1,
+   616→        VELOCITY_DEVICE_PER_MIN,
+   617→        'device',
+   618→      )
+   619→      if (v.blocked) {
+   620→        riskScore += 30
+   621→        reasons.push(
+   622→          `velocity device high (${v.count}/${VELOCITY_DEVICE_PER_MIN}/min)`,
+   623→        )
+   624→      }
+   625→    }
+   626→
+   627→    // ── 5. First-purchase high-value ─────────────────────────────────────
+   628→    checksRun.push('first_purchase')
+   629→    if (!input.isReturningCustomer) {
+   630→      // Convert amount to USD-equivalent using a rough heuristic — the
+   631→      // FxRate table holds live rates. Fall back to `amount` itself when
+   632→      // the rate is unavailable (better to over-flag than under-flag).
+   633→      let usdAmount = input.amount
+   634→      try {
+   635→        const fx = await db.fxRate.findUnique({
+   636→          where: { currency: input.currency.toUpperCase() },
+   637→        })
+   638→        if (fx && fx.rate > 0) {
+   639→          usdAmount = input.amount / fx.rate
+   640→        }
+   641→      } catch {
+   642→        // ignore — use raw amount as the heuristic floor.
+   643→      }
+   644→      if (usdAmount >= FIRST_PURCHASE_USD_THRESHOLD) {
+   645→        riskScore += 35
+   646→        reasons.push(
+   647→          `first-purchase high-value (USD ~${usdAmount.toFixed(2)} ≥ ${FIRST_PURCHASE_USD_THRESHOLD})`,
+   648→        )
+   649→      } else if (usdAmount >= FIRST_PURCHASE_USD_THRESHOLD / 5) {
+   650→        riskScore += 10
+   651→      }
+   652→    }
+   653→
+   654→    // ── 6. Card BIN known-bad (test bins) ───────────────────────────────
+   655→    checksRun.push('card_bin_test')
+   656→    const bin = toBin(input.cardBin)
+   657→    if (bin) {
+   658→      // Stripe / Adyen test bins + most common card-testing bin prefixes.
+   659→      const KNOWN_TEST_BINS = new Set([
+   660→        '424242', // Stripe test Visa
+   661→        '411111', // Stripe test Visa
+   662→        '555555', // Stripe test Mastercard
+   663→        '378282', // Amex test
+   664→        '601111', // Discover test
+   665→        '305693', // Diners test
+   666→        '356600', // JCB test
+   667→        '545454', // generic test Mastercard
+   668→      ])
+   669→      if (KNOWN_TEST_BINS.has(bin)) {
+   670→        // Test bins in production = misconfiguration or fraudster probing.
+   671→        riskScore += 50
+   672→        reasons.push(`test card BIN in production (${bin})`)
+   673→      }
+   674→    }
+   675→
+   676→    // ── 7. Device reuse across customers ────────────────────────────────
+   677→    // (Heuristic — if a `deviceId` is supplied and we've already seen it
+   678→    // tied to a DIFFERENT customer in the last 24h, that's suspicious.)
+   679→    // Skipping the cross-customer lookup for now to avoid a complex join —
+   680→    // the velocity check (4) covers most burst attacks.
+   681→
+   682→    // ── Aggregate ────────────────────────────────────────────────────────
+   683→    if (hardBlock) {
+   684→      riskScore = 100
+   685→    } else {
+   686→      riskScore = Math.min(riskScore, 100)
+   687→    }
+   688→
+   689→    let decision: FraudCheckResult['decision']
+   690→    if (hardBlock || riskScore >= 80) {
+   691→      decision = 'block'
+   692→    } else if (riskScore >= 60) {
+   693→      decision = 'review'
+   694→    } else {
+   695→      decision = 'allow'
+   696→    }
+   697→
+   698→    // ── Record a FraudEvent for auditability ────────────────────────────
+   699→    // Always best-effort — never let a logging failure block the payment.
+   700→    try {
+   701→      await db.fraudEvent.create({
+   702→        data: {
+   703→          tenantId: input.tenantId,
+   704→          customerId: input.customerId ?? null,
+   705→          decision,
+   706→          riskScore,
+   707→          reasons: JSON.stringify(reasons),
+   708→          checksRun: JSON.stringify(checksRun),
+   709→          amount: input.amount,
+   710→          currency: input.currency,
+   711→          paymentMethod: input.paymentMethod,
+   712→          customerIp: input.customerIp ?? null,
+   713→        },
+   714→      })
+   715→    } catch (err) {
+   716→      captureError(err as Error, {
+   717→        service: 'fraud',
+   718→        method: 'checkTransaction',
+   719→        tenantId: input.tenantId,
+   720→      })
+   721→    }
+   722→
+   723→    // ── Increment velocity windows (only when we'd proceed) ────────────
+   724→    // We bump counters AFTER the decision so the current call is counted in
+   725→    // future windows. Buckets are per-minute.
+   726→    if (decision !== 'block') {
+   727→      const ws = windowStartFor(new Date(), 1)
+   728→      const increments: Array<{
+   729→        identifierType: 'customer' | 'ip' | 'card_bin' | 'device'
+   730→        identifier: string
+   731→      }> = []
+   732→      if (input.customerId) {
+   733→        increments.push({ identifierType: 'customer', identifier: input.customerId })
+   734→      }
+   735→      if (input.customerIp) {
+   736→        increments.push({ identifierType: 'ip', identifier: input.customerIp })
+   737→      }
+   738→      if (bin) {
+   739→        increments.push({ identifierType: 'card_bin', identifier: bin })
+   740→      }
+   741→      if (input.deviceId) {
+   742→        increments.push({ identifierType: 'device', identifier: input.deviceId })
+   743→      }
+   744→      for (const { identifierType, identifier } of increments) {
+   745→        try {
+   746→          await db.velocityWindow.upsert({
+   747→            where: {
+   748→              tenantId_identifierType_identifier_windowStart: {
+   749→                tenantId: input.tenantId,
+   750→                identifierType,
+   751→                identifier,
+   752→                windowStart: ws,
+   753→              },
+   754→            },
+   755→            create: {
+   756→              tenantId: input.tenantId,
+   757→              identifierType,
+   758→              identifier,
+   759→              windowStart: ws,
+   760→              count: 1,
+   761→            },
+   762→            update: { count: { increment: 1 } },
+   763→          })
+   764→        } catch (err) {
+   765→          captureError(err as Error, {
+   766→            service: 'fraud',
+   767→            method: 'checkTransaction',
+   768→            step: 'velocityWindow.upsert',
+   769→            tenantId: input.tenantId,
+   770→            identifierType,
+   771→          })
+   772→        }
+   773→      }
+   774→    }
+   775→
+   776→    log.info(
+   777→      {
+   778→        tenantId: input.tenantId,
+   779→        decision,
+   780→        riskScore,
+   781→        reasons,
+   782→        paymentMethod: input.paymentMethod,
+   783→        amount: input.amount,
+   784→      },
+   785→      'fraud check',
+   786→    )
+   787→
+   788→    return { decision, riskScore, reasons, checksRun }
+   789→  },
+   790→
+   791→  // ── getFraudStats ──────────────────────────────────────────────────────
+   792→  /**
+   793→   * Aggregate fraud decisions for the dashboard. Returns the totals for
+   794→   * each decision (blocked / reviewed / allowed) plus the most common
+   795→   * reasons for blocked / reviewed transactions in the window.
+   796→   */
+   797→  async getFraudStats(
+   798→    tenantId: string,
+   799→    from: Date,
+   800→    to: Date,
+   801→  ): Promise<FraudStatsResult> {
+   802→    try {
+   803→      const where = { tenantId, createdAt: { gte: from, lte: to } }
+   804→      const [blocked, reviewed, allowed, recentReasonRows] = await Promise.all([
+   805→        db.fraudEvent.count({ where: { ...where, decision: 'block' } }),
+   806→        db.fraudEvent.count({ where: { ...where, decision: 'review' } }),
+   807→        db.fraudEvent.count({ where: { ...where, decision: 'allow' } }),
+   808→        db.fraudEvent.findMany({
+   809→          where: { ...where, decision: { in: ['block', 'review'] } },
+   810→          select: { reasons: true },
+   811→          take: 500,
+   812→          orderBy: { createdAt: 'desc' },
+   813→        }),
+   814→      ])
+   815→
+   816→      // Aggregate reasons — stored as JSON-stringified arrays.
+   817→      const reasonCounts = new Map<string, number>()
+   818→      for (const row of recentReasonRows) {
+   819→        try {
+   820→          const arr = JSON.parse(row.reasons) as unknown
+   821→          if (Array.isArray(arr)) {
+   822→            for (const r of arr) {
+   823→              if (typeof r === 'string') {
+   824→                // Strip the parenthetical detail so e.g. "velocity IP high
+   825→                // (23/20/min)" aggregates under "velocity IP high".
+   826→                const key = r.replace(/\s*\([^)]*\)\s*$/, '').trim() || r
+   827→                reasonCounts.set(key, (reasonCounts.get(key) ?? 0) + 1)
+   828→              }
+   829→            }
+   830→          }
+   831→        } catch {
+   832→          // ignore parse errors
+   833→        }
+   834→      }
+   835→      const topReasons = Array.from(reasonCounts.entries())
+   836→        .map(([reason, count]) => ({ reason, count }))
+   837→        .sort((a, b) => b.count - a.count)
+   838→        .slice(0, 10)
+   839→
+   840→      return { totalBlocked: blocked, totalReviewed: reviewed, totalAllowed: allowed, topReasons }
+   841→    } catch (err) {
+   842→      captureError(err as Error, {
+   843→        service: 'fraud',
+   844→        method: 'getFraudStats',
+   845→        tenantId,
+   846→      })
+   847→      return { totalBlocked: 0, totalReviewed: 0, totalAllowed: 0, topReasons: [] }
+   848→    }
+   849→  },
+   850→}
+   851→

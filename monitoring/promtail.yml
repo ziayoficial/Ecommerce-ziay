@@ -1,0 +1,45 @@
+# Promtail config — SPRINT-MONITORING-FIX-001 · #3
+#
+# Promtail runs as a Docker container (see docker-compose.yml service
+# `promtail`) and ships container logs to Loki (service `loki` on the
+# commerceflow Docker network).
+#
+# Discovery: Docker SD (reads the Docker socket) — every running container
+# on the host gets one log stream.
+#
+# Pipeline:
+#   1. `json` stage parses the structured pino log line emitted by the
+#      app + chat-service (fields: `level`, `msg`, `tenantId`). Lines that
+#      aren't JSON (e.g. raw stdout from third-party images) pass through
+#      unlabelled.
+#   2. `labels` stage promotes `level` → Loki label so dashboards can
+#      filter `error` vs `info` streams without re-parsing the body.
+#
+# Relabel: copy the Docker container name into the `container` label so
+# each stream is human-greppable in Grafana's LogQL explorer.
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  # Docker container logs
+  - job_name: docker
+    docker_sd_configs:
+      - hosts: ["unix:///var/run/docker.sock"]
+    pipeline_stages:
+      - json:
+          expressions:
+            level: level
+            msg: msg
+            tenantId: tenantId
+      - labels:
+          level:
+    relabel_configs:
+      - source_labels: ['__meta_docker_container_name']
+        target_label: container

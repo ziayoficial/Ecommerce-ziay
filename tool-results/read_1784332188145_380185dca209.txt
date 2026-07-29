@@ -1,0 +1,1184 @@
+     1→// ZIAY — Local LATAM Payment Adapters (PSE / PIX / OXXO / SPEI)
+     2→// Saramantha §10 / study §18 — LATAM-specific payment flows that don't fit
+     3→// the global `PaymentAdapter` contract (which assumes a checkout URL).
+     4→//
+     5→// Local methods return QR / barcode / bank-redirect URLs that need a
+     6→// different result shape, so they live behind their own `LocalPaymentAdapter`
+     7→// interface resolved by `getLocalPaymentAdapter(method)` from
+     8→// `payment-registry.ts`.
+     9→//
+    10→// Methods:
+    11→//   pse  — Colombia bank transfer via ACH (PSE — Pagos Seguros en Línea)
+    12→//   pix  — Brasil instant payment (Banco Central, BR Code / EMV QR)
+    13→//   oxxo — México cash at convenience stores (via Stripe Sources)
+    14→//   spei — México interbank transfer (Sistema de Pagos Electrónicos Interbancarios)
+    15→//
+    16→// Patterns (copied from `mercadopago.ts` / `stripe.ts`):
+    17→//   - `hasCredentials()` per adapter; stub mode when env vars missing.
+    18→//   - `formEncode(obj)` for `application/x-www-form-urlencoded` bodies.
+    19→//   - `crypto.timingSafeEqual` for HMAC comparison (no early-exit leaks).
+    20→//   - All fetch calls have a 10s `AbortController` timeout.
+    21→//   - `getLogger('adapter:<method>')` for structured logging.
+    22→//   - Reuses `STRIPE_SECRET_KEY` for OXXO (Stripe Sources, type=oxxo).
+    23→//
+    24→// SPRINT-MULTICOUNTRY-001 · R-1 (CRITICAL FIX — AUDITORIA-FINTECH)
+    25→// This file was missing on disk because `.gitignore` had a `local-*` pattern
+    26→// that hid it. The pattern is removed; this file is the canonical
+    27→// implementation of the contract declared in `payment-registry.ts` and
+    28→// consumed by `app/api/payments/local/route.ts`.
+    29→
+    30→import crypto, { timingSafeEqual } from 'node:crypto'
+    31→import type { PaymentResult } from './payment-adapter'
+    32→import { getLogger } from '@/lib/logger'
+    33→
+    34→const log = getLogger('adapter:local-payments')
+    35→
+    36→// ─────────────────────────────────────────────────────────────────────────────
+    37→// Public types & exports
+    38→// ─────────────────────────────────────────────────────────────────────────────
+    39→
+    40→/** Canonical local LATAM payment method names. */
+    41→export type LocalPaymentMethod = 'pse' | 'pix' | 'oxxo' | 'spei'
+    42→
+    43→/** Readonly tuple of supported local methods. */
+    44→export const LOCAL_PAYMENT_METHODS = ['pse', 'pix', 'oxxo', 'spei'] as const
+    45→
+    46→/** Map of country (ISO 3166-1 alpha-2) → local methods available there. */
+    47→const COUNTRY_METHODS: Record<string, LocalPaymentMethod[]> = {
+    48→  CO: ['pse'],
+    49→  BR: ['pix'],
+    50→  MX: ['oxxo', 'spei'],
+    51→}
+    52→
+    53→/**
+    54→ * Input for `LocalPaymentAdapter.createPayment`.
+    55→ *
+    56→ * `currency` and `countryCode` are optional at the type level because the
+    57→ * REST route (`POST /api/payments/local`) resolves them upstream (from
+    58→ * `getCurrencyForCountry` + `body.countryCode`) and only forwards the
+    59→ * minimal subset to the adapter. Each adapter derives what it needs from
+    60→ * its env config (PSE → COP, PIX → BRL, OXXO/SPEI → MXN) and falls back
+    61→ * gracefully when the caller omits them.
+    62→ */
+    63→export interface LocalPaymentInput {
+    64→  amount: number
+    65→  /** Caller-side reference (e.g. cart id, order number). */
+    66→  reference: string
+    67→  tenantId: string
+    68→  /** ISO 4217. Defaults per method (PSE→COP, PIX→BRL, OXXO/SPEI→MXN). */
+    69→  currency?: string
+    70→  /** ISO 3166-1 alpha-2. Defaults per method (PSE→CO, PIX→BR, OXXO/SPEI→MX). */
+    71→  countryCode?: string
+    72→  /** PSE only — bank code from `PSE_BANKS`. */
+    73→  bankCode?: string
+    74→  /** PSE only — URL the bank redirects to after the transfer. */
+    75→  returnUrl?: string
+    76→  customerName?: string
+    77→  customerPhone?: string
+    78→  customerId?: string
+    79→}
+    80→
+    81→/**
+    82→ * Result of `LocalPaymentAdapter.createPayment`.
+    83→ *
+    84→ * Includes both `paymentId` (gateway-side identifier, per the audit spec)
+    85→ * AND `reference` (alias used by `app/api/payments/local/route.ts` to stamp
+    86→ * `Order.paymentRef` and build the poll URL). Adapters set both to the same
+    87→ * gateway-side identifier — keeping them as separate fields preserves
+    88→ * backwards compatibility with both the spec and the existing route.
+    89→ */
+    90→export interface LocalPaymentResult {
+    91→  success: boolean
+    92→  method: LocalPaymentMethod
+    93→  /** Gateway-side ID — used for polling/webhook reconciliation. */
+    94→  paymentId: string
+    95→  /** Alias for `paymentId` — what `Order.paymentRef` gets stamped with. */
+    96→  reference: string
+    97→  /** PIX — the BR Code payload string (encode as QR to render). */
+    98→  qrCode?: string
+    99→  /** PIX — optional pre-rendered QR image (data: URL). */
+   100→  qrImageUrl?: string
+   101→  /** OXXO — the barcode / OXXO reference number the customer reads at the store. */
+   102→  barcode?: string
+   103→  /** PSE — bank selection / transfer URL. OXXO — voucher PDF URL. */
+   104→  redirectUrl?: string
+   105→  /** SPEI — CLABE account number the customer transfers to. */
+   106→  accountNumber?: string
+   107→  /** SPEI — reference number the customer includes in the transfer concept. */
+   108→  speiReference?: string
+   109→  expiresAt?: Date
+   110→  amount: number
+   111→  currency: string
+   112→  rawResponse?: unknown
+   113→  message?: string
+   114→}
+   115→
+   116→/** Verification result returned by `LocalPaymentAdapter.webhookVerify`. */
+   117→export interface LocalWebhookVerifyResult {
+   118→  verified: boolean
+   119→  paymentId?: string
+   120→  status?: string
+   121→}
+   122→
+   123→/**
+   124→ * Contract every local payment adapter implements. Mirrors the global
+   125→ * `PaymentAdapter` interface but with local-method-specific shapes:
+   126→ *   - `createPayment` returns QR/barcode/redirect instead of a checkout URL
+   127→ *   - `verifyPayment` returns the canonical `PaymentResult` (so the same
+   128→ *     webhook / polling handler can process both global and local methods)
+   129→ *   - `webhookVerify` is async (some local flows need to call the gateway
+   130→ *     to confirm the signature — e.g. Stripe)
+   131→ */
+   132→export interface LocalPaymentAdapter {
+   133→  name: string
+   134→  method: LocalPaymentMethod
+   135→  /** True if the env vars / credentials required for live calls are present. */
+   136→  isConfigured(): boolean
+   137→  createPayment(input: LocalPaymentInput): Promise<LocalPaymentResult>
+   138→  verifyPayment(paymentId: string): Promise<PaymentResult>
+   139→  webhookVerify(payload: string, signature: string): Promise<LocalWebhookVerifyResult>
+   140→}
+   141→
+   142→// ─────────────────────────────────────────────────────────────────────────────
+   143→// Shared helpers (copied from mercadopago.ts / stripe.ts)
+   144→// ─────────────────────────────────────────────────────────────────────────────
+   145→
+   146→/** Default 10s timeout for upstream fetch calls. */
+   147→const FETCH_TIMEOUT_MS = 10_000
+   148→
+   149→/** Wraps a fetch call with an AbortController-based timeout. */
+   150→async function fetchWithTimeout(
+   151→  url: string,
+   152→  init: RequestInit = {},
+   153→  timeoutMs: number = FETCH_TIMEOUT_MS,
+   154→): Promise<Response> {
+   155→  const controller = new AbortController()
+   156→  const timer = setTimeout(() => controller.abort(), timeoutMs)
+   157→  try {
+   158→    return await fetch(url, { ...init, signal: controller.signal })
+   159→  } finally {
+   160→    clearTimeout(timer)
+   161→  }
+   162→}
+   163→
+   164→/**
+   165→ * Form-encodes an object (potentially nested) into a `x-www-form-urlencoded`
+   166→ * string. Arrays use `key[i]`, sub-objects use `key[nested]`. Mirrors the
+   167→ * helper in `stripe.ts` (Stripe / PSE form APIs both speak form-encoded).
+   168→ */
+   169→function formEncode(obj: Record<string, unknown>): string {
+   170→  const params = new URLSearchParams()
+   171→  for (const [k, v] of Object.entries(obj)) {
+   172→    if (v === undefined || v === null) continue
+   173→    if (Array.isArray(v)) {
+   174→      v.forEach((item, i) => params.append(`${k}[${i}]`, String(item)))
+   175→    } else if (typeof v === 'object') {
+   176→      for (const [kk, vv] of Object.entries(v as Record<string, unknown>)) {
+   177→        if (vv !== undefined && vv !== null) params.append(`${k}[${kk}]`, String(vv))
+   178→      }
+   179→    } else {
+   180→      params.append(k, String(v))
+   181→    }
+   182→  }
+   183→  return params.toString()
+   184→}
+   185→
+   186→/** Timing-safe string comparison (returns false on length mismatch). */
+   187→function safeEqual(a: string, b: string): boolean {
+   188→  const ab = Buffer.from(a)
+   189→  const bb = Buffer.from(b)
+   190→  if (ab.length !== bb.length) return false
+   191→  try {
+   192→    return timingSafeEqual(ab, bb)
+   193→  } catch {
+   194→    return false
+   195→  }
+   196→}
+   197→
+   198→/** Stable prefix used by every adapter for its stub-mode paymentId. */
+   199→function stubPaymentId(method: LocalPaymentMethod): string {
+   200→  return `${method}-stub-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
+   201→}
+   202→
+   203→/**
+   204→ * Stub-mode LocalPaymentResult returned when an adapter is unconfigured.
+   205→ * Mirrors the global `stubNoCredentials` helper: `success: false` so the
+   206→ * caller can degrade gracefully (show COD, hide the local-method button).
+   207→ */
+   208→function stubLocalResult(
+   209→  method: LocalPaymentMethod,
+   210→  amount: number,
+   211→  currency: string,
+   212→  message: string,
+   213→): LocalPaymentResult {
+   214→  const paymentId = stubPaymentId(method)
+   215→  return {
+   216→    success: false,
+   217→    method,
+   218→    paymentId,
+   219→    reference: paymentId,
+   220→    amount,
+   221→    currency,
+   222→    message,
+   223→    rawResponse: { method, stub: true },
+   224→  }
+   225→}
+   226→
+   227→/** Stub PaymentResult for `verifyPayment` when credentials are missing. */
+   228→function stubVerifyResult(method: string, amount: number, currency: string): PaymentResult {
+   229→  return {
+   230→    success: false,
+   231→    status: 'stub',
+   232→    amount,
+   233→    currency,
+   234→    message: `${method}: credentials not configured (stub mode)`,
+   235→    rawResponse: { method, stub: true },
+   236→  }
+   237→}
+   238→
+   239→// ─────────────────────────────────────────────────────────────────────────────
+   240→// PSE — Colombia bank transfer via ACH
+   241→// ─────────────────────────────────────────────────────────────────────────────
+   242→
+   243→/**
+   244→ * Bank code map for PSE (Pagos Seguros en Línea).
+   245→ * Source: ACH Colombia published bank list (test/sandbox environment).
+   246→ * Production deployments should refresh this list from the PSE API
+   247→ * (`getBankList` SOAP call) at startup.
+   248→ */
+   249→export const PSE_BANKS: Record<string, string> = {
+   250→  '1022': 'Bancolombia',
+   251→  '1052': 'Davivienda',
+   252→  '1037': 'BBVA Colombia',
+   253→  '1002': 'Banco de Bogotá',
+   254→  '1023': 'Banco Occidente',
+   255→  '1051': 'Banco AV Villas',
+   256→  '1006': 'Itaú Colombia',
+   257→  '1019': 'Scotiabank Colpatria',
+   258→  '1066': 'Banco Falabella',
+   259→  '1012': 'Banco GNB Sudameris',
+   260→  '1009': 'Banco de Occidente',
+   261→  '1040': 'Banco Agrario',
+   262→  '1060': 'Banco Cooperativo Coopcentral',
+   263→  '1500': 'Nequi',
+   264→}
+   265→
+   266→const PSE_API_BASE = process.env.PSE_API_BASE ?? 'https://test.pse.com.co'
+   267→
+   268→class PSEAdapter implements LocalPaymentAdapter {
+   269→  name = 'pse'
+   270→  method: LocalPaymentMethod = 'pse'
+   271→  private readonly merchantId = process.env.PSE_MERCHANT_ID ?? ''
+   272→  private readonly apiKey = process.env.PSE_API_KEY ?? ''
+   273→  private readonly webhookSecret = process.env.PSE_WEBHOOK_SECRET ?? ''
+   274→  private readonly log = getLogger('adapter:pse')
+   275→
+   276→  isConfigured(): boolean {
+   277→    return this.merchantId.length > 0 && this.apiKey.length > 0
+   278→  }
+   279→
+   280→  async createPayment(input: LocalPaymentInput): Promise<LocalPaymentResult> {
+   281→    const currency = (input.currency ?? 'COP').toUpperCase()
+   282→    if (!this.isConfigured()) {
+   283→      this.log.warn({ tenantId: input.tenantId }, 'PSE not configured — returning stub')
+   284→      return stubLocalResult(
+   285→        this.method,
+   286→        input.amount,
+   287→        currency,
+   288→        'PSE: credenciales no configuradas (modo stub). Configure PSE_MERCHANT_ID y PSE_API_KEY.',
+   289→      )
+   290→    }
+   291→    if (!input.bankCode) {
+   292→      return {
+   293→        success: false,
+   294→        method: this.method,
+   295→        paymentId: '',
+   296→        reference: '',
+   297→        amount: input.amount,
+   298→        currency,
+   299→        message: 'PSE requires bankCode (use PSE_BANKS keys, e.g. 1022 for Bancolombia).',
+   300→      }
+   301→    }
+   302→    if (!input.returnUrl) {
+   303→      return {
+   304→        success: false,
+   305→        method: this.method,
+   306→        paymentId: '',
+   307→        reference: '',
+   308→        amount: input.amount,
+   309→        currency,
+   310→        message: 'PSE requires returnUrl (bank redirects there after the transfer).',
+   311→      }
+   312→    }
+   313→
+   314→    const bankName = PSE_BANKS[input.bankCode] ?? 'Unknown Bank'
+   315→    const transactionId = `pse-${input.tenantId}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+   316→
+   317→    try {
+   318→      // PSE creates a transaction via POST /api/transaction/create
+   319→      // The response includes `redirectURL` (bank selection page).
+   320→      const body = formEncode({
+   321→        merchantID: this.merchantId,
+   322→        bankCode: input.bankCode,
+   323→        bankName,
+   324→        reference: input.reference,
+   325→        description: `Pago ${input.reference}`,
+   326→        language: 'es',
+   327→        currency: currency === 'COP' ? 'COP' : currency,
+   328→        totalAmount: Number(input.amount.toFixed(2)),
+   329→        taxpayerID: input.customerId ?? '',
+   330→        returnUrl: input.returnUrl,
+   331→        transactionID: transactionId,
+   332→      })
+   333→
+   334→      const res = await fetchWithTimeout(`${PSE_API_BASE}/api/transaction/create`, {
+   335→        method: 'POST',
+   336→        headers: {
+   337→          Authorization: `Bearer ${this.apiKey}`,
+   338→          'Content-Type': 'application/x-www-form-urlencoded',
+   339→        },
+   340→        body,
+   341→      })
+   342→      const data = (await res.json()) as Record<string, unknown>
+   343→
+   344→      if (!res.ok) {
+   345→        return {
+   346→          success: false,
+   347→          method: this.method,
+   348→          paymentId: transactionId,
+   349→          reference: transactionId,
+   350→          amount: input.amount,
+   351→          currency,
+   352→          message: `PSE createPayment ${res.status}`,
+   353→          rawResponse: data,
+   354→        }
+   355→      }
+   356→
+   357→      const redirectUrl = String(data.redirectURL ?? data.redirectUrl ?? '')
+   358→      const paymentId = String(data.transactionID ?? data.trazabilityCode ?? transactionId)
+   359→      const expiresAt = new Date(Date.now() + 30 * 60 * 1000) // 30 min
+   360→
+   361→      this.log.info(
+   362→        { tenantId: input.tenantId, paymentId, bankCode: input.bankCode, amount: input.amount },
+   363→        'PSE payment created',
+   364→      )
+   365→
+   366→      return {
+   367→        success: true,
+   368→        method: this.method,
+   369→        paymentId,
+   370→        reference: paymentId,
+   371→        redirectUrl,
+   372→        expiresAt,
+   373→        amount: input.amount,
+   374→        currency,
+   375→        rawResponse: data,
+   376→      }
+   377→    } catch (err) {
+   378→      const message = err instanceof Error ? err.message : 'unknown error'
+   379→      this.log.error({ err, tenantId: input.tenantId }, 'PSE createPayment failed')
+   380→      return {
+   381→        success: false,
+   382→        method: this.method,
+   383→        paymentId: transactionId,
+   384→        reference: transactionId,
+   385→        amount: input.amount,
+   386→        currency,
+   387→        message,
+   388→      }
+   389→    }
+   390→  }
+   391→
+   392→  async verifyPayment(paymentId: string): Promise<PaymentResult> {
+   393→    if (!this.isConfigured()) return stubVerifyResult(this.name, 0, 'COP')
+   394→    try {
+   395→      const res = await fetchWithTimeout(
+   396→        `${PSE_API_BASE}/api/transaction/status?transactionID=${encodeURIComponent(paymentId)}`,
+   397→        { headers: { Authorization: `Bearer ${this.apiKey}` } },
+   398→      )
+   399→      const data = (await res.json()) as Record<string, unknown>
+   400→      if (!res.ok) {
+   401→        return {
+   402→          success: false,
+   403→          status: 'error',
+   404→          amount: 0,
+   405→          currency: 'COP',
+   406→          message: `PSE verify ${res.status}`,
+   407→          rawResponse: data,
+   408→        }
+   409→      }
+   410→      const statusRaw = String(data.status ?? data.transactionState ?? 'unknown').toLowerCase()
+   411→      // Map PSE states to canonical: approved | pending | rejected | error
+   412→      const canonical =
+   413→        statusRaw === 'ok' || statusRaw === 'approved' || statusRaw === 'success'
+   414→          ? 'approved'
+   415→          : statusRaw === 'pending' || statusRaw === 'not_authorised'
+   416→            ? 'pending'
+   417→            : statusRaw === 'failed' || statusRaw === 'rejected'
+   418→              ? 'rejected'
+   419→              : 'pending'
+   420→      return {
+   421→        success: canonical === 'approved',
+   422→        paymentId: String(data.transactionID ?? paymentId),
+   423→        status: canonical,
+   424→        amount: Number(data.totalAmount ?? 0),
+   425→        currency: String(data.currency ?? 'COP').toUpperCase(),
+   426→        rawResponse: data,
+   427→      }
+   428→    } catch (err) {
+   429→      return {
+   430→        success: false,
+   431→        status: 'error',
+   432→        amount: 0,
+   433→        currency: 'COP',
+   434→        message: err instanceof Error ? err.message : 'unknown error',
+   435→      }
+   436→    }
+   437→  }
+   438→
+   439→  async webhookVerify(payload: string, signature: string): Promise<LocalWebhookVerifyResult> {
+   440→    // PSE webhooks send an HMAC-SHA256 hex signature in the `x-pse-signature`
+   441→    // header over the raw body. Without a configured secret we reject in prod
+   442→    // and accept (with a warning) in dev — same contract as the global adapters.
+   443→    if (!this.webhookSecret) {
+   444→      if (process.env.NODE_ENV === 'production') {
+   445→        this.log.error('PSE webhook secret not configured in production — rejecting webhook')
+   446→        return { verified: false }
+   447→      }
+   448→      this.log.warn('PSE webhook secret not configured — accepting in dev mode')
+   449→      return { verified: true, status: 'dev-bypass' }
+   450→    }
+   451→    if (!signature) return { verified: false }
+   452→    try {
+   453→      const expected = crypto
+   454→        .createHmac('sha256', this.webhookSecret)
+   455→        .update(payload)
+   456→        .digest('hex')
+   457→      if (!safeEqual(expected, signature)) {
+   458→        return { verified: false }
+   459→      }
+   460→      const data = JSON.parse(payload) as Record<string, unknown>
+   461→      return {
+   462→        verified: true,
+   463→        paymentId: data.transactionID ? String(data.transactionID) : undefined,
+   464→        status: data.status ? String(data.status) : undefined,
+   465→      }
+   466→    } catch {
+   467→      return { verified: false }
+   468→    }
+   469→  }
+   470→}
+   471→
+   472→// ─────────────────────────────────────────────────────────────────────────────
+   473→// PIX — Brasil instant payment (BR Code / EMV QR, generated locally)
+   474→// ─────────────────────────────────────────────────────────────────────────────
+   475→
+   476→/**
+   477→ * CRC16-CCITT (polynomial 0x1021, initial 0xFFFF) — required by the BR Code
+   478→ * spec (Banco Central do Brasil · BR Code v1.0 §6). The CRC is computed
+   479→ * over the entire payload up to (but not including) the `6304` CRC tag, then
+   480→ * appended as a 4-char uppercase hex string.
+   481→ */
+   482→function crc16Ccitt(payload: string): string {
+   483→  let crc = 0xffff
+   484→  for (let i = 0; i < payload.length; i++) {
+   485→    crc ^= payload.charCodeAt(i) << 8
+   486→    for (let j = 0; j < 8; j++) {
+   487→      crc = crc & 0x8000 ? (crc << 1) ^ 0x1021 : crc << 1
+   488→      crc &= 0xffff
+   489→    }
+   490→  }
+   491→  return crc.toString(16).toUpperCase().padStart(4, '0')
+   492→}
+   493→
+   494→/** TLV (Tag-Length-Value) encoder per BR Code spec: `id` + 2-digit length + value. */
+   495→function brCodeTlv(id: string, value: string): string {
+   496→  const len = value.length.toString().padStart(2, '0')
+   497→  return `${id}${len}${value}`
+   498→}
+   499→
+   500→/**
+   501→ * Generate a PIX BR Code (Payload Format Indicator 01 + CRC16) from a payee
+   502→ * key + amount + reference. Pure local computation — no API call needed.
+   503→ *
+   504→ * The resulting string can be rendered as a QR code client-side (e.g. with
+   505→ * the `qrcode` npm package). We optionally also expose it as a data: URL PNG
+   506→ * when `PIX_QR_IMAGE_ENDPOINT` is configured (some merchants run a local QR
+   507→ * rendering service).
+   508→ *
+   509→ * @see https://www.bcb.gov.br/estabilidadefinanceira/pix
+   510→ * @see https://www.bcb.gov.br/estabilidadefinanceira/repositorio/MessageExceptionPage/PIX%20BR%20Code.pdf
+   511→ */
+   512→function generatePixBrCode(
+   513→  payeeKey: string,
+   514→  payeeName: string,
+   515→  amount: number,
+   516→  reference: string,
+   517→): string {
+   518→  // Merchant Account Information (id 26) — subfields:
+   519→  //   00 = GUI (BR.GOV.BCB.PIX)
+   520→  //   01 = payee key (CPF/CNPJ/email/phone/random)
+   521→  const mai = brCodeTlv('00', 'BR.GOV.BCB.PIX') + brCodeTlv('01', payeeKey)
+   522→  const maiField = brCodeTlv('26', mai)
+   523→
+   524→  // Additional Data Field (id 62) — subfield 05 = reference label
+   525→  const refLabel = reference.slice(0, 25)
+   526→  const adf = brCodeTlv('05', refLabel)
+   527→  const adfField = brCodeTlv('62', adf)
+   528→
+   529→  // Build payload (without CRC), then append CRC.
+   530→  // Field 54 (Transaction Amount) is omitted when amount === 0 (allowing the
+   531→  // user to type any amount in their banking app — typical PIX "QR estático").
+   532→  const amountPart = amount > 0 ? brCodeTlv('54', amount.toFixed(2)) : ''
+   533→
+   534→  const payload =
+   535→    brCodeTlv('00', '01') +                          // Payload Format Indicator
+   536→    brCodeTlv('01', '12') +                          // Point of Initiation Method (12 = dynamic)
+   537→    maiField +                                       // Merchant Account Information
+   538→    brCodeTlv('52', '0000') +                        // Merchant Category Code
+   539→    brCodeTlv('53', '986') +                         // Transaction Currency (986 = BRL)
+   540→    amountPart +                                     // Transaction Amount (optional)
+   541→    brCodeTlv('58', 'BR') +                          // Country Code
+   542→    brCodeTlv('59', payeeName.slice(0, 25)) +        // Merchant Name (max 25)
+   543→    brCodeTlv('60', 'BRASILIA'.slice(0, 15)) +       // Merchant City (max 15)
+   544→    adfField +                                       // Additional Data Field
+   545→    '6304'                                           // CRC16 tag + length
+   546→
+   547→  return payload + crc16Ccitt(payload)
+   548→}
+   549→
+   550→class PIXAdapter implements LocalPaymentAdapter {
+   551→  name = 'pix'
+   552→  method: LocalPaymentMethod = 'pix'
+   553→  private readonly payeeKey = process.env.PIX_PAYEE_KEY ?? ''
+   554→  private readonly payeeName = process.env.PIX_PAYEE_NAME ?? ''
+   555→  private readonly webhookSecret = process.env.PIX_WEBHOOK_SECRET ?? ''
+   556→  private readonly log = getLogger('adapter:pix')
+   557→
+   558→  isConfigured(): boolean {
+   559→    return this.payeeKey.length > 0 && this.payeeName.length > 0
+   560→  }
+   561→
+   562→  async createPayment(input: LocalPaymentInput): Promise<LocalPaymentResult> {
+   563→    const currency = (input.currency ?? 'BRL').toUpperCase()
+   564→    if (!this.isConfigured()) {
+   565→      this.log.warn({ tenantId: input.tenantId }, 'PIX not configured — returning stub')
+   566→      return stubLocalResult(
+   567→        this.method,
+   568→        input.amount,
+   569→        currency,
+   570→        'PIX: credenciales no configuradas (modo stub). Configure PIX_PAYEE_KEY y PIX_PAYEE_NAME.',
+   571→      )
+   572→    }
+   573→
+   574→    // PIX BR Code is generated locally — no upstream API call required.
+   575→    const paymentId = `pix-${input.tenantId}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
+   576→    const reference = input.reference || paymentId
+   577→    const qrPayload = generatePixBrCode(
+   578→      this.payeeKey,
+   579→      this.payeeName,
+   580→      input.amount,
+   581→      reference,
+   582→    )
+   583→    const expiresAt = new Date(Date.now() + 30 * 60 * 1000) // 30 min
+   584→
+   585→    // Optional pre-rendered QR image (only when a renderer endpoint is configured).
+   586→    const qrImageUrl = process.env.PIX_QR_IMAGE_ENDPOINT
+   587→      ? `${process.env.PIX_QR_IMAGE_ENDPOINT}?payload=${encodeURIComponent(qrPayload)}`
+   588→      : undefined
+   589→
+   590→    this.log.info(
+   591→      { tenantId: input.tenantId, paymentId, amount: input.amount },
+   592→      'PIX BR Code generated',
+   593→    )
+   594→
+   595→    return {
+   596→      success: true,
+   597→      method: this.method,
+   598→      paymentId,
+   599→      reference: paymentId,
+   600→      qrCode: qrPayload,
+   601→      ...(qrImageUrl ? { qrImageUrl } : {}),
+   602→      expiresAt,
+   603→      amount: input.amount,
+   604→      currency,
+   605→      rawResponse: { qrPayload, payeeKey: this.payeeKey },
+   606→    }
+   607→  }
+   608→
+   609→  async verifyPayment(paymentId: string): Promise<PaymentResult> {
+   610→    // PIX has no synchronous verify endpoint — status comes exclusively via
+   611→    // webhook (the Banco Central broadcasts a payment notification when the
+   612→    // customer completes the transfer). Until the webhook fires, the payment
+   613→    // stays pending. We surface that here so the polling endpoint degrades
+   614→    // gracefully without spurious errors.
+   615→    if (!this.isConfigured()) return stubVerifyResult(this.name, 0, 'BRL')
+   616→    return {
+   617→      success: false,
+   618→      paymentId,
+   619→      status: 'pending',
+   620→      amount: 0,
+   621→      currency: 'BRL',
+   622→      message: 'PIX: awaiting webhook confirmation from the bank.',
+   623→      rawResponse: { paymentId, pending: true },
+   624→    }
+   625→  }
+   626→
+   627→  async webhookVerify(payload: string, signature: string): Promise<LocalWebhookVerifyResult> {
+   628→    // The Banco Central / SPI broadcasts pix payments as a signed webhook.
+   629→    // Signature is HMAC-SHA256(secret, payload) hex-encoded in `x-pix-signature`.
+   630→    if (!this.webhookSecret) {
+   631→      if (process.env.NODE_ENV === 'production') {
+   632→        this.log.error('PIX webhook secret not configured in production — rejecting webhook')
+   633→        return { verified: false }
+   634→      }
+   635→      this.log.warn('PIX webhook secret not configured — accepting in dev mode')
+   636→      return { verified: true, status: 'dev-bypass' }
+   637→    }
+   638→    if (!signature) return { verified: false }
+   639→    try {
+   640→      const expected = crypto
+   641→        .createHmac('sha256', this.webhookSecret)
+   642→        .update(payload)
+   643→        .digest('hex')
+   644→      if (!safeEqual(expected, signature)) {
+   645→        return { verified: false }
+   646→      }
+   647→      const data = JSON.parse(payload) as Record<string, unknown>
+   648→      return {
+   649→        verified: true,
+   650→        paymentId: data.endToEndId ? String(data.endToEndId) : data.txid ? String(data.txid) : undefined,
+   651→        status: data.status ? String(data.status) : 'approved',
+   652→      }
+   653→    } catch {
+   654→      return { verified: false }
+   655→    }
+   656→  }
+   657→}
+   658→
+   659→// ─────────────────────────────────────────────────────────────────────────────
+   660→// OXXO — México cash at convenience stores (via Stripe Sources)
+   661→// ─────────────────────────────────────────────────────────────────────────────
+   662→
+   663→const STRIPE_API_BASE = process.env.STRIPE_API_BASE ?? 'https://api.stripe.com/v1'
+   664→
+   665→class OXXOAdapter implements LocalPaymentAdapter {
+   666→  name = 'oxxo'
+   667→  method: LocalPaymentMethod = 'oxxo'
+   668→  // OXXO reuses the existing Stripe secret key — no separate OXXO_* env.
+   669→  private readonly secretKey = process.env.STRIPE_SECRET_KEY ?? ''
+   670→  private readonly webhookSecret = process.env.STRIPE_WEBHOOK_SECRET ?? ''
+   671→  private readonly log = getLogger('adapter:oxxo')
+   672→
+   673→  isConfigured(): boolean {
+   674→    return this.secretKey.length > 0
+   675→  }
+   676→
+   677→  async createPayment(input: LocalPaymentInput): Promise<LocalPaymentResult> {
+   678→    const currency = (input.currency ?? 'MXN').toLowerCase()
+   679→    if (!this.isConfigured()) {
+   680→      this.log.warn({ tenantId: input.tenantId }, 'OXXO not configured — returning stub')
+   681→      return stubLocalResult(
+   682→        this.method,
+   683→        input.amount,
+   684→        currency.toUpperCase(),
+   685→        'OXXO: STRIPE_SECRET_KEY no configurada (modo stub).',
+   686→      )
+   687→    }
+   688→
+   689→    try {
+   690→      // Stripe Sources API — type=oxxo. Amount in centavos (MXN has 2 decimals).
+   691→      const amountInCents = Math.round(input.amount * 100)
+   692→      const body = formEncode({
+   693→        type: 'oxxo',
+   694→        amount: amountInCents,
+   695→        currency,
+   696→        owner: {
+   697→          email: input.customerId ? `${input.customerId}@tenant.ziay.app` : 'merchant@ziay.app',
+   698→          ...(input.customerName ? { name: input.customerName } : {}),
+   699→          ...(input.customerPhone ? { phone: input.customerPhone } : {}),
+   700→        },
+   701→        ...(input.reference ? { statement_descriptor: input.reference.slice(0, 40) } : {}),
+   702→        metadata: {
+   703→          reference: input.reference,
+   704→          tenantId: input.tenantId,
+   705→          ...(input.customerId ? { customerId: input.customerId } : {}),
+   706→        },
+   707→      })
+   708→
+   709→      const res = await fetchWithTimeout(`${STRIPE_API_BASE}/sources`, {
+   710→        method: 'POST',
+   711→        headers: {
+   712→          Authorization: `Bearer ${this.secretKey}`,
+   713→          'Content-Type': 'application/x-www-form-urlencoded',
+   714→        },
+   715→        body,
+   716→      })
+   717→      const data = (await res.json()) as Record<string, unknown>
+   718→
+   719→      if (!res.ok) {
+   720→        return {
+   721→          success: false,
+   722→          method: this.method,
+   723→          paymentId: '',
+   724→          reference: '',
+   725→          amount: input.amount,
+   726→          currency: currency.toUpperCase(),
+   727→          message: `OXXO createPayment ${res.status}: ${String((data.error as Record<string, unknown> | undefined)?.message ?? '')}`,
+   728→          rawResponse: data,
+   729→        }
+   730→      }
+   731→
+   732→      const paymentId = String(data.id ?? '')
+   733→      const oxxoData = (data.oxxo ?? {}) as Record<string, unknown>
+   734→      const barcode = String(oxxoData.number ?? data.id ?? '')
+   735→      const redirectUrl = String(
+   736→        (data.redirect as Record<string, unknown> | undefined)?.url ??
+   737→          oxxoData.voucher_url ??
+   738→          '',
+   739→      )
+   740→      // Stripe OXXO sources expire after 3 days by default.
+   741→      const expiresAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000)
+   742→
+   743→      this.log.info(
+   744→        { tenantId: input.tenantId, paymentId, amount: input.amount },
+   745→        'OXXO source created',
+   746→      )
+   747→
+   748→      return {
+   749→        success: true,
+   750→        method: this.method,
+   751→        paymentId,
+   752→        reference: paymentId,
+   753→        barcode,
+   754→        redirectUrl,
+   755→        expiresAt,
+   756→        amount: input.amount,
+   757→        currency: currency.toUpperCase(),
+   758→        rawResponse: data,
+   759→      }
+   760→    } catch (err) {
+   761→      const message = err instanceof Error ? err.message : 'unknown error'
+   762→      this.log.error({ err, tenantId: input.tenantId }, 'OXXO createPayment failed')
+   763→      return {
+   764→        success: false,
+   765→        method: this.method,
+   766→        paymentId: '',
+   767→        reference: '',
+   768→        amount: input.amount,
+   769→        currency: currency.toUpperCase(),
+   770→        message,
+   771→      }
+   772→    }
+   773→  }
+   774→
+   775→  async verifyPayment(paymentId: string): Promise<PaymentResult> {
+   776→    if (!this.isConfigured()) return stubVerifyResult(this.name, 0, 'MXN')
+   777→    try {
+   778→      const res = await fetchWithTimeout(
+   779→        `${STRIPE_API_BASE}/sources/${encodeURIComponent(paymentId)}`,
+   780→        { headers: { Authorization: `Bearer ${this.secretKey}` } },
+   781→      )
+   782→      const data = (await res.json()) as Record<string, unknown>
+   783→      if (!res.ok) {
+   784→        return {
+   785→          success: false,
+   786→          status: 'error',
+   787→          amount: 0,
+   788→          currency: 'MXN',
+   789→          message: `OXXO verify ${res.status}`,
+   790→          rawResponse: data,
+   791→        }
+   792→      }
+   793→      const status = String(data.status ?? 'unknown')
+   794→      // Stripe source statuses: chargeable, consumed, pending, canceled, failed.
+   795→      // OXXO is `chargeable` until the customer pays at the store, then `consumed`.
+   796→      const canonical =
+   797→        status === 'consumed' || status === 'chargeable'
+   798→          ? status === 'consumed'
+   799→            ? 'approved'
+   800→            : 'pending'
+   801→          : status === 'canceled' || status === 'failed'
+   802→            ? 'rejected'
+   803→            : 'pending'
+   804→      return {
+   805→        success: canonical === 'approved',
+   806→        paymentId: String(data.id ?? paymentId),
+   807→        status: canonical,
+   808→        amount: Number(data.amount ?? 0) / 100,
+   809→        currency: String(data.currency ?? 'mxn').toUpperCase(),
+   810→        rawResponse: data,
+   811→      }
+   812→    } catch (err) {
+   813→      return {
+   814→        success: false,
+   815→        status: 'error',
+   816→        amount: 0,
+   817→        currency: 'MXN',
+   818→        message: err instanceof Error ? err.message : 'unknown error',
+   819→      }
+   820→    }
+   821→  }
+   822→
+   823→  async webhookVerify(payload: string, signature: string): Promise<LocalWebhookVerifyResult> {
+   824→    // Reuse the Stripe webhook verification: header format
+   825→    // `stripe-signature: t=<ts>,v1=<hex>`, manifest = `${t}.${payload}`.
+   826→    if (!this.webhookSecret) {
+   827→      if (process.env.NODE_ENV === 'production') {
+   828→        this.log.error('Stripe webhook secret not configured in production — rejecting OXXO webhook')
+   829→        return { verified: false }
+   830→      }
+   831→      this.log.warn('Stripe webhook secret not configured — accepting in dev mode')
+   832→      return { verified: true, status: 'dev-bypass' }
+   833→    }
+   834→    if (!signature) return { verified: false }
+   835→
+   836→    // Parse `t=...,v1=...` format.
+   837→    const parts = signature.split(',').reduce<Record<string, string>>((acc, part) => {
+   838→      const idx = part.indexOf('=')
+   839→      if (idx > 0) acc[part.slice(0, idx).trim()] = part.slice(idx + 1).trim()
+   840→      return acc
+   841→    }, {})
+   842→    const t = parts.t
+   843→    const v1 = parts.v1
+   844→    if (!t || !v1) return { verified: false }
+   845→
+   846→    const expected = crypto
+   847→      .createHmac('sha256', this.webhookSecret)
+   848→      .update(`${t}.${payload}`)
+   849→      .digest('hex')
+   850→    if (!safeEqual(expected, v1)) return { verified: false }
+   851→
+   852→    try {
+   853→      const data = JSON.parse(payload) as Record<string, unknown>
+   854→      const obj = ((data.data as Record<string, unknown> | undefined)?.object ?? {}) as Record<string, unknown>
+   855→      return {
+   856→        verified: true,
+   857→        paymentId: obj.id ? String(obj.id) : undefined,
+   858→        status: obj.status ? String(obj.status) : undefined,
+   859→      }
+   860→    } catch {
+   861→      return { verified: true }
+   862→    }
+   863→  }
+   864→}
+   865→
+   866→// ─────────────────────────────────────────────────────────────────────────────
+   867→// SPEI — México interbank transfer
+   868→// ─────────────────────────────────────────────────────────────────────────────
+   869→
+   870→/**
+   871→ * Compute the SPEI/CLABE check digit (control digit) using the weighted-sum
+   872→ * algorithm specified by Banxico. Weights cycle [3, 7, 1, 3, 7, 1, ...],
+   873→ * applied to the first 17 digits; the sum mod 10 (then 10 − that mod 10,
+   874→ * wrapped to 0) is the 18th digit.
+   875→ *
+   876→ * Implemented locally so the adapter can validate / generate CLABE-like
+   877→ * reference numbers without calling the bank — useful in stub mode and as a
+   878→ * sanity check in live mode.
+   879→ */
+   880→function clabeCheckDigit(first17: string): string {
+   881→  const weights = [3, 7, 1]
+   882→  let sum = 0
+   883→  for (let i = 0; i < 17; i++) {
+   884→    const d = Number(first17[i] ?? '0')
+   885→    sum += (d * weights[i % 3]) % 10
+   886→  }
+   887→  const check = (10 - (sum % 10)) % 10
+   888→  return String(check)
+   889→}
+   890→
+   891→/** Generate a virtual CLABE for SPEI collection (bank code + 12-digit account + check digit). */
+   892→function generateClabe(bankCode: string, accountNumber: string): string {
+   893→  const accountPadded = accountNumber.padStart(12, '0').slice(0, 12)
+   894→  const first17 = `${bankCode.padStart(3, '0').slice(0, 3)}${accountPadded.slice(0, 14)}`
+   895→  // Pad/truncate first17 to exactly 17 digits (bank 3 + account 14 = 17).
+   896→  const first17Padded = first17.padStart(17, '0').slice(0, 17)
+   897→  return first17Padded + clabeCheckDigit(first17Padded)
+   898→}
+   899→
+   900→class SPEIAdapter implements LocalPaymentAdapter {
+   901→  name = 'spei'
+   902→  method: LocalPaymentMethod = 'spei'
+   903→  private readonly bankCode = process.env.SPEI_BANK_CODE ?? ''
+   904→  private readonly accountNumber = process.env.SPEI_ACCOUNT_NUMBER ?? ''
+   905→  private readonly webhookSecret = process.env.SPEI_WEBHOOK_SECRET ?? ''
+   906→  private readonly apiBase = process.env.SPEI_API_BASE ?? 'https://api.spei.com.mx'
+   907→  private readonly apiKey = process.env.SPEI_API_KEY ?? ''
+   908→  private readonly log = getLogger('adapter:spei')
+   909→
+   910→  isConfigured(): boolean {
+   911→    // Live mode requires bank + account + API key. Stub mode (just bank +
+   912→    // account, no API key) generates a CLABE reference locally without
+   913→    // calling any bank — useful for dev/demo.
+   914→    return this.bankCode.length > 0 && this.accountNumber.length > 0
+   915→  }
+   916→
+   917→  private isLive(): boolean {
+   918→    return this.isConfigured() && this.apiKey.length > 0
+   919→  }
+   920→
+   921→  async createPayment(input: LocalPaymentInput): Promise<LocalPaymentResult> {
+   922→    const currency = (input.currency ?? 'MXN').toUpperCase()
+   923→    if (!this.isConfigured()) {
+   924→      this.log.warn({ tenantId: input.tenantId }, 'SPEI not configured — returning stub')
+   925→      return stubLocalResult(
+   926→        this.method,
+   927→        input.amount,
+   928→        currency,
+   929→        'SPEI: SPEI_BANK_CODE y SPEI_ACCOUNT_NUMBER no configurados (modo stub).',
+   930→      )
+   931→    }
+   932→
+   933→    // Generate a SPEI reference (concepto) — what the customer includes in
+   934→    // the transfer so the webhook can match it back to the order.
+   935→    const speiReference = `SPEI-${input.tenantId.slice(-6)}-${Date.now().toString(36).toUpperCase()}`
+   936→    const clabe = generateClabe(this.bankCode, this.accountNumber)
+   937→    const paymentId = speiReference
+   938→    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000) // 24h
+   939→
+   940→    // Stub mode: no API key — just return the CLABE + reference. The webhook
+   941→    // (when configured) confirms payment; otherwise polling returns pending.
+   942→    if (!this.isLive()) {
+   943→      this.log.info(
+   944→        { tenantId: input.tenantId, paymentId, clabe, amount: input.amount },
+   945→        'SPEI reference generated (stub mode — no live API key)',
+   946→      )
+   947→      return {
+   948→        success: true,
+   949→        method: this.method,
+   950→        paymentId,
+   951→        reference: paymentId,
+   952→        accountNumber: clabe,
+   953→        speiReference,
+   954→        expiresAt,
+   955→        amount: input.amount,
+   956→        currency,
+   957→        rawResponse: { clabe, speiReference, stub: true },
+   958→        message: 'SPEI: configure SPEI_API_KEY para habilitar el registro en vivo con el banco.',
+   959→      }
+   960→    }
+   961→
+   962→    // Live mode: register the expected transfer with the bank's SPEI API.
+   963→    try {
+   964→      const body = formEncode({
+   965→        bankCode: this.bankCode,
+   966→        accountNumber: this.accountNumber,
+   967→        amount: Number(input.amount.toFixed(2)),
+   968→        currency,
+   969→        reference: speiReference,
+   970→        concept: input.reference,
+   971→        expiresIn: 86400,
+   972→        ...(input.customerName ? { customerName: input.customerName } : {}),
+   973→      })
+   974→      const res = await fetchWithTimeout(`${this.apiBase}/v1/spei/orders`, {
+   975→        method: 'POST',
+   976→        headers: {
+   977→          Authorization: `Bearer ${this.apiKey}`,
+   978→          'Content-Type': 'application/x-www-form-urlencoded',
+   979→        },
+   980→        body,
+   981→      })
+   982→      const data = (await res.json()) as Record<string, unknown>
+   983→      if (!res.ok) {
+   984→        return {
+   985→          success: false,
+   986→          method: this.method,
+   987→          paymentId,
+   988→          reference: paymentId,
+   989→          amount: input.amount,
+   990→          currency,
+   991→          message: `SPEI createPayment ${res.status}: ${String((data.error as Record<string, unknown> | undefined)?.message ?? '')}`,
+   992→          rawResponse: data,
+   993→        }
+   994→      }
+   995→      const liveClabe = String(data.clabe ?? clabe)
+   996→      const liveRef = String(data.reference ?? speiReference)
+   997→      this.log.info(
+   998→        { tenantId: input.tenantId, paymentId: liveRef, amount: input.amount },
+   999→        'SPEI order registered with bank',
+  1000→      )
+  1001→      return {
+  1002→        success: true,
+  1003→        method: this.method,
+  1004→        paymentId: liveRef,
+  1005→        reference: liveRef,
+  1006→        accountNumber: liveClabe,
+  1007→        speiReference: liveRef,
+  1008→        expiresAt,
+  1009→        amount: input.amount,
+  1010→        currency,
+  1011→        rawResponse: data,
+  1012→      }
+  1013→    } catch (err) {
+  1014→      const message = err instanceof Error ? err.message : 'unknown error'
+  1015→      this.log.error({ err, tenantId: input.tenantId }, 'SPEI createPayment failed — falling back to local reference')
+  1016→      return {
+  1017→        success: true, // still success — the customer can transfer to the static CLABE
+  1018→        method: this.method,
+  1019→        paymentId,
+  1020→        reference: paymentId,
+  1021→        accountNumber: clabe,
+  1022→        speiReference,
+  1023→        expiresAt,
+  1024→        amount: input.amount,
+  1025→        currency,
+  1026→        message: `SPEI: API call failed (${message}); CLABE generated locally.`,
+  1027→        rawResponse: { clabe, speiReference, fallback: true },
+  1028→      }
+  1029→    }
+  1030→  }
+  1031→
+  1032→  async verifyPayment(paymentId: string): Promise<PaymentResult> {
+  1033→    if (!this.isConfigured()) return stubVerifyResult(this.name, 0, 'MXN')
+  1034→    if (!this.isLive()) {
+  1035→      // Stub mode — no live API, payment stays pending until webhook fires.
+  1036→      return {
+  1037→        success: false,
+  1038→        paymentId,
+  1039→        status: 'pending',
+  1040→        amount: 0,
+  1041→        currency: 'MXN',
+  1042→        message: 'SPEI: awaiting webhook confirmation (stub mode).',
+  1043→        rawResponse: { paymentId, pending: true, stub: true },
+  1044→      }
+  1045→    }
+  1046→    try {
+  1047→      const res = await fetchWithTimeout(
+  1048→        `${this.apiBase}/v1/spei/orders/${encodeURIComponent(paymentId)}`,
+  1049→        { headers: { Authorization: `Bearer ${this.apiKey}` } },
+  1050→      )
+  1051→      const data = (await res.json()) as Record<string, unknown>
+  1052→      if (!res.ok) {
+  1053→        return {
+  1054→          success: false,
+  1055→          status: 'error',
+  1056→          amount: 0,
+  1057→          currency: 'MXN',
+  1058→          message: `SPEI verify ${res.status}`,
+  1059→          rawResponse: data,
+  1060→        }
+  1061→      }
+  1062→      const statusRaw = String(data.status ?? 'unknown').toLowerCase()
+  1063→      const canonical =
+  1064→        statusRaw === 'completed' || statusRaw === 'paid'
+  1065→          ? 'approved'
+  1066→          : statusRaw === 'expired' || statusRaw === 'cancelled'
+  1067→            ? 'rejected'
+  1068→            : 'pending'
+  1069→      return {
+  1070→        success: canonical === 'approved',
+  1071→        paymentId: String(data.reference ?? paymentId),
+  1072→        status: canonical,
+  1073→        amount: Number(data.amount ?? 0),
+  1074→        currency: String(data.currency ?? 'MXN').toUpperCase(),
+  1075→        rawResponse: data,
+  1076→      }
+  1077→    } catch (err) {
+  1078→      return {
+  1079→        success: false,
+  1080→        status: 'error',
+  1081→        amount: 0,
+  1082→        currency: 'MXN',
+  1083→        message: err instanceof Error ? err.message : 'unknown error',
+  1084→      }
+  1085→    }
+  1086→  }
+  1087→
+  1088→  async webhookVerify(payload: string, signature: string): Promise<LocalWebhookVerifyResult> {
+  1089→    // SPEI webhooks: HMAC-SHA256 hex signature in `x-spei-signature` over body.
+  1090→    if (!this.webhookSecret) {
+  1091→      if (process.env.NODE_ENV === 'production') {
+  1092→        this.log.error('SPEI webhook secret not configured in production — rejecting webhook')
+  1093→        return { verified: false }
+  1094→      }
+  1095→      this.log.warn('SPEI webhook secret not configured — accepting in dev mode')
+  1096→      return { verified: true, status: 'dev-bypass' }
+  1097→    }
+  1098→    if (!signature) return { verified: false }
+  1099→    try {
+  1100→      const expected = crypto
+  1101→        .createHmac('sha256', this.webhookSecret)
+  1102→        .update(payload)
+  1103→        .digest('hex')
+  1104→      if (!safeEqual(expected, signature)) {
+  1105→        return { verified: false }
+  1106→      }
+  1107→      const data = JSON.parse(payload) as Record<string, unknown>
+  1108→      return {
+  1109→        verified: true,
+  1110→        paymentId: data.reference ? String(data.reference) : undefined,
+  1111→        status: data.status ? String(data.status) : undefined,
+  1112→      }
+  1113→    } catch {
+  1114→      return { verified: false }
+  1115→    }
+  1116→  }
+  1117→}
+  1118→
+  1119→// ─────────────────────────────────────────────────────────────────────────────
+  1120→// Registry — exports consumed by payment-registry.ts and the API route
+  1121→// ─────────────────────────────────────────────────────────────────────────────
+  1122→
+  1123→/** Adapter singletons — created lazily (no env access at module load time). */
+  1124→const adapters: Partial<Record<LocalPaymentMethod, LocalPaymentAdapter>> = {}
+  1125→
+  1126→function getAdapter(method: LocalPaymentMethod): LocalPaymentAdapter {
+  1127→  if (!adapters[method]) {
+  1128→    switch (method) {
+  1129→      case 'pse':
+  1130→        adapters[method] = new PSEAdapter()
+  1131→        break
+  1132→      case 'pix':
+  1133→        adapters[method] = new PIXAdapter()
+  1134→        break
+  1135→      case 'oxxo':
+  1136→        adapters[method] = new OXXOAdapter()
+  1137→        break
+  1138→      case 'spei':
+  1139→        adapters[method] = new SPEIAdapter()
+  1140→        break
+  1141→    }
+  1142→  }
+  1143→  return adapters[method]!
+  1144→}
+  1145→
+  1146→/**
+  1147→ * Type guard: a string is a canonical local payment method name.
+  1148→ */
+  1149→export function isLocalPaymentMethod(method: string): method is LocalPaymentMethod {
+  1150→  return (LOCAL_PAYMENT_METHODS as readonly string[]).includes(method.toLowerCase())
+  1151→}
+  1152→
+  1153→/**
+  1154→ * Factory: returns the adapter for a local payment method, or null if the
+  1155→ * method is not a known local method.
+  1156→ *
+  1157→ * @param method canonical local method name (case-insensitive)
+  1158→ */
+  1159→export function getLocalPaymentAdapter(method: LocalPaymentMethod): LocalPaymentAdapter | null {
+  1160→  if (!isLocalPaymentMethod(method)) return null
+  1161→  return getAdapter(method.toLowerCase() as LocalPaymentMethod)
+  1162→}
+  1163→
+  1164→/**
+  1165→ * Returns the local payment methods available for a country (ISO 3166-1
+  1166→ * alpha-2). PSE→CO, PIX→BR, OXXO/SPEI→MX. Unknown countries return an empty
+  1167→ * array (the caller can then offer the 4 global gateways instead).
+  1168→ *
+  1169→ * @param countryCode ISO 3166-1 alpha-2 (CO, BR, MX, ...) — case-insensitive
+  1170→ */
+  1171→export function getAvailableLocalPayments(countryCode?: string): LocalPaymentMethod[] {
+  1172→  if (!countryCode) return [...LOCAL_PAYMENT_METHODS]
+  1173→  const upper = countryCode.toUpperCase()
+  1174→  return COUNTRY_METHODS[upper] ?? []
+  1175→}
+  1176→
+  1177→// `PSE_BANKS` is already exported at its declaration site above; no
+  1178→// re-export needed here.
+  1179→
+  1180→log.debug(
+  1181→  { methods: LOCAL_PAYMENT_METHODS, countries: Object.keys(COUNTRY_METHODS) },
+  1182→  'local-payments adapter module loaded',
+  1183→)
+  1184→

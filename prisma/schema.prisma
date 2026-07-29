@@ -1,0 +1,2238 @@
+// CommerceFlow OS — Prisma Schema (v2 · multi-tenant + Saramantha agents layer)
+// Conversational Commerce + Ad Attribution + Multi-tenant Agent Platform
+// Portable: SQLite (dev) -> PostgreSQL/MySQL + pgvector (prod).
+// NOTE: SQLite has no native enums/arrays. We use String + constants in code.
+
+// ───────────────────────────────────────────────────────────────────
+// DATABASE PROVIDER — SQLite (dev) ↔ PostgreSQL (prod)
+// ───────────────────────────────────────────────────────────────────
+// The SAME schema compiles against either provider. To switch:
+//
+//   1. Edit the `datasource db` block below:
+//        dev :  provider = "sqlite"      // DATABASE_URL=file:./db/custom.db
+//        prod:  provider = "postgresql"  // DATABASE_URL=postgresql://...
+//   2. Set `DATABASE_URL` accordingly (see `.env.example`).
+//   3. Apply migrations:
+//        dev :  bun run db:push
+//        prod:  bun run db:migrate        // prisma migrate deploy
+//   4. Seed:  bunx prisma db seed
+//   5. SQLite → PostgreSQL data migration: use `pgloader` or a one-off
+//      `prisma data proxy` snapshot (see PRODUCTION-CHECKLIST.md →
+//      "PostgreSQL Migration" for the full step-by-step).
+//
+// Notes:
+//   - SQLite has no native enums/arrays — we use String + constants in code.
+//   - PostgreSQL-specific DDL (RLS policies, pgvector) lives in
+//     `prisma/migrations/1_postgres_indexes/migration.sql` — only applied
+//     when the provider is `postgresql`.
+// ───────────────────────────────────────────────────────────────────
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// SPRINT-DOCS-COMPLETE-001 — auto-generate an ERD (Entity Relationship
+// Diagram) from the Prisma schema on every `prisma generate`. Output is a
+// Mermaid-rendered SVG at `docs/erd.svg`. The path is relative to the
+// `prisma/` directory (where schema.prisma lives), so `../docs/erd.svg`
+// lands in the project's `docs/` folder. Requires `@mermaid-js/mermaid-cli`
+// (mmdc) for SVG rendering — if mmdc is unavailable (no browser), the
+// generator falls back to writing a `docs/erd.mmd` Mermaid source file that
+// can be rendered manually via `bunx mmdc -i docs/erd.mmd -o docs/erd.svg`.
+generator erd {
+  provider = "prisma-erd-generator"
+  output   = "../docs/erd.svg"
+}
+
+datasource db {
+  // Dev: "sqlite"  ·  Prod: "postgresql"
+  // (SPRINT7-POSTGRES-SERVICES-001 — keep dev on SQLite, switch only at deploy.)
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// 0. TENANT (clientes_plataforma) — multi-tenant core
+// ───────────────────────────────────────────────────────────────────────────
+model Tenant {
+  id                    String   @id @default(cuid())
+  // slug used in URLs and as tenantId foreign key value (e.g. "saramantha")
+  slug                  String   @unique
+  nombreNegocio         String
+  marca                 String
+  // platform_catalogo: whatsapp_catalog | woocommerce | shopify | catalogo_propio_cliente | catalogo_nuestro
+  plataformaCatalogo    String   @default("whatsapp_catalog")
+  // bd_catalogo: supabase_cliente | supabase_nuestro | oracle_nuestro
+  bdCatalogo            String?  @default("supabase_nuestro")
+  credencialesCatalogoRef String? // ref to n8n/secret manager
+  // proveedor_ia: chatgpt | xai | ollama | zai (default for this stack)
+  proveedorIa           String   @default("zai")
+  credencialesIaRef     String?
+  // proveedor_logistico: dropi | 99envios | aveonline | otro
+  proveedorLogistico    String   @default("dropi")
+  credencialesLogisticaRef String?
+  wabaId                String?
+  wabaTokenRef          String?
+  // brand config (regla de oro Saramantha §2: NO business data in prompts)
+  tonoMarca             String?  // e.g. "tutea, certeza total, sin disculpas"
+  nombreAsesora         String?  // e.g. "Sara"
+  politicaPago          String?  // "híbrido: prepay 5% off > $250k, COD debajo"
+  preguntaPerfil        String?  // "¿Para ti o para surtir tu negocio?"
+  // plan_monetizacion: conecta | catalogo_incluido | completo
+  planMonetizacion      String   @default("conecta")
+  feeBaseMensual        Float    @default(0) // COP
+  comisionPctInicial    Float    @default(4.5) // % over GMV (tramo 1)
+  activo                Boolean  @default(true)
+  // ── SPRINT-MULTICOUNTRY-001 — LATAM expansion (study §18) ──
+  // ISO 3166-1 alpha-2 country code — drives currency, tax, and local payment
+  // method availability (PSE/CO, PIX/BR, OXXO+SPEI/MX). Default CO (home market).
+  countryCode           String   @default("CO")
+  // ISO 4217 currency code — COP/MXN/BRL/USD/PEN/CLP/ARS. Default COP.
+  currency              String   @default("COP")
+  // ── AUDIT-FINTECH R-8 — DIAN emitter NIT (Decreto 745 de 2014) ──
+  // The tenant's tax ID (NIT in Colombia, RFC in Mexico, CPF/CNPJ in Brazil).
+  // Used as the `emitterNit` in `generateDianInvoice()`. Required for DIAN
+  // electronic invoicing in production — `generateDianInvoice()` throws if
+  // this is null/empty AND `NODE_ENV=production` (fail-loud rather than emit
+  // an invalid CUFE). Optional in dev so the local sandbox still works.
+  nit                   String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  users                 User[]
+  channels              Channel[]
+  customers             Customer[]
+  conversations         Conversation[]
+  products              Product[]
+  orders                Order[]
+  campaigns             Campaign[]
+  carriers              Carrier[] // tenant-scoped canonical carriers
+  salesSpeeches         SalesSpeech[]
+  objections            Objection[]
+  themes                ThemeDesign[]
+  categoryCombos        CategoryCombo[]
+  volumePrices          VolumePrice[]
+  deliveryHistories     DeliveryHistory[]
+  shipments             Shipment[]
+  commissionEntries     CommissionEntry[]
+  invoices              Invoice[]
+  auditLogs             AuditLog[]
+  // ── AP2/UCP/Ley 2573/1581 — SPRINT-AGENTIC-PROTOCOLS-001 ──
+  ap2Mandates            AP2Mandate[]
+  ucpCheckoutSessions    UcpCheckoutSession[]
+  identityVerifications  IdentityVerification[]
+  consentRecords         ConsentRecord[]
+  // ── SPRINT-FINANCE-META-001 — Channel cost tracking (study §14.1) ──
+  channelCosts           ChannelCost[]
+  // ── Governance — SPRINT-GOVERNANCE-001 ──
+  decisionLogs           DecisionLog[]
+  // ── IA-2 (agent-hardening) — token usage ledger for cost control ──
+  tokenUsages            TokenUsage[]
+  // ── IA-1 (agent-builder) — long-term customer memory (Memory Curator) ──
+  customerMemories       CustomerMemory[]
+  // ── SPRINT-SCHEMA-CLEANUP-001 — wire 30 orphan models (AUDIT-FINAL-ARCH-001) ──
+  // Previously these 30 models carried a `tenantId` scalar + `@@index([tenantId])`
+  // but no `tenant Tenant @relation(...)`, which broke cascade delete + Prisma
+  // `include` traversal. Reverse relations grouped here for discoverability.
+  messages               Message[]
+  imageIdentifications   ImageIdentification[]
+  customerScores         CustomerScore[]
+  carrierScores          CarrierScore[]
+  guideTrackings         GuideTracking[]
+  guideMovements         GuideMovement[]
+  buyerBehaviors         BuyerBehavior[]
+  behaviorAlerts         BehaviorAlert[]
+  conversationalCarts    ConversationalCart[]
+  novedadCases           NovedadCase[]
+  redeliveryRequests     RedeliveryRequest[]
+  productEnrichments     ProductEnrichment[]
+  traffickerCampaigns    TraffickerCampaign[]
+  traffickerSales        TraffickerSale[]
+  traffickerCompensations TraffickerCompensation[]
+  marketplaceListings    MarketplaceListing[]
+  leadShareConfig        LeadShareConfig? // 1:1 — tenantId is @unique on LeadShareConfig
+  leadReferralsFrom      LeadReferral[]  @relation("LeadReferralFrom")
+  leadReferralsTo        LeadReferral[]  @relation("LeadReferralTo")
+  pixelConfigs           PixelConfig[]
+  conversionEvents       ConversionEvent[]
+  seoConfigs             SEOConfig[]
+  geoTargets             GeoTarget[]
+  remarketingCampaigns   RemarketingCampaign[]
+  remarketingMessages    RemarketingMessage[]
+  customerNotifications  CustomerNotification[]
+  automationRules        AutomationRule[]   // tenantId is nullable on AutomationRule
+  walletAccounts         WalletAccount[]    // tenantId is nullable on WalletAccount
+  walletTransactions     WalletTransaction[] // tenantId is nullable on WalletTransaction
+  withdrawalRequests     WithdrawalRequest[] // tenantId is nullable on WithdrawalRequest
+  twoFactorConfigs       TwoFactorConfig?  // 1:1 — tenantId is @unique on TwoFactorConfig
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// 1. IDENTITY & ACCESS
+// ───────────────────────────────────────────────────────────────────────────
+model User {
+  id        String   @id @default(cuid())
+  // tenantId is optional: platform-level users (e.g. trafficker, finance, operator)
+  // do not belong to a single tenant.
+  tenantId  String?
+  email     String   @unique
+  name      String
+  role      String   @default("agent") // admin | agent | trafficker | finance | operator | marketing
+  avatarUrl String?
+  // ── Auth (NextAuth v4 Credentials provider) ──
+  passwordHash String?
+  status       String   @default("active") // active | suspended | invited
+  lastLoginAt  DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant        Tenant?          @relation(fields: [tenantId], references: [id])
+  assignedConv  Conversation[]   @relation("AgentConvos")
+  auditLogs     AuditLog[]
+
+  // FIX-PEND-DB-QUEUES-001 — partial-index gap (AUDIT-GAP-4-DB).
+  // Hot paths: tenant member list (tenantId), login lookup (email — already
+  // @unique but explicit @@index follows the Trafficker.email convention).
+  @@index([tenantId])
+  @@index([email])
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// 2. CHANNELS — WhatsApp (CO primary), Messenger (intl), Instagram DM
+// ───────────────────────────────────────────────────────────────────────────
+model Channel {
+  id           String   @id @default(cuid())
+  tenantId     String
+  type         String   // whatsapp | messenger | instagram | telegram
+  name         String   // e.g. "WhatsApp Colombia", "Messenger Global"
+  displayName  String
+  accountId    String?
+  verified     Boolean  @default(false)
+  active       Boolean  @default(true)
+  country      String?  // ISO code this channel primarily serves
+  paymentStrategy String @default("hybrid")
+  requirePrepayMin  Float?
+  prepayDiscountPct  Float? @default(0)
+  codFee            Float?  @default(0)
+
+  // ── Credenciales por tipo de canal (Saramantha §9.1, §9.2, §9.3) ──
+  // WhatsApp Cloud API (§9.1)
+  wabaId            String?  // WhatsApp Business Account ID
+  phoneNumberId     String?  // Phone Number ID from Meta
+  whatsappToken     String?  // Access token for WhatsApp Cloud API
+  // Messenger (§9.2)
+  pageId            String?  // Facebook Page ID
+  pageAccessToken   String?  // Page Access Token
+  // Instagram DM (§9.3)
+  igAccountId       String?  // Instagram Business Account ID
+  // Webhook security (all channels)
+  verifyToken       String?  // Webhook verification token
+  appSecret         String?  // App Secret for HMAC signature verification
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  tenant        Tenant        @relation(fields: [tenantId], references: [id])
+  conversations Conversation[]
+
+  // FIX-PEND-DB-QUEUES-001 — partial-index gap (AUDIT-GAP-4-DB).
+  // Hot paths: tenant channel list (tenantId), channel-type filtering
+  // (whatsapp | messenger | instagram | telegram), active-only toggles.
+  @@index([tenantId])
+  @@index([type])
+  @@index([active])
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// 3. CUSTOMERS / CONTACTS
+// ───────────────────────────────────────────────────────────────────────────
+model Customer {
+  id          String   @id @default(cuid())
+  tenantId    String
+  name        String
+  phone       String?
+  psid        String?
+  igId        String?
+  email       String?
+  country     String?
+  city        String?
+  address     String?
+  // ── AUDIT-FINTECH R-8 — customer tax ID for DIAN invoicing ──
+  // Colombia: NIT or cédula (for natural persons). Brazil: CPF/CNPJ.
+  // Mexico: RFC. Used as `receiverNit` in `generateDianInvoice()`. When
+  // null/empty, the invoice falls back to the standard DIAN placeholder
+  // `222222222` (consumeridor final / unregistered consumer) per Resolución
+  // DIAN 165 de 2023 — NOT the customer email (the previous broken behaviour).
+  documentNumber String?
+  // Saramantha §2: perfil_detectado
+  perfilDetectado String? // mayorista | emprendedor | detal | regalo
+  notes       String?
+  tags        String?
+  lifetimeValue Float  @default(0)
+  ordersCount  Int     @default(0)
+  // FIX-LEGAL-P0-001 L-4 — Ley 1098 de 2006 (Código de la Infancia y
+  // Adolescencia) Art 17. `birthDate` is set when KYC or the storefront
+  // collects it; `isMinor` is a denormalized flag derived from `birthDate`
+  // by `checkAgeGate()` so the consent / checkout gates don't have to
+  // re-compute the age on every read. NULL `isMinor` means "unknown —
+  // assume adult but flag for verification" (per the age-gate policy).
+  birthDate         DateTime?
+  isMinor           Boolean?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant        Tenant         @relation(fields: [tenantId], references: [id])
+  conversations Conversation[]
+  orders        Order[]
+
+  // FIX-PEND-DB-QUEUES-001 — partial-index gap (AUDIT-GAP-4-DB).
+  // Hot paths: tenant customer list (tenantId), email/phone customer lookup
+  // (both fields are optional String? — indexing NULLs is cheap in PG/SQLite
+  // and supports the customer-merge feature that finds dupes by phone/email).
+  // FIX-LEGAL-P0-001 L-4 — `isMinor` index for fast lookup of minors.
+  @@index([tenantId])
+  @@index([email])
+  @@index([phone])
+  @@index([isMinor])
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// IA-1 — Customer Memory (long-term facts extracted by the Memory Curator agent)
+// ───────────────────────────────────────────────────────────────────────────
+// Async-extracted structured facts from each conversation turn: customer
+// preferences, past purchases, objections raised, budget, brand affinity,
+// communication style. Persisted with embeddings so the agent layer can do
+// semantic recall ("what do I know about this customer that's relevant to
+// THIS question?") without re-reading the whole conversation history.
+//
+// Embedding portability:
+//   - dev (SQLite)  : `embedding` stored as `Bytes?` (Float32 array — same
+//                     pattern as `Product.embeddingTexto` / `Message.embedding`).
+//   - prod (PG)     : migrate the column to `vector(1536)` via the script in
+//                     `prisma/sql/pgvector-setup.sql` (HNSW cosine index).
+//                     The application code in `src/lib/agents/memory-curator.service.ts`
+//                     uses `src/lib/embeddings/service.ts` which is already
+//                     portable (Buffer ↔ vector).
+// ───────────────────────────────────────────────────────────────────────────
+model CustomerMemory {
+  id            String   @id @default(cuid())
+  tenantId      String
+  customerId    String
+  // type categorizes the fact for fast filtering / scoring UI.
+  //   preference     — preferred payment, size, color, channel
+  //   purchase_history — past SKU / category / quantity bought
+  //   objection      — objection raised (price, shipping, competitor)
+  //   budget         — stated budget ceiling
+  //   brand          — favorite brand / brand aversion
+  //   style          — communication style (formal/casual, emoji usage, language)
+  //   other          — anything else worth remembering
+  type          String
+  // key is the canonical attribute name, e.g. "preferred_payment", "size",
+  // "favorite_brand", "objection_price". Used to dedup/upsert by (tenant,
+  // customer, type, key).
+  key           String
+  // value is the extracted value as a plain string (multi-line allowed).
+  value         String
+  // confidence 0-1 reported by the curator LLM (how sure it is that this
+  // fact was actually stated vs inferred). Stored for surfacing + audit.
+  confidence    Float    @default(0.8)
+  // extractedFrom is the conversationId where the fact was learned (audit
+  // trail — lets a human reviewer open the source conversation).
+  extractedFrom String?
+  // embeddingTexto (Bytes in SQLite, vector(1536) in PG) — semantic search
+  // key so the agent layer can recall "facts relevant to this question".
+  embeddingTexto Bytes?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  tenant        Tenant   @relation(fields: [tenantId], references: [id])
+
+  // Hot paths:
+  //   - recall-by-customer: WHERE tenantId+customerId ORDER BY updatedAt
+  //   - filter-by-type    : WHERE tenantId+customerId+type
+  //   - dedup-upsert      : lookup by (tenantId, customerId, type, key)
+  @@index([tenantId, customerId])
+  @@index([tenantId, customerId, type])
+  @@index([tenantId, customerId, type, key])
+  @@map("customer_memory")
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// 4. CONVERSATIONS & MESSAGES
+// ───────────────────────────────────────────────────────────────────────────
+model Conversation {
+  id          String   @id @default(cuid())
+  tenantId    String
+  customerId  String
+  channelId   String
+  status      String   @default("open") // open | pending | resolved | closed
+  priority    String   @default("normal")
+  assigneeId  String?
+  lastMessageAt DateTime @default(now())
+  unreadCount Int      @default(0)
+  sourceAdId      String?
+  sourceCampaign  String?
+  utm             String?
+  // Saramantha §2: perfil determinado en la conversación
+  perfilConversacion String? // mayorista | emprendedor | detal | regalo
+  // SPRINT-WHATSAPP-FUNCTIONAL-001 — CTWA click_id capture + TTR tracking.
+  // `clickId` stores the WhatsApp Click-to-WhatsApp-Ad (CTWA) click id
+  // extracted from inbound message `context.referral.ctwa_click_id` /
+  // `context.cta_url?cta_id=...`. Persisted at the conversation level so
+  // orders created from this conversation inherit it for closed-loop CAPI
+  // attribution (study §14.4).
+  // `customerPhone` is a denormalized E.164 phone used by the WA webhook to
+  // resolve or create a conversation by phone without first joining to
+  // `Customer` (which may not exist yet for first-time leads).
+  // `firstReplyAt` records the timestamp of the first outbound agent reply,
+  // enabling First Response Time (TTR) analytics (study §14.4: conversion
+  // drops >50% if no reply in 15–30 min).
+  clickId          String?
+  customerPhone    String?
+  firstReplyAt     DateTime?
+  // SPRINT-AI-FINAL-002 §1 — pipeline memory del orchestrator persistida
+  // entre invocaciones. JSON array de { role, content } con los outputs de
+  // los 9 agentes del pipeline (etiquetados `[stepId/agentName]`). Se
+  // persiste al final de `action='full'` en `/api/orchestrate` (últimas 30
+  // entradas) y se carga al inicio del handler para dar continuidad entre
+  // turnos de conversaciones multi-turno (el cliente responde al resultado
+  // del pipeline y se corre un sub-pipeline con contexto del anterior).
+  pipelineMemory   String?
+  // GAP-FIX-1: Human takeover — when false, the AI bot is paused for this
+  // conversation and inbound messages are NOT processed by the agent pipeline.
+  // A human agent (assigneeId) takes over. The bot resumes when set back to true.
+  // This is the "pause bot / take control" feature that the conversational
+  // commerce market expects (Kommo, SleekFlow, Tecca all have it).
+  botEnabled       Boolean  @default(true)
+  // When botEnabled was toggled to false, record who paused it + when.
+  pausedAt         DateTime?
+  pausedBy         String? // userId of the human who paused the bot
+  pausedReason     String? // 'human_takeover' | 'customer_request' | 'maintenance' | 'manual'
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant      Tenant @relation(fields: [tenantId], references: [id])
+  customer    Customer @relation(fields: [customerId], references: [id])
+  channel     Channel  @relation(fields: [channelId], references: [id])
+  assignee    User?    @relation("AgentConvos", fields: [assigneeId], references: [id])
+  messages    Message[]
+  orders      Order[]
+
+  // FIX-1-DB-001 — previously zero @@index (most-read table in the app).
+  // Hot paths: messenger inbox (tenantId + status + lastMessageAt DESC),
+  // agent assignment dashboard (assigneeId), per-tenant scoping (tenantId).
+  // SPRINT-WHATSAPP-FUNCTIONAL-001 — (tenantId, customerPhone, status) for
+  // the WA webhook's open-conversation lookup by E.164 phone.
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@index([tenantId, lastMessageAt])
+  @@index([assigneeId])
+  @@index([tenantId, customerPhone, status])
+}
+
+model Message {
+  id             String   @id @default(cuid())
+  tenantId       String
+  conversationId String
+  direction      String   // inbound | outbound
+  body           String
+  type           String   @default("text") // text | image | audio | template | order_card | payment_link
+  mediaUrl       String?
+  status         String   @default("sent")
+  aiSuggested    Boolean  @default(false)
+  aiConfidence   Float?
+  // SPRINT-WHATSAPP-FUNCTIONAL-001 — WhatsApp Cloud API message ID for
+  // deduplication of inbound webhooks (Meta retries up to ~24h) and for
+  // `markMessageRead` calls. NULL for messages from channels without a
+  // native message ID (e.g. simulated chat-service replies).
+  waMessageId    String?
+  // Saramantha §3: embedding for semantic memory (Bytes in SQLite, vector in PG)
+  embedding      Bytes?
+  createdAt      DateTime @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  tenant        Tenant       @relation(fields: [tenantId], references: [id])
+
+  // FIX-1-DB-001 — previously zero @@index (timeline + tenant isolation).
+  // Hot paths: message timeline per conversation (conversationId + createdAt),
+  // tenant-scoped scans (tenantId), sender-role analytics (direction).
+  // SPRINT-WHATSAPP-FUNCTIONAL-001 — waMessageId index for inbound webhook
+  // dedup queries (Meta retries up to ~24h).
+  @@index([conversationId])
+  @@index([conversationId, createdAt])
+  @@index([tenantId])
+  @@index([direction])
+  @@index([waMessageId])
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// 5. CATALOG & ORDERS
+// ───────────────────────────────────────────────────────────────────────────
+model Product {
+  id          String   @id @default(cuid())
+  tenantId    String
+  sku         String
+  name        String
+  description String?
+  price       Float
+  cost        Float    @default(0)
+  imageUrl    String?
+  stock       Int      @default(0)
+  active      Boolean  @default(true)
+  // Saramantha §2: design + theme
+  diseno      String?  // e.g. "Stitch", "Hello Kitty"
+  categoria   String?  // e.g. "familia", "short", "pantalon", "batola"
+  // Saramantha §2: image with visible metadata stripe
+  imagenMetadataVisible Boolean @default(true)
+  fuenteSincronizacion  String? // whatsapp_catalog | woocommerce | shopify | supabase_cliente | supabase_nuestro | oracle_nuestro
+  // ── SPRINT-MULTICOUNTRY-001 — LATAM expansion (study §18) ──
+  // ISO 4217 currency code for the `price` field. Defaults to COP (home market).
+  // A tenant's products can be priced in the tenant's `currency`.
+  currency              String   @default("COP")
+  // embeddings (Bytes in SQLite; in PG use vector type via Unsupported)
+  embeddingTexto Bytes?
+  embeddingVisual Bytes?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant      Tenant     @relation(fields: [tenantId], references: [id])
+  orderItems  OrderItem[]
+  volumePrices VolumePrice[]
+
+  @@unique([tenantId, sku])
+
+  // FIX-PEND-DB-QUEUES-001 — partial-index gap (AUDIT-GAP-4-DB).
+  // The composite @@unique([tenantId, sku]) already serves (tenantId, sku)
+  // and (tenantId) prefix queries, but an explicit @@index([tenantId]) keeps
+  // the query planner honest for tenant-only product scans (catalog view).
+  // `sku` alone is NOT indexed — cross-tenant sku lookups don't happen.
+  @@index([tenantId])
+}
+
+model Order {
+  id           String   @id @default(cuid())
+  tenantId     String
+  number       String   @unique
+  customerId   String
+  conversationId String?
+  channelId    String?
+  status       String   @default("new")
+  // pending_payment | paid | preparing | shipped | delivered | returned | cancelled
+  // Saramantha §10 Kanban: "Llamar para confirmar" | "Datos completados" | "Intento cancelación" | "Oficina" | "Programado" | "Despachado"
+  paymentMode  String   // advance | cod | hybrid
+  paymentStatus String  @default("unpaid")
+  subtotal     Float
+  discount     Float    @default(0)
+  shipping     Float    @default(0)
+  codFee       Float    @default(0)
+  total        Float
+  currency     String   @default("COP")
+  // ── SPRINT-MULTICOUNTRY-001 — LATAM expansion (study §18) ──
+  // ISO 3166-1 alpha-2 country code for this order's buyer (nullable for
+  // legacy orders placed before the multi-country rollout). Drives the tax
+  // computation — `taxBreakdown` JSON is the authoritative output of
+  // `calculateTax()` for the order's items + shipping + countryCode.
+  countryCode  String?
+  taxAmount    Float    @default(0) // total tax (VAT/IGV/ICMS) charged on this order
+  taxBreakdown String?  // JSON — full TaxBreakdown (subtotal, taxRate, exemptItems, ...)
+  country      String?
+  city         String?
+  address      String?
+  // Saramantha §2: imagen_referencia_url
+  imagenReferenciaUrl String?
+  // Saramantha §2: origen (CRITICAL for monetization §17.6)
+  origen       String   @default("agente_whatsapp") // agente_whatsapp | carrito_web | otro
+  sourceAdId       String?
+  sourceCampaign   String?
+  sourcePlatform   String?
+  clickId          String?
+  attributedAt     DateTime?
+  paymentGateway   String?
+  paymentRef       String?
+  paidAt           DateTime?
+  // ── SPRINT-DIAN-RETRACTO-001 · P1-2 — Derecho al retracto (Ley 1480 de
+  // 2011 Art 47) — 5 calendar days cooling-off period for online purchases.
+  // Set at order creation; `processRetracto()` enforces the window.
+  retractoWindowUntil DateTime?
+  // ── SPRINT-DIAN-RETRACTO-001 · cancellation metadata ──
+  // `cancelReason` stores the consumer-supplied or system reason for the
+  // cancellation (retracto, fraud, out-of-stock, etc.); `cancelledAt` is
+  // the timestamp so retention + reporting can compute cancellation latency.
+  cancelReason     String?
+  cancelledAt      DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  tenant      Tenant       @relation(fields: [tenantId], references: [id])
+  customer      Customer     @relation(fields: [customerId], references: [id])
+  conversation  Conversation? @relation(fields: [conversationId], references: [id])
+  sourceAd      Ad?           @relation(fields: [sourceAdId], references: [id])
+  items         OrderItem[]
+  events        OrderEvent[]
+  shipments     Shipment[]
+  commissionEntries CommissionEntry[]
+  refunds         Refund[]
+
+  // FIX-1-DB-001 — previously zero @@index (KPIs, kanban, attribution, webhooks).
+  // Hot paths: kanban (tenantId + status), KPI time series (tenantId + createdAt),
+  // customer history (customerId), payment webhook lookup (paymentStatus).
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@index([tenantId, createdAt])
+  @@index([customerId])
+  @@index([paymentStatus])
+}
+
+model OrderItem {
+  id        String @id @default(cuid())
+  orderId   String
+  productId String
+  name      String
+  unitPrice Float
+  cost      Float
+  quantity  Int
+  diseno    String? // Saramantha: design variant per item
+
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+
+  // FIX-1-DB-001 — previously zero @@index (every order detail + COGS calc).
+  @@index([orderId])
+  @@index([productId])
+}
+
+model OrderEvent {
+  id        String   @id @default(cuid())
+  orderId   String
+  type      String   // created | paid | shipped | delivered | cancelled | refunded | cod_pending
+  note      String?
+  createdAt DateTime @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  // FIX-1-DB-001 — previously zero @@index (order audit timeline).
+  // Hot paths: order event timeline (orderId + createdAt), event funnel (type).
+  @@index([orderId])
+  @@index([orderId, createdAt])
+  @@index([type])
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// 5.1 Saramantha §2 — pricing & discourse tables (per tenant)
+// ───────────────────────────────────────────────────────────────────────────
+model VolumePrice {
+  id           String @id @default(cuid())
+  tenantId     String
+  productId    String
+  sku          String // denormalized for convenience
+  tipoCliente  String // mayorista | emprendedor | detal | regalo
+  cantidadMinima Int
+  cantidadMaxima Int
+  precioUnitario Float
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+
+  @@unique([tenantId, productId, tipoCliente, cantidadMinima])
+}
+
+model SalesSpeech {
+  id           String @id @default(cuid())
+  tenantId     String
+  perfil       String // mayorista | emprendedor | detal | regalo
+  aperturaTexto String
+  pruebaSocial String?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, perfil])
+}
+
+model Objection {
+  id           String @id @default(cuid())
+  tenantId     String
+  tipoObjecion String // desconfianza | precio | talla | lo_pienso | producto_no_disponible
+  respuestaBase String
+  gatilloMentalAsociado String?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, tipoObjecion])
+}
+
+model ThemeDesign {
+  id           String @id @default(cuid())
+  tenantId     String
+  tema         String // "Stitch", "Hello Kitty"
+  nombreDiseno String?
+  skusAsociados String // comma-separated SKUs (SQLite no arrays)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, tema])
+}
+
+model CategoryCombo {
+  id           String @id @default(cuid())
+  tenantId     String
+  categoria    String // "familia", "short", etc.
+  skusRecomendados String // comma-separated, min 3 distinct refs
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, categoria])
+}
+
+model DeliveryHistory {
+  id           String @id @default(cuid())
+  tenantId     String
+  contactoId   String?
+  direccionNormalizada String
+  ciudad       String
+  departamento String?
+  resultadoEntregaAnterior String? // ok | rechazo | novedad
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  // SPRINT-SCHEMA-CLEANUP-001 — previously zero @@index (AUDIT-FINAL-ARCH-001).
+  // Hot paths: tenant delivery history (tenantId), city distribution (ciudad),
+  // prior-outcome filtering for carrier scoring (resultadoEntregaAnterior).
+  // Note: model has no `createdAt` or `guideNumber` field — those indexes from
+  // the task spec were skipped (fields don't exist).
+  @@index([tenantId])
+  @@index([ciudad])
+  @@index([resultadoEntregaAnterior])
+}
+
+model ImageIdentification {
+  id           String @id @default(cuid())
+  tenantId     String
+  contactoId   String?
+  imagenUrl    String
+  skuDetectado String?
+  metodo       String // ocr | openclip | vlm | manual
+  confianza    Float  @default(0)
+
+  createdAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  // SPRINT-SCHEMA-CLEANUP-001 — previously zero @@index (AUDIT-FINAL-ARCH-001).
+  // Hot paths: tenant image-id history (tenantId), SKU lookup (skuDetectado),
+  // recent-identifications timeline (createdAt). Note: model has no `productId`
+  // field — that index from the task spec was skipped.
+  @@index([tenantId])
+  @@index([createdAt])
+  @@index([skuDetectado])
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// 6. AD ATTRIBUTION & PERFORMANCE
+// ───────────────────────────────────────────────────────────────────────────
+model AdPlatform {
+  id          String  @id @default(cuid())
+  name        String  @unique
+  displayName String
+  accountId   String?
+  accessToken String?
+  active      Boolean @default(true)
+  createdAt   DateTime @default(now())
+
+  campaigns Campaign[]
+}
+
+model Campaign {
+  id          String   @id @default(cuid())
+  tenantId    String
+  platformId  String
+  externalId  String
+  name        String
+  objective   String?
+  budgetDaily Float?
+  currency    String   @default("COP")
+  status      String   @default("active")
+  country     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant   Tenant      @relation(fields: [tenantId], references: [id])
+  platform AdPlatform  @relation(fields: [platformId], references: [id])
+  ads      Ad[]
+
+  // FIX-PEND-DB-QUEUES-001 — partial-index gap (AUDIT-GAP-4-DB).
+  // Hot paths: tenant campaign list (tenantId), status filtering (active |
+  // paused | archived). `traffickerId` does NOT exist on Campaign (it lives
+  // on TraffickerCampaign) — skip per task spec.
+  @@index([tenantId])
+  @@index([status])
+}
+
+model Ad {
+  id           String   @id @default(cuid())
+  campaignId   String
+  externalId   String   @unique
+  name         String
+  creative     String?
+  status       String   @default("active")
+  autoKill     Boolean  @default(false)
+  killReason   String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  campaign    Campaign     @relation(fields: [campaignId], references: [id])
+  spend       AdSpend[]
+  attributions Attribution[]
+  orders      Order[]
+
+  // FIX-PEND-DB-QUEUES-001 — partial-index gap (AUDIT-GAP-4-DB).
+  // Ad has no tenantId (tenant-scoped via Campaign.campaignId). Index the FK
+  // (campaignId), auto-kill status sweep (status), and externalId (already
+  // @unique but explicit @@index follows the Trafficker.email convention so
+  // ad-platform sync lookups hit an index even after the unique constraint
+  // is dropped in a future schema migration).
+  @@index([campaignId])
+  @@index([status])
+  @@index([externalId])
+}
+
+model AdSpend {
+  id        String   @id @default(cuid())
+  adId      String
+  date      DateTime
+  spend     Float
+  impressions Int
+  clicks    Int
+  convReported Int    @default(0)
+  createdAt DateTime @default(now())
+
+  ad Ad @relation(fields: [adId], references: [id], onDelete: Cascade)
+
+  @@unique([adId, date])
+}
+
+model Attribution {
+  id        String   @id @default(cuid())
+  orderId   String
+  adId      String
+  weight    Float    @default(1.0)
+  model     String   @default("last_click")
+  touch     String?
+  createdAt DateTime @default(now())
+
+  ad Ad @relation(fields: [adId], references: [id])
+
+  // FIX-1-DB-001 — closes race that allowed duplicate attribution rows per
+  // (order, ad, model). Adds the missing composite unique + adId FK index.
+  @@unique([orderId, adId, model])
+  @@index([adId])
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// 7. LOGISTICS — LogisticsAdapter backing tables (Saramantha §2, §8.6)
+// ───────────────────────────────────────────────────────────────────────────
+model Carrier {
+  // Canonical carrier names per tenant — normalizes the 6 variants of "Interrapidísimo"
+  id         String @id @default(cuid())
+  tenantId   String
+  nombreCanonico   String // "Interrapidísimo"
+  variantes         String // comma-separated: "Interrapidisimo,interrapidisimo,Interrapidicimo,..."
+  cobertura         String @default("nacional") // nacional | internacional
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, nombreCanonico])
+}
+
+model Shipment {
+  id              String @id @default(cuid())
+  tenantId        String
+  orderId         String
+  proveedor       String // dropi | 99envios | aveonline
+  numeroGuia      String?
+  urlSeguimiento  String?
+  transportadora  String? // raw from provider
+  transportadoraCanonica String? // normalized via Carrier
+  tarifa          Float @default(0)
+  tiempoEstimadoDias Int?
+  estado          String @default("generada") // generada | en_transito | entregada | novedad | devuelta
+  novedad         String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  order  Order  @relation(fields: [orderId], references: [id])
+
+  // FIX-1-DB-001 — previously zero @@index (guide tracking queries).
+  // Hot paths: tenant shipment list (tenantId), order shipment lookup (orderId),
+  // estado funnel (estado), carrier scoring (transportadoraCanonica),
+  // guide-number search (numeroGuia).
+  @@index([tenantId])
+  @@index([orderId])
+  @@index([estado])
+  @@index([transportadoraCanonica])
+  @@index([numeroGuia])
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// 8. MONETIZATION (Saramantha §17) — commission over GMV
+// ───────────────────────────────────────────────────────────────────────────
+model CommissionEntry {
+  id              String @id @default(cuid())
+  tenantId        String
+  orderId         String
+  gmv             Float // order.total at confirmation
+  comisionPct     Float // e.g. 4.5
+  comisionTotal   Float // gmv * pct / 100
+  reconocidaPct   Float @default(50) // 50 at "Datos completados", 100 at "Despachado"
+  reconocidaMonto Float // comisionTotal * reconocidaPct / 100
+  etapaReconocimiento String? // datos_completados | despachado
+  reconocidaAt    DateTime?
+  createdAt       DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  order  Order  @relation(fields: [orderId], references: [id])
+
+  // FIX-1-DB-001 — previously zero @@index (GMV aggregation joins).
+  // `orderId @unique` closes the findFirst+update/create race in
+  // /api/monetization/commission POST (two concurrent requests could both
+  // pass findFirst==null and both create, leaving duplicate entries per order).
+  @@unique([orderId])
+  @@index([tenantId])
+  @@index([etapaReconocimiento])
+}
+
+model Invoice {
+  id              String @id @default(cuid())
+  tenantId        String
+  periodo         String // "2026-07"
+  gmvTotal        Float
+  feeBase         Float
+  comisionTotal   Float
+  tramoAplicado   String // "0-10M" | "10-40M" | "40M+"
+  total           Float // feeBase + comisionTotal
+  estado          String @default("borrador") // borrador | emitida | pagada
+  emitidaAt       DateTime?
+  pagadaAt        DateTime?
+  createdAt       DateTime @default(now())
+
+  // ── SPRINT-DIAN-RETRACTO-001 · P1-1 — DIAN electronic invoicing
+  // (Decreto 745 de 2014). The existing fields above model the SaaS platform
+  // billing invoice (commission over GMV per tenant per period — `periodo`
+  // is the natural key). The fields below model the customer-facing DIAN
+  // factura electrónica: each non-null `orderId` row is a separate invoice
+  // for a customer's order. The two uses coexist on the same model —
+  // platform-billing rows have `periodo` set + `orderId IS NULL`, while
+  // DIAN customer-facing rows have `orderId` set + `periodo = ''`.
+  // Future refactor: split into `PlatformInvoice` + `DianInvoice`.
+  orderId          String? @unique // customer Order this DIAN invoice covers
+  invoiceNumber    String? // consecutivo (e.g. "SETP-0001") — DIAN numeración
+  cufe             String? // Código Único de Factura Electrónica (SHA-384)
+  dianStatus       String? @default("pending") // "pending" | "pending_submission" | "accepted" | "rejected" | "error"
+  dianValidationUrl String? // DIAN public validation URL (QR target)
+  amount           Float? // total amount the invoice is for (DIAN total)
+  issuedAt         DateTime? // when the DIAN invoice was generated
+  metadata         String? // JSON — full DianInvoiceData payload for replay/PDF
+  // ── AUDIT-FINTECH R-8 — DIAN submission retry tracking ──
+  // Incremented every time `retryPendingDianInvoices()` attempts to
+  // re-submit a `pending_submission` invoice via Alegra + the attempt fails.
+  // After `MAX_DIAN_RETRIES` (5) attempts the invoice is marked
+  // `dianStatus='failed'` + an `AuditLog` row is created for manual review.
+  // `dianLastError` captures the most recent error message for diagnostics.
+  dianRetryCount   Int      @default(0)
+  dianLastError    String?
+  // AUDIT-FINTECH N-8 — `updatedAt` is used by `retryPendingDianInvoices()`
+  // to apply exponential backoff: an invoice is only re-attempted once
+  // `now() - updatedAt > backoff(dianRetryCount)` (5min, 10min, 20min, 40min,
+  // 80min, ... capped at 1440 min / 24h). Without this column every retry
+  // run would re-attempt all 50 oldest pending invoices in quick succession
+  // (~25 min) when Alegra is down, wasting requests + Alegra quota.
+  updatedAt        DateTime @default(now()) @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  // FIX-1-DB-001 — previously zero @@index (billing/invoicing queries).
+  // Hot paths: tenant invoice list (tenantId), monthly period lookup
+  // (tenantId + periodo), status funnel (estado), time series (createdAt).
+  @@index([tenantId])
+  @@index([tenantId, periodo])
+  @@index([estado])
+  @@index([createdAt])
+  @@index([dianStatus])
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// 9. AUTOMATION & SETTINGS
+// ───────────────────────────────────────────────────────────────────────────
+model AutomationRule {
+  id        String   @id @default(cuid())
+  tenantId  String?
+  name      String
+  trigger   String   // new_conversation | keyword | order_created | ad_underperforming
+  condition String?
+  action    String   // auto_reply | tag | assign | pause_ad | notify
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id])
+
+  // SPRINT-SCHEMA-CLEANUP-001 — previously zero @@index (AUDIT-FINAL-ARCH-001).
+  // Hot paths: tenant automation list (tenantId), active-only toggle (active),
+  // trigger-type filtering (trigger).
+  @@index([tenantId])
+  @@index([active])
+  @@index([trigger])
+}
+
+model Setting {
+  id    String @id @default(cuid())
+  key   String @unique
+  value String
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  tenantId  String?
+  userId    String?
+  action    String
+  entity    String
+  entityId  String?
+  metadata  String?
+  createdAt DateTime @default(now())
+
+  // Verifiable Intent compatibility — Documento §11:
+  // "Registro auditable compatible con Verifiable Intent".
+  // Cada fila puede ser firmada como W3C VC con la keypair del tenant.
+  // SPRINT-PROTOCOLS-TRINITY-001.
+  proofHash        String?  // SHA-256 del payload firmado (canonical JSON del credentialSubject)
+  proofSignature   String?  // ed25519 signature (base64url) — proof.proofValue del VC
+  credentialSchema String?  // URI del W3C VC schema (ej: https://ziay.co/schemas/audit-log-v1.json)
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id])
+  user   User?   @relation(fields: [userId], references: [id])
+
+  // FIX-1-DB-001 — previously zero @@index (append-only, grows fastest).
+  // Hot paths: tenant audit trail (tenantId + createdAt DESC), user activity
+  // (userId), action funnel (action), time-window pruning (createdAt).
+  @@index([tenantId])
+  @@index([userId])
+  @@index([createdAt])
+  @@index([action])
+  @@index([tenantId, createdAt])
+}
+
+// AUDIT-FINTECH R-14 — tracks AuditLog exports to cold storage before deletion.
+// Each row records a batch export (filePath, recordCount, SHA-256 checksum)
+// so we can prove tamper-evidence for disputes spanning beyond the 7-year
+// retention window. Production: replace local file path with S3/Glacier URI.
+model AuditLogExport {
+  id          String   @id @default(cuid())
+  filePath    String
+  recordCount Int
+  checksum    String   // SHA-256 of the exported JSONL payload
+  exportedAt  DateTime @default(now())
+  @@index([exportedAt])
+  @@map("audit_log_export")
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// 10. INTELLIGENCE LAYER — buyer risk scoring, carrier scoring, guide tracking
+// (added by BUILD-SCHEMA-PAGES-INFRA-001; do NOT modify existing models above)
+// ───────────────────────────────────────────────────────────────────────────
+
+model CustomerScore {
+  id               String   @id @default(cuid())
+  tenantId         String
+  phone            String
+  score            Float    // 0-100, 0 = devolvedor, 100 = confiable
+  category         String   // confiable | riesgo | devolvedor
+  totalPedidos     Int      @default(0)
+  pedidosEntregados Int     @default(0)
+  pedidosDevueltos Int      @default(0)
+  lastOrderAt      DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, phone])
+  @@index([tenantId])
+}
+
+model CarrierScore {
+  id              String   @id @default(cuid())
+  tenantId        String
+  carrierName     String
+  score           Float
+  totalGuias      Int      @default(0)
+  entregadas      Int      @default(0)
+  devueltas       Int      @default(0)
+  avgDeliveryDays Float?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, carrierName])
+  @@index([tenantId])
+}
+
+model GuideTracking {
+  id          String   @id @default(cuid())
+  tenantId    String
+  guideNumber String
+  carrierName String?
+  status      String   // created | in_transit | delivered | returned | stuck
+  lastEventAt DateTime?
+  daysStuck   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+  @@index([tenantId, guideNumber])
+}
+
+model GuideMovement {
+  id          String   @id @default(cuid())
+  tenantId    String
+  guideNumber String
+  eventType   String   // created | picked_up | in_transit | delivered | returned | exception
+  location    String?
+  description String?
+  carrierName String?
+  rawData     String?
+  createdAt   DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, guideNumber])
+  @@index([tenantId])
+}
+
+model BuyerBehavior {
+  id             String   @id @default(cuid())
+  tenantId       String
+  phone          String
+  riskLevel      String   // normal | caution | high_risk | blacklist
+  patternDetails String?
+  totalReturns   Int      @default(0)
+  totalOrders    Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, phone])
+  @@index([tenantId])
+}
+
+model BehaviorAlert {
+  id              String   @id @default(cuid())
+  tenantId        String
+  buyerBehaviorId String
+  alertType       String
+  message         String
+  createdAt       DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// 11. CONVERSATIONAL CART — in-chat cart building & conversion
+// ───────────────────────────────────────────────────────────────────────────
+
+model ConversationalCart {
+  id             String   @id @default(cuid())
+  tenantId       String
+  conversationId String
+  status         String   @default("building") // building | confirmed | converted
+  total          Float    @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  items          CartItem[]
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+  @@index([conversationId])
+}
+
+model CartItem {
+  id          String   @id @default(cuid())
+  cartId      String
+  sku         String
+  productName String
+  quantity    Int
+  unitPrice   Float
+  total       Float
+  cart        ConversationalCart @relation(fields: [cartId], references: [id], onDelete: Cascade)
+
+  @@index([cartId])
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// 12. NOVEDADES CRM — claims / cases for lost packages, damaged products, etc.
+// ───────────────────────────────────────────────────────────────────────────
+
+model NovedadCase {
+  id           String   @id @default(cuid())
+  tenantId     String
+  caseNumber   String   @unique
+  orderId      String?
+  phone        String
+  customerName String
+  guideNumber  String?
+  carrierName  String?
+  type         String   // paquete_perdido | producto_danado | direccion_incorrecta | retraso | otro
+  status       String   @default("open") // open | assigned | resolved | escalated | closed
+  priority     String   @default("normal")
+  description  String
+  resolution   String?
+  assignedTo   String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  resolvedAt   DateTime?
+  evidence     NovedadEvidence[]
+  messages     NovedadMessage[]
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+  @@index([tenantId, status])
+}
+
+model NovedadEvidence {
+  id          String   @id @default(cuid())
+  caseId      String
+  url         String
+  type        String   // image | document | video
+  uploadedBy  String?
+  createdAt   DateTime @default(now())
+  case        NovedadCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@index([caseId])
+}
+
+model NovedadMessage {
+  id          String   @id @default(cuid())
+  caseId      String
+  authorName  String
+  authorRole  String   // agent | carrier | customer | system
+  body        String
+  createdAt   DateTime @default(now())
+  case        NovedadCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@index([caseId])
+}
+
+model RedeliveryRequest {
+  id              String   @id @default(cuid())
+  tenantId        String
+  guideNumber     String
+  customerPhone   String
+  customerName    String
+  originalAddress String
+  newAddress      String?
+  reason          String
+  status          String   @default("pending") // pending | scheduled | completed | cancelled
+  attemptNumber   Int      @default(1)
+  scheduledAt     DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime @default(now())
+  attempts        RedeliveryAttempt[]
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+  @@index([tenantId, status])
+}
+
+model RedeliveryAttempt {
+  id              String   @id @default(cuid())
+  redeliveryId    String
+  attemptNumber   Int
+  status          String   // pending | success | failed
+  carrierResponse String?
+  agentNote       String?
+  attemptedAt     DateTime @default(now())
+  redelivery      RedeliveryRequest @relation(fields: [redeliveryId], references: [id], onDelete: Cascade)
+
+  @@index([redeliveryId])
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// 13. PRODUCT ENRICHMENT — AI-driven product metadata enrichment
+// ───────────────────────────────────────────────────────────────────────────
+
+model ProductEnrichment {
+  id              String   @id @default(cuid())
+  tenantId        String
+  sku             String
+  tags            String   // JSON array
+  materials       String?
+  colors          String?
+  measurements    String?
+  description     String?
+  enrichmentScore Float    @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, sku])
+  @@index([tenantId])
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// 14. FINTECH LAYER — trafficker wallets, withdrawals, 2FA, compensation
+// ───────────────────────────────────────────────────────────────────────────
+
+model Trafficker {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  name          String
+  phone         String?
+  walletBalance Float   @default(0)
+  status        String   @default("active") // active | suspended | kyc_pending
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  campaigns     TraffickerCampaign[]
+  transactions  TraffickerTransaction[]
+  compensations TraffickerCompensation[]
+
+  @@index([email])
+}
+
+model TraffickerCampaign {
+  id            String   @id @default(cuid())
+  traffickerId  String
+  tenantId      String
+  name          String
+  platform      String   // meta | google | tiktok
+  budget        Float
+  spend         Float    @default(0)
+  status        String   @default("active")
+  startDate     DateTime?
+  endDate       DateTime?
+  createdAt     DateTime @default(now())
+  trafficker    Trafficker @relation(fields: [traffickerId], references: [id], onDelete: Cascade)
+  tenant        Tenant      @relation(fields: [tenantId], references: [id])
+  sales         TraffickerSale[]
+
+  @@index([traffickerId])
+  @@index([tenantId])
+}
+
+model TraffickerSale {
+  id            String   @id @default(cuid())
+  traffickerId  String
+  tenantId      String
+  campaignId    String
+  orderId       String?
+  amount        Float
+  commission    Float
+  status        String   @default("pending") // pending | confirmed | failed | compensated
+  createdAt     DateTime @default(now())
+  campaign      TraffickerCampaign @relation(fields: [campaignId], references: [id])
+  tenant        Tenant              @relation(fields: [tenantId], references: [id])
+
+  @@index([traffickerId])
+  @@index([tenantId])
+}
+
+model TraffickerTransaction {
+  id            String   @id @default(cuid())
+  traffickerId  String
+  direction     String   // inbound | outbound
+  type          String   // commission | withdrawal | refund | fee | bonus | penalty
+  category      String
+  amount        Float
+  balanceBefore Float
+  balanceAfter  Float
+  description   String?
+  reference     String?
+  referenceType String?
+  status        String   @default("completed")
+  metadata      String?
+  createdAt     DateTime @default(now())
+  trafficker    Trafficker @relation(fields: [traffickerId], references: [id], onDelete: Cascade)
+
+  @@index([traffickerId, createdAt])
+}
+
+model TraffickerCompensation {
+  id            String   @id @default(cuid())
+  traffickerId  String
+  tenantId      String
+  saleId        String?
+  reason        String   // seller_no_ship | seller_delayed | seller_cancelled | delivery_failed | product_damaged
+  amount        Float
+  createdAt     DateTime @default(now())
+  trafficker    Trafficker @relation(fields: [traffickerId], references: [id])
+  tenant        Tenant      @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+}
+
+model WalletAccount {
+  id            String   @id @default(cuid())
+  traffickerId  String?
+  tenantId      String?
+  userId        String?
+  accountType   String   // bank | nequi | daviplata | paypal | wise
+  accountHolder String
+  accountNumber String
+  bankName      String?
+  documentType  String?
+  documentNumber String?
+  isDefault     Boolean @default(false)
+  verified      Boolean @default(false)
+  createdAt     DateTime @default(now())
+  withdrawals   WithdrawalRequest[]
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id])
+
+  // FIX-1-DB-001 — previously zero @@index (wallet account lookups).
+  // `@@unique([traffickerId, accountNumber])` prevents duplicate accounts per
+  // trafficker (NULL traffickerId treated as distinct by PG/SQLite — tenant-
+  // level wallets remain unconstrained).
+  // Hot paths: trafficker wallet list (traffickerId), tenant scope (tenantId),
+  // user-owned wallets (userId), verified-account filtering (verified).
+  @@unique([traffickerId, accountNumber])
+  @@index([tenantId])
+  @@index([traffickerId])
+  @@index([userId])
+  @@index([verified])
+}
+
+model WalletTransaction {
+  id            String   @id @default(cuid())
+  traffickerId  String?
+  tenantId      String?
+  direction     String   // inbound | outbound
+  type          String
+  category      String
+  amount        Float
+  balanceBefore Float    @default(0)
+  balanceAfter  Float    @default(0)
+  description   String?
+  reference     String?
+  referenceType String?
+  status        String   @default("completed")
+  metadata      String?
+  createdAt     DateTime @default(now())
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id])
+
+  @@index([traffickerId, createdAt])
+  @@index([tenantId, createdAt])
+}
+
+model WithdrawalRequest {
+  id              String   @id @default(cuid())
+  traffickerId    String?
+  tenantId        String?
+  walletAccountId String
+  amount          Float
+  fee             Float    @default(0)
+  netAmount       Float    @default(0)
+  totpRequired    Boolean  @default(true)
+  totpVerified    Boolean  @default(false)
+  totpVerifiedAt  DateTime?
+  status          String   @default("pending_2fa") // pending_2fa | pending_processing | processing | completed | rejected
+  rejectionReason String?
+  externalReference String?
+  processedAt     DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime @default(now())
+  walletAccount   WalletAccount @relation(fields: [walletAccountId], references: [id])
+  tenant          Tenant?       @relation(fields: [tenantId], references: [id])
+
+  @@index([traffickerId])
+  @@index([tenantId])
+  @@index([status])
+}
+
+model TwoFactorConfig {
+  id            String   @id @default(cuid())
+  traffickerId  String?  @unique
+  tenantId      String?  @unique
+  userId        String?
+  secret        String
+  backupCodes   String?
+  enabled       Boolean  @default(false)
+  enabledAt     DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id])
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// 15. MARKETPLACE — lead sharing between tenants, public listings
+// ───────────────────────────────────────────────────────────────────────────
+
+model MarketplaceListing {
+  id          String   @id @default(cuid())
+  tenantId    String
+  productId   String?
+  sku         String
+  name        String
+  price       Float
+  imageUrl    String?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+  @@index([active])
+}
+
+model LeadShareConfig {
+  id          String   @id @default(cuid())
+  tenantId    String   @unique
+  shareLeads  Boolean  @default(false)
+  commissionPct Float  @default(5)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+}
+
+model LeadReferral {
+  id            String   @id @default(cuid())
+  fromTenantId  String
+  toTenantId    String
+  customerPhone String
+  customerName  String?
+  reason        String
+  commission    Float    @default(0)
+  status        String   @default("pending") // pending | converted | expired
+  createdAt     DateTime @default(now())
+
+  fromTenant Tenant @relation("LeadReferralFrom", fields: [fromTenantId], references: [id])
+  toTenant   Tenant @relation("LeadReferralTo", fields: [toTenantId], references: [id])
+
+  @@index([fromTenantId])
+  @@index([toTenantId])
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// 16. ATTRIBUTION / PIXEL / SEO — server-side pixel firing, SEO configs
+// ───────────────────────────────────────────────────────────────────────────
+
+model PixelConfig {
+  id          String   @id @default(cuid())
+  tenantId    String
+  platform    String   // meta | google | tiktok
+  pixelId     String
+  apiToken    String
+  testMode    Boolean  @default(false)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, platform])
+  @@index([tenantId])
+}
+
+model ConversionEvent {
+  id          String   @id @default(cuid())
+  tenantId    String
+  pixelConfigId String?
+  eventType   String   // Purchase | AddToCart | Lead | etc.
+  value       Float?
+  currency    String   @default("COP")
+  status      String   @default("pending") // pending | sent | failed
+  response    String?
+  createdAt   DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, eventType, createdAt])
+  @@index([pixelConfigId])
+}
+
+model SEOConfig {
+  id              String   @id @default(cuid())
+  tenantId        String
+  metaTitle       String?
+  metaDescription String?
+  keywords        String?
+  ogImage         String?
+  jsonLd          String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+}
+
+model GeoTarget {
+  id          String   @id @default(cuid())
+  tenantId    String
+  country     String   @default("CO")
+  region      String?
+  city        String?
+  active      Boolean  @default(true)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, country, region, city])
+  @@index([tenantId])
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// 17. REMARKETING — abandoned cart, no-response, post-purchase flows
+// ───────────────────────────────────────────────────────────────────────────
+
+model RemarketingCampaign {
+  id          String   @id @default(cuid())
+  tenantId    String
+  name        String
+  trigger     String   // abandoned_cart | no_response | post_purchase
+  template    String
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  messages    RemarketingMessage[]
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+}
+
+model RemarketingMessage {
+  id            String   @id @default(cuid())
+  tenantId      String
+  campaignId    String
+  customerPhone String
+  customerName  String?
+  status        String   @default("pending") // pending | sent | delivered | failed
+  scheduledAt   DateTime
+  sentAt        DateTime?
+  createdAt     DateTime @default(now())
+  campaign      RemarketingCampaign @relation(fields: [campaignId], references: [id])
+  tenant        Tenant              @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, status, scheduledAt])
+}
+
+model CustomerNotification {
+  id            String   @id @default(cuid())
+  tenantId      String
+  customerPhone String
+  customerName  String?
+  type          String   // shipping_update | delivery_confirmation | remarketing
+  channel       String   @default("whatsapp")
+  body          String
+  status        String   @default("pending") // pending | sent | delivered | failed
+  scheduledAt   DateTime?
+  sentAt        DateTime?
+  metadata      String?
+  createdAt     DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, status])
+  @@index([tenantId, scheduledAt])
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// 17. AP2 / UCP / LEY 2573 / LEY 1581 — Agentic Protocols & Compliance
+// (added by SPRINT-AGENTIC-PROTOCOLS-001 — audit AUDIT-AGENTIC-PROTOCOLS-001)
+// Documento §9 (protocolos), §10 (AP2/UCP), §11 (gobernanza), §12 (regulacro CO).
+// ───────────────────────────────────────────────────────────────────────────
+
+/// AP2 Intent Mandate — lo que el usuario autorizó (W3C VC firmado).
+/// Documento §10.2: "comprar zapatillas, talla 10, menos de $150".
+/// Tres tipos encadenados: intent → cart → payment.
+model AP2Mandate {
+  id                String   @id @default(cuid())
+  tenantId          String
+  type              String   // "intent" | "cart" | "payment"
+  parentMandateId   String?  // Cart enlaza a Intent; Payment enlaza a Cart
+  userId            String?  // para Intent: quién autorizó
+  // W3C Verifiable Credential payload (JSON serializado)
+  vcPayload         String   // VC completo (incluye proof)
+  vcSignature       String   // JWS / firma ed25519 (base64url)
+  signatoryDid      String   // DID del firmante
+  status            String   @default("active") // "active" | "revoked" | "consumed"
+  revokedAt         DateTime?
+  revokedReason     String?
+  // Límites específicos del Intent (solo aplican a type=intent)
+  maxAmount         Float?   // tope de gasto
+  currency          String?  // "COP"
+  categoryLimits    String?  // JSON: { "moda": 500000, "farmacia": 200000 }
+  expiresAt         DateTime?
+  // Recursos vinculados (para Cart / Payment)
+  orderId           String?  // para Cart/Payment: order generado
+  paymentRef        String?  // para Payment: referencia de pasarela
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  tenant            Tenant       @relation(fields: [tenantId], references: [id])
+  parentMandate     AP2Mandate?  @relation("MandateChain", fields: [parentMandateId], references: [id])
+  childMandates     AP2Mandate[] @relation("MandateChain")
+
+  @@index([tenantId, type, status])
+  @@index([parentMandateId])
+  @@index([userId])
+  @@index([orderId])
+  @@index([status, expiresAt])
+}
+
+/// UCP Checkout Session — máquina de estados:
+/// incomplete → requires_escalation → ready_for_complete → completed/failed.
+/// Documento §10.1.
+model UcpCheckoutSession {
+  id              String   @id @default(cuid())
+  tenantId        String
+  sessionId       String   @unique // ID externo compartido con el agente
+  agentDid        String?  // DID del agente llamante
+  intentMandateId String?  // enlace a AP2Mandate type=intent
+  cartMandateId   String?  // enlace a AP2Mandate type=cart
+  paymentMandateId String? // enlace a AP2Mandate type=payment
+  state           String   @default("incomplete") // "incomplete" | "requires_escalation" | "ready_for_complete" | "completed" | "failed"
+  cart            String?  // JSON: items, totals, shipping
+  continuationUrl String?  // URL para escalamiento humano
+  negotiatedCaps  String?  // JSON: capacidades intersecadas
+  paymentHandler  String?  // "com.google.pay" | "com.stripe" etc
+  orderId         String?  // una vez creado el order
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  expiresAt       DateTime?
+
+  tenant          Tenant   @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, state])
+  @@index([agentDid])
+  @@index([orderId])
+}
+
+/// Verificación de identidad bajo Ley 2573 de 2026.
+/// Documento §12.1: verificación trazable para crédito/cuotas; sin evidencia
+/// la empresa asume el 100% de la pérdida ("carga dinámica de la prueba").
+model IdentityVerification {
+  id              String   @id @default(cuid())
+  tenantId        String
+  userId          String?
+  customerId      String?
+  // Método de verificación
+  method          String   // "kyc_provider" | "biometric" | "document" | "2fa_totp"
+  provider        String?  // "onfido" | "jumio" | "local_bank" etc
+  // Resultado
+  status          String   @default("pending") // "pending" | "verified" | "failed" | "expired"
+  verifiedAt      DateTime?
+  expiresAt       DateTime? // KYC usualmente válido por N meses
+  // Evidencia (hash, no datos crudos)
+  evidenceHash    String?  // SHA-256 del bundle de evidencia
+  evidenceUrl     String?  // URL de almacenamiento seguro
+  // Contexto: qué transacción disparó esta verificación
+  triggerType     String?  // "credit_purchase" | "installment_plan" | "high_value_order"
+  triggerRef      String?  // order ID o mandate ID
+  riskScore       Float?   // 0.0 - 1.0
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  tenant          Tenant   @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, status])
+  @@index([userId])
+  @@index([customerId])
+  @@index([status, expiresAt])
+}
+
+/// Registro de consentimiento bajo Ley 1581 de 2012 (habeas data).
+/// Documento §12.2: base legal + mecanismo de revocación.
+model ConsentRecord {
+  id              String   @id @default(cuid())
+  tenantId        String
+  dataSubjectId   String   // customer ID o user ID
+  dataSubjectType String   // "customer" | "user" | "lead"
+  // A qué se consintió
+  purpose         String   // "marketing" | "analytics" | "ai_processing" | "data_sharing"
+  legalBasis      String   // "consent" | "contract" | "legitimate_interest" | "legal_obligation"
+  // Estado del consentimiento
+  granted         Boolean  @default(true)
+  grantedAt       DateTime @default(now())
+  revokedAt       DateTime?
+  revokeReason    String?
+  // Evidencia
+  proofHash       String?  // hash de prueba (IP, timestamp, UI version)
+  proofPayload    String?  // JSON: { ip, userAgent, timestamp, uiVersion }
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  tenant          Tenant   @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, dataSubjectId, purpose])
+  @@index([dataSubjectType, granted])
+  @@index([granted, revokedAt])
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// SPRINT-FINANCE-META-001 — Channel cost tracking (study §14.1)
+// "Costo operativo del canal (mensajería, agente de IA, logística)"
+//
+// One row per (tenant, channel, date). The date is stored as a DateTime at
+// 00:00:00.000 local — SQLite has no native DATE type (and the schema stays
+// portable to PostgreSQL where `@db.Date` could be re-added later). Use
+// `recordDailyChannelCosts()` to upsert a day's row from operational data.
+// ───────────────────────────────────────────────────────────────────────────
+model ChannelCost {
+  id            String   @id @default(cuid())
+  tenantId      String
+  channel       String   // "whatsapp" | "messenger" | "instagram" | "tiktok"
+  date          DateTime // day bucket — stored at 00:00:00.000 local
+  // Cost breakdown (study §14.1 — "costo operativo del canal")
+  messageCost   Float    @default(0) // Meta message fees
+  aiTokenCost   Float    @default(0) // LLM API costs
+  adSpend       Float    @default(0) // ad spend attributed
+  supportCost   Float    @default(0) // human agent time
+  logisticsCost Float    @default(0) // shipping/logistics
+  paymentFee    Float    @default(0) // payment gateway fees
+  // Revenue
+  revenue       Float    @default(0) // gross revenue from this channel
+  ordersCount   Int      @default(0)
+  // Computed (denormalized for fast dashboard reads)
+  netContribution Float? // revenue - all costs
+  marginPct       Float? // netContribution / revenue * 100
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  tenant        Tenant   @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, channel, date])
+  @@index([tenantId, channel, date])
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// 18. GOVERNANCE — DecisionLog (SPRINT-GOVERNANCE-001)
+// Documento "Comercio Agéntico" §11 pilar #4: "Trazabilidad de decisiones".
+// Cada llamada al agente genera una entrada aquí con input/output/reasoning
+// + resultado de enforcement + responsabilidad determinada + revisión humana.
+// ───────────────────────────────────────────────────────────────────────────
+
+/// Full agent decision trace — document §11: "Trazabilidad de decisiones"
+model DecisionLog {
+  id            String   @id @default(cuid())
+  tenantId      String
+  agentName     String   // e.g. "cart_builder", "checkout"
+  conversationId String?
+  orderId       String?
+  mandateId     String?  // AP2 mandate involved
+  // Decision context
+  input         String   // JSON: what the agent was asked
+  output        String   // JSON: what the agent decided
+  reasoning     String?  // JSON: chain-of-thought (if available)
+  confidence    Float?   // 0.0 - 1.0
+  // Enforcement outcome
+  enforcementResult String? // JSON: { allowed, violations, escalated, blocked }
+  liabilityParty    String? // "merchant_liability" | "agent_provider_liability" | etc
+  // Human review
+  humanReviewed     Boolean @default(false)
+  humanDecision     String? // "approved" | "rejected" | "modified"
+  humanReviewerId   String?
+  humanReviewedAt   DateTime?
+  // SPRINT-AI-LLM-ADAPTER-001 — tracking de tokens y costo por llamada LLM.
+  // document §A-6 (tabla de costos en src/lib/llm/costs.ts).
+  model             String?  // "glm-4.6", "gpt-4o", "grok-2-latest"
+  provider          String?  // "zai", "openai", "xai", "ollama"
+  promptTokens      Int?
+  completionTokens  Int?
+  totalTokens       Int?
+  costUsd           Float?
+  latencyMs         Int?
+  createdAt         DateTime @default(now())
+
+  tenant        Tenant   @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, agentName, createdAt])
+  @@index([conversationId])
+  @@index([orderId])
+  @@index([mandateId])
+  @@index([humanReviewed, createdAt])
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// SPRINT-MONITORING-FINAL-001 — status page incident history.
+// ───────────────────────────────────────────────────────────────────────────
+// Status page incident — shows past incidents on /status. Created via the
+// admin-only `/api/status/incidents` POST endpoint (SRE / on-call only);
+// rendered publicly on `/status` (Spanish UI). The `updates` field is a
+// JSON-encoded array of `{ time: ISO8601, message: string, status: string }`
+// entries (timeline-style — one per state transition). Stored as String
+// (not a JSON column) so the same schema compiles on SQLite (dev) and
+// PostgreSQL (prod).
+/// Status page incident — shows past incidents on /status
+model StatusIncident {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  severity    String   // "minor" | "major" | "critical" | "maintenance"
+  status      String   // "investigating" | "identified" | "monitoring" | "resolved"
+  startTime   DateTime
+  endTime     DateTime?
+  updates     String?  // JSON array of {time, message, status}
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([startTime, status])
+  @@index([severity, status])
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// SPRINT-COMPLIANCE-FINAL-001 · P4 — daily status check (90-day uptime bar).
+// ───────────────────────────────────────────────────────────────────────────
+// One row per day, upserted by the /status page on each render (if today's
+// row doesn't yet exist). The 90-day uptime bar on the status page reads
+// the last 90 rows to render the statuspage.io-style colored squares.
+//
+// NOTE: SQLite has no native DATE type, so we use `DateTime` (stored at
+// 00:00:00.000 local) — same pattern as the `ChannelCost.date` field above.
+// On PostgreSQL the `date` field could be re-typed to `@db.Date` later.
+model StatusCheck {
+  id        String   @id @default(cuid())
+  // Day bucket — stored at 00:00:00.000 local time. The `@@unique([date])`
+  // constraint means at most one row per calendar day (the status page
+  // upserts by this key so re-renders within the same day just refresh
+  // `status` + `latency`).
+  date      DateTime
+  status    String   // "operational" | "degraded" | "down"
+  latency   Int?     // ms (DB ping latency, optional — null if check timed out)
+  createdAt DateTime @default(now())
+
+  @@unique([date])
+  @@index([date])
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// FX RATE CACHE — SPRINT-OPENAPI-FINAL-001 / §ADR-0012
+// ───────────────────────────────────────────────────────────────────────────
+// Cached exchange rates from the live FX feed (open.er-api.com).
+// `getLiveExchangeRates()` in src/lib/i18n/currency.ts upserts a row per
+// currency on every successful fetch, and on cold start (no in-memory cache)
+// reads the latest row per currency instead of falling back to the static
+// `CURRENCIES[*].exchangeRateFromUSD` table. This closes the cold-start gap
+// on serverless deploys (Vercel) where every invocation starts with an empty
+// `fxCache` — without this table the first request after a deploy would use
+// the static rates, which can be weeks stale for volatile LATAM currencies
+// (ARS in particular).
+//
+// One row per currency code (ISO 4217). `currency` is `@unique` so upserts
+// replace the rate in-place. The `@@index([currency, fetchedAt])` lets the
+// cold-start read fetch all rows in one go (small table, ≤7 rows).
+/// Cached exchange rates from live FX feed
+/// Document §ADR-0012: cold-start persistence for FX rates
+model FxRate {
+  id        String   @id @default(cuid())
+  base      String   @default("USD")
+  currency  String   @unique // "COP", "MXN", etc.
+  rate      Float
+  source    String   @default("open.er-api.com")
+  fetchedAt DateTime @default(now())
+
+  @@index([currency, fetchedAt])
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// ANTI-FRAUD LAYER — I2-R3 (CRITICAL RISK R-3 closure)
+// ───────────────────────────────────────────────────────────────────────────
+// Layered anti-fraud service: velocity windows, blocklist (chargeback feedback
+// loop), OFAC AML screening, fraud-event audit log. All tenant-scoped.
+//
+// Three new tables:
+//   1. `fraud_blocklist`      — entries are added when a chargeback is
+//      received (auto) or by an operator (manual) or by an OFAC match. The
+//      `checkTransaction` flow queries this table by `(tenantId, type, value)`
+//      for customer / email / ip / card_bin / device / phone identifiers
+//      before allowing a transaction.
+//   2. `fraud_event`          — every invocation of `fraudService.checkTransaction`
+//      writes one row for auditability (decision + riskScore + reasons +
+//      checksRun). Powers the fraud dashboard + KPIs.
+//   3. `velocity_window`      — counts per (tenant, identifierType, identifier,
+//      windowStart) tuple. Used to detect card-testing / burst attacks
+//      (e.g. 50 attempts from the same IP within 5 min).
+//
+// `Order.paymentStatus` is a `String` column (NOT an enum) so the new
+// `'payment_mismatch'` (CVV/AVS) value needs no migration.
+/// I2-R3 — Blocklist entry (chargeback / OFAC / manual / fraud report)
+model FraudBlocklistEntry {
+  id          String   @id @default(cuid())
+  tenantId    String
+  type        String   // 'customer' | 'email' | 'ip' | 'card_bin' | 'device' | 'phone'
+  value       String   // the blocked identifier
+  reason      String   // 'chargeback' | 'fraud_report' | 'ofac_match' | 'manual'
+  source      String?  // 'auto' | 'manual' | 'ofac'
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime? // optional TTL
+
+  @@unique([tenantId, type, value])
+  @@index([tenantId, type])
+  @@map("fraud_blocklist")
+}
+
+/// I2-R3 — Fraud decision audit log (one row per checkTransaction call)
+model FraudEvent {
+  id            String   @id @default(cuid())
+  tenantId      String
+  orderId       String?
+  customerId    String?
+  decision      String   // 'allow' | 'review' | 'block'
+  riskScore     Int
+  reasons       String   // JSON array as string
+  checksRun     String   // JSON array as string
+  amount        Float
+  currency      String
+  paymentMethod String
+  customerIp    String?
+  createdAt     DateTime @default(now())
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, decision])
+  @@index([orderId])
+  @@map("fraud_event")
+}
+
+/// I2-R3 — Velocity window counters (per-identifier, per-bucket)
+model VelocityWindow {
+  id              String   @id @default(cuid())
+  tenantId        String
+  identifier      String   // customer_id | ip | card_bin | device
+  identifierType  String   // 'customer' | 'ip' | 'card_bin' | 'device'
+  count           Int
+  windowStart     DateTime
+  updatedAt       DateTime @updatedAt
+
+  @@unique([tenantId, identifierType, identifier, windowStart])
+  @@index([tenantId, identifierType, identifier])
+  @@map("velocity_window")
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// REFUNDS — AUDIT-FINTECH R-11 / R-12
+//
+// Structured refund ledger — replaces the free-text `OrderEvent.note` audit
+// trail that previously was the ONLY record of a refund. The `Refund` model
+// captures the structured data (amount, reason, partial flag, gateway ref,
+// initiator, status) so finance reconciliation + consumer-protection audits
+// (Ley 1480 Art 47 retracto refunds) can query refunds directly instead of
+// grepping OrderEvent notes.
+//
+// `status` lifecycle:
+//   pending   — created by `/api/orders/[id]/refund` POST, gateway refund not yet confirmed
+//   processed — gateway returned success (or webhook confirmed via `gatewayRef`)
+//   failed    — gateway returned an error; `failureNote` has the reason
+//   cancelled — operator cancelled the refund before it was processed
+//
+// `gatewayRef` is the link back to the gateway-side refund ID. When the
+// gateway later fires a `refunded` webhook, `applyPaymentUpdate()` matches
+// the webhook's `paymentId` against `Refund.gatewayRef` + flips status to
+// `processed` (closes the loop between admin-initiated + gateway-initiated).
+// ───────────────────────────────────────────────────────────────────────────
+model Refund {
+  id          String   @id @default(cuid())
+  orderId     String
+  tenantId    String
+  amount      Float
+  currency    String
+  // 'retracto' | 'customer_request' | 'fraud' | 'duplicate' | 'product_issue' | 'other'
+  reason      String
+  partial     Boolean  @default(false)
+  // 'pending' | 'processed' | 'failed' | 'cancelled'
+  status      String   @default("pending")
+  gatewayRef  String?  // gateway-side refund ID
+  gatewayName String?  // 'mercadopago' | 'stripe' | 'wompi' | 'payu' | etc.
+  initiatedBy String   // user ID of admin/operator
+  initiatedAt DateTime @default(now())
+  processedAt DateTime?
+  failureNote String?
+
+  order Order @relation(fields: [orderId], references: [id])
+
+  @@index([tenantId, initiatedAt])
+  @@index([orderId])
+  @@index([gatewayRef])
+  @@map("refund")
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// IA-2 — Token usage ledger (per agent call, per tenant / conversation).
+//
+// IA-2 (agent-hardening) — auditable ledger of every LLM token consumed by
+// the agent layer. Complements `DecisionLog` (which records the high-level
+// agent decision + its confidence) with a normalized, query-optimized table
+// for cost-control dashboards: daily/monthly aggregates, per-agent cost
+// breakdowns, per-conversation spend.
+//
+// Rows are written by `BudgetManager.recordUsage()` after every successful
+// (or failed-but-attempted) agent invocation. They feed:
+//   - `BudgetManager.checkBudget()` — daily/monthly caps + remaining tokens.
+//   - `/api/agents/budget` (admin) — cost breakdown UI.
+//   - `/api/agents/traces` (admin) — joins with `DecisionLog` for full
+//     observability (latency, tokens, cost, status) per agent call.
+// ───────────────────────────────────────────────────────────────────────────
+model TokenUsage {
+  id              String   @id @default(cuid())
+  tenantId        String
+  conversationId  String?
+  // IA-6B (Gap 7) — per-customer cost attribution. Optional (not every
+  // agent call has a customer attached — e.g. the orchestrator's first
+  // turn before a customer match is established). Indexed so the
+  // per-customer cost roll-up in `BudgetManager.getCustomerCosts()` is
+  // a single index range scan, not a full-table scan.
+  customerId      String?
+  agentName       String
+  model           String
+  tokensIn        Int
+  tokensOut       Int
+  costUsd         Float
+  createdAt       DateTime @default(now())
+
+  tenant          Tenant   @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, agentName, createdAt])
+  @@index([conversationId])
+  // IA-6B (Gap 7) — powers `/api/agents/budget/[customerId]` admin
+  // endpoint + `BudgetManager.getCustomerCosts()` date-range queries.
+  @@index([tenantId, customerId, createdAt])
+  @@map("token_usage")
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// IA-6B (Gap 5) — Prompt Versioning ledger.
+//
+// Stores every versioned system+user prompt template per agent so the
+// `PromptVersionManager` can A/B test prompt variations, roll back bad
+// versions, and track per-version success metrics from the QA Reviewer
+// + customer feedback loops.
+//
+//   - One row per (agentName, version) tuple. `version` is a semver
+//     string ("1.0.0", "1.1.0-experiment", etc.) — kept as String so
+//     the same schema compiles on SQLite + PostgreSQL.
+//   - `status` is 'active' | 'experiment' | 'archived'. Only ONE row
+//     per `agentName` may be 'active' at any time (enforced in code by
+//     `PromptVersionManager.promote()` which atomically flips the
+//     previous active to 'archived' before flipping the new one to
+//     'active'). The DB doesn't enforce this with a partial unique
+//     index (SQLite limitation) — the manager class is the source of
+//     truth.
+//   - `trafficPct` (0-100) — for A/B testing, the percentage of
+//     `tenantId`s (via deterministic hash) that should see this
+//     experiment version instead of the active one. Only meaningful
+//     when `status = 'experiment'`.
+//   - `metrics` — a JSON blob `{ successRate, avgLatencyMs, sampleSize }`
+//     updated periodically by the QA Reviewer feedback loop. Used by
+//     the promotion gate: an experiment can only be promoted to active
+//     if `successRate >= 0.85 && sampleSize >= 50`.
+// ───────────────────────────────────────────────────────────────────────────
+model PromptVersion {
+  id                  String   @id @default(cuid())
+  agentName           String
+  // semver: "1.0.0", "1.1.0", "2.0.0-experiment". The default version
+  // for every `.ts` prompt file is "1.0.0" (see PromptVersionManager).
+  version             String
+  // 'active' | 'experiment' | 'archived'. See model doc above.
+  status              String   @default("active")
+  // 0-100. Only meaningful when status = 'experiment'.
+  trafficPct          Int?
+  systemPrompt        String
+  userPromptTemplate  String
+  // JSON: { successRate: number, avgLatencyMs: number, sampleSize: number }
+  metrics             String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@unique([agentName, version])
+  @@index([agentName, status])
+  @@map("prompt_version")
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// IA-6B (Gap 8) — QA Reviewer feedback loop.
+//
+// Every time the QA Reviewer finds issues with an agent's output, a row
+// is written here so prompt authors can spot recurring failure patterns
+// and improve future prompt versions. The `PromptVersionManager.metrics`
+// field is the aggregate view; this table is the per-incident detail.
+//
+//   - `issues` is a JSON-encoded string[] (SQLite has no array type).
+//   - `severity` is 'low' | 'medium' | 'high' — derived from
+//     `issues.length` (≥3 → 'high', else 'medium'; 'low' reserved for
+//     future use).
+//   - `resolvedAt` — set when a new prompt version is promoted that
+//     addresses the pattern (manual operator action for now; an
+//     auto-resolver is a follow-up).
+// ───────────────────────────────────────────────────────────────────────────
+model QAFeedback {
+  id            String   @id @default(cuid())
+  tenantId      String
+  agentName     String
+  // JSON-encoded string[] of issues found by the QA Reviewer.
+  issues        String
+  // 'low' | 'medium' | 'high'
+  severity      String   @default("medium")
+  // Optional context for the feedback — the conversationId + the agent
+  // version that produced the flawed output (so we can correlate
+  // patterns to a specific prompt version).
+  conversationId String?
+  promptVersion String?
+  resolvedAt    DateTime?
+  createdAt     DateTime @default(now())
+
+  @@index([agentName, severity, createdAt])
+  @@index([tenantId, createdAt])
+  @@map("qa_feedback")
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// ESCROW LAYER — R-18 (ADR-0021 implementation)
+// Holds buyer funds in a virtual escrow until delivery is confirmed
+// (or 7-day auto-release timer elapses without dispute).
+// ───────────────────────────────────────────────────────────────────────────
+
+model EscrowHolding {
+  id              String   @id @default(cuid())
+  orderId         String   @unique
+  tenantId        String
+  // Seller — nullable for tenant-direct sales (no marketplace split)
+  traffickerId    String?
+  buyerCustomerId String
+  // Amount held, in major currency unit
+  amount          Float
+  currency        String
+  // Platform commission (released to platform wallet on release)
+  commissionAmount Float
+  // Amount released to seller (amount - commission)
+  sellerAmount    Float
+  // 'holding' — funds captured, waiting for release/refund
+  // 'released' — delivery confirmed or auto-release, seller wallet credited
+  // 'refunded' — delivery failed / dispute in buyer's favor, buyer refunded
+  // 'disputed' — buyer opened a dispute; held for manual review
+  status          String   @default("holding")
+  heldAt          DateTime @default(now())
+  releasedAt      DateTime?
+  refundedAt      DateTime?
+  disputeOpenedAt DateTime?
+  // ISO 8601 timestamp — funds auto-release to seller at this point
+  // if no dispute is opened. Set to heldAt + 7 days on creation.
+  autoReleaseAt   DateTime
+  // Optional: the delivery confirmation reference (tracking number,
+  // carrier confirmation, etc.)
+  deliveryRef     String?
+  // Audit fields
+  releasedBy      String?  // userId who released (or 'auto' for timer)
+  refundedBy      String?  // userId who refunded
+
+  @@index([tenantId, status])
+  @@index([tenantId, autoReleaseAt])
+  @@index([traffickerId, status])
+  @@index([orderId])
+  @@map("escrow_holding")
+}

@@ -1,0 +1,531 @@
+     1→'use client'
+     2→import { useCallback, useEffect, useState } from 'react'
+     3→import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+     4→import { Badge } from '@/components/ui/badge'
+     5→import { Button } from '@/components/ui/button'
+     6→import { Input } from '@/components/ui/input'
+     7→import { Skeleton } from '@/components/ui/skeleton'
+     8→import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+     9→import {
+    10→  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+    11→} from '@/components/ui/table'
+    12→import {
+    13→  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+    14→} from '@/components/ui/select'
+    15→import {
+    16→  Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
+    17→} from '@/components/ui/tooltip'
+    18→import {
+    19→  AreaChart, Area, XAxis, YAxis, Tooltip as RTooltip, ResponsiveContainer, CartesianGrid,
+    20→} from 'recharts'
+    21→import { formatCurrency, formatNumber, formatPercent, formatMultiplier, shortDate, timeAgo } from '@/lib/format'
+    22→import { cn } from '@/lib/utils'
+    23→import { toast } from 'sonner'
+    24→import { useTenantId } from '@/hooks/use-tenant'
+    25→import {
+    26→  Target, TrendingUp, TrendingDown, DollarSign, Percent, Flame, Skull, Pause,
+    27→  Play, Rocket, Eye, AlertTriangle, Search, Gauge, Sparkles, RefreshCw, AlertCircle, Megaphone, Upload,
+    28→} from 'lucide-react'
+    29→
+    30→type AdRow = {
+    31→  id: string; externalId: string; name: string; creative?: string; status: string; autoKill: boolean; killReason?: string
+    32→  campaign: { id: string; name: string }
+    33→  platform: { id: string; name: string; displayName: string }
+    34→  metrics: {
+    35→    spend: number; impressions: number; clicks: number; ctr: number; cpc: number
+    36→    convReported: number; orderCount: number; units: number
+    37→    revenue: number; paidRevenue: number; aov: number; cogs: number
+    38→    grossProfit: number; netProfit: number
+    39→    cpa: number | null; cpl: number; cvr: number; roas: number; roi: number
+    40→  }
+    41→  verdict: 'scale' | 'optimize' | 'watch' | 'pause' | 'kill' | 'cannibalize'
+    42→  cannibalizing: boolean
+    43→  flags: { burning: boolean; underRoas: boolean; platformGap: number; scalesWell: boolean }
+    44→}
+    45→
+    46→type AdsData = {
+    47→  range: { days: number }
+    48→  thresholds: { roasKill: number; cpaTarget: number }
+    49→  totals: { spend: number; revenue: number; paidRevenue: number; orders: number; units: number; netProfit: number; roas: number; roi: number; cpa: number }
+    50→  series: { date: string; spend: number }[]
+    51→  rows: AdRow[]
+    52→}
+    53→
+    54→const verdictMeta = (v: AdRow['verdict']) => {
+    55→  switch (v) {
+    56→    case 'scale': return { label: 'Escalar', cls: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 ring-emerald-500/20', icon: Rocket, desc: 'ROAS ≥ 2x y volumen — subir presupuesto' }
+    57→    case 'optimize': return { label: 'Optimizar', cls: 'bg-sky-500/10 text-sky-700 dark:text-sky-300 ring-sky-500/20', icon: Gauge, desc: 'ROAS 1-2x — probar variantes creativas' }
+    58→    case 'watch': return { label: 'Vigilar', cls: 'bg-slate-500/10 text-slate-700 dark:text-slate-300 ring-slate-500/20', icon: Eye, desc: 'Bajo volumen — esperar más data' }
+    59→    case 'pause': return { label: 'Pausar', cls: 'bg-amber-500/10 text-amber-700 dark:text-amber-300 ring-amber-500/20', icon: Pause, desc: 'ROAS bajo + gasto material — pausar' }
+    60→    case 'kill': return { label: 'Apagar', cls: 'bg-rose-500/10 text-rose-700 dark:text-rose-300 ring-rose-500/20', icon: Skull, desc: 'Quema presupuesto sin ventas' }
+    61→    case 'cannibalize': return { label: 'Canibaliza', cls: 'bg-violet-500/10 text-violet-700 dark:text-violet-300 ring-violet-500/20', icon: Flame, desc: 'Atribuye conversiones falsas — apagar YA' }
+    62→    default: return { label: v, cls: 'bg-slate-500/10 text-slate-700 dark:text-slate-300', icon: Eye, desc: '' }
+    63→  }
+    64→}
+    65→
+    66→const platformMeta = (name: string) => {
+    67→  switch (name) {
+    68→    case 'meta': return { label: 'Meta', cls: 'bg-sky-500/10 text-sky-700 dark:text-sky-300' }
+    69→    case 'google': return { label: 'Google', cls: 'bg-amber-500/10 text-amber-700 dark:text-amber-300' }
+    70→    case 'tiktok': return { label: 'TikTok', cls: 'bg-slate-900/10 text-slate-700 dark:text-slate-300' }
+    71→    default: return { label: name, cls: 'bg-slate-500/10 text-slate-700 dark:text-slate-300' }
+    72→  }
+    73→}
+    74→
+    75→function TotalsKpi({ icon: Icon, label, value, sub, accent }: {
+    76→  icon: typeof DollarSign; label: string; value: string; sub?: string; accent: string
+    77→}) {
+    78→  return (
+    79→    <Card>
+    80→      <CardContent className="p-4 flex items-center gap-3">
+    81→        <div className={cn('size-10 rounded-xl flex items-center justify-center ring-1', accent)}>
+    82→          <Icon className="size-5" />
+    83→        </div>
+    84→        <div className="min-w-0">
+    85→          <div className="text-xs text-muted-foreground uppercase tracking-wide font-medium">{label}</div>
+    86→          <div className="text-xl font-bold tabular-nums">{value}</div>
+    87→          {sub && <div className="text-[11px] text-muted-foreground truncate">{sub}</div>}
+    88→        </div>
+    89→      </CardContent>
+    90→    </Card>
+    91→  )
+    92→}
+    93→
+    94→export function AdsView() {
+    95→  const tenantId = useTenantId()
+    96→  const [data, setData] = useState<AdsData | null>(null)
+    97→  const [loading, setLoading] = useState(true)
+    98→  const [refreshing, setRefreshing] = useState(false)
+    99→  const [error, setError] = useState<string | null>(null)
+   100→  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
+   101→  const [platform, setPlatform] = useState('all')
+   102→  const [q, setQ] = useState('')
+   103→
+   104→  const load = useCallback((showRefreshing = false) => {
+   105→    if (!tenantId) return
+   106→    let cancelled = false
+   107→    if (showRefreshing) setRefreshing(true)
+   108→    setError(null)
+   109→    fetch(`/api/ads?days=14&platform=${platform}&tenantId=${tenantId}`)
+   110→      .then(r => r.json())
+   111→      .then(d => {
+   112→        if (cancelled) return
+   113→        setData(d)
+   114→        setLastUpdated(new Date())
+   115→        setLoading(false)
+   116→      })
+   117→      .catch(() => {
+   118→        if (!cancelled) {
+   119→          setError('No se pudo cargar el rendimiento de la pauta. Verifica tu conexión o intenta de nuevo.')
+   120→          setLoading(false)
+   121→        }
+   122→      })
+   123→      .finally(() => {
+   124→        if (!cancelled) setRefreshing(false)
+   125→      })
+   126→    return () => { cancelled = true }
+   127→  }, [platform, tenantId])
+   128→
+   129→  useEffect(() => {
+   130→    if (!tenantId) return
+   131→    let cancelled = false
+   132→    fetch(`/api/ads?days=14&platform=${platform}&tenantId=${tenantId}`)
+   133→      .then(r => r.json())
+   134→      .then(d => {
+   135→        if (cancelled) return
+   136→        setData(d)
+   137→        setLastUpdated(new Date())
+   138→        setLoading(false)
+   139→      })
+   140→      .catch(() => {
+   141→        if (!cancelled) {
+   142→          setError('No se pudo cargar el rendimiento de la pauta. Verifica tu conexión o intenta de nuevo.')
+   143→          setLoading(false)
+   144→        }
+   145→      })
+   146→    return () => { cancelled = true }
+   147→  }, [platform, tenantId])
+   148→
+   149→  const doAction = async (id: string, action: 'pause' | 'kill' | 'resume' | 'scale', reason?: string) => {
+   150→    await fetch(`/api/ads/${id}`, {
+   151→      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+   152→      body: JSON.stringify({ action, reason }),
+   153→    })
+   154→    setData(prev => prev ? {
+   155→      ...prev,
+   156→      rows: prev.rows.map(r => r.id === id ? { ...r, status: action === 'resume' || action === 'scale' ? 'active' : action === 'kill' ? 'killed' : 'paused', autoKill: action === 'kill' } : r),
+   157→    } : prev)
+   158→    toast.success(`Anuncio ${action === 'kill' ? 'apagado' : action === 'pause' ? 'pausado' : action === 'scale' ? 'marcado para escalar' : 'reanudado'}`)
+   159→  }
+   160→
+   161→  if (error) {
+   162→    return (
+   163→      <section aria-label="Anuncios">
+   164→        <Alert variant="destructive" className="animate-fade-in-up">
+   165→          <AlertCircle className="size-4" />
+   166→          <AlertTitle>Error al cargar la pauta</AlertTitle>
+   167→          <AlertDescription className="flex items-center justify-between gap-3 flex-wrap">
+   168→            <span>{error}</span>
+   169→            <Button size="sm" variant="outline" onClick={() => load(true)} className="gap-1.5">
+   170→              <RefreshCw className="size-3.5" /> Reintentar
+   171→            </Button>
+   172→          </AlertDescription>
+   173→        </Alert>
+   174→      </section>
+   175→    )
+   176→  }
+   177→
+   178→  if (loading || !data) {
+   179→    return (
+   180→      <section aria-label="Anuncios" className="space-y-4" aria-busy="true">
+   181→        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-20 rounded-xl" />)}</div>
+   182→        <Skeleton className="h-96 rounded-xl" />
+   183→      </section>
+   184→    )
+   185→  }
+   186→
+   187→  const t = data.totals
+   188→  const filteredRows = data.rows.filter(r =>
+   189→    (platform === 'all' || r.platform.name === platform) &&
+   190→    (q === '' || r.name.toLowerCase().includes(q.toLowerCase()) || r.externalId.toLowerCase().includes(q.toLowerCase()))
+   191→  )
+   192→  const killCount = filteredRows.filter(r => r.verdict === 'kill' || r.verdict === 'cannibalize').length
+   193→  const scaleCount = filteredRows.filter(r => r.verdict === 'scale').length
+   194→  const wastedSpend = filteredRows.filter(r => r.metrics.orderCount === 0).reduce((s, r) => s + r.metrics.spend, 0)
+   195→
+   196→  return (
+   197→    <section aria-label="Anuncios" className="space-y-6 animate-fade-in-up">
+   198→      {/* Header: last-updated + refresh */}
+   199→      <div className="flex items-center justify-between gap-3 flex-wrap">
+   200→        <div className="text-[10px] sm:text-xs text-muted-foreground truncate">
+   201→          {lastUpdated ? (
+   202→            <span>Actualizado hace <strong className="text-foreground tabular-nums">{timeAgo(lastUpdated.toISOString())}</strong></span>
+   203→          ) : (
+   204→            <span>Datos de muestra</span>
+   205→          )}
+   206→        </div>
+   207→        <Button variant="outline" size="sm" onClick={() => load(true)} disabled={refreshing} className="gap-1.5 h-9 px-3" aria-label="Refrescar">
+   208→          <RefreshCw className={cn('size-3.5', refreshing && 'animate-spin')} />
+   209→          {refreshing ? 'Actualizando…' : 'Refrescar'}
+   210→        </Button>
+   211→      </div>
+   212→
+   213→      {/* Empty state: tenant has no ads yet */}
+   214→      {data.rows.length === 0 ? (
+   215→        <Card>
+   216→          <CardContent className="flex flex-col items-center justify-center text-center py-16 px-4">
+   217→            <div className="size-20 rounded-2xl bg-primary/10 ring-1 ring-primary/20 flex items-center justify-center mb-5">
+   218→              <Megaphone className="size-9 text-primary" />
+   219→            </div>
+   220→            <h2 className="text-lg font-semibold">Aún no hay anuncios importados</h2>
+   221→            <p className="text-sm text-muted-foreground max-w-md mt-2">
+   222→              Conecta tus plataformas de pauta (Meta, Google, TikTok) para ver aquí el rendimiento por anuncio, ROAS, CPA y detección de canibalización.
+   223→            </p>
+   224→            <Button variant="default" size="sm" className="mt-5 gap-1.5" onClick={() => toast.info('Importación de anuncios próximamente')}>
+   225→              <Upload className="size-3.5" /> Importar anuncios
+   226→            </Button>
+   227→          </CardContent>
+   228→        </Card>
+   229→      ) : (
+   230→        <>
+   231→      {/* Totals KPI strip */}
+   232→      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+   233→        <TotalsKpi icon={DollarSign} label="Inversión pauta (14d)" value={formatCurrency(t.spend, 'COP', { compact: true })} sub={`${data.rows.length} anuncios activos`} accent="bg-rose-500/10 text-rose-600 ring-rose-500/20" />
+   234→        <TotalsKpi icon={Target} label="ROAS consolidado" value={formatMultiplier(t.roas)} sub={`CPA ${formatCurrency(t.cpa)}`} accent="bg-primary/10 text-primary ring-primary/20" />
+   235→        <TotalsKpi icon={TrendingUp} label="Ventas atribuidas" value={formatNumber(t.orders)} sub={`${formatCurrency(t.paidRevenue, 'COP', { compact: true })} cobrados`} accent="bg-emerald-500/10 text-emerald-600 ring-emerald-500/20" />
+   236→        <TotalsKpi icon={Percent} label="Utilidad neta" value={formatCurrency(t.netProfit, 'COP', { compact: true })} sub={`ROI ${formatMultiplier(t.roi)}`} accent={t.netProfit >= 0 ? 'bg-emerald-500/10 text-emerald-600 ring-emerald-500/20' : 'bg-rose-500/10 text-rose-600 ring-rose-500/20'} />
+   237→      </div>
+   238→
+   239→      {/* Alerts + spend trend */}
+   240→      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+   241→        <Card className="lg:col-span-1">
+   242→          <CardHeader>
+   243→            <CardTitle className="text-base flex items-center gap-2"><AlertTriangle className="size-4 text-amber-500" /> Alertas del trafficker</CardTitle>
+   244→            <CardDescription>Umbrales: ROAS kill &lt; {data.thresholds.roasKill}x · CPA objetivo {formatCurrency(data.thresholds.cpaTarget)}</CardDescription>
+   245→          </CardHeader>
+   246→          <CardContent className="space-y-3">
+   247→            <div className="p-3 rounded-lg bg-rose-500/5 border border-rose-500/20 flex items-start gap-3">
+   248→              <Skull className="size-5 text-rose-600 shrink-0 mt-0.5" />
+   249→              <div className="flex-1">
+   250→                <div className="text-sm font-medium text-rose-700 dark:text-rose-400">{killCount} anuncios para apagar</div>
+   251→                <div className="text-xs text-muted-foreground mt-0.5">Queman {formatCurrency(wastedSpend, 'COP', { compact: true })} sin generar ventas reales</div>
+   252→              </div>
+   253→            </div>
+   254→            <div className="p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/20 flex items-start gap-3">
+   255→              <Rocket className="size-5 text-emerald-600 shrink-0 mt-0.5" />
+   256→              <div className="flex-1">
+   257→                <div className="text-sm font-medium text-emerald-700 dark:text-emerald-400">{scaleCount} anuncios para escalar</div>
+   258→                <div className="text-xs text-muted-foreground mt-0.5">ROAS ≥ 2x con volumen — subir presupuesto</div>
+   259→              </div>
+   260→            </div>
+   261→            <Button variant="default" size="sm" className="w-full gap-1.5" onClick={() => toast.success('Acción masiva ejecutada (demo)')}>
+   262→              <Flame className="size-3.5" /> Apagar todos los canibalizadores
+   263→            </Button>
+   264→          </CardContent>
+   265→        </Card>
+   266→
+   267→        <Card className="lg:col-span-2">
+   268→          <CardHeader>
+   269→            <CardTitle className="text-base">Inversión diaria en pauta</CardTitle>
+   270→            <CardDescription>Últimos 14 días · COP</CardDescription>
+   271→          </CardHeader>
+   272→          <CardContent>
+   273→            <figure role="img" aria-label="Inversión diaria en pauta durante los últimos 14 días en COP">
+   274→            <ResponsiveContainer width="100%" height={200}>
+   275→              <AreaChart data={data.series} margin={{ left: -10, right: 10, top: 5, bottom: 0 }}>
+   276→                <defs>
+   277→                  <linearGradient id="spendG" x1="0" y1="0" x2="0" y2="1">
+   278→                    <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.3} />
+   279→                    <stop offset="95%" stopColor="#f43f5e" stopOpacity={0} />
+   280→                  </linearGradient>
+   281→                </defs>
+   282→                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+   283→                <XAxis dataKey="date" tickFormatter={shortDate} tick={{ fontSize: 11 }} stroke="var(--muted-foreground)" />
+   284→                <YAxis tickFormatter={(v) => formatCurrency(v, 'COP', { compact: true })} tick={{ fontSize: 11 }} stroke="var(--muted-foreground)" />
+   285→                <RTooltip contentStyle={{ background: 'var(--background)', border: '1px solid var(--border)', borderRadius: 12, fontSize: 12 }} formatter={(v: number) => [formatCurrency(v), 'Inversión']} labelFormatter={(l) => shortDate(l as string)} />
+   286→                <Area type="monotone" dataKey="spend" stroke="#f43f5e" strokeWidth={2} fill="url(#spendG)" />
+   287→              </AreaChart>
+   288→            </ResponsiveContainer>
+   289→            </figure>
+   290→          </CardContent>
+   291→        </Card>
+   292→      </div>
+   293→
+   294→      {/* Ads table */}
+   295→      <Card>
+   296→        <CardHeader className="pb-3">
+   297→          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+   298→            <div>
+   299→              <CardTitle className="text-base">Rendimiento por anuncio</CardTitle>
+   300→              <CardDescription>Identificador de anuncio · ventas en cantidad y valor · CPA, ROAS, ROI · detección de canibalización</CardDescription>
+   301→            </div>
+   302→            <div className="flex gap-2">
+   303→              <div className="relative">
+   304→                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+   305→                <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar ad ID o nombre..." className="pl-8 h-9 w-52" />
+   306→              </div>
+   307→              <Select value={platform} onValueChange={setPlatform}>
+   308→                <SelectTrigger className="h-9 w-36"><SelectValue /></SelectTrigger>
+   309→                <SelectContent>
+   310→                  <SelectItem value="all">Todas las plataformas</SelectItem>
+   311→                  <SelectItem value="meta">Meta Ads</SelectItem>
+   312→                  <SelectItem value="google">Google Ads</SelectItem>
+   313→                  <SelectItem value="tiktok">TikTok Ads</SelectItem>
+   314→                </SelectContent>
+   315→              </Select>
+   316→            </div>
+   317→          </div>
+   318→        </CardHeader>
+   319→        <CardContent className="p-0">
+   320→          <div className="relative">
+   321→            {/* Scroll hint — right-edge gradient shadow indicating horizontal overflow */}
+   322→            <div aria-hidden className="pointer-events-none absolute top-0 right-0 bottom-0 w-8 bg-gradient-to-l from-muted/60 to-transparent z-10" />
+   323→            <div className="overflow-x-auto scroll-thin">
+   324→            <Table>
+   325→              <TableHeader>
+   326→                <TableRow>
+   327→                  <TableHead className="min-w-[220px]">Anuncio (ID plataforma)</TableHead>
+   328→                  <TableHead className="w-28">Plataforma</TableHead>
+   329→                  <TableHead className="text-right w-28">Inversión</TableHead>
+   330→                  <TableHead className="text-right w-24">CTR/CPC</TableHead>
+   331→                  <TableHead className="text-right w-24">Conv. rep.</TableHead>
+   332→                  <TableHead className="text-right w-28">Ventas reales</TableHead>
+   333→                  <TableHead className="text-right w-28">Ingresos</TableHead>
+   334→                  <TableHead className="text-right w-24">CPA</TableHead>
+   335→                  <TableHead className="text-right w-24">ROAS</TableHead>
+   336→                  <TableHead className="text-right w-24">ROI</TableHead>
+   337→                  <TableHead className="w-32">Veredicto</TableHead>
+   338→                  <TableHead className="w-40 text-right">Acción</TableHead>
+   339→                </TableRow>
+   340→              </TableHeader>
+   341→              <TableBody>
+   342→                {filteredRows.map((r) => {
+   343→                  const vm = verdictMeta(r.verdict)
+   344→                  const VIcon = vm.icon
+   345→                  const pm = platformMeta(r.platform.name)
+   346→                  return (
+   347→                    <TableRow key={r.id} className={cn('hover:bg-muted/40', r.cannibalizing && 'bg-violet-500/5', r.verdict === 'kill' && 'bg-rose-500/5')}>
+   348→                      <TableCell>
+   349→                        <div className="flex items-center gap-2">
+   350→                          {r.cannibalizing && <Flame className="size-3.5 text-violet-600 shrink-0" />}
+   351→                          <div className="min-w-0">
+   352→                            <div className="font-medium text-sm truncate max-w-52">{r.name}</div>
+   353→                            <div className="text-[10px] text-muted-foreground font-mono truncate max-w-52" title={r.externalId}>{r.externalId}</div>
+   354→                            <div className="text-[10px] text-muted-foreground truncate max-w-52">{r.campaign.name}</div>
+   355→                          </div>
+   356→                        </div>
+   357→                      </TableCell>
+   358→                      <TableCell><span className={cn('text-[10px] px-1.5 py-0.5 rounded', pm.cls)}>{pm.label}</span></TableCell>
+   359→                      <TableCell className="text-right tabular-nums font-medium">{formatCurrency(r.metrics.spend, 'COP', { compact: true })}</TableCell>
+   360→                      <TableCell className="text-right">
+   361→                        <div className="text-xs tabular-nums">{formatPercent(r.metrics.ctr)}</div>
+   362→                        <div className="text-[10px] text-muted-foreground tabular-nums">{formatCurrency(r.metrics.cpc)}</div>
+   363→                      </TableCell>
+   364→                      <TableCell className="text-right tabular-nums">
+   365→                        <span className={cn(r.flags.platformGap > 0 && 'text-violet-600 font-medium')} title="Conversiones reportadas por la plataforma vs ventas reales">
+   366→                          {r.metrics.convReported}
+   367→                        </span>
+   368→                      </TableCell>
+   369→                      <TableCell className="text-right tabular-nums">
+   370→                        <div className={cn('font-medium', r.metrics.orderCount === 0 ? 'text-rose-700 dark:text-rose-300' : 'text-emerald-700 dark:text-emerald-300')}>{r.metrics.orderCount}</div>
+   371→                        <div className="text-[10px] text-muted-foreground">{r.metrics.units} und</div>
+   372→                      </TableCell>
+   373→                      <TableCell className="text-right tabular-nums">
+   374→                        <div className="font-medium text-sm">{formatCurrency(r.metrics.paidRevenue, 'COP', { compact: true })}</div>
+   375→                        <div className="text-[10px] text-muted-foreground">AOV {formatCurrency(r.metrics.aov)}</div>
+   376→                      </TableCell>
+   377→                      <TableCell className="text-right tabular-nums">
+   378→                        {r.metrics.cpa === null ? <span className="text-rose-700 dark:text-rose-300 text-xs">∞</span> : (
+   379→                          <span className={cn('text-xs', (r.metrics.cpa || 0) > data.thresholds.cpaTarget ? 'text-rose-700 dark:text-rose-300' : 'text-muted-foreground')}>
+   380→                            {formatCurrency(r.metrics.cpa)}
+   381→                          </span>
+   382→                        )}
+   383→                      </TableCell>
+   384→                      <TableCell className="text-right tabular-nums">
+   385→                        <TooltipProvider>
+   386→                          <Tooltip>
+   387→                            <TooltipTrigger asChild>
+   388→                              <span tabIndex={0} role="button" className={cn(
+   389→                                'inline-flex items-center gap-1 text-xs font-semibold px-1.5 py-0.5 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+   390→                                r.metrics.roas >= 2 ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+   391→                                  : r.metrics.roas >= 1 ? 'bg-sky-500/10 text-sky-700 dark:text-sky-300'
+   392→                                  : r.metrics.roas > 0 ? 'bg-rose-500/10 text-rose-700 dark:text-rose-300'
+   393→                                  : 'bg-slate-500/10 text-slate-700 dark:text-slate-300'
+   394→                              )}>
+   395→                                {r.metrics.roas > 0 ? formatMultiplier(r.metrics.roas) : '—'}
+   396→                              </span>
+   397→                            </TooltipTrigger>
+   398→                            <TooltipContent>
+   399→                              <div className="text-xs space-y-0.5">
+   400→                                <div>Ganancia bruta: {formatCurrency(r.metrics.grossProfit, 'COP', { compact: true })}</div>
+   401→                                <div>Utilidad neta: {formatCurrency(r.metrics.netProfit, 'COP', { compact: true })}</div>
+   402→                                <div>CVR: {formatPercent(r.metrics.cvr)}</div>
+   403→                              </div>
+   404→                            </TooltipContent>
+   405→                          </Tooltip>
+   406→                        </TooltipProvider>
+   407→                      </TableCell>
+   408→                      <TableCell className="text-right tabular-nums">
+   409→                        <span className={cn('text-xs font-medium', r.metrics.roi >= 0 ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-300')}>
+   410→                          {formatMultiplier(r.metrics.roi)}
+   411→                        </span>
+   412→                      </TableCell>
+   413→                      <TableCell>
+   414→                        <TooltipProvider>
+   415→                          <Tooltip>
+   416→                            <TooltipTrigger asChild>
+   417→                              <span tabIndex={0} role="button" className={cn('inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full ring-1 cursor-help focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring', vm.cls)}>
+   418→                                <VIcon className="size-3" /> {vm.label}
+   419→                              </span>
+   420→                            </TooltipTrigger>
+   421→                            <TooltipContent><p className="text-xs max-w-48">{vm.desc}</p></TooltipContent>
+   422→                          </Tooltip>
+   423→                        </TooltipProvider>
+   424→                      </TableCell>
+   425→                      <TableCell className="text-right">
+   426→                        <div className="flex items-center justify-end gap-1">
+   427→                          {(r.verdict === 'kill' || r.verdict === 'cannibalize') && (
+   428→                            <Button size="sm" variant="destructive" className="h-7 text-xs gap-1" onClick={() => doAction(r.id, 'kill', r.cannibalizing ? 'Canibaliza atribución' : 'Sin ventas')}>
+   429→                              <Skull className="size-3" /> Apagar
+   430→                            </Button>
+   431→                          )}
+   432→                          {r.verdict === 'pause' && (
+   433→                            <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => doAction(r.id, 'pause')}>
+   434→                              <Pause className="size-3" /> Pausar
+   435→                            </Button>
+   436→                          )}
+   437→                          {r.verdict === 'scale' && (
+   438→                            <Button size="sm" className="h-7 text-xs gap-1" onClick={() => doAction(r.id, 'scale')}>
+   439→                              <Rocket className="size-3" /> Escalar
+   440→                            </Button>
+   441→                          )}
+   442→                          {(r.verdict === 'optimize' || r.verdict === 'watch') && (
+   443→                            <Button size="sm" variant="ghost" className="h-7 text-xs gap-1" onClick={() => toast.info('Marcado para vigilar')}>
+   444→                              <Eye className="size-3" /> Vigilar
+   445→                            </Button>
+   446→                          )}
+   447→                          {r.status === 'paused' && (
+   448→                            <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => doAction(r.id, 'resume')}>
+   449→                              <Play className="size-3" /> Reanudar
+   450→                            </Button>
+   451→                          )}
+   452→                        </div>
+   453→                      </TableCell>
+   454→                    </TableRow>
+   455→                  )
+   456→                })}
+   457→              </TableBody>
+   458→            </Table>
+   459→            </div>
+   460→          </div>
+   461→        </CardContent>
+   462→      </Card>
+   463→
+   464→      {/* Methodology explainer — broken into 2 cards for better spacing */}
+   465→      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+   466→        <Card>
+   467→          <CardHeader>
+   468→            <CardTitle className="text-base">¿Cómo se calcula? — Métricas clave</CardTitle>
+   469→            <CardDescription>Fórmulas usadas en cada columna de la tabla de arriba</CardDescription>
+   470→          </CardHeader>
+   471→          <CardContent className="space-y-3">
+   472→            <div className="grid grid-cols-1 gap-2.5">
+   473→              <div className="flex justify-between items-center p-2.5 rounded-lg border bg-muted/20">
+   474→                <span className="text-sm font-medium">CPA</span>
+   475→                <code className="text-xs bg-background px-2 py-1 rounded border">inversión ÷ pedidos reales</code>
+   476→              </div>
+   477→              <div className="flex justify-between items-center p-2.5 rounded-lg border bg-muted/20">
+   478→                <span className="text-sm font-medium">ROAS</span>
+   479→                <code className="text-xs bg-background px-2 py-1 rounded border">ingresos cobrados ÷ inversión</code>
+   480→              </div>
+   481→              <div className="flex justify-between items-center p-2.5 rounded-lg border bg-muted/20">
+   482→                <span className="text-sm font-medium">ROI</span>
+   483→                <code className="text-xs bg-background px-2 py-1 rounded border">utilidad neta ÷ inversión</code>
+   484→              </div>
+   485→              <div className="flex justify-between items-center p-2.5 rounded-lg border bg-muted/20">
+   486→                <span className="text-sm font-medium">CPL</span>
+   487→                <code className="text-xs bg-background px-2 py-1 rounded border">inversión ÷ conversiones reportadas</code>
+   488→              </div>
+   489→              <div className="flex justify-between items-center p-2.5 rounded-lg border bg-muted/20">
+   490→                <span className="text-sm font-medium">CVR</span>
+   491→                <code className="text-xs bg-background px-2 py-1 rounded border">pedidos ÷ clicks</code>
+   492→              </div>
+   493→            </div>
+   494→          </CardContent>
+   495→        </Card>
+   496→
+   497→        <Card>
+   498→          <CardHeader>
+   499→            <CardTitle className="text-base">Reglas de veredicto y atribución</CardTitle>
+   500→            <CardDescription>Umbrales: ROAS kill &lt; {data.thresholds.roasKill}x · CPA objetivo {formatCurrency(data.thresholds.cpaTarget)}</CardDescription>
+   501→          </CardHeader>
+   502→          <CardContent className="space-y-3 text-sm">
+   503→            <div className="p-3 rounded-lg border-l-4 border-violet-500 bg-violet-500/5">
+   504→              <div className="flex items-center gap-2 font-medium text-violet-700 dark:text-violet-300"><Flame className="size-4" /> Canibalización</div>
+   505→              <p className="text-xs text-muted-foreground mt-1">La plataforma reporta conversiones pero no llegan pedidos reales (gap &gt; 0). El anuncio "roba" crédito de ventas que vienen por otro canal.</p>
+   506→            </div>
+   507→            <div className="p-3 rounded-lg border-l-4 border-rose-500 bg-rose-500/5">
+   508→              <div className="flex items-center gap-2 font-medium text-rose-700 dark:text-rose-300"><Skull className="size-4" /> Apagar (kill)</div>
+   509→              <p className="text-xs text-muted-foreground mt-1">Gasto &gt; CPA objetivo y cero ventas reales.</p>
+   510→            </div>
+   511→            <div className="p-3 rounded-lg border-l-4 border-amber-500 bg-amber-500/5">
+   512→              <div className="flex items-center gap-2 font-medium text-amber-700 dark:text-amber-300"><Pause className="size-4" /> Pausar</div>
+   513→              <p className="text-xs text-muted-foreground mt-1">ROAS &lt; {data.thresholds.roasKill}x y gasto material (&gt; 2x CPA objetivo).</p>
+   514→            </div>
+   515→            <div className="p-3 rounded-lg border-l-4 border-emerald-500 bg-emerald-500/5">
+   516→              <div className="flex items-center gap-2 font-medium text-emerald-700 dark:text-emerald-300"><Rocket className="size-4" /> Escalar</div>
+   517→              <p className="text-xs text-muted-foreground mt-1">ROAS ≥ 2x con ≥ 2 pedidos.</p>
+   518→            </div>
+   519→            <div className="p-3 rounded-lg border-l-4 border-primary bg-primary/5">
+   520→              <div className="flex items-center gap-2 font-medium text-primary"><Sparkles className="size-4" /> Atribución</div>
+   521→              <p className="text-xs text-muted-foreground mt-1">Last-click por defecto (configurable a first-touch, lineal o time-decay). El <code className="text-[11px]">click_id</code> (fbclid/gclid/ttclid) se captura al aterrizar y se pega al pedido.</p>
+   522→            </div>
+   523→          </CardContent>
+   524→        </Card>
+   525→      </div>
+   526→      </>
+   527→      )}
+   528→    </section>
+   529→  )
+   530→}
+   531→

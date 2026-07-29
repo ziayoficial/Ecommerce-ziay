@@ -1,0 +1,28 @@
+# Grafana datasource provisioning for ZIAY
+# SPRINT-INFRA-FINAL-001 · Sprint 7A — auto-provisioned on container start.
+#
+# Mounted into the Grafana container at
+#   /etc/grafana/provisioning/datasources/datasource.yml
+# by docker-compose.yml. Grafana reads this file at boot and creates the
+# datasources automatically — no manual UI click-through required.
+#
+# Both Prometheus (metrics) and Loki (logs) are added. Prometheus is the
+# default datasource (used by dashboard panels that don't specify one).
+
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false
+    jsonData:
+      timeInterval: '15s'
+
+  - name: Loki (logs)
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    editable: false

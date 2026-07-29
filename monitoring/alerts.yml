@@ -1,0 +1,66 @@
+# Prometheus alerting rules for ZIAY
+# SPRINT-MONITORING-002 · M-11 — alert rules covering infra + business metrics
+# scraped from /api/metrics (Prometheus text exposition format, see
+# src/app/api/metrics/route.ts). Metric names must match the `# HELP` /
+# `# TYPE` declarations exposed by that endpoint.
+#
+# Load via `rule_files` in prometheus.yml (already wired). After editing,
+# reload Prometheus (`POST /-/reload` or SIGHUP) — the rule loader
+# validates syntax and refuses to reload on parse error.
+groups:
+  - name: ziay-infrastructure
+    interval: 30s
+    rules:
+      # Database
+      - alert: ZIAYDatabaseDown
+        expr: ziay_db_connected == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: ops
+        annotations:
+          summary: "Database is down"
+          description: "ZIAY cannot connect to PostgreSQL for >1m"
+
+      - alert: ZIAYHighMemoryUsage
+        expr: ziay_node_memory_rss_bytes / 1024 / 1024 > 800
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage ({{ $value }}MB RSS)"
+
+      - alert: ZIAYProcessRestart
+        expr: increase(ziay_node_uptime_seconds[5m]) < ziay_node_uptime_seconds
+        labels:
+          severity: warning
+        annotations:
+          summary: "Process restarted (uptime reset)"
+
+      # Business metrics
+      - alert: ZIAYHighPendingWithdrawals
+        expr: ziay_withdrawals_pending > 10
+        for: 10m
+        labels:
+          severity: warning
+          team: finance
+        annotations:
+          summary: "{{ $value }} pending withdrawals need processing"
+
+      - alert: ZIAYNoOrdersToday
+        expr: ziay_orders_today == 0 and hour() >= 10
+        for: 2h
+        labels:
+          severity: warning
+          team: business
+        annotations:
+          summary: "No orders today after 10AM — possible checkout issue"
+
+      - alert: ZIAYHighOpenConversations
+        expr: ziay_conversations_open > 50
+        for: 15m
+        labels:
+          severity: warning
+          team: support
+        annotations:
+          summary: "{{ $value }} open conversations — support overload risk"

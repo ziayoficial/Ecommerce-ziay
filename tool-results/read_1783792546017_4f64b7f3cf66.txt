@@ -1,0 +1,1127 @@
+     1→'use client'
+     2→import { useEffect, useState } from 'react'
+     3→import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+     4→import { Badge } from '@/components/ui/badge'
+     5→import { Button } from '@/components/ui/button'
+     6→import { Input } from '@/components/ui/input'
+     7→import { Label } from '@/components/ui/label'
+     8→import { Skeleton } from '@/components/ui/skeleton'
+     9→import { Separator } from '@/components/ui/separator'
+    10→import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
+    11→import {
+    12→  Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
+    13→} from '@/components/ui/tooltip'
+    14→import { cn } from '@/lib/utils'
+    15→import { useTenantId } from '@/hooks/use-tenant'
+    16→import { toast } from 'sonner'
+    17→import { formatCurrency } from '@/lib/format'
+    18→import {
+    19→  ShoppingBag, Truck, Plug, Package, Calculator, Eye, EyeOff, Sparkles, CheckCircle2,
+    20→  XCircle, AlertTriangle, Loader2, Zap, Database, Send, RefreshCw, Key, Save,
+    21→  TestTube, ChevronDown, ChevronRight, Trash2,
+    22→} from 'lucide-react'
+    23→import type { LucideIcon } from 'lucide-react'
+    24→
+    25→// ───────────────────────────────────────────────────────────────────────────
+    26→// Types
+    27→// ───────────────────────────────────────────────────────────────────────────
+    28→type HealthCheck = { name: string; status: 'ok' | 'warning' | 'error' | 'not_configured'; detail: string }
+    29→
+    30→type Product = {
+    31→  id: string; sku: string; name: string; description: string | null
+    32→  price: number; imageUrl: string | null; stock: number
+    33→  diseno: string | null; categoria: string | null
+    34→  fuenteSincronizacion: string | null
+    35→}
+    36→
+    37→type FreightQuoteResult = {
+    38→  ok: boolean
+    39→  ciudad: string
+    40→  pais: string
+    41→  cantidad_unidades: number
+    42→  quote: { tarifa: number; tiempo_estimado_dias: number; transportadora: string }
+    43→} | { error: string }
+    44→
+    45→type VisionResult = {
+    46→  reply: string
+    47→  agent: string
+    48→  confidence: number
+    49→  error?: string
+    50→}
+    51→
+    52→// ───────────────────────────────────────────────────────────────────────────
+    53→// Static registry metadata — mirrors src/lib/adapters/registry.ts so the UI
+    54→// shows all 4 ecommerce routes + 3 logistics providers even before health data
+    55→// loads. The "active" badge comes from the per-tenant config (tenant.
+    56→// plataformaCatalogo / tenant.proveedorLogistico) which the /api/health endpoint
+    57→// already exposes via `tenant_catalog_adapter` / `tenant_logistics_adapter`.
+    58→// ───────────────────────────────────────────────────────────────────────────
+    59→const ECOM_ROUTES = [
+    60→  { id: 'whatsapp_catalog',  label: 'WhatsApp Catalog',   emoji: '💬', spec: '§8.2 — catálogo gestionado por Meta Commerce' },
+    61→  { id: 'woocommerce',       label: 'WooCommerce',        emoji: '🛒', spec: '§8.3 — REST consumer_key/secret del cliente' },
+    62→  { id: 'shopify',           label: 'Shopify',            emoji: '🅢', spec: '§8.3 — Admin GraphQL + OAuth access token' },
+    63→  { id: 'catalogo_propio_cliente', label: 'Supabase (cliente)', emoji: '🔌', spec: '§8.4 — read-only, sin escritura de inventario' },
+    64→  { id: 'catalogo_nuestro',  label: 'Supabase (nuestra)', emoji: '🗄️', spec: '§8.4 — read-write, multi-tenant' },
+    65→] as const
+    66→
+    67→const LOGISTICS_ROUTES = [
+    68→  { id: 'dropi',     label: 'Dropi',       emoji: '📦', spec: '§9.6 — multitransportadora CO' },
+    69→  { id: '99envios',  label: '99envios',    emoji: '🚚', spec: '§9.6 — multitransportadora CO' },
+    70→  { id: 'aveonline', label: 'Aveonline',   emoji: '✈️', spec: '§9.6 — multitransportadora CO' },
+    71→] as const
+    72→
+    73→// ───────────────────────────────────────────────────────────────────────────
+    74→// Credential configuration registry — drives the "Configuración de
+    75→// Credenciales" panel below the health table. Each category groups a set of
+    76→// integrations; each integration declares the named fields it needs.
+    77→// Field names MUST match what the adapter code reads (e.g. consumerKey,
+    78→// accessToken, baseUrl, ...).
+    79→// ───────────────────────────────────────────────────────────────────────────
+    80→type CredentialField = {
+    81→  name: string
+    82→  label: string
+    83→  placeholder?: string
+    84→  secret?: boolean
+    85→}
+    86→
+    87→type CredentialIntegration = {
+    88→  id: string
+    89→  name: string
+    90→  emoji: string
+    91→  description: string
+    92→  fields: CredentialField[]
+    93→}
+    94→
+    95→type CredentialCategory = {
+    96→  id: string
+    97→  name: string
+    98→  icon: LucideIcon
+    99→  integrations: CredentialIntegration[]
+   100→}
+   101→
+   102→const CRED_REGISTRY: CredentialCategory[] = [
+   103→  {
+   104→    id: 'catalogo',
+   105→    name: 'Catálogo · E-commerce',
+   106→    icon: ShoppingBag,
+   107→    integrations: [
+   108→      {
+   109→        id: 'woocommerce', name: 'WooCommerce', emoji: '🛒',
+   110→        description: 'REST API del cliente (consumer_key / consumer_secret)',
+   111→        fields: [
+   112→          { name: 'storeUrl', label: 'Store URL', placeholder: 'https://tienda.com' },
+   113→          { name: 'consumerKey', label: 'Consumer Key', secret: true, placeholder: 'ck_xxx' },
+   114→          { name: 'consumerSecret', label: 'Consumer Secret', secret: true, placeholder: 'cs_xxx' },
+   115→        ],
+   116→      },
+   117→      {
+   118→        id: 'shopify', name: 'Shopify', emoji: '🅢',
+   119→        description: 'Admin API · access token de la app privada',
+   120→        fields: [
+   121→          { name: 'shopDomain', label: 'Shop Domain', placeholder: 'mystore.myshopify.com' },
+   122→          { name: 'accessToken', label: 'Access Token', secret: true, placeholder: 'shpat_xxx' },
+   123→        ],
+   124→      },
+   125→      {
+   126→        id: 'supabase', name: 'Supabase', emoji: '🔌',
+   127→        description: 'Catálogo en Supabase del cliente o nuestro',
+   128→        fields: [
+   129→          { name: 'supabaseUrl', label: 'Supabase URL', placeholder: 'https://xxx.supabase.co' },
+   130→          { name: 'supabaseApiKey', label: 'API Key (anon / service role)', secret: true, placeholder: 'eyJxxx' },
+   131→        ],
+   132→      },
+   133→      {
+   134→        id: 'oracle', name: 'Oracle', emoji: '🗄️',
+   135→        description: 'Conexión directa al ERP Oracle del cliente',
+   136→        fields: [
+   137→          { name: 'connectionString', label: 'Connection String', secret: true, placeholder: 'user/pass@host:port/service' },
+   138→        ],
+   139→      },
+   140→    ],
+   141→  },
+   142→  {
+   143→    id: 'logistica',
+   144→    name: 'Logística',
+   145→    icon: Truck,
+   146→    integrations: [
+   147→      { id: 'dropi',     name: 'Dropi',     emoji: '📦', description: 'Multitransportadora CO', fields: [{ name: 'apiKey', label: 'API Key', secret: true }] },
+   148→      { id: '99envios',  name: '99envios',  emoji: '🚚', description: 'Multitransportadora CO', fields: [{ name: 'apiKey', label: 'API Key', secret: true }] },
+   149→      { id: 'aveonline', name: 'Aveonline', emoji: '✈️', description: 'Multitransportadora CO', fields: [{ name: 'apiKey', label: 'API Key', secret: true }] },
+   150→    ],
+   151→  },
+   152→  {
+   153→    id: 'pagos',
+   154→    name: 'Pagos',
+   155→    icon: Calculator,
+   156→    integrations: [
+   157→      {
+   158→        id: 'mercadopago', name: 'MercadoPago', emoji: '💚',
+   159→        description: 'Gateway LATAM · access token + webhook secret',
+   160→        fields: [
+   161→          { name: 'accessToken', label: 'Access Token', secret: true, placeholder: 'APP_USR-xxx' },
+   162→          { name: 'webhookSecret', label: 'Webhook Secret', secret: true },
+   163→        ],
+   164→      },
+   165→      {
+   166→        id: 'wompi', name: 'Wompi', emoji: '💳',
+   167→        description: 'Gateway CO · llaves pública + privada + event secret',
+   168→        fields: [
+   169→          { name: 'publicKey',  label: 'Public Key', placeholder: 'pub_prod_xxx' },
+   170→          { name: 'privateKey', label: 'Private Key', secret: true, placeholder: 'prv_prod_xxx' },
+   171→          { name: 'eventSecret', label: 'Event Secret', secret: true },
+   172→        ],
+   173→      },
+   174→      {
+   175→        id: 'stripe', name: 'Stripe', emoji: '💠',
+   176→        description: 'Gateway global · secret key + webhook signing secret',
+   177→        fields: [
+   178→          { name: 'secretKey', label: 'Secret Key', secret: true, placeholder: 'sk_live_xxx' },
+   179→          { name: 'webhookSecret', label: 'Webhook Secret', secret: true, placeholder: 'whsec_xxx' },
+   180→        ],
+   181→      },
+   182→      {
+   183→        id: 'payu', name: 'PayU', emoji: '🏦',
+   184→        description: 'Gateway LATAM · api key + merchant id + api login',
+   185→        fields: [
+   186→          { name: 'apiKey',     label: 'API Key',     secret: true },
+   187→          { name: 'merchantId', label: 'Merchant ID', placeholder: '508029' },
+   188→          { name: 'apiLogin',   label: 'API Login',   secret: true },
+   189→        ],
+   190→      },
+   191→    ],
+   192→  },
+   193→  {
+   194→    id: 'pauta',
+   195→    name: 'Pauta · Ad platforms',
+   196→    icon: Sparkles,
+   197→    integrations: [
+   198→      {
+   199→        id: 'google_ads', name: 'Google Ads', emoji: '🔍',
+   200→        description: 'Conversion API · developer token + OAuth + customer ID',
+   201→        fields: [
+   202→          { name: 'developerToken', label: 'Developer Token', secret: true },
+   203→          { name: 'accessToken',    label: 'Access Token',    secret: true },
+   204→          { name: 'customerId',     label: 'Customer ID', placeholder: '123-456-7890' },
+   205→        ],
+   206→      },
+   207→      {
+   208→        id: 'tiktok_ads', name: 'TikTok Ads', emoji: '🎵',
+   209→        description: 'Events API · access token + advertiser ID',
+   210→        fields: [
+   211→          { name: 'accessToken',  label: 'Access Token',  secret: true },
+   212→          { name: 'advertiserId', label: 'Advertiser ID' },
+   213→        ],
+   214→      },
+   215→      {
+   216→        id: 'meta_ads', name: 'Meta Ads', emoji: '📘',
+   217→        description: 'CAPI · app id + app secret + access token',
+   218→        fields: [
+   219→          { name: 'appId',       label: 'App ID' },
+   220→          { name: 'appSecret',   label: 'App Secret',   secret: true },
+   221→          { name: 'accessToken', label: 'Access Token', secret: true },
+   222→        ],
+   223→      },
+   224→    ],
+   225→  },
+   226→  {
+   227→    id: 'canales',
+   228→    name: 'Canales · Channels',
+   229→    icon: Send,
+   230→    integrations: [
+   231→      {
+   232→        id: 'whatsapp', name: 'WhatsApp', emoji: '💬',
+   233→        description: 'Cloud API · phone number + WABA + token + verify + secret',
+   234→        fields: [
+   235→          { name: 'phoneNumberId', label: 'Phone Number ID' },
+   236→          { name: 'wabaId',        label: 'WABA ID' },
+   237→          { name: 'apiToken',      label: 'API Token',      secret: true },
+   238→          { name: 'verifyToken',   label: 'Verify Token',   secret: true },
+   239→          { name: 'appSecret',     label: 'App Secret',     secret: true },
+   240→        ],
+   241→      },
+   242→      {
+   243→        id: 'messenger', name: 'Messenger', emoji: '📨',
+   244→        description: 'Page subscription · page id + token + verify + secret',
+   245→        fields: [
+   246→          { name: 'pageId',      label: 'Page ID' },
+   247→          { name: 'pageToken',   label: 'Page Token',   secret: true },
+   248→          { name: 'verifyToken', label: 'Verify Token', secret: true },
+   249→          { name: 'appSecret',   label: 'App Secret',   secret: true },
+   250→        ],
+   251→      },
+   252→      {
+   253→        id: 'instagram', name: 'Instagram', emoji: '📸',
+   254→        description: 'Mensajería IG · account id + access token + verify',
+   255→        fields: [
+   256→          { name: 'accountId',   label: 'Account ID' },
+   257→          { name: 'accessToken', label: 'Access Token', secret: true },
+   258→          { name: 'verifyToken', label: 'Verify Token', secret: true },
+   259→        ],
+   260→      },
+   261→    ],
+   262→  },
+   263→  {
+   264→    id: 'ia',
+   265→    name: 'IA · LLM providers',
+   266→    icon: Database,
+   267→    integrations: [
+   268→      { id: 'openai', name: 'OpenAI', emoji: '🤖', description: 'ChatGPT API', fields: [{ name: 'apiKey', label: 'API Key', secret: true, placeholder: 'sk-xxx' }] },
+   269→      { id: 'xai',    name: 'xAI (Grok)', emoji: '🧠', description: 'Grok API', fields: [{ name: 'apiKey', label: 'API Key', secret: true, placeholder: 'xai-xxx' }] },
+   270→      { id: 'ollama', name: 'Ollama', emoji: '🦙', description: 'LLM local self-hosted', fields: [{ name: 'baseUrl', label: 'Base URL', placeholder: 'http://localhost:11434' }] },
+   271→    ],
+   272→  },
+   273→]
+   274→
+   275→// Flattened lookup: integration id → its definition (used by the panel state).
+   276→const CRED_LOOKUP: Record<string, CredentialIntegration> = Object.fromEntries(
+   277→  CRED_REGISTRY.flatMap(c => c.integrations).map(i => [i.id, i]),
+   278→)
+   279→
+   280→type SavedField = { masked: string; present: true }
+   281→type SavedCredsMap = Record<string, Record<string, SavedField>>
+   282→
+   283→// ───────────────────────────────────────────────────────────────────────────
+   284→// Helpers
+   285→// ───────────────────────────────────────────────────────────────────────────
+   286→function statusMeta(s: HealthCheck['status']) {
+   287→  switch (s) {
+   288→    case 'ok': return { label: 'Configurado',   dot: 'bg-emerald-500', badge: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300', icon: CheckCircle2, iconCls: 'text-emerald-600' }
+   289→    case 'warning': return { label: 'Parcial',   dot: 'bg-amber-500',   badge: 'bg-amber-500/10 text-amber-700 dark:text-amber-300',     icon: AlertTriangle, iconCls: 'text-amber-600' }
+   290→    case 'error': return { label: 'Error',       dot: 'bg-rose-500',    badge: 'bg-rose-500/10 text-rose-700 dark:text-rose-300',        icon: XCircle, iconCls: 'text-rose-600' }
+   291→    default: return { label: 'No configurado',   dot: 'bg-slate-400',   badge: 'bg-slate-500/10 text-slate-700 dark:text-slate-300',     icon: XCircle, iconCls: 'text-slate-500 dark:text-slate-400' }
+   292→  }
+   293→}
+   294→
+   295→// ───────────────────────────────────────────────────────────────────────────
+   296→// CredentialCard — single integration credential editor
+   297→// ───────────────────────────────────────────────────────────────────────────
+   298→function CredentialCard({
+   299→  integration,
+   300→  saved,
+   301→  onSavedChange,
+   302→}: {
+   303→  integration: CredentialIntegration
+   304→  saved: Record<string, SavedField> | undefined
+   305→  onSavedChange: (integrationId: string, fields: Record<string, SavedField> | undefined) => void
+   306→}) {
+   307→  const [expanded, setExpanded] = useState(false)
+   308→  const [draft, setDraft] = useState<Record<string, string>>({})
+   309→  const [revealed, setRevealed] = useState<Record<string, boolean>>({})
+   310→  const [saving, setSaving] = useState(false)
+   311→  const [testing, setTesting] = useState(false)
+   312→
+   313→  const configured = !!(saved && Object.keys(saved).length > 0)
+   314→
+   315→  const handleSave = async () => {
+   316→    setSaving(true)
+   317→    try {
+   318→      // Only send fields the user actually typed (non-empty, non-masked).
+   319→      const toSave: Record<string, string> = {}
+   320→      for (const [k, v] of Object.entries(draft)) {
+   321→        const sv = (v ?? '').trim()
+   322→        if (sv && !sv.startsWith('••••')) toSave[k] = sv
+   323→      }
+   324→      if (Object.keys(toSave).length === 0) {
+   325→        toast.info('Nada nuevo que guardar', {
+   326→          description: 'Edita al menos un campo antes de guardar.',
+   327→        })
+   328→        return
+   329→      }
+   330→      const res = await fetch('/api/integrations/credentials', {
+   331→        method: 'POST',
+   332→        headers: { 'Content-Type': 'application/json' },
+   333→        body: JSON.stringify({ integration: integration.id, fields: toSave }),
+   334→      })
+   335→      const data = await res.json()
+   336→      if (!res.ok) throw new Error(data.error || 'Error al guardar')
+   337→      onSavedChange(integration.id, data.fields || {})
+   338→      setDraft({})
+   339→      toast.success(`${integration.name}: credenciales guardadas`, {
+   340→        description: `${Object.keys(data.fields || {}).length} campo(s) configurado(s)`,
+   341→      })
+   342→    } catch (e) {
+   343→      const msg = e instanceof Error ? e.message : 'Error desconocido'
+   344→      toast.error(`No se pudo guardar ${integration.name}`, { description: msg })
+   345→    } finally {
+   346→      setSaving(false)
+   347→    }
+   348→  }
+   349→
+   350→  const handleTest = async () => {
+   351→    setTesting(true)
+   352→    try {
+   353→      // Send only the user's draft additions — the server merges with the
+   354→      // stored secret values (which the client never sees in raw form).
+   355→      const toSend: Record<string, string> = {}
+   356→      for (const [k, v] of Object.entries(draft)) {
+   357→        const sv = (v ?? '').trim()
+   358→        if (sv && !sv.startsWith('••••')) toSend[k] = sv
+   359→      }
+   360→      const res = await fetch('/api/integrations/credentials', {
+   361→        method: 'POST',
+   362→        headers: { 'Content-Type': 'application/json' },
+   363→        body: JSON.stringify({ integration: integration.id, fields: toSend, test: true }),
+   364→      })
+   365→      const data = await res.json()
+   366→      if (!res.ok) throw new Error(data.error || 'Error al testar')
+   367→      if (data.ok) {
+   368→        toast.success(`${integration.name}: conexión OK`, { description: data.message })
+   369→      } else {
+   370→        toast.error(`${integration.name}: falló la prueba`, { description: data.message })
+   371→      }
+   372→    } catch (e) {
+   373→      const msg = e instanceof Error ? e.message : 'Error desconocido'
+   374→      toast.error(`No se pudo testar ${integration.name}`, { description: msg })
+   375→    } finally {
+   376→      setTesting(false)
+   377→    }
+   378→  }
+   379→
+   380→  const handleDelete = async () => {
+   381→    if (!configured) return
+   382→    if (!confirm(`¿Eliminar todas las credenciales guardadas de ${integration.name}?`)) return
+   383→    try {
+   384→      const res = await fetch(
+   385→        `/api/integrations/credentials?integration=${encodeURIComponent(integration.id)}`,
+   386→        { method: 'DELETE' },
+   387→      )
+   388→      const data = await res.json()
+   389→      if (!res.ok) throw new Error(data.error || 'Error al eliminar')
+   390→      onSavedChange(integration.id, undefined)
+   391→      setDraft({})
+   392→      toast.success(`${integration.name}: credenciales eliminadas`)
+   393→    } catch (e) {
+   394→      const msg = e instanceof Error ? e.message : 'Error desconocido'
+   395→      toast.error(`No se pudo eliminar ${integration.name}`, { description: msg })
+   396→    }
+   397→  }
+   398→
+   399→  return (
+   400→    <div
+   401→      className={cn(
+   402→        'rounded-xl border bg-card overflow-hidden transition-all',
+   403→        configured ? 'border-emerald-500/30' : 'border-border',
+   404→      )}
+   405→    >
+   406→      <button
+   407→        type="button"
+   408→        onClick={() => setExpanded(e => !e)}
+   409→        className="w-full p-3 flex items-center gap-2 text-left hover:bg-muted/30 transition-colors"
+   410→        aria-expanded={expanded}
+   411→        aria-controls={`cred-panel-${integration.id}`}
+   412→      >
+   413→        <span className="text-xl leading-none shrink-0">{integration.emoji}</span>
+   414→        <div className="flex-1 min-w-0">
+   415→          <div className="font-medium text-sm truncate">{integration.name}</div>
+   416→          <div className="text-[10px] text-muted-foreground truncate">{integration.description}</div>
+   417→        </div>
+   418→        <Badge
+   419→          variant="outline"
+   420→          className={cn(
+   421→            'text-[9px] h-4 px-1.5 shrink-0',
+   422→            configured
+   423→              ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+   424→              : 'bg-slate-500/10 text-slate-600 dark:text-slate-300',
+   425→          )}
+   426→        >
+   427→          {configured ? 'Configurado' : 'Pendiente'}
+   428→        </Badge>
+   429→        {expanded
+   430→          ? <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+   431→          : <ChevronRight className="size-4 shrink-0 text-muted-foreground" />}
+   432→      </button>
+   433→
+   434→      {expanded && (
+   435→        <div id={`cred-panel-${integration.id}`} className="border-t p-3 space-y-2.5 bg-muted/10">
+   436→          {integration.fields.map(f => {
+   437→            const sv = saved?.[f.name]
+   438→            const isRevealed = !!revealed[f.name]
+   439→            return (
+   440→              <div key={f.name} className="space-y-1">
+   441→                <div className="flex items-center justify-between gap-2">
+   442→                  <Label
+   443→                    htmlFor={`cred-${integration.id}-${f.name}`}
+   444→                    className="text-xs text-muted-foreground truncate"
+   445→                  >
+   446→                    {f.label}
+   447→                    {f.secret && (
+   448→                      <span className="ml-1 text-[9px] uppercase tracking-wide text-amber-600/80">secret</span>
+   449→                    )}
+   450→                  </Label>
+   451→                  <div className="flex items-center gap-1.5 shrink-0">
+   452→                    {sv && (
+   453→                      <span
+   454→                        className="text-[9px] text-emerald-600 dark:text-emerald-400 font-mono truncate max-w-[120px]"
+   455→                        title={sv.masked}
+   456→                      >
+   457→                        {sv.masked}
+   458→                      </span>
+   459→                    )}
+   460→                    {f.secret && (
+   461→                      <button
+   462→                        type="button"
+   463→                        onClick={() => setRevealed(s => ({ ...s, [f.name]: !s[f.name] }))}
+   464→                        className="text-muted-foreground hover:text-foreground transition-colors p-0.5"
+   465→                        aria-label={isRevealed ? 'Ocultar' : 'Mostrar'}
+   466→                        title={isRevealed ? 'Ocultar' : 'Mostrar'}
+   467→                      >
+   468→                        {isRevealed ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+   469→                      </button>
+   470→                    )}
+   471→                  </div>
+   472→                </div>
+   473→                <Input
+   474→                  id={`cred-${integration.id}-${f.name}`}
+   475→                  type={f.secret && !isRevealed ? 'password' : 'text'}
+   476→                  value={draft[f.name] ?? ''}
+   477→                  onChange={(e) => setDraft(d => ({ ...d, [f.name]: e.target.value }))}
+   478→                  placeholder={
+   479→                    sv
+   480→                      ? 'Dejar vacío para mantener actual'
+   481→                      : (f.placeholder || (f.secret ? '••••••••' : 'Ingrese valor'))
+   482→                  }
+   483→                  className="h-8 text-xs"
+   484→                  autoComplete="off"
+   485→                  spellCheck={false}
+   486→                />
+   487→              </div>
+   488→            )
+   489→          })}
+   490→
+   491→          <div className="flex items-center gap-2 pt-1">
+   492→            <Button
+   493→              size="sm"
+   494→              onClick={handleSave}
+   495→              disabled={saving || testing}
+   496→              className="gap-1 flex-1 h-7 text-xs"
+   497→            >
+   498→              {saving ? <Loader2 className="size-3 animate-spin" /> : <Save className="size-3" />}
+   499→              Guardar
+   500→            </Button>
+   501→            <Button
+   502→              size="sm"
+   503→              variant="outline"
+   504→              onClick={handleTest}
+   505→              disabled={saving || testing}
+   506→              className="gap-1 flex-1 h-7 text-xs"
+   507→            >
+   508→              {testing ? <Loader2 className="size-3 animate-spin" /> : <TestTube className="size-3" />}
+   509→              Testar conexión
+   510→            </Button>
+   511→            {configured && (
+   512→              <Button
+   513→                size="sm"
+   514→                variant="ghost"
+   515→                onClick={handleDelete}
+   516→                disabled={saving || testing}
+   517→                className="h-7 px-2 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-500/10"
+   518→                aria-label="Eliminar credenciales"
+   519→                title="Eliminar credenciales"
+   520→              >
+   521→                <Trash2 className="size-3.5" />
+   522→              </Button>
+   523→            )}
+   524→          </div>
+   525→        </div>
+   526→      )}
+   527→    </div>
+   528→  )
+   529→}
+   530→
+   531→export function IntegrationsView() {
+   532→  const tenantId = useTenantId()
+   533→  const [checks, setChecks] = useState<HealthCheck[]>([])
+   534→  const [activeCatalog, setActiveCatalog] = useState<string>('')
+   535→  const [activeLogistics, setActiveLogistics] = useState<string>('')
+   536→  const [checksLoading, setChecksLoading] = useState(true)
+   537→  const [checksError, setChecksError] = useState<string | null>(null)
+   538→  const [checksRetryKey, setChecksRetryKey] = useState(0)
+   539→
+   540→  const [products, setProducts] = useState<Product[]>([])
+   541→  const [prodLoading, setProdLoading] = useState(true)
+   542→  const [prodError, setProdError] = useState<string | null>(null)
+   543→  const [prodRetryKey, setProdRetryKey] = useState(0)
+   544→  const [prodQ, setProdQ] = useState('')
+   545→
+   546→  // Freight quote tester
+   547→  const [fqCity, setFqCity] = useState('Bogotá')
+   548→  const [fqCountry, setFqCountry] = useState('CO')
+   549→  const [fqUnits, setFqUnits] = useState('6')
+   550→  const [fqLoading, setFqLoading] = useState(false)
+   551→  const [fqResult, setFqResult] = useState<FreightQuoteResult | null>(null)
+   552→
+   553→  // Vision identifier
+   554→  const [viUrl, setViUrl] = useState('')
+   555→  const [viLoading, setViLoading] = useState(false)
+   556→  const [viResult, setViResult] = useState<VisionResult | null>(null)
+   557→
+   558→  // Credential configuration panel
+   559→  const [savedCreds, setSavedCreds] = useState<SavedCredsMap>({})
+   560→  const [credsLoading, setCredsLoading] = useState(true)
+   561→  const [credsRetryKey, setCredsRetryKey] = useState(0)
+   562→  const [credsError, setCredsError] = useState<string | null>(null)
+   563→
+   564→  // Load health + products
+   565→  useEffect(() => {
+   566→    if (!tenantId) return
+   567→    let cancelled = false
+   568→    setChecksLoading(true)
+   569→    setChecksError(null)
+   570→    fetch(`/api/health?tenantId=${tenantId}`).then(r => r.json()).then(d => {
+   571→      if (cancelled) return
+   572→      const all = (d.checks || []) as HealthCheck[]
+   573→      setChecks(all)
+   574→      // Resolve the active catalog / logistics adapter from the tenant-specific health rows
+   575→      const cat = all.find(c => c.name === 'tenant_catalog_adapter')
+   576→      const log = all.find(c => c.name === 'tenant_logistics_adapter')
+   577→      if (cat) setActiveCatalog((cat.detail.match(/'([^']+)'/)?.[1] || '').trim())
+   578→      if (log) setActiveLogistics((log.detail.match(/'([^']+)'/)?.[1] || '').trim())
+   579→      setChecksLoading(false)
+   580→    }).catch((err: Error) => { if (!cancelled) { setChecksError(err.message || 'Error al cargar'); setChecksLoading(false) } })
+   581→
+   582→    return () => { cancelled = true }
+   583→  }, [tenantId, checksRetryKey])
+   584→
+   585→  // Load catalog
+   586→  useEffect(() => {
+   587→    if (!tenantId) return
+   588→    let cancelled = false
+   589→    setProdLoading(true)
+   590→    setProdError(null)
+   591→    fetch(`/api/catalog/products?tenantId=${tenantId}&q=${encodeURIComponent(prodQ)}`).then(r => r.json()).then(d => {
+   592→      if (cancelled) return
+   593→      setProducts(d.products || [])
+   594→      setProdLoading(false)
+   595→    }).catch((err: Error) => { if (!cancelled) { setProdError(err.message || 'Error al cargar'); setProdLoading(false) } })
+   596→    return () => { cancelled = true }
+   597→  }, [tenantId, prodQ, prodRetryKey])
+   598→
+   599→  // Load saved credentials (masked). Independent of tenantId — credentials are
+   600→  // platform-level config in this dev build (the `Setting` model is global).
+   601→  useEffect(() => {
+   602→    let cancelled = false
+   603→    setCredsLoading(true)
+   604→    setCredsError(null)
+   605→    fetch('/api/integrations/credentials').then(r => r.json()).then(d => {
+   606→      if (cancelled) return
+   607→      if (d.error) throw new Error(d.error)
+   608→      const map = (d.integrations || {}) as SavedCredsMap
+   609→      // Only keep entries that match a known integration id (defensive).
+   610→      const filtered: SavedCredsMap = {}
+   611→      for (const [k, v] of Object.entries(map)) {
+   612→        if (CRED_LOOKUP[k]) filtered[k] = v
+   613→      }
+   614→      setSavedCreds(filtered)
+   615→      setCredsLoading(false)
+   616→    }).catch((err: Error) => {
+   617→      if (!cancelled) { setCredsError(err.message || 'Error al cargar credenciales'); setCredsLoading(false) }
+   618→    })
+   619→    return () => { cancelled = true }
+   620→  }, [credsRetryKey])
+   621→
+   622→  const adapterStatus = (id: string): HealthCheck['status'] => {
+   623→    const c = checks.find(c => c.name === `adapter_${id}` || c.name === `logistics_${id}`)
+   624→    return c?.status || 'not_configured'
+   625→  }
+   626→
+   627→  const runFreightQuote = async () => {
+   628→    if (!tenantId || !fqCity.trim()) return
+   629→    setFqLoading(true)
+   630→    setFqResult(null)
+   631→    try {
+   632→      const res = await fetch('/api/shipping/quote', {
+   633→        method: 'POST',
+   634→        headers: { 'Content-Type': 'application/json' },
+   635→        body: JSON.stringify({
+   636→          tenantId, ciudad: fqCity.trim(),
+   637→          pais: fqCountry, cantidad_unidades: Number(fqUnits) || 1,
+   638→        }),
+   639→      })
+   640→      const data = await res.json()
+   641→      if (!res.ok) throw new Error(data.error || 'Error en la cotización')
+   642→      setFqResult(data)
+   643→      toast.success(`Cotización: ${formatCurrency(data.quote.tarifa, 'COP')} · ${data.quote.transportadora}`)
+   644→    } catch (e) {
+   645→      const msg = e instanceof Error ? e.message : 'Error desconocido'
+   646→      setFqResult({ error: msg })
+   647→      toast.error('No se pudo cotizar el flete', { description: msg })
+   648→    } finally {
+   649→      setFqLoading(false)
+   650→    }
+   651→  }
+   652→
+   653→  const runVision = async () => {
+   654→    if (!tenantId || !viUrl.trim()) return
+   655→    setViLoading(true)
+   656→    setViResult(null)
+   657→    try {
+   658→      const res = await fetch('/api/agents/vision', {
+   659→        method: 'POST',
+   660→        headers: { 'Content-Type': 'application/json' },
+   661→        body: JSON.stringify({ tenantId, imageUrl: viUrl.trim() }),
+   662→      })
+   663→      const data = await res.json()
+   664→      setViResult({
+   665→        reply: data.reply || '',
+   666→        agent: data.agent || 'vision',
+   667→        confidence: data.confidence || 0,
+   668→        error: data.error,
+   669→      })
+   670→      if (data.error) toast.info('IA no disponible — fallback usado')
+   671→      else toast.success(`SKU detectado · confianza ${(data.confidence * 100).toFixed(0)}%`)
+   672→    } catch (e) {
+   673→      const msg = e instanceof Error ? e.message : 'Error desconocido'
+   674→      setViResult({ reply: '', agent: 'vision', confidence: 0, error: msg })
+   675→      toast.error('No se pudo identificar la imagen')
+   676→    } finally {
+   677→      setViLoading(false)
+   678→    }
+   679→  }
+   680→
+   681→  return (
+   682→    <div className="space-y-6 animate-fade-in-up">
+   683→      {checksError && (
+   684→        <Alert variant="destructive" role="alert">
+   685→          <AlertTriangle className="size-4" />
+   686→          <AlertTitle>Error al cargar el estado de integraciones</AlertTitle>
+   687→          <AlertDescription className="flex items-center justify-between gap-4 flex-wrap">
+   688→            <span>{checksError}</span>
+   689→            <Button
+   690→              size="sm"
+   691→              variant="outline"
+   692→              onClick={() => setChecksRetryKey(k => k + 1)}
+   693→            >
+   694→              <RefreshCw className="size-3.5" /> Reintentar
+   695→            </Button>
+   696→          </AlertDescription>
+   697→        </Alert>
+   698→      )}
+   699→      {prodError && (
+   700→        <Alert variant="destructive" role="alert">
+   701→          <AlertTriangle className="size-4" />
+   702→          <AlertTitle>Error al cargar el catálogo</AlertTitle>
+   703→          <AlertDescription className="flex items-center justify-between gap-4 flex-wrap">
+   704→            <span>{prodError}</span>
+   705→            <Button
+   706→              size="sm"
+   707→              variant="outline"
+   708→              onClick={() => setProdRetryKey(k => k + 1)}
+   709→            >
+   710→              <RefreshCw className="size-3.5" /> Reintentar
+   711→            </Button>
+   712→          </AlertDescription>
+   713→        </Alert>
+   714→      )}
+   715→      {/* Header — summary */}
+   716→      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+   717→        <Card>
+   718→          <CardContent className="p-4 flex items-center gap-3">
+   719→            <div className="size-10 rounded-xl bg-primary/10 text-primary ring-1 ring-primary/20 flex items-center justify-center"><Plug className="size-5" /></div>
+   720→            <div className="min-w-0">
+   721→              <div className="text-sm font-semibold">EcommerceAdapter</div>
+   722→              <div className="text-xs text-muted-foreground">5 rutas · 1 activa por tenant</div>
+   723→            </div>
+   724→            <Badge variant="outline" className="ml-auto text-[10px]">{activeCatalog || '—'}</Badge>
+   725→          </CardContent>
+   726→        </Card>
+   727→        <Card>
+   728→          <CardContent className="p-4 flex items-center gap-3">
+   729→            <div className="size-10 rounded-xl bg-emerald-500/10 text-emerald-600 ring-1 ring-emerald-500/20 flex items-center justify-center"><Truck className="size-5" /></div>
+   730→            <div className="min-w-0">
+   731→              <div className="text-sm font-semibold">LogisticsAdapter</div>
+   732→              <div className="text-xs text-muted-foreground">3 proveedores · 1 activo por tenant</div>
+   733→            </div>
+   734→            <Badge variant="outline" className="ml-auto text-[10px]">{activeLogistics || '—'}</Badge>
+   735→          </CardContent>
+   736→        </Card>
+   737→        <Card>
+   738→          <CardContent className="p-4 flex items-center gap-3">
+   739→            <div className="size-10 rounded-xl bg-violet-500/10 text-violet-600 ring-1 ring-violet-500/20 flex items-center justify-center"><Database className="size-5" /></div>
+   740→            <div className="min-w-0">
+   741→              <div className="text-sm font-semibold">Estado de integraciones</div>
+   742→              <div className="text-xs text-muted-foreground">{checks.filter(c => c.status === 'ok').length} OK · {checks.filter(c => c.status === 'warning').length} parciales · {checks.filter(c => c.status === 'not_configured').length} sin configurar</div>
+   743→            </div>
+   744→          </CardContent>
+   745→        </Card>
+   746→      </div>
+   747→
+   748→      {/* EcommerceAdapter routes */}
+   749→      <Card>
+   750→        <CardHeader>
+   751→          <CardTitle className="text-base flex items-center gap-2">
+   752→            <ShoppingBag className="size-4 text-primary" /> EcommerceAdapter — 5 rutas de catálogo
+   753→          </CardTitle>
+   754→          <CardDescription>Saramantha §8.1–§8.5 · el adaptador concreto se resuelve en runtime desde <code className="text-[11px]">tenant.plataformaCatalogo</code></CardDescription>
+   755→        </CardHeader>
+   756→        <CardContent>
+   757→          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+   758→            {ECOM_ROUTES.map(route => {
+   759→              const status = adapterStatus(route.id === 'whatsapp_catalog' ? 'whatsapp' : route.id === 'catalogo_propio_cliente' || route.id === 'catalogo_nuestro' ? 'supabase' : route.id)
+   760→              const meta = statusMeta(status)
+   761→              const Icon = meta.icon
+   762→              const isActive = activeCatalog === route.id
+   763→              return (
+   764→                <div
+   765→                  key={route.id}
+   766→                  className={cn(
+   767→                    'rounded-xl border p-3 space-y-2 transition-all',
+   768→                    isActive ? 'border-primary bg-primary/5 ring-1 ring-primary/20' : 'border-border'
+   769→                  )}
+   770→                >
+   771→                  <div className="flex items-start gap-2">
+   772→                    <span className="text-xl leading-none">{route.emoji}</span>
+   773→                    <div className="flex-1 min-w-0">
+   774→                      <div className="flex items-center gap-2">
+   775→                        <span className="font-medium text-sm">{route.label}</span>
+   776→                        {isActive && <Badge variant="default" className="text-[9px] h-4 px-1 gap-0.5"><Zap className="size-2.5" /> activo</Badge>}
+   777→                      </div>
+   778→                      <div className="text-[10px] text-muted-foreground mt-0.5">{route.spec}</div>
+   779→                    </div>
+   780→                    <Icon className={cn('size-4 shrink-0', meta.iconCls)} />
+   781→                  </div>
+   782→                  <div className="flex items-center gap-1.5 text-[10px]">
+   783→                    <span className={cn('size-1.5 rounded-full', meta.dot)} />
+   784→                    <span className="text-muted-foreground">{meta.label}</span>
+   785→                  </div>
+   786→                </div>
+   787→              )
+   788→            })}
+   789→          </div>
+   790→        </CardContent>
+   791→      </Card>
+   792→
+   793→      {/* LogisticsAdapter routes */}
+   794→      <Card>
+   795→        <CardHeader>
+   796→          <CardTitle className="text-base flex items-center gap-2">
+   797→            <Truck className="size-4 text-emerald-600" /> LogisticsAdapter — 3 proveedores multitransportadora
+   798→          </CardTitle>
+   799→          <CardDescription>Saramantha §9.6, §8.6 · el adaptador concreto se resuelve desde <code className="text-[11px]">tenant.proveedorLogistico</code></CardDescription>
+   800→        </CardHeader>
+   801→        <CardContent>
+   802→          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+   803→            {LOGISTICS_ROUTES.map(route => {
+   804→              const status = adapterStatus(route.id)
+   805→              const meta = statusMeta(status)
+   806→              const Icon = meta.icon
+   807→              const isActive = activeLogistics === route.id
+   808→              return (
+   809→                <div
+   810→                  key={route.id}
+   811→                  className={cn(
+   812→                    'rounded-xl border p-3 space-y-2 transition-all',
+   813→                    isActive ? 'border-emerald-500/50 bg-emerald-500/5 ring-1 ring-emerald-500/20' : 'border-border'
+   814→                  )}
+   815→                >
+   816→                  <div className="flex items-start gap-2">
+   817→                    <span className="text-xl leading-none">{route.emoji}</span>
+   818→                    <div className="flex-1 min-w-0">
+   819→                      <div className="flex items-center gap-2">
+   820→                        <span className="font-medium text-sm">{route.label}</span>
+   821→                        {isActive && <Badge variant="default" className="text-[9px] h-4 px-1 gap-0.5 bg-emerald-600 text-white"><Zap className="size-2.5" /> activo</Badge>}
+   822→                      </div>
+   823→                      <div className="text-[10px] text-muted-foreground mt-0.5">{route.spec}</div>
+   824→                    </div>
+   825→                    <Icon className={cn('size-4 shrink-0', meta.iconCls)} />
+   826→                  </div>
+   827→                  <div className="flex items-center gap-1.5 text-[10px]">
+   828→                    <span className={cn('size-1.5 rounded-full', meta.dot)} />
+   829→                    <span className="text-muted-foreground">{meta.label}</span>
+   830→                  </div>
+   831→                </div>
+   832→              )
+   833→            })}
+   834→          </div>
+   835→        </CardContent>
+   836→      </Card>
+   837→
+   838→      {/* Two-column: freight tester + vision identifier */}
+   839→      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+   840→        {/* Freight quote tester */}
+   841→        <Card>
+   842→          <CardHeader>
+   843→            <CardTitle className="text-base flex items-center gap-2">
+   844→              <Calculator className="size-4 text-amber-600" /> Cotizador de flete
+   845→            </CardTitle>
+   846→            <CardDescription>Saramantha §6.8, §8.6 · usa el LogisticsAdapter activo del tenant</CardDescription>
+   847→          </CardHeader>
+   848→          <CardContent className="space-y-3">
+   849→            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+   850→              <div className="space-y-1">
+   851→                <Label htmlFor="fq-city" className="text-xs text-muted-foreground">Ciudad destino</Label>
+   852→                <Input id="fq-city" value={fqCity} onChange={(e) => setFqCity(e.target.value)} placeholder="Bogotá" />
+   853→              </div>
+   854→              <div className="space-y-1">
+   855→                <Label htmlFor="fq-country" className="text-xs text-muted-foreground">País</Label>
+   856→                <Input id="fq-country" value={fqCountry} onChange={(e) => setFqCountry(e.target.value.toUpperCase())} placeholder="CO" maxLength={3} />
+   857→              </div>
+   858→              <div className="space-y-1">
+   859→                <Label htmlFor="fq-units" className="text-xs text-muted-foreground">Unidades</Label>
+   860→                <Input id="fq-units" type="number" min={1} value={fqUnits} onChange={(e) => setFqUnits(e.target.value)} />
+   861→              </div>
+   862→            </div>
+   863→            <Button onClick={runFreightQuote} disabled={fqLoading || !tenantId} className="w-full gap-1.5">
+   864→              {fqLoading ? <Loader2 className="size-3.5 animate-spin" /> : <Send className="size-3.5" />}
+   865→              Cotizar flete
+   866→            </Button>
+   867→            {fqResult && (
+   868→              <div className="rounded-lg border p-3 bg-muted/30 text-sm">
+   869→                {'error' in fqResult ? (
+   870→                  <div className="flex items-center gap-2 text-rose-600">
+   871→                    <XCircle className="size-4 shrink-0" />
+   872→                    <span className="text-xs">{fqResult.error}</span>
+   873→                  </div>
+   874→                ) : (
+   875→                  <div className="space-y-1.5">
+   876→                    <div className="flex items-center justify-between">
+   877→                      <span className="text-muted-foreground text-xs">Tarifa</span>
+   878→                      <span className="font-semibold tabular-nums">{formatCurrency(fqResult.quote.tarifa, fqResult.pais === 'CO' ? 'COP' : 'USD')}</span>
+   879→                    </div>
+   880→                    <div className="flex items-center justify-between">
+   881→                      <span className="text-muted-foreground text-xs">Tiempo estimado</span>
+   882→                      <span className="font-medium tabular-nums">{fqResult.quote.tiempo_estimado_dias} días</span>
+   883→                    </div>
+   884→                    <div className="flex items-center justify-between">
+   885→                      <span className="text-muted-foreground text-xs">Transportadora</span>
+   886→                      <Badge variant="outline" className="text-[10px]">{fqResult.quote.transportadora}</Badge>
+   887→                    </div>
+   888→                    <Separator />
+   889→                    <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+   890→                      <span>{fqResult.ciudad}, {fqResult.pais}</span>
+   891→                      <span>{fqResult.cantidad_unidades} und</span>
+   892→                    </div>
+   893→                  </div>
+   894→                )}
+   895→              </div>
+   896→            )}
+   897→          </CardContent>
+   898→        </Card>
+   899→
+   900→        {/* Vision identifier */}
+   901→        <Card>
+   902→          <CardHeader>
+   903→            <CardTitle className="text-base flex items-center gap-2">
+   904→              <Eye className="size-4 text-violet-600" /> Identificador visual (VLM)
+   905→            </CardTitle>
+   906→            <CardDescription>Saramantha §6.9 · agent "vision" · lee la franja de metadata de la imagen y devuelve el SKU</CardDescription>
+   907→          </CardHeader>
+   908→          <CardContent className="space-y-3">
+   909→            <div className="space-y-1">
+   910→              <Label htmlFor="vi-url" className="text-xs text-muted-foreground">URL de la imagen del cliente</Label>
+   911→              <Input id="vi-url" value={viUrl} onChange={(e) => setViUrl(e.target.value)} placeholder="https://.../producto.jpg" />
+   912→              <p className="text-[10px] text-muted-foreground mt-1">El agente prioriza la franja de metadata (OCR). Si está recortada, compara visualmente contra el catálogo.</p>
+   913→            </div>
+   914→            <Button onClick={runVision} disabled={viLoading || !tenantId || !viUrl.trim()} variant="outline" className="w-full gap-1.5">
+   915→              {viLoading ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}
+   916→              Identificar producto
+   917→            </Button>
+   918→            {viResult && (
+   919→              <div className="rounded-lg border p-3 bg-muted/30 text-sm space-y-2">
+   920→                <div className="flex items-center gap-2">
+   921→                  <Badge variant="outline" className="text-[10px] bg-violet-500/10 text-violet-700 dark:text-violet-300">agente {viResult.agent}</Badge>
+   922→                  {viResult.error
+   923→                    ? <Badge variant="outline" className="text-[10px] bg-amber-500/10 text-amber-700 dark:text-amber-300">fallback</Badge>
+   924→                    : <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">confianza {(viResult.confidence * 100).toFixed(0)}%</Badge>}
+   925→                </div>
+   926→                <pre className="text-[11px] whitespace-pre-wrap break-words text-foreground/90 font-mono bg-background p-2 rounded border">{viResult.reply || '—'}</pre>
+   927→                {viResult.error && <p className="text-[10px] text-amber-600">IA no disponible — fallback determinístico.</p>}
+   928→              </div>
+   929→            )}
+   930→          </CardContent>
+   931→        </Card>
+   932→      </div>
+   933→
+   934→      {/* Catalog grid */}
+   935→      <Card>
+   936→        <CardHeader className="pb-3">
+   937→          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+   938→            <div>
+   939→              <CardTitle className="text-base flex items-center gap-2">
+   940→                <Package className="size-4 text-primary" /> Catálogo sincronizado
+   941→              </CardTitle>
+   942→              <CardDescription>Productos leídos vía EcommerceAdapter activo · {products.length} items</CardDescription>
+   943→            </div>
+   944→            <div className="relative">
+   945→              <Input value={prodQ} onChange={(e) => setProdQ(e.target.value)} placeholder="Buscar SKU, nombre, diseño..." className="pl-3 h-9 w-full md:w-64" />
+   946→            </div>
+   947→          </div>
+   948→        </CardHeader>
+   949→        <CardContent>
+   950→          {prodLoading ? (
+   951→            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+   952→              {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="aspect-square rounded-lg" />)}
+   953→            </div>
+   954→          ) : products.length === 0 ? (
+   955→            <div className="text-center py-12 text-sm text-muted-foreground">Sin productos en el catálogo de este tenant</div>
+   956→          ) : (
+   957→            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+   958→              {products.map(p => (
+   959→                <TooltipProvider key={p.id}>
+   960→                  <Tooltip>
+   961→                    <TooltipTrigger asChild>
+   962→                      <div className="rounded-lg border overflow-hidden hover:shadow-md hover:border-primary/30 transition-all cursor-default bg-card">
+   963→                        <div className="aspect-square bg-muted relative overflow-hidden">
+   964→                          {p.imageUrl ? (
+   965→                            <img src={p.imageUrl} alt={p.name} className="size-full object-cover" loading="lazy" />
+   966→                          ) : (
+   967→                            <div className="size-full flex items-center justify-center text-muted-foreground/60">
+   968→                              <Package className="size-8" />
+   969→                            </div>
+   970→                          )}
+   971→                          {p.fuenteSincronizacion && (
+   972→                            <Badge variant="outline" className="absolute top-1 left-1 text-[9px] h-4 px-1 bg-background/80 backdrop-blur">
+   973→                              {p.fuenteSincronizacion}
+   974→                            </Badge>
+   975→                          )}
+   976→                        </div>
+   977→                        <div className="p-2 space-y-0.5">
+   978→                          <div className="font-mono text-[10px] text-muted-foreground truncate">{p.sku}</div>
+   979→                          <div className="text-xs font-medium truncate" title={p.name}>{p.name}</div>
+   980→                          <div className="flex items-center justify-between">
+   981→                            <span className="text-xs font-semibold tabular-nums">{formatCurrency(p.price)}</span>
+   982→                            <span className="text-[10px] text-muted-foreground tabular-nums">{p.stock}und</span>
+   983→                          </div>
+   984→                          {p.diseno && <div className="text-[9px] text-violet-600 truncate">🎨 {p.diseno}</div>}
+   985→                        </div>
+   986→                      </div>
+   987→                    </TooltipTrigger>
+   988→                    <TooltipContent>
+   989→                      <div className="text-xs max-w-48">
+   990→                        <div className="font-medium">{p.name}</div>
+   991→                        <div className="text-muted-foreground">{p.sku} · {p.categoria || '—'}</div>
+   992→                        {p.description && <div className="mt-1 text-[10px]">{p.description}</div>}
+   993→                      </div>
+   994→                    </TooltipContent>
+   995→                  </Tooltip>
+   996→                </TooltipProvider>
+   997→              ))}
+   998→            </div>
+   999→          )}
+  1000→        </CardContent>
+  1001→      </Card>
+  1002→
+  1003→      {/* Full health table */}
+  1004→      <Card>
+  1005→        <CardHeader>
+  1006→          <CardTitle className="text-base flex items-center gap-2">
+  1007→            <Database className="size-4 text-muted-foreground" /> Estado completo del endpoint /api/health
+  1008→          </CardTitle>
+  1009→          <CardDescription>Lecturas reales por integración · refresh para revalidar</CardDescription>
+  1010→        </CardHeader>
+  1011→        <CardContent>
+  1012→          {checksLoading ? (
+  1013→            <div className="space-y-1.5">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-9" />)}</div>
+  1014→          ) : (
+  1015→            <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
+  1016→              {checks.map(c => {
+  1017→                const meta = statusMeta(c.status)
+  1018→                const Icon = meta.icon
+  1019→                return (
+  1020→                  <div key={c.name} className="flex items-center gap-2 p-2 rounded-lg border bg-card hover:bg-muted/30 transition-colors">
+  1021→                    <Icon className={cn('size-3.5 shrink-0', meta.iconCls)} />
+  1022→                    <div className="flex-1 min-w-0">
+  1023→                      <div className="text-xs font-medium font-mono truncate">{c.name}</div>
+  1024→                      <div className="text-[10px] text-muted-foreground truncate">{c.detail}</div>
+  1025→                    </div>
+  1026→                    <Badge variant="outline" className={cn('text-[9px] h-4 px-1 shrink-0', meta.badge)}>{meta.label}</Badge>
+  1027→                  </div>
+  1028→                )
+  1029→              })}
+  1030→            </div>
+  1031→          )}
+  1032→        </CardContent>
+  1033→      </Card>
+  1034→
+  1035→      {/* Credential configuration panel */}
+  1036→      <Card id="credenciales">
+  1037→        <CardHeader>
+  1038→          <CardTitle className="text-base flex items-center gap-2">
+  1039→            <Key className="size-4 text-amber-600" /> Configuración de Credenciales
+  1040→          </CardTitle>
+  1041→          <CardDescription>
+  1042→            API keys, tokens y secretos por integración · cifrados en reposo (obfuscación XOR en dev, ver nota de seguridad en <code className="text-[11px]">/api/integrations/credentials</code>)
+  1043→          </CardDescription>
+  1044→        </CardHeader>
+  1045→        <CardContent className="space-y-6">
+  1046→          {credsError && (
+  1047→            <Alert variant="destructive" role="alert">
+  1048→              <AlertTriangle className="size-4" />
+  1049→              <AlertTitle>Error al cargar credenciales</AlertTitle>
+  1050→              <AlertDescription className="flex items-center justify-between gap-4 flex-wrap">
+  1051→                <span>{credsError}</span>
+  1052→                <Button size="sm" variant="outline" onClick={() => setCredsRetryKey(k => k + 1)}>
+  1053→                  <RefreshCw className="size-3.5" /> Reintentar
+  1054→                </Button>
+  1055→              </AlertDescription>
+  1056→            </Alert>
+  1057→          )}
+  1058→
+  1059→          {/* Summary chip */}
+  1060→          <div className="flex items-center gap-2 flex-wrap text-xs">
+  1061→            <Badge variant="outline" className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
+  1062→              {Object.keys(savedCreds).length} configuradas
+  1063→            </Badge>
+  1064→            <Badge variant="outline" className="bg-slate-500/10 text-slate-600 dark:text-slate-300">
+  1065→              {CRED_REGISTRY.flatMap(c => c.integrations).length - Object.keys(savedCreds).length} pendientes
+  1066→            </Badge>
+  1067→            <span className="text-muted-foreground ml-auto text-[10px]">
+  1068→              {CRED_REGISTRY.flatMap(c => c.integrations).length} integraciones · {CRED_REGISTRY.length} categorías
+  1069→            </span>
+  1070→          </div>
+  1071→
+  1072→          {credsLoading ? (
+  1073→            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+  1074→              {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-20 rounded-xl" />)}
+  1075→            </div>
+  1076→          ) : (
+  1077→            CRED_REGISTRY.map(cat => {
+  1078→              const CatIcon = cat.icon
+  1079→              const configuredInCat = cat.integrations.filter(i => savedCreds[i.id] && Object.keys(savedCreds[i.id]).length > 0).length
+  1080→              return (
+  1081→                <section key={cat.id} className="space-y-3">
+  1082→                  <div className="flex items-center gap-2">
+  1083→                    <CatIcon className="size-4 text-muted-foreground shrink-0" />
+  1084→                    <span className="text-sm font-semibold">{cat.name}</span>
+  1085→                    <Separator className="flex-1" />
+  1086→                    <span className="text-[10px] text-muted-foreground tabular-nums shrink-0">
+  1087→                      {configuredInCat}/{cat.integrations.length} configurados
+  1088→                    </span>
+  1089→                  </div>
+  1090→                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+  1091→                    {cat.integrations.map(integ => (
+  1092→                      <CredentialCard
+  1093→                        key={integ.id}
+  1094→                        integration={integ}
+  1095→                        saved={savedCreds[integ.id]}
+  1096→                        onSavedChange={(id, fields) =>
+  1097→                          setSavedCreds(prev => {
+  1098→                            const next = { ...prev }
+  1099→                            if (fields && Object.keys(fields).length > 0) next[id] = fields
+  1100→                            else delete next[id]
+  1101→                            return next
+  1102→                          })
+  1103→                        }
+  1104→                      />
+  1105→                    ))}
+  1106→                  </div>
+  1107→                </section>
+  1108→              )
+  1109→            })
+  1110→          )}
+  1111→
+  1112→          {/* Security note */}
+  1113→          <Alert>
+  1114→            <Key className="size-4" />
+  1115→            <AlertTitle className="text-xs">Nota de seguridad</AlertTitle>
+  1116→            <AlertDescription className="text-[11px]">
+  1117→              En desarrollo los secretos se guardan con obfuscación XOR + base64 (reversible). En producción se debe reemplazar
+  1118→              por AES-256-GCM con clave gestionada en KMS/Vault. Las pruebas de conexión sólo hacen HEAD al host declarado;
+  1119→              nunca se envían credenciales a terceros durante un test.
+  1120→            </AlertDescription>
+  1121→          </Alert>
+  1122→        </CardContent>
+  1123→      </Card>
+  1124→    </div>
+  1125→  )
+  1126→}
+  1127→

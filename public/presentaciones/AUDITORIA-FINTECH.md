@@ -1,0 +1,419 @@
+# AUDITORÍA FINTECH — ZIAY (Comercio Conversacional LATAM)
+
+**Proyecto:** ZIAY · Plataforma SaaS multi-tenant de comercio conversacional LATAM
+**Alcance:** 8 métodos de pago (MercadoPago, Wompi, Stripe, PayU, PSE, PIX, OXXO, SPEI) · 7 monedas (COP, MXN, BRL, USD, PEN, CLP, ARS) · wallet · DIAN · KYC · retracto · FX · webhooks · RLS · multi-tenant
+**Fecha de auditoría:** 2026-07-15
+**Auditor:** Agente general-purpose (perfil fintech-auditor)
+**Base de código revisada:** `src/lib/adapters/**`, `src/app/api/webhooks/**`, `src/app/api/payments/**`, `src/app/api/compliance/**`, `src/app/api/finance/**`, `src/app/api/wallet/**`, `src/app/api/acp/v1/**`, `src/app/api/ucp/v1/**`, `src/app/api/conciliation/**`, `src/app/api/conversions/**`, `src/lib/compliance/**`, `src/lib/i18n/**`, `src/lib/middleware/**`, `src/lib/crypto/**`, `src/lib/rls.ts`, `src/lib/services/wallet.service.ts`, `src/lib/services/credentials.service.ts`, `prisma/schema.prisma`, `prisma/sql/rls-policies.sql`, `docs/adr/0005–0020`.
+**Método:** Inspección estática de código + verificación con `tsc --noEmit` + correlación con `docs/adr/**` y `worklog.md`.
+
+---
+
+## 1. Resumen Ejecutivo
+
+**Puntaje global de madurez fintech: 5.5 / 10**
+
+El proyecto ZIAY presenta **cimientos arquitectónicos sólidos** (adapter pattern para 4 gateways globales, webhooks con verificación HMAC consistente, idempotencia de 2 capas, rotación de secretos con grace period, compliance layer con DIAN/Alegra + retracto + KYC + DSR + retención + age-gate, RLS SQL listo para PostgreSQL, mandates firmados con ed25519). Sin embargo, **tres problemas bloqueantes** impiden considerar el stack fintech production-ready:
+
+### Top 3 riesgos críticos
+
+| # | Riesgo | Severidad | Probabilidad | Impacto |
+|---|--------|-----------|--------------|---------|
+| **R-1** | **`local-payments.ts` NO existe en disco** — `tsc` da error `TS2307: Cannot find module '@/lib/adapters/local-payments'`. Los 4 métodos locales LATAM (PSE, PIX, OXXO, SPEI) están rotos a nivel de import. ADR-0013 y la documentación de marketing los anuncian como funcionales, pero en runtime `getLocalPaymentAdapter()` y `POST /api/payments/local` fallan al cargar el módulo. | **Crítico** | Cierta (100 % en runtime) | 4 de 8 métodos de pago no operativos; `payment-registry.ts` no carga → afecta todo el flujo de pagos globales que importa ese módulo (MercadoPago, Wompi, Stripe, PayU incluidos) |
+| **R-2** | **58 errores de TypeScript en `src/`** — `tsc --noEmit` falla. Los errores incluyen rutas fintech críticas: `src/lib/adapters/payment-registry.ts`, `src/app/api/payments/local/route.ts`, `src/app/api/attribution/route.ts`, `src/app/api/conversational-cart/route.ts`. Un CI/CD con gate `tsc` no podría pasar a producción. | **Crítico** | Cierta | Imposibilidad de desplegar con type-safety; deuda técnica acumulada enmascarada por el `local-*` en `.gitignore` que oculta el módulo faltante |
+| **R-3** | **No existe capa de anti-fraude transaccional** — sin velocity checks, sin blocklists (OFAC/listas restrictivas), sin device fingerprinting, sin scoring de riesgo, sin AML. El único control es `kyc-gate.ts` (Ley 2573) que solo dispara para crédito/cuotas/compras > COP 2.000.000. Cualquier pago con tarjeta por debajo del umbral se procesa sin análisis de riesgo. | **Alto** | Alta (cualquier fraude con tarjeta robada por debajo del umbral KYC prospera) | Chargebacks, multas de card schemes, pérdida de la cuenta del merchant en los gateways |
+
+### Top 3 fortalezas
+
+1. **Adapter pattern limpio y consistente** (`PaymentAdapter` interface con `createPaymentLink`/`verifyPayment`/`refund`/`webhookVerify`) que desacopla el orquestador de checkout de los 4 gateways. Modo stub explícito cuando faltan credenciales.
+2. **Webhooks endurecidos**: verificación HMAC-SHA256 con `timingSafeEqual` en los 7 endpoints (MP, Stripe, Wompi, PayU, PSE, PIX, WhatsApp/Meta), idempotencia de 2 capas (in-memory Map + DB-backed AuditLog con SHA-256(body+signature)), ACK 200 siempre (ADR-0005), y grace period de rotación de secretos (`*_WEBHOOK_SECRET_OLD`) — ADR-0018.
+3. **Compliance LATAM real y documentado**: DIAN vía Alegra (ADR-0020), retracto Ley 1480 Art 47 con refund automático (ADR-0019), DSR Ley 1581 Art 8 (access/erasure/portability), retención documentada (Ley 1581 Art 11 + Estatuto Tributario Art 632 + Ley 2573), KYC gate Ley 2573 de 2026, age gate Ley 1098 de 2006.
+
+---
+
+## 2. Inventario Fintech
+
+| # | Módulo | Ruta | Propósito | Estado |
+|---|--------|------|-----------|--------|
+| 1 | `PaymentAdapter` interface | `src/lib/adapters/payment-adapter.ts` | Contrato común: createPaymentLink / verifyPayment / refund / webhookVerify | ✅ Operativo |
+| 2 | Adapter Registry | `src/lib/adapters/payment-registry.ts` | Resuelve adapter concreto en runtime + catálogo de 4 globales + 4 locales | ⚠️ Compilación rota (importa `./local-payments` inexistente) |
+| 3 | MercadoPago Adapter | `src/lib/adapters/mercadopago.ts` | createPaymentLink / verifyPayment / refund / webhookVerify (HMAC-SHA256 `ts.v1`) | ✅ Operativo |
+| 4 | Wompi Adapter | `src/lib/adapters/wompi.ts` | createPaymentLink / verifyPayment / refund / webhookVerify (HMAC-SHA256 body) | ✅ Operativo |
+| 5 | Stripe Adapter | `src/lib/adapters/stripe.ts` | createPaymentLink (Checkout Sessions) / verifyPayment / refund / webhookVerify | ✅ Operativo |
+| 6 | PayU Adapter | `src/lib/adapters/payu.ts` | createPaymentLink (SUBMIT_TRANSACTION) / verifyPayment (ORDER_DETAIL) / refund / webhookVerify (MD5) | ⚠️ MD5 es algoritmo débil (imposición del gateway) |
+| 7 | **Local Payments Adapter** | `src/lib/adapters/local-payments.ts` | PSE / PIX / OXXO / SPEI | ❌ **ARCHIVO NO EXISTE** (`.gitignore` lo oculta con patrón `local-*`) |
+| 8 | Payment webhook utils | `src/lib/adapters/payment-webhook-utils.ts` | `applyPaymentUpdate` (lookup Order + $transaction update + OrderEvent + CAPI auto-fire) + `safeAudit` + `normalizePaymentStatus` | ✅ Operativo |
+| 9 | Webhook MercadoPago | `src/app/api/webhooks/mercadopago/route.ts` | Recibe payment/merchant_order; verifyPayment anti-spoofing; idempotencia 2 capas; grace period secret old | ✅ Operativo |
+| 10 | Webhook Stripe | `src/app/api/webhooks/stripe/route.ts` | Recibe checkout.session.*/payment_intent.*; idem | ✅ Operativo |
+| 11 | Webhook Wompi | `src/app/api/webhooks/wompi/route.ts` | Recibe transaction.*; idem | ✅ Operativo |
+| 12 | Webhook PayU | `src/app/api/webhooks/payu/route.ts` | Recibe confirmaciones; mapeo state_pol → canónico | ✅ Operativo |
+| 13 | Webhook PSE | `src/app/api/webhooks/pse/route.ts` | Callback ACH Colombia; HMAC-SHA256 | ✅ Operativo |
+| 14 | Webhook PIX | `src/app/api/webhooks/pix/route.ts` | Callback Banco Central do Brasil; HMAC o mTLS (Caddy) | ✅ Operativo |
+| 15 | Webhook WhatsApp/Meta | `src/app/api/webhooks/whatsapp/route.ts` + `meta/route.ts` | Mensajería; HMAC-SHA256 `X-Hub-Signature-256` | ✅ Operativo |
+| 16 | Create payment link | `src/app/api/payments/create-link/route.ts` | POST → adapter.createPaymentLink + update Order + OrderEvent atómico | ✅ Operativo |
+| 17 | Local payments API | `src/app/api/payments/local/route.ts` | POST create PSE/PIX/OXXO/SPEI + poll status | ❌ Roto (import de `local-payments` inexistente) |
+| 18 | Local payment status | `src/app/api/payments/local/[reference]/status/route.ts` | GET estado por referencia | ⚠️ Compile-fail por dependencia transitiva |
+| 19 | Payments config | `src/app/api/payments/config/route.ts` | GET/PATCH canales + thresholds globales; `cred::*` siempre rechazado | ✅ Operativo |
+| 20 | ACP Refunds | `src/app/api/acp/v1/refunds/route.ts` | Reembolso total/parcial vía agente externo con bearer ed25519 | ✅ Operativo |
+| 21 | ACP Checkout | `src/app/api/acp/v1/checkout/route.ts` | Inicia UCP session desde agente ACP; valida maxAmount + categoryLimits | ✅ Operativo |
+| 22 | UCP Checkout | `src/app/api/ucp/v1/checkout/route.ts` | Negocia capabilities + payment handlers; crea UcpCheckoutSession | ✅ Operativo |
+| 23 | Conciliation | `src/app/api/conciliation/route.ts` | Compara GMV agente vs externo; detecta fuga | ⚠️ **Sin auth** — cualquiera con tenantId puede consultar GMV |
+| 24 | Conversions (CAPI) | `src/app/api/conversions/route.ts` | Server-side pixel firing (Meta CAPI / Google MP / TikTok Events API) | ✅ Operativo |
+| 25 | Wallet API | `src/app/api/wallet/route.ts` | Balance / 2FA / accounts / withdrawals / record_transaction | ✅ Operativo (con bugs) |
+| 26 | Wallet Service | `src/lib/services/wallet.service.ts` | Lógica de balance, retiros, 2FA config | ⚠️ `recordTransaction` no usa `$transaction` |
+| 27 | Monetization invoice | `src/app/api/monetization/generate-invoice/route.ts` | Factura mensual SaaS (comisión sobre GMV) | ✅ Operativo |
+| 28 | Monetization commission | `src/app/api/monetization/commission/route.ts` | Comisión por tramos | ✅ Operativo |
+| 29 | FX Rates refresh | `src/app/api/finance/refresh-rates/route.ts` | Cron diario: refresh CURRENCIES desde open.er-api.com | ✅ Operativo |
+| 30 | Channel cost sync | `src/app/api/finance/channel-cost/sync/route.ts` | Costo operativo del canal | ✅ Operativo |
+| 31 | DIAN Invoicing lib | `src/lib/compliance/dian-invoicing.ts` | Genera CUFE (SHA-384) + persiste Invoice + submitToDian vía Alegra | ⚠️ NITs placeholders; sin Alegra → no se envía a DIAN |
+| 32 | DIAN Invoice API | `src/app/api/compliance/dian-invoice/route.ts` + `[invoiceId]/submit/route.ts` | Genera + envía factura electrónica | ✅ Operativo (depende de Alegra) |
+| 33 | Alegra Adapter | `src/lib/adapters/dian-alegra.ts` | POST /invoices + stamp.generate + sendByEmail | ✅ Operativo |
+| 34 | Retracto lib | `src/lib/compliance/retracto.ts` | Ley 1480 Art 47: 5 días ventana + 30 días refund + refund automático | ✅ Operativo |
+| 35 | Retracto API | `src/app/api/compliance/retracto/route.ts` | POST dispara retracto | ✅ Operativo |
+| 36 | DSR API | `src/app/api/compliance/dsr/route.ts` | Ley 1581 Art 8: access / erasure / portability | ✅ Operativo |
+| 37 | Consent API | `src/app/api/compliance/consent/route.ts` | Ley 1581: POST/GET/DELETE consent | ✅ Operativo |
+| 38 | KYC Gate lib | `src/lib/compliance/kyc-gate.ts` | Ley 2573 de 2026: bloquea crédito/cuotas/alto valor sin KYC | ✅ Operativo |
+| 39 | KYC API | `src/app/api/compliance/kyc/route.ts` + `[id]/verify/route.ts` | Inicia + verifica KYC | ✅ Operativo |
+| 40 | Age Gate | `src/lib/compliance/age-gate.ts` | Ley 1098 Art 17: menores → requiere parental consent | ✅ Operativo |
+| 41 | Retention lib | `src/lib/compliance/retention.ts` | Política de retención Ley 1581 + Estatuto Tributario | ✅ Operativo |
+| 42 | Retention API | `src/app/api/compliance/retention/route.ts` + `cron/route.ts` | Sweep manual + cron | ✅ Operativo |
+| 43 | Multi-currency lib | `src/lib/i18n/currency.ts` | 7 monedas + format + convert (sync) + convertWithLiveRate (async) + refresh | ✅ Operativo |
+| 44 | Tax lib | `src/lib/i18n/tax.ts` | calculateTax por país (CO/MX/BR/PE/CL/AR/US) + exempt + reduced | ✅ Operativo |
+| 45 | RLS helpers | `src/lib/rls.ts` | Prisma extension + RLS SQL policies | ✅ Operativo |
+| 46 | RLS SQL | `prisma/sql/rls-policies.sql` | DDL PostgreSQL: 19 tablas con RLS | ✅ Listo (aplicar en migración a prod) |
+| 47 | HMAC middleware | `src/lib/middleware/hmac.ts` | verifyMetaSignature / verifyHmacSha256 / verifyHmacSha256Base64 (todos timingSafeEqual) | ✅ Operativo |
+| 48 | Idempotency middleware | `src/lib/middleware/idempotency.ts` | 2 capas: in-memory Map (5 min) + DB AuditLog (10 min) con SHA-256 | ✅ Operativo |
+| 49 | Webhook error handler | `src/lib/middleware/webhook-error-handler.ts` | withWebhookErrorHandling wrapper | ✅ Operativo |
+| 50 | AP2 Mandates | `src/app/api/ap2/mandates/**` | Intent/Cart/Payment mandates firmados ed25519 como W3C VC | ✅ Operativo |
+| 51 | Crypto signing | `src/lib/crypto/signing.ts` | ed25519 keypair por tenant + W3C VC sign/verify | ⚠️ Dev: PEM en `Setting`; Prod: pendiente KMS |
+| 52 | Audit signing | `src/lib/crypto/audit-signing.ts` | AuditLog → W3C Verifiable Intent | ✅ Operativo |
+| 53 | ACP Bearer | `src/lib/acp/bearer.ts` | `{mandateId}.{ed25519(mandateId)}` — no raw mandate ID | ✅ Operativo |
+| 54 | Credentials service | `src/lib/services/credentials.service.ts` | CRUD `cred::{ns}::{integrationId}` con maskAllCredentialFields | ✅ Operativo |
+| 55 | TOTP | `src/lib/totp.ts` | AES-256-GCM at-rest + scrypt backup codes | ✅ Operativo |
+| 56 | Anti-fraude | — | velocity / blocklist / AML / OFAC / sift / signifyd | ❌ **AUSENTE** |
+
+---
+
+## 3. Hallazgos por Categoría
+
+### 3.1 Seguridad de Pagos (PCI-DSS, tokenization, card data)
+
+**Puntaje: 7.0 / 10** — PCI-DSS SAQ-A elegible (descarga de responsabilidad).
+
+✅ **Buenas prácticas:**
+- **ZIAY nunca toca PAN/Card data**: todos los gateways usan hosted-checkout / redirect model (MercadoPago `init_point`, Wompi `checkout_url`, Stripe Checkout Sessions, PayU `URL_PAYMENT_RECEIPT`). El cliente paga en el dominio del gateway; ZIAY recibe solo el `paymentId` y el webhook.
+- **Mode stub explícito** cuando faltan credenciales: `stubNoCredentials()` devuelve `success: false, status: 'stub'` para que la UI degrade (muestre COD, oculte botón) en vez de fallar.
+- **Bearer firmado ed25519** para ACP refunds — ya no es el mandate ID en crudo (AUDIT-FINAL-SEC-001 V4). Comprometer el mandate ID solo no basta; se necesita la private key del tenant.
+- **TOTP secret AES-256-GCM at-rest**; backup codes con scrypt+salt.
+- **Signature rotation** con grace period (`*_WEBHOOK_SECRET_OLD`) — ADR-0018.
+
+⚠️ **Gaps:**
+- **No hay tokenization del payment method** del lado del gateway. Cada orden crea un nuevo link. Si se quiere guardar tarjeta para recompra, falta implementar `customer.cards` en MP o `SetupIntent` en Stripe.
+- **`next.config.ts(37,3)`** referencia `eslint` inexistente en `NextConfig` — warning tsc, pero indica drift de configuración.
+- **Card testing protection ausente**: sin rate-limit específico en `POST /api/payments/create-link` (solo el rate-limit genérico de 30/min) → un atacante podría usar la API para orquestar card testing contra el gateway (el gateway tiene su propia protección, pero no es suficiente).
+
+❌ **No aplica a PCI-DSS Level 1** (no almacena PAN, no tiene acceso a CVD/CVC). El SAQ-A es el aplicable. Falta:
+- **WAF en el edge** (no documentado en `Caddyfile`).
+- **Network segmentation** entre app y DB no documentada.
+- **PCI-DSS v4.0 Requirement 6.2.4** (rotation de webhooks secrets) — está cubierto por ADR-0018.
+
+### 3.2 Webhooks (signature verification, idempotency, replay protection)
+
+**Puntaje: 7.5 / 10**
+
+✅ **Buenas prácticas:**
+- Verificación HMAC-SHA256 con `timingSafeEqual` en los 7 endpoints de pago/mensajería (`webhooks/{mercadopago,stripe,wompi,payu,pse,pix,whatsapp,meta}/route.ts`).
+- **Idempotencia de 2 capas** (`src/lib/middleware/idempotency.ts`):
+  - L1: `Map<string, number>` en memoria con TTL 5 min (fast path single-instance).
+  - L2: `AuditLog.findFirst` por `entityId = webhookId` con TTL 10 min (multi-instance durable).
+  - `webhookId = 'wh_' + sha256(body + signature)` — determinístico, libre de colisiones (SHA-256 vs djb2 anterior).
+- **ACK 200 siempre** (ADR-0005): nunca 500 aunque la firma no verifique → detiene reintentos del gateway sin pérdida de auditoría (`safeAudit`).
+- **Anti-spoofing**: MercadoPago webhook **siempre** re-consulta `verifyPayment(paymentId)` después de verificar la firma — no confía en el body del webhook para el estado (defensa en profundidad contra webhook forgery con secret comprometido).
+- **Grace period de rotación** con `*_WEBHOOK_SECRET_OLD` (ADR-0018).
+- **Production-safe**: si falta el secret en prod, el adapter `throw` y el webhook responde 500 (operador alertado). En dev, warn + acepta firma no vacía.
+- **CAPI auto-fire** en transición a `paid` (cierra el loop de atribución — ADR-0010).
+
+⚠️ **Gaps:**
+- **No hay validación de skew de timestamp** para Stripe/MP: el header `ts=...` se incluye en el manifest HMAC pero no se compara contra `Date.now()`. Un payload robado puede ser reenviado dentro de la ventana de idempotencia (10 min) y, peor, fuera de ella — `applyPaymentUpdate` es idempotente por `paymentStatus === 'paid'` pero no por monto o referencia.
+- **PayU usa MD5** (imposición del gateway — no corregible sin migrar a PayU Checkout API v2 con HMAC-SHA256).
+- **Wompi, PSE, PIX no incluyen timestamp en su firma** → no hay protection anti-replay criptográfico, solo idempotencia por contenido.
+- **`generateWebhookId(body, signature)`** incluye la signature en el hash: si el mismo body llega firmado con dos secrets válidos durante la rotación, produce dos IDs distintos → se procesa dos veces. La dedup en el nivel `body` (sin signature) sería más estricta.
+
+### 3.3 Multi-moneda y FX (rate sources, staleness, rounding)
+
+**Puntaje: 7.5 / 10**
+
+✅ **Buenas prácticas:**
+- **7 monedas LATAM** soportadas (`CURRENCIES`): COP, MXN, BRL, USD, PEN, CLP, ARS — cada una con symbol, decimals, locale BCP-47, exchangeRateFromUSD, minimumAmount.
+- **Live FX feed** (ADR-0012): `getLiveExchangeRates()` consume `open.er-api.com` (free tier 1500 req/mes) con TTL 6 h, timeout 5 s, fallback a estático.
+- **Cold-start persistence** (ADR-0017): `FxRate` Prisma model persiste la última tasa viva → en serverless cold-start lee de DB antes de caer a estático.
+- **`refreshExchangeRates()`** actualiza `CURRENCIES` in-place para que la path síncrona (`convertCurrency`) también se beneficie.
+- **`calculateTax`** redondea a 2 decimales en cada línea + total → evita dust de punto flotante. COP/CLP (0 decimales) redondean naturalmente.
+- **Tax breakdown persistido** en `Order.taxBreakdown` JSON → auditable por DIAN/AFIP/SAT.
+- **Per-country tax configs** (TAX_CONFIGS): CO 19 %, MX 16 %, BR 17 % ICMS, PE 18 % IGV, CL 19 %, AR 21 % (+ 10.5 % alimentos), US 0 % (varía por estado).
+- **Exempt categories** + **reduced rates** (food/books) tracked por SKU en `reducedRateItems`.
+
+⚠️ **Gaps:**
+- **FX API sobre HTTPS sin TLS pinning ni response integrity check**: un MITM con CA comprometida podría inyectar tasas maliciosas. Mitigado parcialmente por HTTPS público, pero no hay signature verification del proveedor.
+- **`convertCurrency` síncrono usa `CURRENCIES` que puede estar stale** hasta 6 h (TTL del cache) o indefinidamente si el cron falla. Para cobros reales, los gateways usan la moneda nativa del order; la conversión solo afecta display/analytics.
+- **No hay track de "display vs charge currency"**: el order se crea en una moneda y se cobra en esa moneda; no hay soporte explícito para "cliente ve USD, cobra en COP con conversión al flight time" (escenario cross-border DDP).
+- **`minimumAmount`** está documentado en `CURRENCIES` pero **no se valida en `create-link/route.ts`**: nada impide crear un link de COP 500 (por debajo del mínimo de Wompi COP 2.500) → el gateway lo rechazará con error confuso.
+- **`refresh-rates` GET** requiere rol pero el POST (mutación que afecta todo el proceso) requiere admin — correcto. Sin embargo el POST no está protegido contra ejecución concurrente (race en la mutación del objeto `CURRENCIES` in-memory).
+
+### 3.4 Compliance LATAM (DIAN, Ley 1581, Ley 1480, LGPD, LFPDPPP)
+
+**Puntaje: 8.0 / 10** — la dimensión más madura del stack.
+
+✅ **Cobertura:**
+
+| Norma | País | Implementación | Estado |
+|-------|------|----------------|--------|
+| Decreto 745 de 2014 (factura electrónica DIAN) | CO | `dian-invoicing.ts` (CUFE SHA-384) + Alegra adapter | ✅ Vía Alegra |
+| Resolución DIAN 165 de 2023 | CO | Delegada a Alegra (XML signing + certificado digital) | ✅ Vía Alegra |
+| Ley 1581 de 2012 (habeas data) | CO | `consent/route.ts` (POST/GET/DELETE), `dsr/route.ts` (access/erasure/portability), `retention.ts` | ✅ Operativo |
+| Estatuto Tributario Art 632 | CO | `retention.ts`: AuditLog 7 años, Customer 5 años | ✅ Operativo |
+| Ley 1480 de 2011 Art 47 (retracto) | CO | `retracto.ts` (5 días ventana + 30 días refund + refund automático fire-and-forget) | ✅ Operativo |
+| Ley 2573 de 2026 (carga dinámica de la prueba) | CO | `kyc-gate.ts` (KYC para crédito/cuotas/compras > COP 2M) + `IdentityVerification` model | ✅ Operativo |
+| Ley 1098 de 2006 Art 17 (menores) | CO | `age-gate.ts` (calcula edad, `isMinor` denormalizado, parental consent) | ✅ Operativo |
+| LGPD (Lei 13.709/2018) | BR | DSR genérico aplica (mismos endpoints que Ley 1581) | ✅ Vía DSR |
+| LFPDPPP (México) | MX | DSR genérico aplica | ✅ Vía DSR |
+| GDPR (clientes EU) | EU | DSR genérico aplica; falta art. 30 RoPA (registro de actividades) | ⚠️ Parcial |
+| Decreto 2150 de 2017 (facturación) | CO | Idem DIAN | ✅ Vía Alegra |
+
+✅ **Detalles técnicos correctos:**
+- **ConsentRecord** persiste `legalBasis` (consent/contract/legitimate_interest/legal_obligation) + `proofHash` + `proofPayload` (IP, UA, timestamp, uiVersion) → evidencia auditable.
+- **Retracto** verifica `retractoWindowUntil` stamped en creación del Order (5 días calendario) → no recomputa.
+- **Retención** por data type (Customer 5 años inactivo, Conversations 2 años, AuditLog 7 años, Consents revoked 5 años, DecisionLog 3 años Ley 2573, Webhooks 90 días).
+- **KYC** falla cerrado: si la DB falla, devuelve `verified: false` (deny por defecto).
+- **Age gate**: `isMinor` nunca se resetea a `false` (previene bypass víspera de cumpleaños).
+- **Invoice** model co-hostea SaaS billing + DIAN customer-facing (deuda técnica reconocida en el schema comment).
+
+⚠️ **Gaps:**
+- **NITs placeholders en DIAN**: `emitterNit = order.tenant?.id` (un CUID, no un NIT) y `receiverNit = order.customer?.email` (un email, no un NIT). El CUFE se calcula con estos placeholders → si Alegra no está configurado, la factura persistida **no cumple** con Resolución DIAN 165. Alegra sobrescribe el CUFE con datos correctos al submit, pero si Alegra falla, queda un CUFE inválido en DB.
+- **Sin Alegra configurado → DIAN no se envía**: `submitToDian()` devuelve `{ accepted: false, message: 'Alegra no configurado...' }` pero la factura sigue marcada `dianStatus: 'pending_submission'` indefinidamente. Falta job de re-intento.
+- **No hay notificación al cliente** del derecho al retracto en el checkout (Ley 1480 Art 47 exige informar al consumidor antes de la compra).
+- **GDPR Art 30 RoPA ausente**: no hay registro de actividades de tratamiento documentado.
+- **Sin DPA (Data Processing Agreement) templates** con sub-procesadores (Alegra, gateways, LLM providers).
+
+### 3.5 Anti-fraude (KYC, velocity checks, blocklists)
+
+**Puntaje: 3.5 / 10** — el talón de Aquiles del stack.
+
+✅ **Lo que existe:**
+- **KYC gate** (`kyc-gate.ts`): bloquea `credit_purchase`, `installment_plan`, `high_value_order` (> COP 2 M) sin IdentityVerification vigente. Política correcta, falla cerrado.
+- **TOTP 2FA** para retiros de wallet — `process_withdrawal` requiere `totpVerified: true` si 2FA está habilitado.
+- **ACP bearer ed25519** — compromise del mandate ID no basta.
+- **PayU `deviceSessionId`** se envía (randomUUID) pero debería ser el real session ID del navegador.
+- **PayU `ipAddress`** defaults a `127.0.0.1` si `PAYU_PAYER_IP` no está set → useless para fraud detection en PayU.
+
+❌ **Lo que falta (CRÍTICO):**
+- **Sin velocity checks**: un mismo customer/IP/dispositivo puede hacer 100 pagos en 1 min sin ser bloqueado. Solo `rateLimit(30/min)` en `create-link`.
+- **Sin blocklist**: no hay lista de clientes bloqueados, IPs, BINs, emails. Una devolución de chargeback no alimenta ninguna lista.
+- **Sin AML / OFAC screening**: no hay check contra listas restrictivas (OFAC SDN, ONU, Lista Clinton). Para LATAM con expansión a USA, esto es bloqueante.
+- **Sin 3DS / SCA**: no se pasa `payment_method_options[card][request_three_d_secure]` a Stripe. En Brasil (BACEN) y Europa (PSD2) es obligatorio.
+- **Sin device fingerprinting**: no hay integración con Sift, Signifyd, Riskified, ClearSale, Konduto.
+- **Sin CVV/AVS check explícito**: se confía en el `status: 'approved'` del gateway sin validar `cvv_result_code`, `avs_result_code`.
+- **Sin detección de primera compra high-risk**: un customer nuevo que compra por COP 5 M sin historial no dispara friction adicional.
+- **Sin chargeback feedback loop**: no hay endpoint para recibir notificaciones de chargeback desde el gateway y marcar la orden.
+- **`kyc-gate` umbral COP 2 M** es bajo para fraude con tarjeta robada: un fraude típico intenta múltiples transacciones pequeñas, no una grande.
+
+### 3.6 Reconciliación y Auditoría (audit log, reconciliation reports)
+
+**Puntaje: 6.5 / 10**
+
+✅ **Buenas prácticas:**
+- **`AuditLog`** con `proofHash` + `proofSignature` + `credentialSchema` → firmable como W3C Verifiable Intent (SPRINT-PROTOCOLS-TRINITY-001 §11). Indices en `(tenantId, createdAt)`, `(action)`.
+- **`OrderEvent`** timeline: created/paid/shipped/delivered/cancelled/refunded/cod_pending/retracto_requested/refund_processed/refund_failed/refund_error/payment_link_created/payment_rejected.
+- **`DecisionLog`** para trazabilidad de agentes IA: input/output/reasoning/confidence/enforcementResult/liabilityParty/humanReviewed. Indices en `(tenantId, agentName, createdAt)`, `(orderId)`, `(mandateId)`.
+- **`applyPaymentUpdate`** envuelve `order.update` + `orderEvent.create` en `$transaction` → previene estado "order pagada pero sin evento de audit".
+- **`/api/conciliation`** compara GMV agente vs externo, calcula gap %, asigna riskLevel (low < 5 %, medium 5-15 %, high > 15 %), sugiere mitigaciones.
+- **`safeAudit`** best-effort: si DB cae, loguea pero no rompe el webhook ACK.
+
+⚠️ **Gaps:**
+- **`/api/conciliation` SIN AUTH**: `GET /api/conciliation?tenantId=X` no llama `requireAuth` ni `requireTenantAccess`. Cualquiera con el tenantId puede consultar el GMV de cualquier tenant. **CRÍTICO para confidencialidad financiera.**
+- **No hay reconciliation report diario**: falta job que compare webhooks recibidos vs orders pagadas vs depósitos bancarios. Solo el endpoint manual.
+- **No hay `WebhookEvent` model** (reconocido en `retention.ts`): los webhook IDs se guardan en `AuditLog.entityId` pero sin índice dedicado en `(entityId, createdAt)` — el lookup `isDuplicateWebhookDB` filtra por `entityId + action prefix + createdAt` pero el índice existente es `(action)` → puede ser lento con AuditLog grande.
+- **`AuditLog` se elimina a los 7 años** (`retention.ts`) pero el comentario dice "in production this should be exported to cold storage (S3 Glacier / BigQuery) before deletion. For now we delete." → **pérdida de evidencia** para disputas posteriores a 7 años.
+- **`recordTransaction` en walletService** usa `Promise.all` no `$transaction` → ledger y balance pueden divergir (ver §3.8).
+
+### 3.7 Manejo de Errores y Refunds (failed transactions, partial refunds)
+
+**Puntaje: 6.5 / 10**
+
+✅ **Buenas prácticas:**
+- **`applyPaymentUpdate`** transactional + best-effort CAPI fire-and-forget.
+- **Retracto automático refund** (ADR-0019): tras cancelar el order en `$transaction`, llama `adapter.refund(paymentRef, total)` fire-and-forget. Si falla, crea `OrderEvent` `refund_failed` con deadline de 30 días para procesar manualmente.
+- **ACP refunds** con 422 si order no pagada, 422 si falta paymentRef, 422 si monto > total, 502 si gateway rechaza.
+- **Stub mode** cuando faltan credenciales → degradación limpia.
+- **`webhook-error-handler`** wrapper estandariza el manejo.
+
+⚠️ **Gaps:**
+- **No hay refund-on-failure para checkout incompleto**: si `createPaymentLink` falla a mitad de camino (order creada, gateway no respondió), el order queda en `pending_payment` indefinidamente. Falta job de limpieza de orders `pending_payment > 30 min sin paymentRef`.
+- **No hay endpoint de refund para admin/operator**: solo ACP refunds (requieren mandate firmado ed25519). Un operador humano del merchant no tiene forma de reembolsar manualmente desde la UI. Falta `POST /api/orders/[id]/refund` con `requireRole(['admin', 'operator'])`.
+- **No hay partial refund tracking**: el `OrderEvent` `refunded` registra el monto en el `note` (texto libre) pero no hay campo estructurado `Refund` model. Múltiples partial refunds no se reconstruyen fácilmente.
+- **Wompi refund no respeta `currency`**: el adapter devuelve `currency: ''` tras refund → pierde info para conciliación.
+- **Stripe refund usa `payment_intent` field** pero el adapter recibe `paymentId` que viene de Checkout Session (`cs_test_...`). `POST /v1/refunds` espera un `payment_intent` (`pi_...`) → el refund de Stripe está probablemente roto (necesita lookup `checkout.session → payment_intent`).
+- **PayU refund** asume `parentTransactionId = paymentId` pero `paymentId` para PayU es `orderId` (no `transactionId`) → posible confusión.
+- **No hay compensating transaction** si el webhook marca `paid` pero la orden ya está cancelada por retracto (race condition).
+
+### 3.8 Aislamiento Multi-tenant (credential isolation, RLS)
+
+**Puntaje: 7.0 / 10**
+
+✅ **Buenas prácticas:**
+- **RLS SQL** (`prisma/sql/rls-policies.sql`) con 19 tablas: `User`, `Channel`, `Customer`, `Conversation`, `Message`, `Product`, `Order`, `OrderEvent` (vía parent), `VolumePrice`, `SalesSpeech`, `Objection`, `ThemeDesign`, `CategoryCombo`, `DeliveryHistory`, `ImageIdentification`, `Campaign`, `Carrier`, `Shipment`, `CommissionEntry`, `Invoice`, `AuditLog` (nullable tenantId). Políticas `USING` + `WITH CHECK`.
+- **App role recomendado** (no superuser) en el SQL — los superusers bypass RLS.
+- **`makeTenantPrismaExtension(tenantId)`** para dev (SQLite) que inyecta `tenantId` en `where`/`data` de operaciones sobre modelos tenant-scoped.
+- **`requireTenantAccess(tenantId)`** en TODAS las rutas fintech: `create-link`, `payments/local`, `retracto`, `kyc`, `consent`, `dsr`, `wallet`, `monetization/generate-invoice`, `acp/v1/{checkout,refunds}` (vía mandate tenant match), `ucp/v1/checkout`.
+- **`cred::{tenantId}::{integrationId}`** namespace en `Setting` → un tenant no puede leer credenciales de otro.
+- **`maskAllCredentialFields`** antes de responder a GET → los secrets nunca salen en claro.
+- **`payments-config` PATCH** verifica `existing.tenantId !== tenantId` antes de update (FIX-SECURITY-AUTH-001).
+- **`ACP refunds`** verifica `order.tenantId !== mandate.tenantId` → 403.
+
+⚠️ **Gaps:**
+- **`/api/conciliation` SIN AUTH** (ver §3.6) — brecha de aislamiento.
+- **RLS SQL solo se aplica en PostgreSQL**: en SQLite (dev actual) NO hay RLS; depende 100 % del código. Si una ruta olvidó `requireTenantAccess`, en prod sí estaría protegido (RLS), pero en dev no.
+- **RLS no cubre `WalletAccount`, `WalletTransaction`, `WithdrawalRequest`, `TwoFactorConfig`, `AP2Mandate`, `UcpCheckoutSession`, `IdentityVerification`, `ConsentRecord`, `DecisionLog`, `FxRate`, `Setting`, `MarketplaceListing`, `LeadReferral`** — faltan políticas SQL. Aunque estos modelos sí tienen `tenantId` en schema, la RLS SQL no los lista.
+- **`walletService.getWalletAccount`** no filtra por tenantId — solo por `traffickerId`. Aunque la ruta valida ownership del trafficker, falta defense-in-depth.
+- **`WalletAccount` unique constraint** es `@@unique([traffickerId, accountNumber])` → tenant-level wallets (sin traffickerId) son unconstrained.
+- **`getFirstTrafficker()` fallback** en `resolveTrafficker` para admins: si un admin sin traffickerId entra, ve el primer trafficker de la DB → potencialmente cross-tenant si el admin es multi-tenant.
+- **`AuditLog.tenantId` nullable**: la policy SQL es `tenant_id = app_current_tenant_id() OR tenant_id IS NULL` → filas `NULL` son visibles para todos. Aceptar esto es necesario para webhooks sin tenant context, pero amplía el blast radius.
+- **Credenciales en `Setting`** en texto (JSON) — `maskAllCredentialFields` solo aplica al responder, pero el storage en DB es plaintext. Falta encryption at-rest para credenciales (solo TOTP secret está encriptado).
+
+---
+
+## 4. Riesgos Críticos (Top 10)
+
+| # | Riesgo | Severidad | Probabilidad | Impacto | Mitigación recomendada |
+|---|--------|-----------|--------------|---------|------------------------|
+| **R-1** | `local-payments.ts` no existe en disco → PSE/PIX/OXXO/SPEI rotos + `payment-registry.ts` no carga | **Crítico** | Cierta (100 %) | 4/8 métodos de pago no operativos; rompe el registry completo | (1) Sacar `local-*` del `.gitignore`, (2) crear el archivo (`worklog.md` L20768 dice que se creó con 296 líneas pero no está), (3) pasar `tsc --noEmit` como gate de CI |
+| **R-2** | 58 errores de TypeScript en `src/` — `tsc --noEmit` falla | **Crítico** | Cierta (100 %) | Imposibilidad de desplegar con type-safety; CI/CD sin gate | Corregir los 58 errores (muchos son drift de schema Prisma vs código); agregar `tsc --noEmit` como paso required en CI |
+| **R-3** | Ausencia total de anti-fraude transaccional (velocity, blocklist, AML, 3DS) | **Crítico** | Alta | Chargebacks, pérdida de cuenta de merchant, multas card schemes, exposición AML | (1) Integrar Sift/Signifyd/ClearSale, (2) pasar `request_three_d_secure: any` a Stripe, (3) rate-limit por customer/IP/card BIN, (4) OFAC screening para USA |
+| **R-4** | `/api/conciliation` sin auth → leak de GMV cross-tenant | **Alto** | Alta | Filtración de datos financieros de cualquier tenant | Agregar `requireTenantAccess(tenantId)` al inicio del handler |
+| **R-5** | `walletService.recordTransaction` usa `Promise.all` no `$transaction` → balance y ledger pueden divergir | **Alto** | Media | Inconsistencia contable, doble gasto si el update de Trafficker.walletBalance falla pero WalletTransaction.create éxito | Cambiar a `db.$transaction(async (tx) => {...})` como `processWithdrawal` |
+| **R-6** | No hay validación de monto en `applyPaymentUpdate` → webhook legítimamente firmado con monto distinto marca orden como pagada | **Alto** | Baja (requiere secret comprometido) | Fraude: orden de COP 1M marcada pagada con transferencia de COP 1 | Comparar `result.amount` con `order.total` antes de marcar `paid`; si difieren, marcar `payment_mismatch` y alertar |
+| **R-7** | Stripe refund probablemente roto: usa `paymentId` como `payment_intent` pero el ID es de Checkout Session (`cs_...`) | **Alto** | Cierta (cada refund Stripe falla) | Imposibilidad de reembolsar órdenes pagadas con Stripe | En `StripeAdapter.refund`, primero hacer `GET /v1/checkout/sessions/{id}` para obtener `payment_intent`, luego `POST /v1/refunds` con ese PI |
+| **R-8** | DIAN: sin Alegra configurado → factura persistida con CUFE local inválido (NITs placeholders) | **Alto** | Alta (env var missing) | No cumplimiento Decreto 745; facturas no válidas | (1) Hacer Alegra mandatory para prod CO, (2) job de re-intento, (3) bloquear generación si no hay NIT real del tenant |
+| **R-9** | Credenciales de gateways en `Setting` plaintext (solo TOTP encriptado) | **Medio** | Media | Si DB se compromete, todas las API keys de gateways se exponen | Encriptar `Setting.value` cuando `key` empieza con `cred::` (mismo esquema AES-256-GCM que TOTP) |
+| **R-10** | RLS SQL no cubre wallet/AP2/UCP/IdentityVerification/ConsentRecord/DecisionLog/Setting | **Medio** | Media | Brecha de aislamiento en PostgreSQL prod | Agregar políticas SQL para las ~13 tablas faltantes |
+
+### Riesgos adicionales (Medios/Bajos)
+
+| # | Riesgo | Severidad | Mitigación |
+|---|--------|-----------|------------|
+| R-11 | No hay endpoint de refund admin/operator (solo ACP) | Medio | `POST /api/orders/[id]/refund` con `requireRole(['admin','operator'])` |
+| R-12 | No hay `Refund` model estructurado (solo OrderEvent texto) | Medio | Crear `Refund { id, orderId, amount, currency, gatewayRef, reason, partial, status }` |
+| R-13 | PayU usa MD5 (imposición gateway) | Medio | Documentar; migrar a PayU Checkout API v2 con HMAC cuando esté disponible |
+| R-14 | `AuditLog` se elimina a 7 años sin export a cold storage | Medio | Job de export a S3 Glacier antes de delete |
+| R-15 | No hay 3DS / SCA para Brasil (BACEN) y EU (PSD2) | Medio | Pasar `payment_method_options[card][request_three_d_secure]` a Stripe |
+| R-16 | `next.config.ts(37,3)` `eslint` no existe en NextConfig | Bajo | Quitar la propiedad |
+| R-17 | `minimumAmount` en `CURRENCIES` no se valida en `create-link` | Bajo | Zod validation |
+| R-18 | No hay escrow implementation real | Bajo | Diseñar `EscrowHolding` model con `release`/`refund` workflow |
+| R-19 | `FEE_PCT`/`FEE_MIN` hardcoded COP en wallet withdrawals | Bajo | Parametrizar por moneda |
+| R-20 | `WithdrawalRequest` no valida positive amount en service (solo ruta) | Bajo | Mover validación al service |
+
+---
+
+## 5. Brecha vs. Estándares
+
+### PCI-DSS v4.0 (SAQ-A aplicable — hosted checkout)
+
+| Requisito | Estado | Notas |
+|-----------|--------|-------|
+| Req 3 (Protect stored cardholder data) | ✅ N/A | ZIAY no almacena PAN |
+| Req 4 (Encrypt transmission) | ✅ | HTTPS en todos los endpoints |
+| Req 6 (Develop secure systems) | ❌ | 58 errores tsc; `local-payments.ts` missing |
+| Req 6.2.4 (Rotate keys/passphrases) | ✅ | ADR-0018 grace period rotation |
+| Req 8 (Identify users) | ✅ | NextAuth + 2FA TOTP en wallet |
+| Req 10 (Log and monitor) | ✅ | AuditLog + DecisionLog |
+| Req 11 (Test security) | ⚠️ | 986 tests, pero 0 anti-fraude tests |
+| Req 12 (Information security policy) | ❌ | No documentada |
+
+### SOC 2 Trust Services Criteria
+
+| Criterio | Estado | Notas |
+|----------|--------|-------|
+| CC1 (Control environment) | ⚠️ | ADRs documentados; falta formal policy |
+| CC2 (Communication) | ✅ | `STATUS.md` + dashboard |
+| CC6 (Logical access) | ✅ | RLS + RBAC + 2FA |
+| CC7 (System operations) | ✅ | Monitoring stack (Prometheus/Grafana/Loki) |
+| CC8 (Change management) | ⚠️ | `worklog.md` largo pero sin git flow formal |
+| CC9 (Risk mitigation) | ⚠️ | Sin vendor risk assessment |
+| A1 (Availability) | ✅ | Health endpoints + uptime monitoring |
+| C1 (Confidentiality) | ⚠️ | Credenciales plaintext en DB |
+| PI1 (Processing integrity) | ⚠️ | `recordTransaction` no transaccional |
+| PR1 (Privacy) | ✅ | DSR + consent + retention |
+
+### ISO 27001
+
+| Dominio | Estado |
+|---------|--------|
+| A.5 (Policies) | ⚠️ Falta ISMS formal |
+| A.6 (Organization) | ✅ RACI en ADRs |
+| A.8 (Asset management) | ⚠️ Sin inventario formal de assets |
+| A.9 (Access control) | ✅ RBAC + 2FA |
+| A.10 (Cryptography) | ✅ ed25519 + AES-256-GCM + TLS |
+| A.12 (Operations security) | ✅ Monitoring + backups |
+| A.13 (Communications security) | ✅ TLS + HMAC webhooks |
+| A.14 (System acquisition/development) | ⚠️ tsc roto |
+| A.16 (Incident management) | ⚠️ Sin runbook formal |
+| A.18 (Compliance) | ✅ Compliance layer robusto |
+
+---
+
+## 6. Roadmap de Remediación
+
+### Día 0-30 (Crítico — Unblock)
+
+1. **Restaurar `src/lib/adapters/local-payments.ts`** — 296 líneas según `worklog.md` L20768. Implementar PSE/PIX/OXXO/SPEI adapters con el contrato `LocalPaymentAdapter` ya declarado en `payment-registry.ts`. Sacar `local-*` del `.gitignore`.
+2. **Corregir 58 errores tsc** — especialmente `payment-registry.ts` y `payments/local/route.ts`. Agregar `tsc --noEmit` como CI gate obligatorio.
+3. **Agregar `requireTenantAccess` a `/api/conciliation`** — 1 línea, mitigación inmediata R-4.
+4. **Cambiar `walletService.recordTransaction` de `Promise.all` a `$transaction`** — mitigación R-5.
+5. **Validar monto en `applyPaymentUpdate`** — comparar `result.amount` (cuando el gateway lo reporta) con `order.total`; si difieren > 1 %, marcar `payment_mismatch` y no marcar `paid`.
+6. **Fix Stripe refund** — `StripeAdapter.refund` debe primero lookup `payment_intent` desde el checkout session ID.
+
+### Día 31-60 (Alto — Compliance + Anti-fraude foundations)
+
+1. **Integrar proveedor de anti-fraude** (Sift o ClearSale para LATAM) — velocity, device fingerprint, scoring. Mínimo: rate-limit por customer/IP/card BIN en `create-link`.
+2. **Habilitar 3DS en Stripe** — `payment_method_options[card][request_three_d_secure] = 'any'`.
+3. **OFAC screening** para expansión USA — API como `api.ofac-api.com` o lista en DB actualizada semanalmente.
+4. **Endpoint de refund admin/operator** — `POST /api/orders/[id]/refund` con `requireRole(['admin','operator'])` + `Refund` model estructurado.
+5. **Encriptar `Setting.value` para keys `cred::*`** — AES-256-GCM con `ENCRYPTION_KEY` existente.
+6. **Hacer Alegra mandatory en prod CO** — bloquear `generateDianInvoice` si `!adapter.isConfigured()` y requiere NIT real del tenant (campo `tenant.nit`).
+7. **Job de re-intento DIAN** — BullMQ recurring job para `Invoice.dianStatus = 'pending_submission'`.
+8. **Extender RLS SQL** a wallet/AP2/UCP/IdentityVerification/ConsentRecord/DecisionLog/Setting.
+
+### Día 61-90 (Medio — Hardening + Operación)
+
+1. **Job de limpieza de orders `pending_payment > 30 min sin paymentRef`** — compensating transaction.
+2. **Replay protection con timestamp skew** — en `webhookVerify` de Stripe/MP, rechazar si `Date.now() - ts > 5 min`.
+3. **`Refund` model estructurado** — tabla dedicada en lugar de OrderEvent texto.
+4. **Job de export de AuditLog a S3 Glacier** antes de delete (cumplimiento 7 años + retención indefinida de evidencia).
+5. **GDPR Art 30 RoPA** — documentar registro de actividades de tratamiento.
+6. **DPA templates** con Alegra, MercadoPago, Stripe, Wompi, PayU, LLM providers.
+7. **WAF en edge** — Caddy config con rate-limit por IP + OWASP ModSecurity rules.
+8. **PCI-DSS v4.0 SAQ-A self-assessment** formal.
+9. **Network segmentation** documentada (app tier vs DB tier).
+10. **Penetration test** externo antes de salida a USA.
+
+---
+
+## 7. Conclusión
+
+ZIAY tiene **una base fintech notablemente madura para su etapa de desarrollo** — la cobertura de compliance LATAM (DIAN, Ley 1581, Ley 1480, Ley 2573, Ley 1098) es de nivel production-ready, los webhooks están endurecidos con idempotencia de 2 capas y rotación de secretos con grace period, y la criptografía (ed25519, AES-256-GCM, HMAC-SHA256 timingSafeEqual) se usa correctamente en todos los puntos críticos.
+
+Sin embargo, **tres problemas bloqueantes** impiden considerar el stack fintech production-ready hoy:
+
+1. **`local-payments.ts` no existe** — 4 de 8 métodos de pago anunciados (PSE, PIX, OXXO, SPEI) son no-funcionales y rompen el adapter registry completo.
+2. **58 errores de TypeScript** — el CI/CD no puede pasar `tsc --noEmit` como gate.
+3. **Anti-fraude ausente** — sin velocity, blocklist, AML, 3DS, ni device fingerprinting, la plataforma es vulnerable a fraude con tarjeta robada por debajo del umbral KYC de COP 2 M.
+
+Con el roadmap de 30/60/90 días, el puntaje puede subir de **5.5/10 → 8.0/10** en 90 días. Sin el fix de los 3 bloqueantes, **no se recomienda procesar pagos reales en producción** hasta resolver R-1, R-2 y R-3 como mínimo.
+
+La dimensión más fuerte es **compliance LATAM** (8.0/10). La más débil es **anti-fraude** (3.5/10). Ambas son complementarias: compliance protege contra reguladores, anti-fraude protege contra criminales. Sin ambas, la operación fintech no es viable.
+
+---
+
+**Reporte generado por:** Agente general-purpose (perfil fintech-auditor)
+**Fecha:** 2026-07-15
+**Próxima revisión recomendada:** tras completar el roadmap de Día 0-30.

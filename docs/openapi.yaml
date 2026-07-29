@@ -1,0 +1,3437 @@
+openapi: 3.1.0
+info:
+  title: ZIAY API
+  version: 1.0.0
+  description: |
+    Comercio Conversacional + Atribución Inteligente.
+
+    Multi-tenant conversational-commerce platform with agent-driven checkout
+    (AP2 / UCP / ACP / MCP protocol trinity), ad attribution, compliance
+    (Ley 1581 / Ley 2573 / Ley 1480 / DIAN), and a wallet/commission layer
+    for traffickers + marketplaces.
+
+    All tenant-scoped endpoints require a session cookie (`sessionAuth`)
+    unless marked otherwise. UCP / ACP / webhook endpoints use `bearerAuth`
+    or are public.
+
+  contact:
+    email: api@ziay.co
+  license:
+    name: Proprietary
+
+tags:
+- name: Auth
+  description: Authentication endpoints
+- name: Overview
+  description: Dashboard overview + KPIs
+- name: Orders
+  description: Order management
+- name: Conversations
+  description: WhatsApp/Messenger conversations
+- name: Catalog
+  description: Product catalog
+- name: Ads
+  description: Ad attribution + management
+- name: Monetization
+  description: Commission + invoicing
+- name: Wallet
+  description: Trafficker wallet + withdrawals
+- name: Logistics
+  description: Shipping + tracking
+- name: Novedades
+  description: Post-sale incidents
+- name: Marketplace
+  description: Cross-brand marketplace
+- name: Channels
+  description: WhatsApp/Messenger/Instagram channels
+- name: Agents
+  description: AI agent execution
+- name: Protocols
+  description: AP2/UCP/ACP/MCP/A2A protocol endpoints
+- name: Compliance
+  description: KYC + consent + retention + DIAN + retracto
+- name: Governance
+  description: Mandates + escalations + decisions
+- name: Finance
+  description: LLM costs + channel contribution
+- name: Monitoring
+  description: Health + metrics + status
+- name: Webhooks
+  description: Payment + messaging webhook receivers
+- name: Public
+  description: Public endpoints (no auth)
+
+x-tagGroups:
+- name: Authentication
+  tags:
+  - Auth
+- name: Commerce
+  tags:
+  - Overview
+  - Orders
+  - Catalog
+  - Channels
+- name: Conversations
+  tags:
+  - Conversations
+  - Agents
+- name: Marketing
+  tags:
+  - Ads
+  - Marketplace
+- name: Finance
+  tags:
+  - Monetization
+  - Wallet
+  - Finance
+- name: Logistics
+  tags:
+  - Logistics
+  - Novedades
+- name: Protocols
+  tags:
+  - Protocols
+- name: Compliance
+  tags:
+  - Compliance
+  - Governance
+- name: Operations
+  tags:
+  - Monitoring
+  - Webhooks
+  - Public
+
+servers:
+- url: https://ziay.co
+  description: Production
+- url: http://localhost:3000
+  description: Development
+
+components:
+  securitySchemes:
+    sessionAuth:
+      type: apiKey
+      in: cookie
+      name: next-auth.session-token
+      description: NextAuth v4 session cookie (set by /api/auth/[...nextauth]/callback/credentials).
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: Signed W3C Verifiable Credential or bearer token (UCP/AP2/ACP).
+    cronAuth:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: 'Bearer $CRON_SECRET — shared secret for /api/compliance/retention/cron.'
+    webhookSignature:
+      type: apiKey
+      in: header
+      name: X-Hub-Signature-256
+      description: HMAC-SHA256 signature from the gateway (Meta/Stripe/Wompi/etc.).
+
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        details:
+          type: object
+          additionalProperties: true
+      required: [error]
+
+    SuccessResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+          example: true
+      additionalProperties: true
+
+    PaginatedResponse:
+      type: object
+      properties:
+        nextCursor:
+          type:
+          - string
+          - 'null'
+        hasMore:
+          type: boolean
+      additionalProperties: true
+
+    TenantIdQuery:
+      type: object
+      properties:
+        tenantId:
+          type: string
+          description: Tenant slug — required on most tenant-scoped endpoints.
+
+    MandateVC:
+      type: object
+      description: W3C Verifiable Credential for an AP2 Intent / Cart / Payment mandate.
+      properties:
+        mandateId:
+          type: string
+        vc:
+          type: object
+          description: Signed W3C VC payload.
+        did:
+          type: string
+        status:
+          type: string
+          enum: [active, consumed, revoked]
+
+  parameters:
+    TenantId:
+      name: tenantId
+      in: query
+      required: true
+      schema:
+        type: string
+      description: Tenant slug (e.g. "saramantha").
+    Days:
+      name: days
+      in: query
+      schema:
+        type: integer
+        default: 14
+      description: Lookback window in days.
+    Cursor:
+      name: cursor
+      in: query
+      schema:
+        type: string
+      description: Opaque cursor for cursor-based pagination (id of the last item on the previous page).
+    Limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        default: 20
+        maximum: 100
+      description: Page size (max 100).
+
+  responses:
+    BadRequest:
+      description: Validation error.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Authentication required.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: Tenant access denied.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Resource not found.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ServerError:
+      description: Internal server error (logged to Sentry).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+security:
+- sessionAuth: []
+
+paths:
+  # ─────────────────────────────────────────────────────────────────────
+  # 1. HEALTH & SYSTEM
+  # ─────────────────────────────────────────────────────────────────────
+  /api:
+    get:
+      operationId: getApi
+      tags: [Monitoring]
+      summary: API root / identity
+      description: Returns the API name + status. Requires auth.
+      security:
+      - sessionAuth: []
+      responses:
+        '200':
+          description: API status JSON.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/health:
+    get:
+      operationId: getHealth
+      tags: [Monitoring]
+      summary: Full health check (integrations + runtime)
+      description: Reports DB, Redis, LLM provider, adapter, webhook, disk, and runtime metrics. Cached 30s. Returns 503
+        on overall `error`.
+      security: []
+      parameters:
+      - name: tenantId
+        in: query
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Healthy or warning.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '503':
+          description: Unhealthy (DB down, etc.).
+
+  /api/health/live:
+    get:
+      operationId: getHealthLive
+      tags: [Monitoring]
+      summary: Liveness probe
+      description: Kubernetes / load balancer liveness. No DB touch.
+      security: []
+      responses:
+        '200':
+          description: '{ status: "alive", timestamp }'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /api/health/ready:
+    get:
+      operationId: getHealthReady
+      tags: [Monitoring]
+      summary: Readiness probe
+      description: DB + critical integrations ready to serve traffic.
+      security: []
+      responses:
+        '200':
+          description: Ready.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '503':
+          description: Not ready.
+
+  /api/health/uptime:
+    get:
+      operationId: getHealthUptime
+      tags: [Monitoring]
+      summary: Uptime + process metrics
+      description: Process uptime, memory, pid, Node version.
+      security: []
+      responses:
+        '200':
+          description: Runtime metrics.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /api/metrics:
+    get:
+      operationId: getMetrics
+      tags: [Monitoring]
+      summary: Prometheus metrics
+      description: Prometheus text-format counters + histograms for scraping.
+      security: []
+      responses:
+        '200':
+          description: Prometheus text-format body.
+
+  # ─────────────────────────────────────────────────────────────────────
+  # 2. AUTH & TENANTS
+  # ─────────────────────────────────────────────────────────────────────
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /api/auth/[...nextauth]:
+    get:
+      operationId: getAuthNextauth
+      tags: [Auth]
+      summary: NextAuth handler (GET)
+      description: Sign-in pages, session lookup, csrf token.
+      security: []
+      responses:
+        '200':
+          description: NextAuth response (HTML/JSON).
+        '400':
+          $ref: '#/components/responses/BadRequest'
+    post:
+      operationId: createAuthNextauth
+      tags: [Auth]
+      summary: NextAuth handler (POST)
+      description: Credentials sign-in / form submissions / sign-out.
+      security: []
+      responses:
+        '200':
+          description: NextAuth response.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '302':
+          description: Redirect on successful sign-in.
+
+  /api/tenants:
+    get:
+      operationId: getTenants
+      tags: [Public]
+      summary: List tenants
+      description: Platform admins see all; tenant users see their own.
+      security:
+      - sessionAuth: []
+      responses:
+        '200':
+          description: Tenant list.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      operationId: createTenants
+      tags: [Public]
+      summary: Create tenant (onboarding)
+      description: Create a new tenant — platform admin only.
+      security:
+      - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Created tenant.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    patch:
+      operationId: updateTenants
+      tags: [Public]
+      summary: Update tenant config
+      description: Update name, currency, country, AI provider, etc.
+      security:
+      - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Updated tenant.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/public/tenants:
+    get:
+      operationId: getPublicTenants
+      tags: [Public]
+      summary: Public tenant directory
+      description: Slugs + display names for the login tenant picker. No sensitive fields.
+      security: []
+      responses:
+        '200':
+          description: Tenant list (no sensitive fields).
+
+  # ─────────────────────────────────────────────────────────────────────
+  # 3. CATALOG & PRODUCTS
+  # ─────────────────────────────────────────────────────────────────────
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /api/catalog/products:
+    get:
+      operationId: getCatalogProducts
+      tags: [Catalog]
+      summary: List catalog products
+      description: Search + pagination over the tenant's product catalog.
+      security:
+      - sessionAuth: []
+      parameters:
+      - $ref: '#/components/parameters/TenantId'
+      - name: q
+        in: query
+        schema:
+          type: string
+      - $ref: '#/components/parameters/Cursor'
+      - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Paginated product list.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/catalog/send-to-chat:
+    post:
+      operationId: createCatalogSendToChat
+      tags: [Catalog]
+      summary: Send product card to chat
+      description: Push a product card into an active conversation (chat-up sell flow).
+      security:
+      - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Send confirmation.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/catalog/sync:
+    get:
+      operationId: getCatalogSync
+      tags: [Catalog]
+      summary: Catalog sync status
+      description: Last sync status + audit log entry.
+      security:
+      - sessionAuth: []
+      parameters:
+      - $ref: '#/components/parameters/TenantId'
+      responses:
+        '200':
+          description: Sync status.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      operationId: createCatalogSync
+      tags: [Catalog]
+      summary: Trigger catalog sync
+      description: Enqueue a background sync job from the external platform (WooCommerce/Shopify/etc.).
+      security:
+      - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tenantId:
+                  type: string
+      responses:
+        '200':
+          description: Sync job status.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/public/catalog:
+    get:
+      operationId: getPublicCatalog
+      tags: [Public]
+      summary: Public catalog endpoint
+      description: Product list for storefront / AI agent discovery (no auth).
+      security: []
+      parameters:
+      - name: tenantId
+        in: query
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Catalog product list.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /api/product-enrichment:
+    get:
+      operationId: getProductEnrichment
+      tags: [Catalog]
+      summary: List product enrichments + pending
+      description: Existing ProductEnrichment rows + products that still lack enrichment.
+      security:
+      - sessionAuth: []
+      parameters:
+      - $ref: '#/components/parameters/TenantId'
+      responses:
+        '200':
+          description: '{ enrichments, pending }'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      operationId: createProductEnrichment
+      tags: [Catalog]
+      summary: Enrich a product (VLM)
+      description: Call the VLM (glm-4.6v) to analyze the product image and upsert ProductEnrichment.
+      security:
+      - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tenantId:
+                  type: string
+                sku:
+                  type: string
+      responses:
+        '200':
+          description: Enriched product data.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  # ─────────────────────────────────────────────────────────────────────
+  # 4. ORDERS & OVERVIEW
+  # ─────────────────────────────────────────────────────────────────────
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/orders:
+    get:
+      operationId: getOrders
+      tags: [Orders]
+      summary: List orders (cursor-paginated)
+      description: Filter by status / mode / search query. Cursor-based pagination (max 100).
+      security:
+      - sessionAuth: []
+      parameters:
+      - $ref: '#/components/parameters/TenantId'
+      - name: status
+        in: query
+        schema:
+          type: string
+      - name: mode
+        in: query
+        schema:
+          type: string
+      - name: q
+        in: query
+        schema:
+          type: string
+      - $ref: '#/components/parameters/Cursor'
+      - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Paginated orders + nextCursor + hasMore.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/orders/{id}:
+    patch:
+      operationId: updateOrdersById
+      tags: [Orders]
+      summary: Update order
+      description: Update status / payment status. Optional `event` is recorded atomically in a transaction.
+      security:
+      - sessionAuth: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                paymentStatus:
+                  type: string
+                paidAt:
+                  type: string
+                  format: date-time
+                paymentGateway:
+                  type: string
+                paymentRef:
+                  type: string
+                event:
+                  type: string
+                note:
+                  type: string
+      responses:
+        '200':
+          description: Updated order.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/overview:
+    get:
+      operationId: getOverview
+      tags: [Overview]
+      summary: Dashboard overview KPIs
+      description: Revenue, orders, conversations, ads KPIs for a tenant + date range.
+      security:
+      - sessionAuth: []
+      parameters:
+      - $ref: '#/components/parameters/TenantId'
+      - $ref: '#/components/parameters/Days'
+      responses:
+        '200':
+          description: KPI aggregates + breakdowns.
+
+  # ─────────────────────────────────────────────────────────────────────
+  # 5. CONVERSATIONS & AI REPLY
+  # ─────────────────────────────────────────────────────────────────────
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/conversations:
+    get:
+      operationId: getConversations
+      tags: [Conversations]
+      summary: List conversations (cursor-paginated)
+      description: Filter by status / channel / search query.
+      security:
+      - sessionAuth: []
+      parameters:
+      - $ref: '#/components/parameters/TenantId'
+      - name: status
+        in: query
+        schema:
+          type: string
+      - name: channel
+        in: query
+        schema:
+          type: string
+      - name: q
+        in: query
+        schema:
+          type: string
+      - $ref: '#/components/parameters/Cursor'
+      - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Paginated conversations + nextCursor + hasMore.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      operationId: createConversations
+      tags: [Conversations]
+      summary: Send a conversation message
+      description: Routes through conversationService so WhatsApp adapter delivers + TTR is stamped.
+      security:
+      - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                conversationId:
+                  type: string
+                body:
+                  type: string
+                direction:
+                  type: string
+                  enum: [inbound, outbound]
+      responses:
+        '200':
+          description: Created message.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/conversations/{id}:
+    get:
+      operationId: getConversationsById
+      tags: [Conversations]
+      summary: Fetch conversation detail
+      description: Single conversation with messages + customer + channel context.
+      security:
+      - sessionAuth: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Conversation detail.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      operationId: updateConversationsById
+      tags: [Conversations]
+      summary: Update conversation
+      description: Update status / priority / assignee.
+      security:
+      - sessionAuth: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Updated conversation.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/ai-reply:
+    post:
+      operationId: createAiReply
+      tags: [Agents]
+      summary: Generate AI draft reply
+      description: Generate an AI draft reply for a conversation message (uses the tenant's LLM adapter).
+      security:
+      - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: AI-generated draft reply.
+
+  # ─────────────────────────────────────────────────────────────────────
+  # 6. CHANNELS & INTEGRATIONS
+  # ─────────────────────────────────────────────────────────────────────
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/channels:
+    get:
+      operationId: getChannels
+      tags: [Channels]
+      summary: List channels
+      description: List channels for a tenant. Tokens are masked (hasToken flags only).
+      security:
+      - sessionAuth: []
+      parameters:
+      - $ref: '#/components/parameters/TenantId'
+      responses:
+        '200':
+          description: Channel list with masked credentials.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      operationId: createChannels
+      tags: [Channels]
+      summary: Create channel
+      description: Add a new channel (WhatsApp / Messenger / Instagram / Telegram). Validates per-type required fields.
+      security:
+      - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tenantId:
+                  type: string
+                type:
+                  type: string
+                  enum: [whatsapp, messenger, instagram, telegram]
+                name:
+                  type: string
+                displayName:
+                  type: string
+      responses:
+        '201':
+          description: Created channel.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    patch:
+      operationId: updateChannels
+      tags: [Channels]
+      summary: Update channel
+      description: Update a channel (e.g., rotate credentials). Tenant ownership verified.
+      security:
+      - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                channelId:
+                  type: string
+      responses:
+        '200':
+          description: Updated channel.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      operationId: deleteChannels
+      tags: [Channels]
+      summary: Deactivate channel (soft delete)
+      description: Soft-delete a channel — preserves conversation history.
+      security:
+      - sessionAuth: []
+      parameters:
+      - name: channelId
+        in: query
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Deactivated channel id.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/integrations/credentials:
+    get:
+      operationId: getIntegrationsCredentials
+      tags: [Channels]
+      summary: List integration credentials (masked)
+      description: List credential Setting rows (`cred::*` keys) with masked values.
+      security:
+      - sessionAuth: []
+      responses:
+        '200':
+          description: Masked credential list.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      operationId: createIntegrationsCredentials
+      tags: [Channels]
+      summary: Create / update integration credential
+      description: Upsert a `cred::*` Setting row.
+      security:
+      - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Upserted credential.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    put:
+      operationId: replaceIntegrationsCredentials
+      tags: [Channels]
+      summary: Replace integration credential
+      description: Replace a `cred::*` Setting row.
+      security:
+      - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Replaced credential.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    delete:
+      operationId: deleteIntegrationsCredentials
+      tags: [Channels]
+      summary: Delete integration credential
+      description: Delete a `cred::*` Setting row.
+      security:
+      - sessionAuth: []
+      parameters:
+      - name: key
+        in: query
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Deleted credential.
+
+  # ─────────────────────────────────────────────────────────────────────
+  # 7. ADS, TRAFFICKER, ATTRIBUTION
+  # ─────────────────────────────────────────────────────────────────────
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/ads:
+    get:
+      operationId: getAds
+      tags: [Ads]
+      summary: Ad-level performance
+      description: Per-ad spend, ROAS, CPA, ROI, cannibalization detection, kill recommendation.
+      security:
+      - sessionAuth: []
+      parameters:
+      - $ref: '#/components/parameters/TenantId'
+      - $ref: '#/components/parameters/Days'
+      - name: platform
+        in: query
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Ad performance rows + totals + daily spend series.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/ads/{id}:
+    patch:
+      operationId: updateAdsById
+      tags: [Ads]
+      summary: Kill / pause / resume / scale an ad
+      description: Pushes the action to the ad platform (simulated in dev).
+      security:
+      - sessionAuth: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                action:
+                  type: string
+                  enum: [pause, kill, resume, scale]
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: Updated ad + action taken.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/ads/import:
+    post:
+      operationId: createAdsImport
+      tags: [Ads]
+      summary: Import ad spend from platform
+      description: Importa spend/impressions/clicks de Google/TikTok Ads. Rate-limited (20 req/min).
+      security:
+      - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tenantId:
+                  type: string
+                platform:
+                  type: string
+                  enum: [google, tiktok]
+                dateStart:
+                  type: string
+                  format: date
+                dateEnd:
+                  type: string
+                  format: date
+      responses:
+        '200':
+          description: 'Import summary: campaignsFetched, adsProcessed, spendUpserted.'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/conversions:
+    get:
+      operationId: getConversions
+      tags: [Ads]
+      summary: List conversion events
+      description: Server-side pixel events + stats (sent / failed / pending).
+      security:
+      - sessionAuth: []
+      parameters:
+      - $ref: '#/components/parameters/TenantId'
+      responses:
+        '200':
+          description: '{ events, stats }'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      operationId: createConversions
+      tags: [Ads]
+      summary: Fire conversion event (CAPI)
+      description: Server-side pixel fire (Meta CAPI / Google MP / TikTok Events API). Enqueues a `capi-fire` job.
+      security:
+      - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tenantId:
+                  type: string
+                eventType:
+                  type: string
+                value:
+                  type:
+                  - number
+                  - 'null'
+                currency:
+                  type: string
+      responses:
+        '200':
+          description: Per-pixel fire results + aggregate status.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/trafficker:
+    get:
+      operationId: getTrafficker
+      tags: [Wallet]
+      summary: List traffickers
+      description: Trafficker roster + wallet balance + campaign performance.
+      security:
+      - sessionAuth: []
+      parameters:
+      - $ref: '#/components/parameters/TenantId'
+      responses:
+        '200':
+          description: Trafficker list.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      operationId: createTrafficker
+      tags: [Wallet]
+      summary: Create trafficker
+      description: Onboard a new trafficker for a tenant.
+      security:
+      - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Created trafficker.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/remarketing:
+    get:
+      operationId: getRemarketing
+      tags: [Agents]
+      summary: List remarketing campaigns
+      description: List scheduled remarketing touches (win-back / cross-sell).
+      security:
+      - sessionAuth: []
+      parameters:
+      - $ref: '#/components/parameters/TenantId'
+      responses:
+        '200':
+          description: Remarketing campaign list.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      operationId: createRemarketing
+      tags: [Agents]
+      summary: Create remarketing campaign
+      description: Schedule a new remarketing touch.
+      security:
+      - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Created campaign.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    patch:
+      operationId: updateRemarketing
+      tags: [Agents]
+      summary: Update remarketing campaign
+      description: Pause / resume / reschedule.
+      security:
+      - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Updated campaign.
+
+  # ─────────────────────────────────────────────────────────────────────
+  # 8. AGENTS
+  # ─────────────────────────────────────────────────────────────────────
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/agents:
+    get:
+      operationId: getAgents
+      tags: [Agents]
+      summary: List available agents
+      description: Saramantha agent registry (cached 1 hour).
+      security:
+      - sessionAuth: []
+      responses:
+        '200':
+          description: '{ agents, count }'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/agents/{agentName}:
+    get:
+      operationId: getAgentsByAgentName
+      tags: [Agents]
+      summary: Agent metadata
+      description: Fetch metadata for a single agent (schema, label).
+      security:
+      - sessionAuth: []
+      parameters:
+      - name: agentName
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Agent metadata.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      operationId: createAgentsByAgentName
+      tags: [Agents]
+      summary: Invoke an agent
+      description: Call an agent with a context payload — returns reply + confidence + agent name. Rate-limited (10 
+        req/min/IP).
+      security:
+      - sessionAuth: []
+      parameters:
+      - name: agentName
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tenantId:
+                  type: string
+                conversationId:
+                  type: string
+                customerId:
+                  type: string
+      responses:
+        '200':
+          description: '{ reply, agent, confidence, error? }'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          description: Budget exceeded or rate limit.
+
+  /api/orchestrate:
+    post:
+      operationId: createOrchestrate
+      tags: [Agents]
+      summary: Orchestrate multi-agent flow
+      description: Run a multi-agent orchestration (profile → quote → checkout → etc.).
+      security:
+      - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Orchestration result.
+
+  # ─────────────────────────────────────────────────────────────────────
+  # 9. AP2 MANDATES (W3C Verifiable Credentials)
+  # ─────────────────────────────────────────────────────────────────────
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/ap2/mandates:
+    get:
+      operationId: getAp2Mandates
+      tags: [Protocols]
+      summary: List mandates
+      description: List AP2 mandates for a tenant, optionally filtered by userId/type/status.
+      security:
+      - sessionAuth: []
+      parameters:
+      - $ref: '#/components/parameters/TenantId'
+      - name: userId
+        in: query
+        schema:
+          type: string
+      - name: type
+        in: query
+        schema:
+          type: string
+          enum: [intent, cart, payment]
+      - name: status
+        in: query
+        schema:
+          type: string
+          enum: [active, consumed, revoked]
+      responses:
+        '200':
+          description: Mandate list.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      operationId: createAp2Mandates
+      tags: [Protocols]
+      summary: Create Intent Mandate
+      description: Create a signed W3C VC Intent Mandate — first link in the Intent → Cart → Payment chain.
+      security:
+      - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tenantId:
+                  type: string
+                userId:
+                  type: string
+                maxAmount:
+                  type: number
+                currency:
+                  type: string
+                  default: COP
+                categoryLimits:
+                  type: object
+                expiresAt:
+                  type: string
+                  format: date-time
+                purpose:
+                  type: string
+      responses:
+        '201':
+          description: Created mandate + signed VC.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/ap2/mandates/{id}:
+    get:
+      operationId: getAp2MandatesById
+      tags: [Protocols]
+      summary: Fetch mandate by id
+      description: Fetch a single AP2 mandate (full VC payload + signature verification status).
+      security:
+      - sessionAuth: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Mandate object including signed VC.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      operationId: updateAp2MandatesById
+      tags: [Protocols]
+      summary: Update mandate
+      description: Advance status (active→consumed), stamp orderId / paymentRef.
+      security:
+      - sessionAuth: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [active, consumed]
+                orderId:
+                  type: string
+                paymentRef:
+                  type: string
+      responses:
+        '200':
+          description: Updated mandate.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/ap2/mandates/{id}/revoke:
+    patch:
+      operationId: updateAp2MandatesByIdRevoke
+      tags: [Protocols]
+      summary: Revoke mandate (with cascade)
+      description: Revoke an AP2 mandate. Cascades to children (Intent → Cart → Payment) in a single transaction.
+      security:
+      - sessionAuth: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: '{ mandateId, status: "revoked", revokedAt, reason }'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Already revoked.
+
+  /api/ap2/mandates/cart:
+    post:
+      operationId: createAp2MandatesCart
+      tags: [Protocols]
+      summary: Create Cart Mandate
+      description: Create a Cart Mandate signed by the agent (parent = Intent).
+      security:
+      - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Created Cart Mandate + signed VC.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/ap2/mandates/payment:
+    post:
+      operationId: createAp2MandatesPayment
+      tags: [Protocols]
+      summary: Create Payment Mandate
+      description: Create a Payment Mandate signed by the agent (parent = Cart, intentCartHash binds to Intent+Cart).
+      security:
+      - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Created Payment Mandate + signed VC.
+
+  # ─────────────────────────────────────────────────────────────────────
+  # 10. UCP (Universal Commerce Protocol)
+  # ─────────────────────────────────────────────────────────────────────
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/ucp/v1/checkout:
+    post:
+      operationId: createUcpV1Checkout
+      tags: [Protocols]
+      summary: UCP checkout — create session
+      description: Create a UCP checkout session bound to a signed mandate.
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Created UCP checkout session.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /api/ucp/v1/checkout/{sessionId}:
+    get:
+      operationId: getUcpV1CheckoutBySessionId
+      tags: [Protocols]
+      summary: UCP checkout — fetch session
+      description: Fetch a UCP checkout session by id (read-only).
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: sessionId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Session detail.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      operationId: updateUcpV1CheckoutBySessionId
+      tags: [Protocols]
+      summary: UCP checkout — advance session
+      description: Advance a UCP checkout session through its state machine.
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: sessionId
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Updated session.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /api/ucp/v1/identity-linking:
+    post:
+      operationId: createUcpV1IdentityLinking
+      tags: [Protocols]
+      summary: UCP identity linking
+      description: Bind an external AI agent identity to a platform user (per UCP spec).
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Identity link record.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /api/ucp/v1/order/{orderId}:
+    get:
+      operationId: getUcpV1OrderByOrderId
+      tags: [Protocols]
+      summary: UCP order fetch
+      description: Read-only order access for an external AI agent (per UCP spec).
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: orderId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Order detail (UCP-shaped).
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/ucp/v1/payment-token-exchange:
+    post:
+      operationId: createUcpV1PaymentTokenExchange
+      tags: [Protocols]
+      summary: UCP payment token exchange
+      description: Swap a signed mandate for a one-time payment token (per UCP spec).
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Payment token + expiry.
+
+  # ─────────────────────────────────────────────────────────────────────
+  # 11. ACP (Agentic Commerce Protocol)
+  # ─────────────────────────────────────────────────────────────────────
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/acp/v1/checkout:
+    post:
+      operationId: createAcpV1Checkout
+      tags: [Protocols]
+      summary: ACP checkout
+      description: Agentic Commerce Protocol checkout endpoint (ChatGPT/Copilot).
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Checkout result.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /api/acp/v1/orders/{id}:
+    get:
+      operationId: getAcpV1OrdersById
+      tags: [Protocols]
+      summary: ACP order fetch
+      description: Read-only order access for an external AI agent (per ACP spec).
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Order detail (ACP-shaped).
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/acp/v1/refunds:
+    post:
+      operationId: createAcpV1Refunds
+      tags: [Protocols]
+      summary: ACP refund
+      description: Initiate a refund via ACP (external AI agent).
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Refund result.
+
+  # ─────────────────────────────────────────────────────────────────────
+  # 12. MCP & AGENT DISCOVERY
+  # ─────────────────────────────────────────────────────────────────────
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/mcp:
+    post:
+      operationId: createMcp
+      tags: [Protocols]
+      summary: MCP JSON-RPC endpoint
+      description: Model Context Protocol for Claude/ChatGPT tool calling.
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                jsonrpc:
+                  type: string
+                  example: '2.0'
+                method:
+                  type: string
+                params:
+                  type: object
+      responses:
+        '200':
+          description: JSON-RPC response.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /.well-known/ucp:
+    get:
+      operationId: getUcp
+      tags: [Protocols]
+      summary: UCP manifest
+      security: []
+      description: Universal Commerce Protocol manifest for AI agent discovery.
+      responses:
+        '200':
+          description: UCP manifest JSON.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /.well-known/acp:
+    get:
+      operationId: getAcp
+      tags: [Protocols]
+      summary: ACP manifest
+      security: []
+      description: Agentic Commerce Protocol manifest for ChatGPT/Copilot.
+      responses:
+        '200':
+          description: ACP manifest JSON.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /.well-known/agent-card:
+    get:
+      operationId: getAgentCard
+      tags: [Protocols]
+      summary: A2A agent card
+      security: []
+      description: Agent-to-Agent discovery card.
+      responses:
+        '200':
+          description: Agent card JSON.
+
+  # ─────────────────────────────────────────────────────────────────────
+  # 13. PAYMENTS
+  # ─────────────────────────────────────────────────────────────────────
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /api/payments/config:
+    get:
+      operationId: getPaymentsConfig
+      tags: [Monetization]
+      summary: List payment config
+      description: Payment strategy per channel + non-credential global thresholds.
+      security:
+      - sessionAuth: []
+      responses:
+        '200':
+          description: '{ channels, global }'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    patch:
+      operationId: updatePaymentsConfig
+      tags: [Monetization]
+      summary: Update payment config
+      description: Update a channel's payment strategy + whitelisted global Setting keys.
+      security:
+      - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Updated channel + changed setting keys.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/payments/create-link:
+    post:
+      operationId: createPaymentsCreateLink
+      tags: [Monetization]
+      summary: Create payment link
+      description: Create a payment link for an order (checkout URL).
+      security:
+      - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Payment link URL + reference.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/payments/local:
+    post:
+      operationId: createPaymentsLocal
+      tags: [Monetization]
+      summary: Create local payment (PSE/PIX/OXXO/SPEI)
+      description: LATAM cash/bank-transfer flow. Resolves currency + tax, creates Order, calls adapter, stamps 
+        paymentRef atomically.
+      security:
+      - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                method:
+                  type: string
+                  enum: [pse, pix, oxxo, spei]
+                amount:
+                  type: number
+                reference:
+                  type: string
+                tenantId:
+                  type: string
+                countryCode:
+                  type: string
+      responses:
+        '201':
+          description: Order id + payment reference + poll URL.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/payments/local/{reference}/status:
+    get:
+      operationId: getPaymentsLocalByReferenceStatus
+      tags: [Monetization]
+      summary: Poll local payment status
+      description: Check the status of a local payment reference.
+      security:
+      - sessionAuth: []
+      parameters:
+      - name: reference
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Payment reference + status.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ─────────────────────────────────────────────────────────────────────
+  # 14. SHIPPING & LOGISTICS
+  # ─────────────────────────────────────────────────────────────────────
+  /api/shipping/guide:
+    post:
+      operationId: createShippingGuide
+      tags: [Logistics]
+      summary: Create shipping guide
+      description: Create a shipping guide with the configured logistics adapter (Dropi/99envios/AveOnline).
+      security:
+      - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Created guide + tracking number.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/shipping/quote:
+    post:
+      operationId: createShippingQuote
+      tags: [Logistics]
+      summary: Get shipping rate quotes
+      description: Get rate quotes from one or more carriers for an address + package.
+      security:
+      - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Quote list (carrier + rate + ETA).
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/guide-movements:
+    get:
+      operationId: getGuideMovements
+      tags: [Logistics]
+      summary: List guide movements
+      description: Tracking movement events per guide.
+      security:
+      - sessionAuth: []
+      parameters:
+      - $ref: '#/components/parameters/TenantId'
+      - name: guideNumber
+        in: query
+        schema:
+          type: string
+      responses:
+        '200':
+          description: '{ movements }'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      operationId: createGuideMovements
+      tags: [Logistics]
+      summary: Create guide movement
+      description: Append a tracking event (picked_up / in_transit / delivered / exception). Best-effort cascades a 
+        Shipment status update.
+      security:
+      - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Created GuideMovement.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/logistics-intelligence:
+    get:
+      operationId: getLogisticsIntelligence
+      tags: [Logistics]
+      summary: Logistics intelligence insights
+      description: Carrier performance, delivery SLA, exception rates.
+      security:
+      - sessionAuth: []
+      parameters:
+      - $ref: '#/components/parameters/TenantId'
+      responses:
+        '200':
+          description: Logistics insight summary.
+
+  # ─────────────────────────────────────────────────────────────────────
+  # 15. WALLET, MONETIZATION, MARKETPLACE
+  # ─────────────────────────────────────────────────────────────────────
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/wallet:
+    get:
+      operationId: getWallet
+      tags: [Wallet]
+      summary: List wallet accounts + balances
+      description: Per trafficker / marketplace.
+      security:
+      - sessionAuth: []
+      parameters:
+      - $ref: '#/components/parameters/TenantId'
+      responses:
+        '200':
+          description: Wallet account list + balances.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      operationId: createWallet
+      tags: [Wallet]
+      summary: Create wallet transaction
+      description: Deposit / withdrawal / commission credit. Admin/finance role required.
+      security:
+      - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Created transaction.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/monetization/commission:
+    get:
+      operationId: getMonetizationCommission
+      tags: [Monetization]
+      summary: List commission entries
+      description: Per trafficker / marketplace / order.
+      security:
+      - sessionAuth: []
+      parameters:
+      - $ref: '#/components/parameters/TenantId'
+      responses:
+        '200':
+          description: Commission entry list.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      operationId: createMonetizationCommission
+      tags: [Monetization]
+      summary: Upsert commission entry
+      description: Create / upsert a commission entry (uses upsert to avoid the POST race condition). Admin/finance 
+        role.
+      security:
+      - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Created/updated commission entry.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/monetization/generate-invoice:
+    post:
+      operationId: createMonetizationGenerateInvoice
+      tags: [Monetization]
+      summary: Generate commission invoice
+      description: Generate an invoice PDF for trafficker/marketplace commissions in a date range. Admin/finance role.
+      security:
+      - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Invoice id + download URL.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/monetization/gmv:
+    get:
+      operationId: getMonetizationGmv
+      tags: [Monetization]
+      summary: GMV aggregation
+      description: Gross Merchandise Volume per tenant / channel / period. Admin/finance role.
+      security:
+      - sessionAuth: []
+      parameters:
+      - $ref: '#/components/parameters/TenantId'
+      - $ref: '#/components/parameters/Days'
+      responses:
+        '200':
+          description: GMV aggregation rows.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/marketplace:
+    get:
+      operationId: getMarketplace
+      tags: [Marketplace]
+      summary: Marketplace listings + referrals + stats
+      description: Other tenants' active listings, my listings, lead-share config, referrals sent/received + stats.
+      security:
+      - sessionAuth: []
+      parameters:
+      - $ref: '#/components/parameters/TenantId'
+      responses:
+        '200':
+          description: '{ listings, myListings, leadConfig, referrals, currentTenant, stats }'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      operationId: createMarketplace
+      tags: [Marketplace]
+      summary: Marketplace action dispatch
+      description: '`publish_listing` | `update_config` | `create_referral` (discriminated union on `action`).'
+      security:
+      - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                action:
+                  type: string
+                  enum: [publish_listing, update_config, create_referral]
+      responses:
+        '200':
+          description: Action-specific result.
+
+  # ─────────────────────────────────────────────────────────────────────
+  # 16. COMPLIANCE (Ley 1581 / Ley 2573 / Ley 1480 / DIAN)
+  # ─────────────────────────────────────────────────────────────────────
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/compliance/consent:
+    get:
+      operationId: getComplianceConsent
+      tags: [Compliance]
+      summary: List consent records
+      description: Lista los consentimientos de un data subject (Ley 1581 de 2012).
+      security:
+      - sessionAuth: []
+      parameters:
+      - $ref: '#/components/parameters/TenantId'
+      - name: dataSubjectId
+        in: query
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: '{ consents }'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      operationId: createComplianceConsent
+      tags: [Compliance]
+      summary: Register consent
+      description: Registra un consentimiento (Ley 1581 de 2012 — protección de datos personales).
+      security:
+      - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tenantId:
+                  type: string
+                dataSubjectId:
+                  type: string
+                dataSubjectType:
+                  type: string
+                  enum: [customer, user, lead]
+                purpose:
+                  type: string
+                  enum: [marketing, analytics, ai_processing, data_sharing]
+                legalBasis:
+                  type: string
+                  enum: [consent, contract, legitimate_interest, legal_obligation]
+                proofPayload:
+                  type: object
+      responses:
+        '201':
+          description: Created consent record.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    delete:
+      operationId: deleteComplianceConsent
+      tags: [Compliance]
+      summary: Revoke consent
+      description: Revoke a consent (granted=false, revokedAt=now).
+      security:
+      - sessionAuth: []
+      parameters:
+      - name: id
+        in: query
+        required: true
+        schema:
+          type: string
+      - name: reason
+        in: query
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Revoked consent summary.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/compliance/dian-invoice:
+    post:
+      operationId: createComplianceDianInvoice
+      tags: [Compliance]
+      summary: Generate DIAN invoice draft
+      description: Generate a DIAN electronic invoice draft for an order (Ley 1819 — facturación electrónica).
+      security:
+      - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Created invoice draft.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/compliance/dian-invoice/{invoiceId}/submit:
+    post:
+      operationId: createComplianceDianInvoiceByInvoiceIdSubmit
+      tags: [Compliance]
+      summary: Submit DIAN invoice
+      description: Submit a DIAN invoice to the tax authority (DIAN) for formal acceptance.
+      security:
+      - sessionAuth: []
+      parameters:
+      - name: invoiceId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: DIAN submission response.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/compliance/dsr:
+    post:
+      operationId: createComplianceDsr
+      tags: [Compliance]
+      summary: Data Subject Request
+      description: DSR — access / deletion / portability (Ley 1581 Art. 8).
+      security:
+      - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: DSR tracking id + status.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/compliance/kyc:
+    get:
+      operationId: getComplianceKyc
+      tags: [Compliance]
+      summary: List KYC records
+      description: KYC verification records (Ley 2573 Colombia — required for credit/installments).
+      security:
+      - sessionAuth: []
+      parameters:
+      - $ref: '#/components/parameters/TenantId'
+      responses:
+        '200':
+          description: KYC record list.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      operationId: createComplianceKyc
+      tags: [Compliance]
+      summary: Create KYC request
+      description: Create a KYC verification request for a customer.
+      security:
+      - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Created KYC request.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/compliance/kyc/{id}/verify:
+    post:
+      operationId: createComplianceKycByIdVerify
+      tags: [Compliance]
+      summary: Verify KYC
+      description: Mark a KYC request as verified or rejected (manual review decision).
+      security:
+      - sessionAuth: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Updated KYC status.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/compliance/retention:
+    get:
+      operationId: getComplianceRetention
+      tags: [Compliance]
+      summary: Retention policy + volumes
+      description: Retention policy matrix (Ley 1581 Art 11 + Estatuto Tributario Art 632) + current data volumes. Admin
+        only.
+      security:
+      - sessionAuth: []
+      responses:
+        '200':
+          description: '{ policy, legalBasis, currentVolumes, lastRun }'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      operationId: createComplianceRetention
+      tags: [Compliance]
+      summary: Trigger retention sweep
+      description: Trigger a retention sweep immediately (admin-only, idempotent).
+      security:
+      - sessionAuth: []
+      responses:
+        '200':
+          description: '{ success, results }'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/compliance/retention/cron:
+    get:
+      operationId: getComplianceRetentionCron
+      tags: [Compliance]
+      summary: Daily retention sweep (cron)
+      description: Cron-triggered daily retention sweep. Idempotent.
+      security:
+      - cronAuth: []
+      responses:
+        '200':
+          description: '{ success, results }'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          description: CRON_SECRET not configured.
+
+  /api/compliance/retracto:
+    post:
+      operationId: createComplianceRetracto
+      tags: [Compliance]
+      summary: Process retracto
+      description: Procesa un retracto de venta (Ley 1480 Estatuto del Consumidor — derecho de retracto 14 días).
+      security:
+      - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Retracto record + refund status.
+
+  # ─────────────────────────────────────────────────────────────────────
+  # 17. GOVERNANCE (verifiable intent audit trail)
+  # ─────────────────────────────────────────────────────────────────────
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/governance/decisions:
+    get:
+      operationId: getGovernanceDecisions
+      tags: [Governance]
+      summary: List DecisionLog entries
+      description: Governance DecisionLog entries (verifiable intent audit trail).
+      security:
+      - sessionAuth: []
+      parameters:
+      - $ref: '#/components/parameters/TenantId'
+      responses:
+        '200':
+          description: Decision log list.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      operationId: createGovernanceDecisions
+      tags: [Governance]
+      summary: Record governance decision
+      description: Record a new governance decision (escalation, age-gate override, mandate enforcement).
+      security:
+      - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Created decision record.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/governance/decisions/{id}:
+    get:
+      operationId: getGovernanceDecisionsById
+      tags: [Governance]
+      summary: Fetch DecisionLog by id
+      description: Fetch a single DecisionLog entry.
+      security:
+      - sessionAuth: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: DecisionLog record.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      operationId: updateGovernanceDecisionsById
+      tags: [Governance]
+      summary: Update governance decision
+      description: Update a decision (e.g., resolve an escalation).
+      security:
+      - sessionAuth: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Updated decision record.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/governance/escalations:
+    get:
+      operationId: getGovernanceEscalations
+      tags: [Governance]
+      summary: List escalations
+      description: Pending governance escalations (age-gate, KYC, mandate override requests).
+      security:
+      - sessionAuth: []
+      parameters:
+      - $ref: '#/components/parameters/TenantId'
+      responses:
+        '200':
+          description: Escalation list.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      operationId: createGovernanceEscalations
+      tags: [Governance]
+      summary: Create escalation
+      description: Create a new governance escalation for human review.
+      security:
+      - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Created escalation.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/governance/liability:
+    post:
+      operationId: createGovernanceLiability
+      tags: [Governance]
+      summary: Record liability entry
+      description: Record who is accountable when an agent acts on behalf of a user.
+      security:
+      - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Liability record.
+
+  # ─────────────────────────────────────────────────────────────────────
+  # 18. AUDIT (Verifiable Credentials)
+  # ─────────────────────────────────────────────────────────────────────
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/audit/{id}/verifiable:
+    get:
+      operationId: getAuditByIdVerifiable
+      tags: [Governance]
+      summary: Build audit-log Verifiable Credential
+      description: Build a W3C Verifiable Credential for an audit log entry (signed with the tenant keypair).
+      security:
+      - sessionAuth: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Verifiable Credential JSON.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ─────────────────────────────────────────────────────────────────────
+  # 19. NOVEDADES (post-sale cases) & REDELIVERY
+  # ─────────────────────────────────────────────────────────────────────
+  /api/novedades:
+    get:
+      operationId: getNovedades
+      tags: [Novedades]
+      summary: List novedades
+      description: Post-sale cases — complaints, returns, refunds.
+      security:
+      - sessionAuth: []
+      parameters:
+      - $ref: '#/components/parameters/TenantId'
+      - name: status
+        in: query
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Case list.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      operationId: createNovedades
+      tags: [Novedades]
+      summary: Create novedad
+      description: Open a new post-sale case.
+      security:
+      - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Created case.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    patch:
+      operationId: updateNovedades
+      tags: [Novedades]
+      summary: Dispatch novedad action
+      description: '`assign` | `resolve` | `add_evidence` | `add_message` | `escalate` | `close`.'
+      security:
+      - sessionAuth: []
+      parameters:
+      - $ref: '#/components/parameters/TenantId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                action:
+                  type: string
+                  enum: [assign, resolve, add_evidence, add_message, escalate, close]
+                caseId:
+                  type: string
+      responses:
+        '200':
+          description: Action-specific result.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/novedades/{id}:
+    get:
+      operationId: getNovedadesById
+      tags: [Novedades]
+      summary: Fetch novedad detail
+      description: Single case with events + assignee + customer.
+      security:
+      - sessionAuth: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Case detail.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    patch:
+      operationId: updateNovedadesById
+      tags: [Novedades]
+      summary: Update novedad
+      description: Update case fields (status, priority, assignment).
+      security:
+      - sessionAuth: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Updated case.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/redelivery:
+    get:
+      operationId: getRedelivery
+      tags: [Novedades]
+      summary: List redelivery requests
+      description: Failed/returned orders with attempt history + status stats.
+      security:
+      - sessionAuth: []
+      parameters:
+      - $ref: '#/components/parameters/TenantId'
+      - name: status
+        in: query
+        schema:
+          type: string
+      responses:
+        '200':
+          description: '{ stats, requests }'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      operationId: createRedelivery
+      tags: [Novedades]
+      summary: Create redelivery request
+      description: Create a new RedeliveryRequest. Auto-schedules attempt
+      security:
+      - sessionAuth: []
+      parameters:
+      - $ref: '#/components/parameters/TenantId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: '{ request, attempt }'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    patch:
+      operationId: updateRedelivery
+      tags: [Novedades]
+      summary: Dispatch redelivery action
+      description: '`confirm_address` | `schedule` | `assign_human` | `complete` | `cancel` | `add_attempt`.'
+      security:
+      - sessionAuth: []
+      parameters:
+      - $ref: '#/components/parameters/TenantId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                action:
+                  type: string
+                  enum: [confirm_address, schedule, assign_human, complete, cancel, add_attempt]
+                redeliveryId:
+                  type: string
+      responses:
+        '200':
+          description: Action-specific result.
+
+  # ─────────────────────────────────────────────────────────────────────
+  # 20. FINANCE
+  # ─────────────────────────────────────────────────────────────────────
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/finance/channel-contribution:
+    get:
+      operationId: getFinanceChannelContribution
+      tags: [Finance]
+      summary: Channel contribution margin
+      description: Per-channel revenue minus ad spend minus channel cost (WhatsApp Cloud API fee, Meta Ads platform 
+        fee).
+      security:
+      - sessionAuth: []
+      parameters:
+      - $ref: '#/components/parameters/TenantId'
+      - $ref: '#/components/parameters/Days'
+      responses:
+        '200':
+          description: Channel contribution rows.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/finance/channel-cost/sync:
+    post:
+      operationId: createFinanceChannelCostSync
+      tags: [Finance]
+      summary: Sync channel costs
+      description: Import channel-cost rows from external sources (Meta Ads platform fee, WhatsApp Cloud API).
+      security:
+      - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Sync summary.
+
+  # ─────────────────────────────────────────────────────────────────────
+  # 21. LLM COSTS & BUDGET
+  # ─────────────────────────────────────────────────────────────────────
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/llm/budget:
+    get:
+      operationId: getLlmBudget
+      tags: [Finance]
+      summary: Get tenant LLM budget
+      description: Daily budget + spent + remaining for the tenant's LLM calls.
+      security:
+      - sessionAuth: []
+      parameters:
+      - $ref: '#/components/parameters/TenantId'
+      responses:
+        '200':
+          description: '{ budget, spent, remaining }'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      operationId: createLlmBudget
+      tags: [Finance]
+      summary: Set tenant LLM budget
+      description: Update the daily LLM budget cap. Admin only.
+      security:
+      - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Updated budget.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/llm/costs:
+    get:
+      operationId: getLlmCosts
+      tags: [Finance]
+      summary: List LLM costs
+      description: Per-tenant / provider / day cost aggregation.
+      security:
+      - sessionAuth: []
+      parameters:
+      - $ref: '#/components/parameters/TenantId'
+      - $ref: '#/components/parameters/Days'
+      responses:
+        '200':
+          description: Cost aggregation rows.
+
+  # ─────────────────────────────────────────────────────────────────────
+  # 22. MISC (analytics, buyer-behavior, notifications)
+  # ─────────────────────────────────────────────────────────────────────
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/analytics/web-vitals:
+    post:
+      operationId: createAnalyticsWebVitals
+      tags: [Monitoring]
+      summary: Receive Core Web Vitals
+      description: Browser-side web-vitals beacon (no auth).
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Acknowledgement.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /api/buyer-behavior:
+    get:
+      operationId: getBuyerBehavior
+      tags: [Agents]
+      summary: List buyer-behavior records
+      description: BuyerBehavior records + risk-level stats.
+      security:
+      - sessionAuth: []
+      parameters:
+      - $ref: '#/components/parameters/TenantId'
+      responses:
+        '200':
+          description: '{ behaviors, stats }'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      operationId: createBuyerBehavior
+      tags: [Agents]
+      summary: Upsert buyer-behavior record
+      description: Upsert by (tenantId, phone). When riskLevel is 'high_risk'/'blacklist', also creates a BehaviorAlert.
+      security:
+      - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: '{ behavior, alert }'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/notifications:
+    get:
+      operationId: getNotifications
+      tags: [Monitoring]
+      summary: List notifications
+      description: Inbox for the current user.
+      security:
+      - sessionAuth: []
+      responses:
+        '200':
+          description: Notification list.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      operationId: createNotifications
+      tags: [Monitoring]
+      summary: Create notification
+      description: System-generated — user mentions, escalations.
+      security:
+      - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Created notification.
+
+  # ─────────────────────────────────────────────────────────────────────
+  # 23. WEBHOOKS (gateway callbacks)
+  # ─────────────────────────────────────────────────────────────────────
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/webhooks/meta:
+    get:
+      operationId: getWebhooksMeta
+      tags: [Webhooks]
+      summary: Meta webhook verification
+      description: Meta webhook subscribe/verify handshake (`hub.mode=subscribe`, `hub.verify_token`).
+      security: []
+      parameters:
+      - name: hub.mode
+        in: query
+        schema:
+          type: string
+      - name: hub.verify_token
+        in: query
+        schema:
+          type: string
+      - name: hub.challenge
+        in: query
+        schema:
+          type: string
+      responses:
+        '200':
+          description: hub.challenge echoed back.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+    post:
+      operationId: createWebhooksMeta
+      tags: [Webhooks]
+      summary: Meta webhook inbound
+      description: Meta (Instagram/Facebook) webhook for messaging events, leadgen, etc.
+      security:
+      - webhookSignature: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: '{ status: "received" } (always 200 to stop Meta retries).'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /api/webhooks/whatsapp:
+    get:
+      operationId: getWebhooksWhatsapp
+      tags: [Webhooks]
+      summary: WhatsApp webhook verification
+      description: WhatsApp Cloud API webhook verify handshake.
+      security: []
+      parameters:
+      - name: hub.mode
+        in: query
+        schema:
+          type: string
+      - name: hub.verify_token
+        in: query
+        schema:
+          type: string
+      - name: hub.challenge
+        in: query
+        schema:
+          type: string
+      responses:
+        '200':
+          description: hub.challenge echoed back.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+    post:
+      operationId: createWebhooksWhatsapp
+      tags: [Webhooks]
+      summary: WhatsApp webhook inbound
+      description: WhatsApp Cloud API inbound message / status webhook.
+      security:
+      - webhookSignature: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: '{ status: "received" } (always 200 to stop retries).'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /api/webhooks/stripe:
+    post:
+      operationId: createWebhooksStripe
+      tags: [Webhooks]
+      summary: Stripe webhook
+      description: Stripe payment_intent.* / charge.* events.
+      security:
+      - webhookSignature: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: '{ received: true }'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /api/webhooks/mercadopago:
+    post:
+      operationId: createWebhooksMercadopago
+      tags: [Webhooks]
+      summary: MercadoPago webhook
+      description: MercadoPago payment notifications.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: '{ status: "ok" }'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /api/webhooks/payu:
+    post:
+      operationId: createWebhooksPayu
+      tags: [Webhooks]
+      summary: PayU webhook
+      description: PayU payment status callbacks.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: '{ status: "ok" }'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /api/webhooks/pix:
+    post:
+      operationId: createWebhooksPix
+      tags: [Webhooks]
+      summary: PIX webhook
+      description: Brazilian PIX payment webhook.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: '{ status: "ok" }'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /api/webhooks/pse:
+    post:
+      operationId: createWebhooksPse
+      tags: [Webhooks]
+      summary: PSE webhook
+      description: Colombian PSE bank-transfer payment webhook.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: '{ status: "ok" }'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /api/webhooks/wompi:
+    post:
+      operationId: createWebhooksWompi
+      tags: [Webhooks]
+      summary: Wompi webhook
+      description: Wompi (Colombia) payment webhook.
+      security:
+      - webhookSignature: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: '{ status: "ok" }'
+        '400':
+          $ref: '#/components/responses/BadRequest'

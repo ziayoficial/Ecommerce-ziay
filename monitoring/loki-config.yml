@@ -1,0 +1,93 @@
+# ───────────────────────────────────────────────────────────────────────────
+# Loki production configuration
+# SPRINT-INFRA-FINAL-002 · §2 — production-grade retention + ingestion limits.
+#
+# This replaces the default `local-config.yaml` baked into the grafana/loki
+# image. The default config has no retention at all (logs grow forever) and
+# no ingestion limits (a misbehaving client can OOM the daemon). This config
+# adds:
+#   - 30-day retention (720h) with `reject_old_samples` so back-dated logs
+#     can't sneak past the retention cutoff.
+#   - Ingestion rate cap (10 MB/s sustained, 20 MB/s burst) — generous
+#     enough for the ZIAY stack (~11 services, pino-pretty JSON) but tight
+#     enough to prevent a runaway loop from filling the disk in minutes.
+#   - 10k streams per tenant — the ZIAY stack uses ~50 streams (one per
+#     container × log level); 10k is headroom for multi-tenant growth.
+#   - boltdb-shipper index (v11 schema) on the filesystem — the simplest
+#     setup that still scales to ~100 GB/day. For >1 TB/day swap
+#     `shared_store: filesystem` → `shared_store: s3` and provision a bucket.
+#
+# Mount path: docker-compose.yml binds this file to
+#   `/etc/loki/local-config.yaml` inside the container and passes
+#   `-config.file=/etc/loki/local-config.yaml` to the Loki binary.
+# ───────────────────────────────────────────────────────────────────────────
+
+auth_enabled: false
+
+server:
+  http_listen_port: 3100
+  grpc_listen_port: 9096
+
+common:
+  path: /loki
+  storage:
+    filesystem:
+      chunks_directory: /loki/chunks
+      rules_directory: /loki/rules
+  replication_factor: 1
+  ring:
+    instance_addr: 127.0.0.1
+    kvstore:
+      store: inmemory
+
+schema_config:
+  configs:
+    - from: 2020-10-24
+      store: boltdb-shipper
+      object_store: filesystem
+      schema: v11
+      index:
+        prefix: index_
+        period: 24h
+
+storage_config:
+  boltdb_shipper:
+    active_index_directory: /loki/boltdb-shipper-active
+    cache_location: /loki/boltdb-shipper-cache
+    shared_store: filesystem
+  filesystem:
+    directory: /loki/chunks
+
+compactor:
+  working_directory: /loki/compactor
+  shared_store: filesystem
+
+limits_config:
+  # Retention: 30 days.
+  retention_period: 720h
+  # Max query length: 721h (slightly more than retention) — lets operators
+  # run a "everything we have" query without bumping the cap, but blocks
+  # absurdly wide queries that would OOM the query-frontend.
+  max_query_length: 721h
+  # Reject old samples (older than retention) — a misconfigured Promtail
+  # reading a stale log file would otherwise re-ingest rows past the
+  # retention cutoff, only for the compactor to delete them on the next run.
+  reject_old_samples: true
+  reject_old_samples_max_age: 720h
+  # Ingestion limits — protect the daemon from runaway clients.
+  ingestion_rate_mb: 10
+  ingestion_burst_size_mb: 20
+  # Max streams per tenant — 10k headroom over the ~50 the ZIAY stack uses.
+  max_streams_per_user: 10000
+
+ruler:
+  storage:
+    type: local
+    local:
+      directory: /loki/rules
+  rule_path: /loki/rules-temp
+  alertmanager_url: http://alertmanager:9093
+  ring:
+    kvstore:
+      store: inmemory
+  enable_api: true

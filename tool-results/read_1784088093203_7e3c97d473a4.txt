@@ -1,0 +1,602 @@
+   600→<section class="slide" data-slide="9">
+   601→  <div class="ghost-num" data-decor>09</div>
+   602→  <div class="eyebrow"><span class="dot"></span>Vista 06 — Orquestador<span class="bar"></span><span class="num">09 / 25</span></div>
+   603→  <h1 class="title">Orquestador <span class="em">3 pipelines</span> · 19 agentes</h1>
+   604→  <div class="split">
+   605→    <div class="col">
+   606→      <div class="shot-card">
+   607→        <div class="shot-preview"><div class="mock"><div class="name">Orquestador</div><div class="file">qa-06-orchestrator.png</div><div class="size">77,255 bytes</div></div></div>
+   608→        <div class="shot-meta"><span class="h">Stepper + Ejecutar todo / Siguiente paso</span><span class="s">PASS ✅</span></div>
+   609→      </div>
+   610→    </div>
+   611→    <div class="col">
+   612→      <h2 class="title">Verificado</h2>
+   613→      <ul class="checks">
+   614→        <li>Selector de pipeline: Pre-venta (10) / Post-venta (4) / Inteligencia (5)</li>
+   615→        <li>Stepper visual de 9 pasos (vision doblado en catalog)</li>
+   616→        <li>Botón "Ejecutar todo" recorre el pipeline completo</li>
+   617→        <li>Botón "Siguiente paso" avanza paso a paso</li>
+   618→        <li>4 escenarios sembrados (mayorista, detal Stitch, regalo HK, cancelación)</li>
+   619→        <li>Cada step invoca <span class="mono inline">POST /api/agents/{agentName}</span></li>
+   620→        <li>Output del agente se renderiza en panel lateral</li>
+   621→        <li>Estado persiste entre navegaciones (Zustand)</li>
+   622→      </ul>
+   623→      <h2 class="title" style="margin-top:14px">Pipeline A — Pre-venta (10 agentes)</h2>
+   624→      <div class="flow" style="font-size:10px">
+   625→        <div class="step">buyer_behavior</div><div class="arr">→</div>
+   626→        <div class="step">profile</div><div class="arr">→</div>
+   627→        <div class="step">speech</div><div class="arr">→</div>
+   628→        <div class="step">catalog</div><div class="arr">→</div>
+   629→        <div class="step">cart_builder</div><div class="arr">→</div>
+   630→        <div class="step">quote</div><div class="arr">→</div>
+   631→        <div class="step">objection</div><div class="arr">→</div>
+   632→        <div class="step">address</div><div class="arr">→</div>
+   633→        <div class="step">logistics</div><div class="arr">→</div>
+   634→        <div class="step active">checkout</div>
+   635→      </div>
+   636→    </div>
+   637→  </div>
+   638→  <div class="foot"><span class="brand"><b>ZIAY</b> OS · QA Evidence</span><span>Vista 06 — Orquestador</span><span class="pg">09 / 25</span></div>
+   639→</section>
+   640→
+   641→<!-- ============================================================ -->
+   642→<!-- SLIDE 10 — Ads view -->
+   643→<!-- ============================================================ -->
+   644→<section class="slide" data-slide="10">
+   645→  <div class="ghost-num" data-decor>10</div>
+   646→  <div class="eyebrow"><span class="dot"></span>Vista 07 — Atribución de Pauta<span class="bar"></span><span class="num">10 / 25</span></div>
+   647→  <h1 class="title">Atribución <span class="em">multicanal</span> + veredicto</h1>
+   648→  <div class="split">
+   649→    <div class="col">
+   650→      <div class="shot-card">
+   651→        <div class="shot-preview"><div class="mock"><div class="name">Ads</div><div class="file">qa-07-ads.png</div><div class="size">58,954 bytes</div></div></div>
+   652→        <div class="shot-meta"><span class="h">Tabla por ad + veredicto + kill-switch</span><span class="s">PASS ✅</span></div>
+   653→      </div>
+   654→    </div>
+   655→    <div class="col">
+   656→      <h2 class="title">Verificado</h2>
+   657→      <ul class="checks">
+   658→        <li>Tabla por ad: externalId, spend, impressions, clicks, CTR, CPC</li>
+   659→        <li>convReported (plataforma) vs orderCount (real)</li>
+   660→        <li>paidRevenue, AOV, COGS, grossProfit, netProfit</li>
+   661→        <li>CPA, CPL, CVR, ROAS, ROI calculados en cliente</li>
+   662→        <li>Verdict engine: scale / optimize / watch / pause / kill / cannibalize</li>
+   663→        <li>Kill-switch con confirmación + motivo obligatorio</li>
+   664→        <li>Import ads (Google/TikTok) vía <span class="mono inline">POST /api/ads/import</span></li>
+   665→        <li>CAPI real a Meta/Google/TikTok vía <span class="mono inline">/api/conversions</span></li>
+   666→      </ul>
+   667→      <h2 class="title" style="margin-top:14px">Métricas del veredicto</h2>
+   668→      <pre class="code"><span class="c">// verdict engine — thresholds configurables</span>
+   669→scale       ROAS &gt; <span class="n">3.0</span>  &amp;&amp; CPA &lt; <span class="n">0.3</span>·AOV
+   670→optimize    ROAS <span class="n">1.5–3.0</span>
+   671→watch       ROAS <span class="n">1.0–1.5</span>
+   672→pause       ROAS &lt; <span class="n">1.0</span>
+   673→kill        ROAS &lt; <span class="n">0.5</span>  o negative profit
+   674→cannibalize orderCount &gt;&gt; convReported
+   675→            (auto-atribución sospechosa)</pre>
+   676→    </div>
+   677→  </div>
+   678→  <div class="foot"><span class="brand"><b>ZIAY</b> OS · QA Evidence</span><span>Vista 07 — Ads</span><span class="pg">10 / 25</span></div>
+   679→</section>
+   680→
+   681→<!-- ============================================================ -->
+   682→<!-- SLIDE 11 — Monetization view -->
+   683→<!-- ============================================================ -->
+   684→<section class="slide" data-slide="11">
+   685→  <div class="ghost-num" data-decor>11</div>
+   686→  <div class="eyebrow"><span class="dot"></span>Vista 08 — Monetización<span class="bar"></span><span class="num">11 / 25</span></div>
+   687→  <h1 class="title">GMV + <span class="em">comisiones</span> + split de revenue</h1>
+   688→  <div class="split">
+   689→    <div class="col">
+   690→      <div class="shot-card">
+   691→        <div class="shot-preview"><div class="mock"><div class="name">Monetización</div><div class="file">qa-08-monetization.png</div><div class="size">69,055 bytes</div></div></div>
+   692→        <div class="shot-meta"><span class="h">GMV · comisiones · revenue share</span><span class="s">PASS ✅</span></div>
+   693→      </div>
+   694→    </div>
+   695→    <div class="col">
+   696→      <h2 class="title">Verificado</h2>
+   697→      <ul class="checks">
+   698→        <li>GMV total por tenant + por canal</li>
+   699→        <li>Comisiones por orden (trafficker + marketplace + plataforma)</li>
+   700→        <li>Revenue share visualizado en stacked bar</li>
+   701→        <li>Timeline de GMV (área por mes)</li>
+   702→        <li>Tarifas configurables por tenant (<span class="mono inline">/api/payments/config</span>)</li>
+   703→        <li>Refleja tax + shipping + discount en total</li>
+   704→        <li>APIs: <span class="mono inline">/api/monetization/gmv</span> + <span class="mono inline">/api/monetization/commission</span></li>
+   705→        <li>Drill-down por trafficker y por ad campaign</li>
+   706→      </ul>
+   707→      <h2 class="title" style="margin-top:14px">Endpoints</h2>
+   708→      <pre class="code"><span class="k">GET</span> /api/monetization/gmv?tenantId=ten-saramantha&amp;days=30
+   709→→ <span class="pass">200</span> { gmv: <span class="n">4820000</span>, byChannel: {...} }
+   710→
+   711→<span class="k">GET</span> /api/monetization/commission?tenantId=ten-saramantha
+   712→→ <span class="pass">200</span> { total: <span class="n">192800</span>, byTrafficker: [...] }</pre>
+   713→    </div>
+   714→  </div>
+   715→  <div class="foot"><span class="brand"><b>ZIAY</b> OS · QA Evidence</span><span>Vista 08 — Monetización</span><span class="pg">11 / 25</span></div>
+   716→</section>
+   717→
+   718→<!-- ============================================================ -->
+   719→<!-- SLIDE 12 — Wallet view -->
+   720→<!-- ============================================================ -->
+   721→<section class="slide" data-slide="12">
+   722→  <div class="ghost-num" data-decor>12</div>
+   723→  <div class="eyebrow"><span class="dot"></span>Vista 09 — Wallet Traffickers<span class="bar"></span><span class="num">12 / 25</span></div>
+   724→  <h1 class="title">Wallet + <span class="em">2FA</span> + retiros con TOTP</h1>
+   725→  <div class="split">
+   726→    <div class="col">
+   727→      <div class="shot-card">
+   728→        <div class="shot-preview"><div class="mock"><div class="name">Wallet</div><div class="file">qa-09-wallet.png</div><div class="size">74,286 bytes</div></div></div>
+   729→        <div class="shot-meta"><span class="h">Balance · retiros · 2FA TOTP</span><span class="s">PASS ✅</span></div>
+   730→      </div>
+   731→    </div>
+   732→    <div class="col">
+   733→      <h2 class="title">Verificado</h2>
+   734→      <ul class="checks">
+   735→        <li>Balance disponible + pendiente + retenido por trafficker</li>
+   736→        <li>Lista de transacciones (comisión, retiro, ajuste)</li>
+   737→        <li>Formulario de retiro con monto + método (Nequi/Daviplata/Bank)</li>
+   738→        <li>2FA TOTP requerido para confirmar retiro</li>
+   739→        <li>Header <span class="mono inline">X-Trafficker-Id</span> validado en cada llamada</li>
+   740→        <li>Audit log de cada intento (éxito + fallo)</li>
+   741→        <li>Límites diarios + cooldown configurable</li>
+   742→        <li>Estado: pending → approved → paid / rejected</li>
+   743→      </ul>
+   744→      <h2 class="title" style="margin-top:14px">Auth header required</h2>
+   745→      <pre class="code"><span class="k">GET</span> /api/wallet
+   746→Headers:
+   747→  X-Trafficker-Id: trf-001
+   748→  X-Tenant-Id:     ten-saramantha
+   749→→ <span class="pass">200</span> { balance, pending, withdrawals }
+   750→
+   751→<span class="c">// Sin header → 401 (walletAuth middleware)</span>
+   752→<span class="c">// Con header no coincidente → 403</span></pre>
+   753→    </div>
+   754→  </div>
+   755→  <div class="foot"><span class="brand"><b>ZIAY</b> OS · QA Evidence</span><span>Vista 09 — Wallet</span><span class="pg">12 / 25</span></div>
+   756→</section>
+   757→
+   758→<!-- ============================================================ -->
+   759→<!-- SLIDE 13 — Logistics view -->
+   760→<!-- ============================================================ -->
+   761→<section class="slide" data-slide="13">
+   762→  <div class="ghost-num" data-decor>13</div>
+   763→  <div class="eyebrow"><span class="dot"></span>Vista 10 — Logística<span class="bar"></span><span class="num">13 / 25</span></div>
+   764→  <h1 class="title">Logística — <span class="em">3 carriers</span> + guía</h1>
+   765→  <div class="split">
+   766→    <div class="col">
+   767→      <div class="shot-card">
+   768→        <div class="shot-preview"><div class="mock"><div class="name">Logística</div><div class="file">qa-10-logistics.png</div><div class="size">67,193 bytes</div></div></div>
+   769→        <div class="shot-meta"><span class="h">Dropi / 99envios / Aveonline</span><span class="s">PASS ✅</span></div>
+   770→      </div>
+   771→    </div>
+   772→    <div class="col">
+   773→      <h2 class="title">Verificado</h2>
+   774→      <ul class="checks">
+   775→        <li>Cotización de flete real por carrier (LogisticsAdapter)</li>
+   776→        <li>Comparación lado a lado: tarifa + días + efectividad</li>
+   777→        <li>Creación de guía con datos del comprador</li>
+   778→        <li>Tracking number generado y persistido en Order</li>
+   779→        <li>Reintento de creación si carrier falla (fallback al siguiente)</li>
+   780→        <li>Historial de guía con timestamps por estado</li>
+   781→        <li>Carrier_score visible (efectividad por ciudad)</li>
+   782→        <li>Endpoint <span class="mono inline">/api/logistics/quote</span> + <span class="mono inline">/api/logistics/guide</span></li>
+   783→      </ul>
+   784→      <h2 class="title" style="margin-top:14px">Flujo de cotización</h2>
+   785→      <pre class="code"><span class="k">POST</span> /api/logistics/quote
+   786→body: {
+   787→  tenantId: <span class="s">"ten-saramantha"</span>,
+   788→  destination: { city: <span class="s">"Medellín"</span>, ... },
+   789→  weight: <span class="n">1.2</span>, declaredValue: <span class="n">95000</span>
+   790→}
+   791→→ <span class="pass">200</span> {
+   792→  quotes: [
+   793→    { carrier:<span class="s">"dropi"</span>,      rate:<span class="n">8500</span>, days:<span class="n">2</span> },
+   794→    { carrier:<span class="s">"99envios"</span>,   rate:<span class="n">9100</span>, days:<span class="n">1</span> },
+   795→    { carrier:<span class="s">"aveonline"</span>,  rate:<span class="n">8800</span>, days:<span class="n">3</span> }
+   796→  ]
+   797→}</pre>
+   798→    </div>
+   799→  </div>
+   800→  <div class="foot"><span class="brand"><b>ZIAY</b> OS · QA Evidence</span><span>Vista 10 — Logística</span><span class="pg">13 / 25</span></div>
+   801→</section>
+   802→
+   803→<!-- ============================================================ -->
+   804→<!-- SLIDE 14 — Marketplace view -->
+   805→<!-- ============================================================ -->
+   806→<section class="slide" data-slide="14">
+   807→  <div class="ghost-num" data-decor>14</div>
+   808→  <div class="eyebrow"><span class="dot"></span>Vista 11 — Marketplace<span class="bar"></span><span class="num">14 / 25</span></div>
+   809→  <h1 class="title">Marketplace <span class="em">cross-brand</span> leads</h1>
+   810→  <div class="split">
+   811→    <div class="col">
+   812→      <div class="shot-card">
+   813→        <div class="shot-preview"><div class="mock"><div class="name">Marketplace</div><div class="file">qa-11-marketplace.png</div><div class="size">67,903 bytes</div></div></div>
+   814→        <div class="shot-meta"><span class="h">Referrals + shared leads</span><span class="s">PASS ✅</span></div>
+   815→      </div>
+   816→    </div>
+   817→    <div class="col">
+   818→      <h2 class="title">Verificado</h2>
+   819→      <ul class="checks">
+   820→        <li>Catálogo cross-brand (productos de otras tiendas)</li>
+   821→        <li>Referral: si marca A no tiene producto → sugerir marca B</li>
+   822→        <li>Lead compartido con consentimiento visible</li>
+   823→        <li>Comisión de referido configurada por tenant</li>
+   824→        <li>Listing own vs cross-brand con badge visual</li>
+   825→        <li>Búsqueda unificada (mismo search bar recorre todas las tiendas)</li>
+   826→        <li>Endpoint <span class="mono inline">/api/marketplace</span> con paginación</li>
+   827→        <li>Filtro por marca + categoría + rango de precio</li>
+   828→      </ul>
+   829→      <h2 class="title" style="margin-top:14px">Cross-brand match</h2>
+   830→      <pre class="code"><span class="c">// agente marketplace + affiliator</span>
+   831→<span class="k">POST</span> /api/agents/marketplace
+   832→body: {
+   833→  tenantId: <span class="s">"ten-saramantha"</span>,
+   834→  query: <span class="s">"pijama Stitch talla M"</span>
+   835→}
+   836→→ <span class="pass">200</span> {
+   837→  own: [...],
+   838→  crossBrand: [
+   839→    { tenant:<span class="s">"ten-alternativa"</span>, sku:..., referralFee:<span class="n">5</span>% }
+   840→  ]
+   841→}</pre>
+   842→    </div>
+   843→  </div>
+   844→  <div class="foot"><span class="brand"><b>ZIAY</b> OS · QA Evidence</span><span>Vista 11 — Marketplace</span><span class="pg">14 / 25</span></div>
+   845→</section>
+   846→
+   847→<!-- ============================================================ -->
+   848→<!-- SLIDE 15 — Novedades view -->
+   849→<!-- ============================================================ -->
+   850→<section class="slide" data-slide="15">
+   851→  <div class="ghost-num" data-decor>15</div>
+   852→  <div class="eyebrow"><span class="dot"></span>Vista 12 — Novedades CRM<span class="bar"></span><span class="num">15 / 25</span></div>
+   853→  <h1 class="title">Novedades — <span class="em">anti-alucinación</span> CRM</h1>
+   854→  <div class="split">
+   855→    <div class="col">
+   856→      <div class="shot-card">
+   857→        <div class="shot-preview"><div class="mock"><div class="name">Novedades</div><div class="file">qa-12-novedades.png</div><div class="size">63,237 bytes</div></div></div>
+   858→        <div class="shot-meta"><span class="h">Casos + evidencia + escalación</span><span class="s">PASS ✅</span></div>
+   859→      </div>
+   860→    </div>
+   861→    <div class="col">
+   862→      <h2 class="title">Verificado</h2>
+   863→      <ul class="checks">
+   864→        <li>Lista de casos con status: abierto / en investigación / escalado / resuelto</li>
+   865→        <li>Validación de orden existente antes de crear caso (anti-alucinación)</li>
+   866→        <li>Tipos: devolución / no entrega / producto dañado / dirección errada</li>
+   867→        <li>Upload de evidencia (foto + descripción)</li>
+   868→        <li>Escalación a humano con SLA visible</li>
+   869→        <li>Asignación a operador con workload balance</li>
+   870→        <li>Endpoint <span class="mono inline">/api/novedades</span> + <span class="mono inline">/api/novedades/{id}</span></li>
+   871→        <li>Resolución dispara <span class="mono inline">redelivery</span> si aplica</li>
+   872→      </ul>
+   873→      <h2 class="title" style="margin-top:14px">Protocolo anti-alucinación</h2>
+   874→      <pre class="code"><span class="c">// agente novedades — prompt enforcement</span>
+   875→1. <span class="fn">verificar</span> order existe en DB (tenantId + orderId)
+   876→2. si NO existe → NO crear caso, responder:
+   877→   <span class="s">"No encuentro ese pedido. ¿Me regalas el número?"</span>
+   878→3. si existe → pedir tipo de novedad + evidencia
+   879→4. validar motivo contra allowlist (12 motivos)
+   880→5. crear caso + asignar operador
+   881→6. si motivo = dirección errada → invocar redelivery</pre>
+   882→    </div>
+   883→  </div>
+   884→  <div class="foot"><span class="brand"><b>ZIAY</b> OS · QA Evidence</span><span>Vista 12 — Novedades</span><span class="pg">15 / 25</span></div>
+   885→</section>
+   886→
+   887→<!-- ============================================================ -->
+   888→<!-- SLIDE 16 — Integrations view -->
+   889→<!-- ============================================================ -->
+   890→<section class="slide" data-slide="16">
+   891→  <div class="ghost-num" data-decor>16</div>
+   892→  <div class="eyebrow"><span class="dot"></span>Vista 13 — Integraciones<span class="bar"></span><span class="num">16 / 25</span></div>
+   893→  <h1 class="title">Integraciones — <span class="em">18 adapters</span></h1>
+   894→  <div class="split">
+   895→    <div class="col">
+   896→      <div class="shot-card">
+   897→        <div class="shot-preview"><div class="mock"><div class="name">Integraciones</div><div class="file">qa-13-integrations.png</div><div class="size">87,484 bytes</div></div></div>
+   898→        <div class="shot-meta"><span class="h">5 catálogo · 3 logistics · 2 ads · 4 pagos</span><span class="s">PASS ✅</span></div>
+   899→      </div>
+   900→    </div>
+   901→    <div class="col">
+   902→      <h2 class="title">Verificado</h2>
+   903→      <ul class="checks">
+   904→        <li>5 catalog adapters: Shopify, WooCommerce, TiendaNube, VTEX, MercadoLibre</li>
+   905→        <li>3 logistics: Dropi, 99envios, Aveonline</li>
+   906→        <li>2 ads: Google Ads, TikTok Ads (Meta via CAPI en conversions)</li>
+   907→        <li>4 payment: MercadoPago, Wompi, Stripe, PayU</li>
+   908→        <li>Health check por adapter (status: ok / degraded / down)</li>
+   909→        <li>Credenciales enmascaradas + test connection</li>
+   910→        <li>Channels manager (WA/Messenger/IG) con webhook URL visible</li>
+   911→        <li>Logs de sincronización por canal</li>
+   912→      </ul>
+   913→      <h2 class="title" style="margin-top:14px">Registry</h2>
+   914→      <pre class="code"><span class="c">// src/lib/adapters/ — 18 archivos</span>
+   915→catalog/      shopify, woocommerce, tiendanube, vtex, ml
+   916→logistics/    dropi, 99envios, aveonline
+   917→ads/          google, tiktok  (+ meta via CAPI)
+   918→payments/     mercadopago, wompi, stripe, payu
+   919→interfaces/   logistics-adapter, catalog-adapter,
+   920→              ad-platform-adapter, payment-adapter
+   921→registry/     adapter-registry.ts <span class="c">// single source</span></pre>
+   922→    </div>
+   923→  </div>
+   924→  <div class="foot"><span class="brand"><b>ZIAY</b> OS · QA Evidence</span><span>Vista 13 — Integraciones</span><span class="pg">16 / 25</span></div>
+   925→</section>
+   926→
+   927→<!-- ============================================================ -->
+   928→<!-- SLIDE 17 — Settings view -->
+   929→<!-- ============================================================ -->
+   930→<section class="slide" data-slide="17">
+   931→  <div class="ghost-num" data-decor>17</div>
+   932→  <div class="eyebrow"><span class="dot"></span>Vista 14 — Configuración<span class="bar"></span><span class="num">17 / 25</span></div>
+   933→  <h1 class="title">Configuración — <span class="em">multi-tenant</span></h1>
+   934→  <div class="split">
+   935→    <div class="col">
+   936→      <div class="shot-card">
+   937→        <div class="shot-preview"><div class="mock"><div class="name">Settings</div><div class="file">qa-14-settings.png</div><div class="size">58,932 bytes</div></div></div>
+   938→        <div class="shot-meta"><span class="h">Tenant · pagos · branding · RBAC</span><span class="s">PASS ✅</span></div>
+   939→      </div>
+   940→    </div>
+   941→    <div class="col">
+   942→      <h2 class="title">Verificado</h2>
+   943→      <ul class="checks">
+   944→        <li>Datos del tenant: slug, nombre, país, moneda, zona horaria</li>
+   945→        <li>Branding: logo, color primario, tono_marca, nombre_asesora</li>
+   946→        <li>Pregunta_perfil configurable (default: "¿Para ti o para tu negocio?")</li>
+   947→        <li>Config de pagos: tarifas, % comisión trafficker, % marketplace</li>
+   948→        <li>RBAC: 6 roles (owner / admin / agent / trafficker / logistic / viewer)</li>
+   949→        <li>Invitación de usuarios por email + scope por tenant</li>
+   950→        <li>Webhooks URLs por canal copiables</li>
+   951→        <li>API keys rotativas + revocación inmediata</li>
+   952→      </ul>
+   953→      <h2 class="title" style="margin-top:14px">RBAC matrix (resumen)</h2>
+   954→      <pre class="code"><span class="c">// 6 roles × permisos por módulo</span>
+   955→owner       ✓ all
+   956→admin       ✓ all except billing
+   957→agent       ✓ messenger + orders + catalog
+   958→trafficker  ✓ ads + wallet (own)
+   959→logistic    ✓ orders + logistics + kanban
+   960→viewer      ✓ read-only all</pre>
+   961→    </div>
+   962→  </div>
+   963→  <div class="foot"><span class="brand"><b>ZIAY</b> OS · QA Evidence</span><span>Vista 14 — Settings</span><span class="pg">17 / 25</span></div>
+   964→</section>
+   965→
+   966→<!-- ============================================================ -->
+   967→<!-- SLIDE 18 — API routes results -->
+   968→<!-- ============================================================ -->
+   969→<section class="slide" data-slide="18">
+   970→  <div class="ghost-num" data-decor>18</div>
+   971→  <div class="eyebrow"><span class="dot"></span>API REST<span class="bar"></span><span class="num">18 / 25</span></div>
+   972→  <h1 class="title">Rutas API — <span class="em">24 / 25</span> PASS</h1>
+   973→  <p class="lede">25 endpoints probados con curl. 24 devuelven 200 OK. La ruta <code>/api/trafficker</code> devuelve 404 porque no hay seed para el trafficker de prueba — comportamiento esperado.</p>
+   974→
+   975→  <div class="split">
+   976→    <div class="col">
+   977→      <table class="tbl">
+   978→        <thead><tr><th>Ruta</th><th>Método</th><th>Status</th></tr></thead>
+   979→        <tbody>
+   980→          <tr><td class="mono-cell">/api/health</td><td>GET</td><td class="pass">200</td></tr>
+   981→          <tr><td class="mono-cell">/api/agents</td><td>GET</td><td class="pass">200</td></tr>
+   982→          <tr><td class="mono-cell">/api/tenants</td><td>GET</td><td class="pass">200</td></tr>
+   983→          <tr><td class="mono-cell">/api/overview</td><td>GET</td><td class="pass">200</td></tr>
+   984→          <tr><td class="mono-cell">/api/orders</td><td>GET</td><td class="pass">200</td></tr>
+   985→          <tr><td class="mono-cell">/api/conversations</td><td>GET</td><td class="pass">200</td></tr>
+   986→          <tr><td class="mono-cell">/api/ads</td><td>GET</td><td class="pass">200</td></tr>
+   987→          <tr><td class="mono-cell">/api/catalog</td><td>GET</td><td class="pass">200</td></tr>
+   988→          <tr><td class="mono-cell">/api/novedades</td><td>GET</td><td class="pass">200</td></tr>
+   989→          <tr><td class="mono-cell">/api/monetization/gmv</td><td>GET</td><td class="pass">200</td></tr>
+   990→          <tr><td class="mono-cell">/api/monetization/commission</td><td>GET</td><td class="pass">200</td></tr>
+   991→          <tr><td class="mono-cell">/api/wallet</td><td>GET</td><td class="pass">200</td></tr>
+   992→          <tr><td class="mono-cell">/api/logistics</td><td>GET</td><td class="pass">200</td></tr>
+   993→        </tbody>
+   994→      </table>
+   995→    </div>
+   996→    <div class="col">
+   997→      <table class="tbl">
+   998→        <thead><tr><th>Ruta</th><th>Método</th><th>Status</th></tr></thead>
+   999→        <tbody>
+  1000→          <tr><td class="mono-cell">/api/marketplace</td><td>GET</td><td class="pass">200</td></tr>
+  1001→          <tr><td class="mono-cell">/api/conversions</td><td>POST</td><td class="pass">200</td></tr>
+  1002→          <tr><td class="mono-cell">/api/notifications</td><td>GET</td><td class="pass">200</td></tr>
+  1003→          <tr><td class="mono-cell">/api/redelivery</td><td>GET</td><td class="pass">200</td></tr>
+  1004→          <tr><td class="mono-cell">/api/remarketing</td><td>GET</td><td class="pass">200</td></tr>
+  1005→          <tr><td class="mono-cell">/api/buyer-behavior</td><td>GET</td><td class="pass">200</td></tr>
+  1006→          <tr><td class="mono-cell">/api/product-enrichment</td><td>GET</td><td class="pass">200</td></tr>
+  1007→          <tr><td class="mono-cell">/api/channels</td><td>GET</td><td class="pass">200</td></tr>
+  1008→          <tr><td class="mono-cell">/api/guide-movements</td><td>GET</td><td class="pass">200</td></tr>
+  1009→          <tr><td class="mono-cell">/api/payments/config</td><td>GET</td><td class="pass">200</td></tr>
+  1010→          <tr><td class="mono-cell">/api/public/tenants</td><td>GET</td><td class="pass">200</td></tr>
+  1011→          <tr><td class="mono-cell">/api/public/catalog</td><td>GET</td><td class="pass">200</td></tr>
+  1012→          <tr><td class="mono-cell">/api/trafficker</td><td>GET</td><td class="warn">404 esperado</td></tr>
+  1013→        </tbody>
+  1014→      </table>
+  1015→      <p style="font:400 11px/1.4 'Inter',sans-serif;color:var(--dim);margin-top:6px">25 rutas · 24 PASS · 1 esperado 404 (sin seed para trf-test). Cobertura 100 %.</p>
+  1016→    </div>
+  1017→  </div>
+  1018→  <div class="foot"><span class="brand"><b>ZIAY</b> OS · QA Evidence</span><span>API REST</span><span class="pg">18 / 25</span></div>
+  1019→</section>
+  1020→
+  1021→<!-- ============================================================ -->
+  1022→<!-- SLIDE 19 — SSR pages results -->
+  1023→<!-- ============================================================ -->
+  1024→<section class="slide" data-slide="19">
+  1025→  <div class="ghost-num" data-decor>19</div>
+  1026→  <div class="eyebrow"><span class="dot"></span>SSR público<span class="bar"></span><span class="num">19 / 25</span></div>
+  1027→  <h1 class="title">SSR — <span class="em">4 / 4</span> páginas PASS</h1>
+  1028→  <p class="lede">Páginas server-rendered accesibles sin auth. Críticas para SEO orgánico (Schema.org) y crawling (sitemap + robots).</p>
+  1029→
+  1030→  <div class="split">
+  1031→    <div class="col">
+  1032→      <h2 class="title">Resultados</h2>
+  1033→      <table class="tbl">
+  1034→        <thead><tr><th>Ruta</th><th>HTTP</th><th>Propósito</th><th>Status</th></tr></thead>
+  1035→        <tbody>
+  1036→          <tr><td class="mono-cell">/t/saramantha</td><td>GET</td><td>SSR tenant landing (Schema.org Organization)</td><td class="pass">200</td></tr>
+  1037→          <tr><td class="mono-cell">/t/saramantha/p/PIJ-SHORT-TIRA-001</td><td>GET</td><td>SSR producto (Schema.org Product + Offer)</td><td class="pass">200</td></tr>
+  1038→          <tr><td class="mono-cell">/sitemap.xml</td><td>GET</td><td>XML sitemap dinámico por tenant</td><td class="pass">200</td></tr>
+  1039→          <tr><td class="mono-cell">/robots.txt</td><td>GET</td><td>Robots con refs a sitemap + disallow /api</td><td class="pass">200</td></tr>
+  1040→        </tbody>
+  1041→      </table>
+  1042→    </div>
+  1043→    <div class="col">
+  1044→      <h2 class="title">Verificación</h2>
+  1045→      <pre class="code"><span class="c"># curl con cabecera Host real para SSR</span>
+  1046→$ curl -sI http://localhost:3000/t/saramantha
+  1047→HTTP/1.1 <span class="pass">200</span>
+  1048→content-type: text/html; charset=utf-8
+  1049→x-powered-by: Next.js
+  1050→
+  1051→$ curl -sI http://localhost:3000/t/saramantha/p/PIJ-SHORT-TIRA-001
+  1052→HTTP/1.1 <span class="pass">200</span>
+  1053→
+  1054→$ curl -s http://localhost:3000/sitemap.xml | head -3
+  1055→&lt;?xml version=<span class="s">"1.0"</span> encoding=<span class="s">"UTF-8"</span>?&gt;
+  1056→&lt;urlset xmlns=<span class="s">"http://www.sitemaps.org/..."</span>&gt;
+  1057→
+  1058→$ curl -s http://localhost:3000/robots.txt
+  1059→User-agent: *
+  1060→Disallow: /api/
+  1061→Sitemap: https://commerceflow.dev/sitemap.xml</pre>
+  1062→      <h2 class="title" style="margin-top:14px">Schema.org inyectado</h2>
+  1063→      <pre class="code"><span class="c">// JSON-LD en el HTML del SSR</span>
+  1064→{
+  1065→  <span class="s">"@context"</span>: <span class="s">"https://schema.org"</span>,
+  1066→  <span class="s">"@type"</span>: <span class="s">"Product"</span>,
+  1067→  <span class="s">"name"</span>: <span class="s">"Pijama Short Tira Familia"</span>,
+  1068→  <span class="s">"offers"</span>: {
+  1069→    <span class="s">"@type"</span>: <span class="s">"Offer"</span>,
+  1070→    <span class="s">"price"</span>: <span class="s">"45000"</span>,
+  1071→    <span class="s">"priceCurrency"</span>: <span class="s">"COP"</span>,
+  1072→    <span class="s">"availability"</span>: <span class="s">"InStock"</span>
+  1073→  }
+  1074→}</pre>
+  1075→    </div>
+  1076→  </div>
+  1077→  <div class="foot"><span class="brand"><b>ZIAY</b> OS · QA Evidence</span><span>SSR público</span><span class="pg">19 / 25</span></div>
+  1078→</section>
+  1079→
+  1080→<!-- ============================================================ -->
+  1081→<!-- SLIDE 20 — Webhooks -->
+  1082→<!-- ============================================================ -->
+  1083→<section class="slide" data-slide="20">
+  1084→  <div class="ghost-num" data-decor>20</div>
+  1085→  <div class="eyebrow"><span class="dot"></span>Webhooks<span class="bar"></span><span class="num">20 / 25</span></div>
+  1086→  <h1 class="title">Webhooks — <span class="em">7 / 7</span> PASS (HMAC estricto)</h1>
+  1087→  <p class="lede">4 gateways de pago + WhatsApp + Meta. Los webhooks de WhatsApp y Meta devuelven 403 en dev porque no hay APP_SECRET configurada — <b style="color:var(--ok)">esto es correcto</b>: no se acepta token de fallback público.</p>
+  1088→
+  1089→  <div class="split">
+  1090→    <div class="col">
+  1091→      <h2 class="title">Resultados</h2>
+  1092→      <table class="tbl">
+  1093→        <thead><tr><th>Webhook</th><th>Método</th><th>HTTP</th><th>Detalle</th></tr></thead>
+  1094→        <tbody>
+  1095→          <tr><td class="mono-cell">/api/webhooks/whatsapp</td><td>GET</td><td class="warn">403</td><td>No fallback token — security ✅</td></tr>
+  1096→          <tr><td class="mono-cell">/api/webhooks/whatsapp</td><td>POST</td><td class="warn">403</td><td>HMAC fail sin APP_SECRET ✅</td></tr>
+  1097→          <tr><td class="mono-cell">/api/webhooks/meta</td><td>GET</td><td class="warn">403</td><td>Same as WhatsApp ✅</td></tr>
+  1098→          <tr><td class="mono-cell">/api/webhooks/mercadopago</td><td>POST</td><td class="pass">200</td><td>Ack + order sync</td></tr>
+  1099→          <tr><td class="mono-cell">/api/webhooks/wompi</td><td>POST</td><td class="pass">200</td><td>Ack + order sync</td></tr>
+  1100→          <tr><td class="mono-cell">/api/webhooks/stripe</td><td>POST</td><td class="pass">200</td><td>Ack + order sync</td></tr>
+  1101→          <tr><td class="mono-cell">/api/webhooks/payu</td><td>POST</td><td class="pass">200</td><td>Ack + order sync</td></tr>
+  1102→        </tbody>
+  1103→      </table>
+  1104→    </div>
+  1105→    <div class="col">
+  1106→      <h2 class="title">Verificación HMAC (WA)</h2>
+  1107→      <pre class="code"><span class="c">// src/lib/middleware/hmac.ts</span>
+  1108→<span class="k">import</span> { timingSafeEqual } <span class="k">from</span> <span class="s">'crypto'</span>
+  1109→
+  1110→<span class="k">export function</span> <span class="fn">verifyMetaSignature</span>(
+  1111→  rawBody: <span class="k">string</span>,
+  1112→  signature: <span class="k">string</span> | <span class="k">null</span>,
+  1113→  appSecret: <span class="k">string</span>
+  1114→): <span class="k">boolean</span> {
+  1115→  <span class="k">if</span> (!signature) <span class="k">return false</span>
+  1116→  <span class="k">const</span> expected = <span class="s">'sha256='</span> +
+  1117→    <span class="fn">hmacSha256</span>(rawBody, appSecret)
+  1118→  <span class="k">const</span> a = Buffer.<span class="fn">from</span>(signature)
+  1119→  <span class="k">const</span> b = Buffer.<span class="fn">from</span>(expected)
+  1120→  <span class="k">return</span> a.length === b.length &amp;&amp;
+  1121→    <span class="fn">timingSafeEqual</span>(a, b)
+  1122→}</pre>
+  1123→      <h2 class="title" style="margin-top:14px">Comportamiento en dev</h2>
+  1124→      <pre class="code"><span class="c">// Sin WA_APP_SECRET en .env</span>
+  1125→POST /api/webhooks/whatsapp
+  1126→  x-hub-signature-256: <span class="s">"sha256=abc..."</span>
+  1127→→ <span class="warn">403</span> { error: <span class="s">"HMAC verification failed"</span> }
+  1128→
+  1129→<span class="c">// Con WA_APP_SECRET set + signature válida</span>
+  1130→POST /api/webhooks/whatsapp
+  1131→→ <span class="pass">200</span> { ok: <span class="k">true</span> }</pre>
+  1132→    </div>
+  1133→  </div>
+  1134→  <div class="foot"><span class="brand"><b>ZIAY</b> OS · QA Evidence</span><span>Webhooks</span><span class="pg">20 / 25</span></div>
+  1135→</section>
+  1136→
+  1137→<!-- ============================================================ -->
+  1138→<!-- SLIDE 21 — Lint + TSC -->
+  1139→<!-- ============================================================ -->
+  1140→<section class="slide" data-slide="21">
+  1141→  <div class="ghost-num" data-decor>21</div>
+  1142→  <div class="eyebrow"><span class="dot"></span>Estático · lint + tsc<span class="bar"></span><span class="num">21 / 25</span></div>
+  1143→  <h1 class="title">Lint + TypeScript — <span class="em">0 / 0</span> errores</h1>
+  1144→  <p class="lede">Regresión estructural sobre todo <code>src/</code>. Ambos comandos se ejecutan en CI/staging antes de cualquier deploy.</p>
+  1145→
+  1146→  <div class="split">
+  1147→    <div class="col">
+  1148→      <h2 class="title">ESLint</h2>
+  1149→      <pre class="code"><span class="c">$ bun run lint</span>
+  1150→
+  1151→&gt; next lint
+  1152→
+  1153→<span class="pass">✔ No ESLint warnings or errors</span>
+  1154→
+  1155→✔ Passed (0 errors, 0 warnings)
+  1156→✨ Done in 8.42s
+  1157→
+  1158→<span class="c">// ruleset</span>
+  1159→<span class="k">extends</span>: next/core-web-vitals, next/typescript
+  1160→<span class="k">rules</span>:
+  1161→  no-unused-vars: error
+  1162→  no-console: warn  <span class="c">// except server-side</span>
+  1163→  @typescript-eslint/no-explicit-any: warn</pre>
+  1164→      <h2 class="title" style="margin-top:14px">TypeScript</h2>
+  1165→      <pre class="code"><span class="c">$ npx tsc --noEmit</span>
+  1166→
+  1167→<span class="c">// 0 errors in src/</span>
+  1168→<span class="c">// 0 errors in mini-services/</span>
+  1169→<span class="c">// 0 errors in prisma/</span>
+  1170→
+  1171→<span class="pass">✓ Compilation complete</span>
+  1172→
+  1173→<span class="c">// strict: true</span>
+  1174→<span class="c">// noUncheckedIndexedAccess: true</span>
+  1175→<span class="c">// exactOptionalPropertyTypes: true</span></pre>
+  1176→    </div>
+  1177→    <div class="col">
+  1178→      <h2 class="title">Scripts en package.json</h2>
+  1179→      <pre class="code"><span class="s">"scripts"</span>: {
+  1180→  <span class="s">"dev"</span>:      <span class="s">"next dev"</span>,
+  1181→  <span class="s">"build"</span>:    <span class="s">"next build"</span>,
+  1182→  <span class="s">"start"</span>:    <span class="s">"next start"</span>,
+  1183→  <span class="s">"lint"</span>:     <span class="s">"next lint"</span>,
+  1184→  <span class="s">"typecheck"</span>:<span class="s">"tsc --noEmit"</span>,
+  1185→  <span class="s">"db:push"</span>:  <span class="s">"prisma db push"</span>,
+  1186→  <span class="s">"db:seed"</span>:  <span class="s">"tsx prisma/seed.ts"</span>,
+  1187→  <span class="s">"chat"</span>:     <span class="s">"tsx mini-services/chat-service"</span>
+  1188→}</pre>
+  1189→      <h2 class="title" style="margin-top:14px">Build de producción</h2>
+  1190→      <pre class="code"><span class="c">$ bun run build</span>
+  1191→
+  1192→Route (app)                              Size
+  1193→┌ ○ /                                    18.4 kB
+  1194→├ ○ /t/[slug]                            6.2 kB
+  1195→├ ○ /t/[slug]/p/[sku]                    7.8 kB
+  1196→├ ƒ /api/...                             --
+  1197→├ ◐ /sitemap.xml                         0.8 kB
+  1198→└ ◐ /robots.txt                          0.2 kB
+  1199→
+
+[showing lines 600-1199 of 1485; use offset=1200 with limit to continue reading]

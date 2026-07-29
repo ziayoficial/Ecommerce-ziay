@@ -1,0 +1,698 @@
+     1→// Unit tests for src/app/api/webhooks/whatsapp/route.ts
+     2→// TASK: SPRINT-WEBHOOK-TESTS-EVAL-001
+     3→//
+     4→// Contract tests for the WhatsApp Cloud API webhook
+     5→// (SPRINT-WHATSAPP-FUNCTIONAL-001, study §13.1 + §14.4 CTWA + closed-loop CAPI):
+     6→//
+     7→// GET handler (verification handshake):
+     8→//   - returns 200 with `hub.challenge` literal when `hub.verify_token` matches
+     9→//   - returns 403 when token is wrong or `hub.mode != subscribe`
+    10→//
+    11→// POST handler (inbound messages + status):
+    12→//   - rejects invalid `X-Hub-Signature-256` HMAC with 403
+    13→//   - returns 500 when `META_APP_SECRET` is missing in production
+    14→//   - dev mode fallback: accepts any non-empty signature
+    15→//   - accepts valid signatures + parses inbound via `parseWhatsAppInbound`
+    16→//   - returns `non_message` for status updates / template callbacks (parser
+    17→//     returns null)
+    18→//   - returns `no_channel` when no tenant matches the `phone_number_id`
+    19→//   - resolves / creates Customer + Conversation + Message rows
+    20→//   - stamps CTWA `click_id` on the conversation for closed-loop attribution
+    21→//   - emits `message:new` + `message:received` socket events (fire-and-forget)
+    22→//   - layer-3 dedup via `waMessageId` (Meta can retry the same message ~24h)
+    23→//   - handles adapter throws gracefully (always ACKs 200)
+    24→//   - always returns 200 to stop Meta retries (~24h retry window)
+    25→//
+    26→// Mock strategy: mock `verifyMetaSignature`, `parseWhatsAppInbound`,
+    27→// `findWhatsAppChannelByPhoneNumberId`, `getWhatsAppAdapter`, `emitToTenant`,
+    28→// `db` (multiple models), `captureError`, and the idempotency helpers.
+    29→
+    30→import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+    31→import { NextRequest } from 'next/server'
+    32→
+    33→// ── Mock verifyMetaSignature ────────────────────────────────────────────────
+    34→const { hmacMock } = vi.hoisted(() => ({
+    35→  hmacMock: {
+    36→    verifyMetaSignature: vi.fn(),
+    37→    verifyHmacSha256: vi.fn(),
+    38→    verifyHmacSha256Base64: vi.fn(),
+    39→  },
+    40→}))
+    41→vi.mock('@/lib/middleware/hmac', () => hmacMock)
+    42→
+    43→// ── Mock idempotency ───────────────────────────────────────────────────────
+    44→const { idempotencyMock } = vi.hoisted(() => ({
+    45→  idempotencyMock: {
+    46→    isDuplicateWebhook: vi.fn(),
+    47→    isDuplicateWebhookDB: vi.fn(),
+    48→    generateWebhookId: vi.fn(),
+    49→    __clearIdempotencyForTests: vi.fn(),
+    50→  },
+    51→}))
+    52→vi.mock('@/lib/middleware/idempotency', () => ({
+    53→  isDuplicateWebhook: idempotencyMock.isDuplicateWebhook,
+    54→  isDuplicateWebhookDB: idempotencyMock.isDuplicateWebhookDB,
+    55→  generateWebhookId: idempotencyMock.generateWebhookId,
+    56→  __clearIdempotencyForTests: idempotencyMock.__clearIdempotencyForTests,
+    57→}))
+    58→
+    59→// ── Mock parseWhatsAppInbound ──────────────────────────────────────────────
+    60→// Returns a controllable parsed inbound object per-test. Default = a text
+    61→// message from a CTWA ad (with ctwClickId).
+    62→const { parserMock } = vi.hoisted(() => ({
+    63→  parserMock: {
+    64→    parseWhatsAppInbound: vi.fn(),
+    65→  },
+    66→}))
+    67→vi.mock('@/lib/adapters/whatsapp-parser', () => ({
+    68→  parseWhatsAppInbound: parserMock.parseWhatsAppInbound,
+    69→}))
+    70→
+    71→// ── Mock whatsapp-cloud adapter helpers ────────────────────────────────────
+    72→const { waCloudMock } = vi.hoisted(() => ({
+    73→  waCloudMock: {
+    74→    findWhatsAppChannelByPhoneNumberId: vi.fn(),
+    75→    getWhatsAppAdapter: vi.fn(),
+    76→  },
+    77→}))
+    78→vi.mock('@/lib/adapters/whatsapp-cloud', () => ({
+    79→  findWhatsAppChannelByPhoneNumberId: waCloudMock.findWhatsAppChannelByPhoneNumberId,
+    80→  getWhatsAppAdapter: waCloudMock.getWhatsAppAdapter,
+    81→}))
+    82→
+    83→// ── Mock emitToTenant (fire-and-forget socket broadcast) ───────────────────
+    84→const { chatEmitMock } = vi.hoisted(() => ({
+    85→  chatEmitMock: { emitToTenant: vi.fn() },
+    86→}))
+    87→vi.mock('@/lib/chat-emit', () => ({
+    88→  emitToTenant: chatEmitMock.emitToTenant,
+    89→}))
+    90→
+    91→// ── Mock captureError ──────────────────────────────────────────────────────
+    92→const { captureErrorMock } = vi.hoisted(() => ({
+    93→  captureErrorMock: { captureError: vi.fn() },
+    94→}))
+    95→vi.mock('@/lib/capture-error', () => ({
+    96→  captureError: captureErrorMock.captureError,
+    97→}))
+    98→
+    99→// ── Mock logger ─────────────────────────────────────────────────────────────
+   100→const { loggerMock } = vi.hoisted(() => {
+   101→  const m = {
+   102→    info: vi.fn(),
+   103→    warn: vi.fn(),
+   104→    error: vi.fn(),
+   105→    debug: vi.fn(),
+   106→    child: () => m,
+   107→  }
+   108→  return { loggerMock: m }
+   109→})
+   110→vi.mock('@/lib/logger', () => ({
+   111→  getLogger: () => loggerMock,
+   112→  logger: loggerMock,
+   113→  default: loggerMock,
+   114→}))
+   115→
+   116→// ── Mock db (multiple models touched by the WhatsApp route) ────────────────
+   117→const { dbMock } = vi.hoisted(() => ({
+   118→  dbMock: {
+   119→    auditLog: { create: vi.fn() },
+   120→    message: { findFirst: vi.fn(), create: vi.fn() },
+   121→    customer: { findFirst: vi.fn(), create: vi.fn() },
+   122→    conversation: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
+   123→  },
+   124→}))
+   125→vi.mock('@/lib/db', () => ({ db: dbMock }))
+   126→
+   127→import { GET, POST } from '@/app/api/webhooks/whatsapp/route'
+   128→
+   129→beforeEach(() => {
+   130→  vi.clearAllMocks()
+   131→  vi.stubEnv('META_APP_SECRET', 'test-meta-app-secret')
+   132→  vi.stubEnv('WA_VERIFY_TOKEN', 'test-wa-verify-token')
+   133→  vi.stubEnv('NODE_ENV', 'development')
+   134→  // Default: valid signature, not a duplicate.
+   135→  hmacMock.verifyMetaSignature.mockReturnValue(true)
+   136→  idempotencyMock.isDuplicateWebhook.mockReturnValue(false)
+   137→  idempotencyMock.isDuplicateWebhookDB.mockResolvedValue(false)
+   138→  idempotencyMock.generateWebhookId.mockReturnValue('wh_wa_fixed')
+   139→  dbMock.auditLog.create.mockResolvedValue({ id: 'audit-1' })
+   140→  dbMock.message.findFirst.mockResolvedValue(null) // no existing message → not a dup
+   141→  dbMock.message.create.mockResolvedValue({ id: 'msg-1' })
+   142→  dbMock.customer.findFirst.mockResolvedValue(null) // no existing customer
+   143→  dbMock.customer.create.mockResolvedValue({ id: 'cust-1' })
+   144→  dbMock.conversation.findFirst.mockResolvedValue(null) // no existing open conversation
+   145→  dbMock.conversation.create.mockResolvedValue({ id: 'conv-1', clickId: null })
+   146→  dbMock.conversation.update.mockResolvedValue({})
+   147→  // Default: WA channel lookup succeeds for the parsed phone_number_id.
+   148→  waCloudMock.findWhatsAppChannelByPhoneNumberId.mockResolvedValue({
+   149→    id: 'ch-1',
+   150→    tenantId: 'tenant-1',
+   151→  })
+   152→  waCloudMock.getWhatsAppAdapter.mockResolvedValue({
+   153→    markMessageRead: vi.fn().mockResolvedValue(undefined),
+   154→  })
+   155→  // Default parsed inbound: text message with a CTWA click_id from an ad.
+   156→  parserMock.parseWhatsAppInbound.mockReturnValue({
+   157→    from: '573001112233',
+   158→    fromName: 'María',
+   159→    messageId: 'wamid.test123',
+   160→    timestamp: '1234567890',
+   161→    timestampMs: 1234567890000,
+   162→    type: 'text',
+   163→    text: 'Hola, quiero comprar',
+   164→    textBody: 'Hola, quiero comprar',
+   165→    ctwClickId: 'cta_abc123',
+   166→    phoneNumberId: '106000000000001',
+   167→  })
+   168→})
+   169→
+   170→afterEach(() => {
+   171→  vi.unstubAllEnvs()
+   172→})
+   173→
+   174→// ─────────────────────────────────────────────────────────────────────────────
+   175→// Helpers
+   176→// ─────────────────────────────────────────────────────────────────────────────
+   177→function buildGetReq(params: Record<string, string>): NextRequest {
+   178→  const url = new URL('http://localhost/api/webhooks/whatsapp')
+   179→  for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v)
+   180→  return new NextRequest(url.toString(), { method: 'GET' })
+   181→}
+   182→
+   183→function buildPostReq(body: Record<string, unknown>, signature = 'sha256=valid'): NextRequest {
+   184→  const raw = JSON.stringify(body)
+   185→  return new NextRequest('http://localhost/api/webhooks/whatsapp', {
+   186→    method: 'POST',
+   187→    headers: {
+   188→      'x-hub-signature-256': signature,
+   189→      'content-type': 'application/json',
+   190→    },
+   191→    body: raw,
+   192→  })
+   193→}
+   194→
+   195→/** Canonical Meta WA webhook payload — `entry[0].changes[0].value.messages[0]`. */
+   196→function waTextBody(text = 'Hola, quiero comprar'): Record<string, unknown> {
+   197→  return {
+   198→    object: 'whatsapp_business_account',
+   199→    entry: [
+   200→      {
+   201→        id: 'waba-1',
+   202→        changes: [
+   203→          {
+   204→            value: {
+   205→              messaging_product: 'whatsapp',
+   206→              metadata: {
+   207→                display_phone_number: '+57 300 111 2233',
+   208→                phone_number_id: '106000000000001',
+   209→              },
+   210→              contacts: [{ wa_id: '573001112233', name: { formatted_name: 'María' } }],
+   211→              messages: [
+   212→                {
+   213→                  from: '573001112233',
+   214→                  id: 'wamid.test123',
+   215→                  timestamp: '1234567890',
+   216→                  type: 'text',
+   217→                  text: { body: text },
+   218→                },
+   219→              ],
+   220→            },
+   221→            field: 'messages',
+   222→          },
+   223→        ],
+   224→      },
+   225→    ],
+   226→  }
+   227→}
+   228→
+   229→// ─────────────────────────────────────────────────────────────────────────────
+   230→// GET handler — verification handshake
+   231→// ─────────────────────────────────────────────────────────────────────────────
+   232→describe('WhatsApp webhook · GET handshake', () => {
+   233→  it('returns 200 with hub.challenge literal when verify_token matches', async () => {
+   234→    const req = buildGetReq({
+   235→      'hub.mode': 'subscribe',
+   236→      'hub.verify_token': 'test-wa-verify-token',
+   237→      'hub.challenge': 'wa-challenge-abc',
+   238→    })
+   239→    const res = await GET(req)
+   240→
+   241→    expect(res.status).toBe(200)
+   242→    expect(await res.text()).toBe('wa-challenge-abc')
+   243→  })
+   244→
+   245→  it('returns 403 when hub.verify_token is wrong', async () => {
+   246→    const req = buildGetReq({
+   247→      'hub.mode': 'subscribe',
+   248→      'hub.verify_token': 'wrong-token',
+   249→      'hub.challenge': 'challenge',
+   250→    })
+   251→    const res = await GET(req)
+   252→    expect(res.status).toBe(403)
+   253→  })
+   254→
+   255→  it('returns 403 when hub.mode is not "subscribe"', async () => {
+   256→    const req = buildGetReq({
+   257→      'hub.mode': 'other',
+   258→      'hub.verify_token': 'test-wa-verify-token',
+   259→      'hub.challenge': 'challenge',
+   260→    })
+   261→    const res = await GET(req)
+   262→    expect(res.status).toBe(403)
+   263→  })
+   264→
+   265→  it('falls back to default verify_token when WA_VERIFY_TOKEN is unset', async () => {
+   266→    vi.stubEnv('WA_VERIFY_TOKEN', '')
+   267→    const req = buildGetReq({
+   268→      'hub.mode': 'subscribe',
+   269→      'hub.verify_token': 'commerceflow_verify',
+   270→      'hub.challenge': 'default-wa-challenge',
+   271→    })
+   272→    const res = await GET(req)
+   273→    expect(res.status).toBe(200)
+   274→    expect(await res.text()).toBe('default-wa-challenge')
+   275→  })
+   276→})
+   277→
+   278→// ─────────────────────────────────────────────────────────────────────────────
+   279→// POST handler — HMAC verification
+   280→// ─────────────────────────────────────────────────────────────────────────────
+   281→describe('WhatsApp webhook · POST signature verification', () => {
+   282→  it('rejects an invalid X-Hub-Signature-256 with 403', async () => {
+   283→    hmacMock.verifyMetaSignature.mockReturnValue(false)
+   284→
+   285→    const req = buildPostReq(waTextBody(), 'sha256=tampered')
+   286→    const res = await POST(req)
+   287→
+   288→    expect(res.status).toBe(403)
+   289→    const data = await res.json()
+   290→    expect(data.error).toBe('invalid signature')
+   291→
+   292→    expect(dbMock.auditLog.create).toHaveBeenCalledWith(
+   293→      expect.objectContaining({
+   294→        data: expect.objectContaining({ action: 'webhook.wa.invalid_sig' }),
+   295→      }),
+   296→    )
+   297→  })
+   298→
+   299→  it('returns 500 when META_APP_SECRET is missing in production', async () => {
+   300→    vi.stubEnv('META_APP_SECRET', '')
+   301→    vi.stubEnv('NODE_ENV', 'production')
+   302→
+   303→    const req = buildPostReq({}, 'sha256=any')
+   304→    const res = await POST(req)
+   305→
+   306→    expect(res.status).toBe(500)
+   307→    const data = await res.json()
+   308→    expect(data.error).toBe('Webhook secret not configured')
+   309→
+   310→    expect(dbMock.auditLog.create).toHaveBeenCalledWith(
+   311→      expect.objectContaining({
+   312→        data: expect.objectContaining({ action: 'webhook.wa.no_secret' }),
+   313→      }),
+   314→    )
+   315→    expect(hmacMock.verifyMetaSignature).not.toHaveBeenCalled()
+   316→  })
+   317→
+   318→  it('skips verification in dev mode when META_APP_SECRET is missing (accepts non-empty sig)', async () => {
+   319→    vi.stubEnv('META_APP_SECRET', '')
+   320→    vi.stubEnv('NODE_ENV', 'development')
+   321→
+   322→    const req = buildPostReq(waTextBody(), 'sha256=any-non-empty')
+   323→    const res = await POST(req)
+   324→
+   325→    expect(res.status).toBe(200)
+   326→    expect(hmacMock.verifyMetaSignature).not.toHaveBeenCalled()
+   327→  })
+   328→
+   329→  it('always returns 200 on happy path (ack contract)', async () => {
+   330→    const req = buildPostReq(waTextBody(), 'sha256=valid')
+   331→    const res = await POST(req)
+   332→    expect(res.status).toBe(200)
+   333→  })
+   334→})
+   335→
+   336→// ─────────────────────────────────────────────────────────────────────────────
+   337→// POST handler — inbound parsing (text / image / location)
+   338→// ─────────────────────────────────────────────────────────────────────────────
+   339→describe('WhatsApp webhook · inbound message parsing', () => {
+   340→  it('parses text messages and persists Customer + Conversation + Message', async () => {
+   341→    const req = buildPostReq(waTextBody('Hola, quiero comprar'))
+   342→    const res = await POST(req)
+   343→
+   344→    expect(res.status).toBe(200)
+   345→    const data = await res.json()
+   346→    expect(data).toEqual({ received: true, status: 'processed', conversationId: 'conv-1' })
+   347→
+   348→    // parser was called with the raw body.
+   349→    expect(parserMock.parseWhatsAppInbound).toHaveBeenCalledTimes(1)
+   350→
+   351→    // Customer was created (no existing customer for this phone).
+   352→    expect(dbMock.customer.create).toHaveBeenCalledWith(
+   353→      expect.objectContaining({
+   354→        data: expect.objectContaining({
+   355→          tenantId: 'tenant-1',
+   356→          name: 'María',
+   357→          phone: '573001112233',
+   358→        }),
+   359→      }),
+   360→    )
+   361→
+   362→    // Conversation was created (status=open).
+   363→    expect(dbMock.conversation.create).toHaveBeenCalledWith(
+   364→      expect.objectContaining({
+   365→        data: expect.objectContaining({
+   366→          tenantId: 'tenant-1',
+   367→          customerId: 'cust-1',
+   368→          status: 'open',
+   369→          customerPhone: '573001112233',
+   370→          clickId: 'cta_abc123', // CTWA click_id stamped at creation
+   371→        }),
+   372→      }),
+   373→    )
+   374→
+   375→    // Message was persisted with direction=inbound + waMessageId.
+   376→    expect(dbMock.message.create).toHaveBeenCalledWith(
+   377→      expect.objectContaining({
+   378→        data: expect.objectContaining({
+   379→          tenantId: 'tenant-1',
+   380→          conversationId: 'conv-1',
+   381→          direction: 'inbound',
+   382→          body: 'Hola, quiero comprar',
+   383→          type: 'text',
+   384→          status: 'received',
+   385→          waMessageId: 'wamid.test123',
+   386→        }),
+   387→      }),
+   388→    )
+   389→  })
+   390→
+   391→  it('parses image messages and persists with type=image + mediaUrl', async () => {
+   392→    parserMock.parseWhatsAppInbound.mockReturnValue({
+   393→      from: '573001112233',
+   394→      messageId: 'wamid.img-1',
+   395→      timestamp: '1234567890',
+   396→      timestampMs: 1234567890000,
+   397→      type: 'image',
+   398→      text: '[Imagen] Foto del producto',
+   399→      imageUrl: 'https://cdn.meta.com/img/123.jpg',
+   400→      ctwClickId: null,
+   401→      phoneNumberId: '106000000000001',
+   402→    })
+   403→
+   404→    const req = buildPostReq({ entry: [] })
+   405→    const res = await POST(req)
+   406→
+   407→    expect(res.status).toBe(200)
+   408→    expect(dbMock.message.create).toHaveBeenCalledWith(
+   409→      expect.objectContaining({
+   410→        data: expect.objectContaining({
+   411→          type: 'image',
+   412→          mediaUrl: 'https://cdn.meta.com/img/123.jpg',
+   413→          body: '[Imagen] Foto del producto',
+   414→        }),
+   415→      }),
+   416→    )
+   417→  })
+   418→
+   419→  it('parses location messages and persists with type=location', async () => {
+   420→    parserMock.parseWhatsAppInbound.mockReturnValue({
+   421→      from: '573001112233',
+   422→      messageId: 'wamid.loc-1',
+   423→      timestamp: '1234567890',
+   424→      timestampMs: 1234567890000,
+   425→      type: 'location',
+   426→      text: '[Ubicación] 4.7110,-74.0721',
+   427→      location: { latitude: 4.711, longitude: -74.0721 },
+   428→      ctwClickId: null,
+   429→      phoneNumberId: '106000000000001',
+   430→    })
+   431→
+   432→    const req = buildPostReq({ entry: [] })
+   433→    const res = await POST(req)
+   434→
+   435→    expect(res.status).toBe(200)
+   436→    expect(dbMock.message.create).toHaveBeenCalledWith(
+   437→      expect.objectContaining({
+   438→        data: expect.objectContaining({
+   439→          type: 'location',
+   440→          body: '[Ubicación] 4.7110,-74.0721',
+   441→        }),
+   442→      }),
+   443→    )
+   444→  })
+   445→
+   446→  it('extracts CTWA click_id from context.cta_url_link (closed-loop attribution)', async () => {
+   447→    parserMock.parseWhatsAppInbound.mockReturnValue({
+   448→      from: '573001112233',
+   449→      messageId: 'wamid.ctwa-1',
+   450→      timestamp: '1234567890',
+   451→      timestampMs: 1234567890000,
+   452→      type: 'text',
+   453→      text: 'Vi tu anuncio',
+   454→      ctwClickId: 'cta_xyz789',
+   455→      phoneNumberId: '106000000000001',
+   456→    })
+   457→
+   458→    const req = buildPostReq({ entry: [] })
+   459→    await POST(req)
+   460→
+   461→    // The conversation was created with the CTWA click_id stamped.
+   462→    expect(dbMock.conversation.create).toHaveBeenCalledWith(
+   463→      expect.objectContaining({
+   464→        data: expect.objectContaining({ clickId: 'cta_xyz789' }),
+   465→      }),
+   466→    )
+   467→  })
+   468→
+   469→  it('returns non_message status when parser returns null (status updates)', async () => {
+   470→    parserMock.parseWhatsAppInbound.mockReturnValue(null)
+   471→
+   472→    const req = buildPostReq({ entry: [{ changes: [{ value: { statuses: [{ id: 's1' }] } }] }] })
+   473→    const res = await POST(req)
+   474→
+   475→    expect(res.status).toBe(200)
+   476→    const data = await res.json()
+   477→    expect(data).toEqual({ received: true, status: 'non_message' })
+   478→
+   479→    // The non_message audit row was written with the webhookId for dedup.
+   480→    expect(dbMock.auditLog.create).toHaveBeenCalledWith(
+   481→      expect.objectContaining({
+   482→        data: expect.objectContaining({
+   483→          action: 'webhook.wa.non_message',
+   484→          entityId: 'wh_wa_fixed',
+   485→        }),
+   486→      }),
+   487→    )
+   488→
+   489→    // No DB writes for customer / conversation / message.
+   490→    expect(dbMock.customer.create).not.toHaveBeenCalled()
+   491→    expect(dbMock.conversation.create).not.toHaveBeenCalled()
+   492→    expect(dbMock.message.create).not.toHaveBeenCalled()
+   493→  })
+   494→})
+   495→
+   496→// ─────────────────────────────────────────────────────────────────────────────
+   497→// POST handler — tenant / channel resolution
+   498→// ─────────────────────────────────────────────────────────────────────────────
+   499→describe('WhatsApp webhook · channel resolution', () => {
+   500→  it('returns no_channel when phone_number_id has no matching tenant', async () => {
+   501→    waCloudMock.findWhatsAppChannelByPhoneNumberId.mockResolvedValue(null)
+   502→    // Also clear the env-var fallback so the second lookup also returns null.
+   503→    vi.stubEnv('WHATSAPP_PHONE_NUMBER_ID', '')
+   504→
+   505→    const req = buildPostReq(waTextBody())
+   506→    const res = await POST(req)
+   507→
+   508→    expect(res.status).toBe(200)
+   509→    const data = await res.json()
+   510→    expect(data).toEqual({ received: true, status: 'no_channel' })
+   511→
+   512→    // No DB writes happened.
+   513→    expect(dbMock.customer.create).not.toHaveBeenCalled()
+   514→    expect(dbMock.conversation.create).not.toHaveBeenCalled()
+   515→  })
+   516→
+   517→  it('falls back to WHATSAPP_PHONE_NUMBER_ID env var when parsed.phoneNumberId misses', async () => {
+   518→    // First call (parsed.phoneNumberId) → null; second call (env var) → channel.
+   519→    waCloudMock.findWhatsAppChannelByPhoneNumberId
+   520→      .mockResolvedValueOnce(null)
+   521→      .mockResolvedValueOnce({ id: 'ch-env', tenantId: 'tenant-env' })
+   522→    vi.stubEnv('WHATSAPP_PHONE_NUMBER_ID', 'env-phone-id')
+   523→
+   524→    const req = buildPostReq(waTextBody())
+   525→    const res = await POST(req)
+   526→
+   527→    expect(res.status).toBe(200)
+   528→    expect((await res.json()).status).toBe('processed')
+   529→
+   530→    // Two lookups happened (parsed.phoneNumberId then env var).
+   531→    expect(waCloudMock.findWhatsAppChannelByPhoneNumberId).toHaveBeenCalledTimes(2)
+   532→  })
+   533→})
+   534→
+   535→// ─────────────────────────────────────────────────────────────────────────────
+   536→// POST handler — socket emit + markMessageRead
+   537→// ─────────────────────────────────────────────────────────────────────────────
+   538→describe('WhatsApp webhook · realtime emit + read receipts', () => {
+   539→  it('emits message:new + message:received to chat-service', async () => {
+   540→    const req = buildPostReq(waTextBody())
+   541→    await POST(req)
+   542→
+   543→    expect(chatEmitMock.emitToTenant).toHaveBeenCalledTimes(2)
+   544→    expect(chatEmitMock.emitToTenant).toHaveBeenCalledWith(
+   545→      'tenant-1',
+   546→      'message:new',
+   547→      expect.objectContaining({
+   548→        conversationId: 'conv-1',
+   549→        customerPhone: '573001112233',
+   550→        direction: 'inbound',
+   551→        body: 'Hola, quiero comprar',
+   552→        type: 'text',
+   553→      }),
+   554→    )
+   555→    expect(chatEmitMock.emitToTenant).toHaveBeenCalledWith(
+   556→      'tenant-1',
+   557→      'message:received',
+   558→      expect.objectContaining({ conversationId: 'conv-1' }),
+   559→    )
+   560→  })
+   561→
+   562→  it('bumps conversation lastMessageAt + unreadCount', async () => {
+   563→    const req = buildPostReq(waTextBody())
+   564→    await POST(req)
+   565→
+   566→    expect(dbMock.conversation.update).toHaveBeenCalledWith(
+   567→      expect.objectContaining({
+   568→        where: { id: 'conv-1' },
+   569→        data: expect.objectContaining({
+   570→          lastMessageAt: expect.any(Date),
+   571→          unreadCount: { increment: 1 },
+   572→        }),
+   573→      }),
+   574→    )
+   575→  })
+   576→
+   577→  it('attempts markMessageRead via the WA adapter (fire-and-forget)', async () => {
+   578→    const markReadSpy = vi.fn().mockResolvedValue(undefined)
+   579→    waCloudMock.getWhatsAppAdapter.mockResolvedValue({ markMessageRead: markReadSpy })
+   580→
+   581→    const req = buildPostReq(waTextBody())
+   582→    await POST(req)
+   583→
+   584→    // The markMessageRead call is fire-and-forget — wait a tick for it to
+   585→    // resolve. await Promise.resolve() flushes the microtask queue.
+   586→    await new Promise((r) => setTimeout(r, 0))
+   587→
+   588→    expect(waCloudMock.getWhatsAppAdapter).toHaveBeenCalledWith('tenant-1')
+   589→    expect(markReadSpy).toHaveBeenCalledWith('wamid.test123')
+   590→  })
+   591→})
+   592→
+   593→// ─────────────────────────────────────────────────────────────────────────────
+   594→// POST handler — idempotency (in-memory + DB + waMessageId layer-3)
+   595→// ─────────────────────────────────────────────────────────────────────────────
+   596→describe('WhatsApp webhook · idempotency', () => {
+   597→  it('short-circuits with status=duplicate when in-memory cache hits', async () => {
+   598→    idempotencyMock.isDuplicateWebhook.mockReturnValue(true)
+   599→
+   600→    const req = buildPostReq(waTextBody())
+   601→    const res = await POST(req)
+   602→
+   603→    expect(res.status).toBe(200)
+   604→    expect((await res.json()).status).toBe('duplicate')
+   605→
+   606→    expect(parserMock.parseWhatsAppInbound).not.toHaveBeenCalled()
+   607→    expect(idempotencyMock.isDuplicateWebhookDB).not.toHaveBeenCalled()
+   608→  })
+   609→
+   610→  it('short-circuits with status=duplicate when DB-backed cache hits', async () => {
+   611→    idempotencyMock.isDuplicateWebhook.mockReturnValue(false)
+   612→    idempotencyMock.isDuplicateWebhookDB.mockResolvedValue(true)
+   613→
+   614→    const req = buildPostReq(waTextBody())
+   615→    const res = await POST(req)
+   616→
+   617→    expect(res.status).toBe(200)
+   618→    expect((await res.json()).status).toBe('duplicate')
+   619→
+   620→    expect(parserMock.parseWhatsAppInbound).not.toHaveBeenCalled()
+   621→  })
+   622→
+   623→  it('returns duplicate_message_id when waMessageId already persisted (layer 3)', async () => {
+   624→    dbMock.message.findFirst.mockResolvedValue({ id: 'existing-msg' })
+   625→
+   626→    const req = buildPostReq(waTextBody())
+   627→    const res = await POST(req)
+   628→
+   629→    expect(res.status).toBe(200)
+   630→    expect((await res.json()).status).toBe('duplicate_message_id')
+   631→
+   632→    expect(dbMock.message.create).not.toHaveBeenCalled()
+   633→  })
+   634→})
+   635→
+   636→// ─────────────────────────────────────────────────────────────────────────────
+   637→// POST handler — error handling (always ACKs 200)
+   638→// ─────────────────────────────────────────────────────────────────────────────
+   639→describe('WhatsApp webhook · error handling', () => {
+   640→  it('returns processing_failed (200) when customer.create throws', async () => {
+   641→    dbMock.customer.create.mockRejectedValue(new Error('db unique constraint'))
+   642→
+   643→    const req = buildPostReq(waTextBody())
+   644→    const res = await POST(req)
+   645→
+   646→    expect(res.status).toBe(200)
+   647→    const data = await res.json()
+   648→    expect(data).toEqual({ received: true, status: 'processing_failed' })
+   649→
+   650→    expect(captureErrorMock.captureError).toHaveBeenCalledWith(
+   651→      expect.any(Error),
+   652→      expect.objectContaining({ action: 'webhook.wa.process', tenantId: 'tenant-1' }),
+   653→    )
+   654→  })
+   655→
+   656→  it('returns processing_failed (200) when conversation.create throws', async () => {
+   657→    dbMock.conversation.create.mockRejectedValue(new Error('conv db error'))
+   658→
+   659→    const req = buildPostReq(waTextBody())
+   660→    const res = await POST(req)
+   661→
+   662→    expect(res.status).toBe(200)
+   663→    expect((await res.json()).status).toBe('processing_failed')
+   664→    expect(captureErrorMock.captureError).toHaveBeenCalled()
+   665→  })
+   666→
+   667→  it('returns processing_failed (200) when message.create throws', async () => {
+   668→    dbMock.message.create.mockRejectedValue(new Error('msg db error'))
+   669→
+   670→    const req = buildPostReq(waTextBody())
+   671→    const res = await POST(req)
+   672→
+   673→    expect(res.status).toBe(200)
+   674→    expect((await res.json()).status).toBe('processing_failed')
+   675→    expect(captureErrorMock.captureError).toHaveBeenCalled()
+   676→  })
+   677→
+   678→  it('propagates the WA channel lookup error (outside try/catch) — Next.js wraps as 500', async () => {
+   679→    // NOTE: the route deliberately keeps the `findWhatsAppChannelByPhoneNumberId`
+   680→    // call OUTSIDE the try/catch — the catch block needs `tenantId`/`channelId`
+   681→    // to be set, which they aren't yet. A DB error during channel resolution
+   682→    // bubbles up to Next.js's `withErrorHandling` wrapper (which logs + returns
+   683→    // 500). Meta would retry per its ~24h retry policy, which is acceptable
+   684→    // because a DB-down state is transient.
+   685→    waCloudMock.findWhatsAppChannelByPhoneNumberId.mockRejectedValue(new Error('db down'))
+   686→    vi.stubEnv('WHATSAPP_PHONE_NUMBER_ID', '')
+   687→
+   688→    const req = buildPostReq(waTextBody())
+   689→    await expect(POST(req)).rejects.toThrow('db down')
+   690→
+   691→    // The lookup was attempted before the error escaped.
+   692→    expect(waCloudMock.findWhatsAppChannelByPhoneNumberId).toHaveBeenCalled()
+   693→    // No DB writes happened because the catch block didn't run.
+   694→    expect(dbMock.customer.create).not.toHaveBeenCalled()
+   695→    expect(dbMock.message.create).not.toHaveBeenCalled()
+   696→  })
+   697→})
+   698→

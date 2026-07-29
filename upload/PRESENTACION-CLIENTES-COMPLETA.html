@@ -1,0 +1,1186 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ZIAY · Presentación a Clientes</title>
+<style>
+:root{--bg:#0a0f0d;--surface:#111815;--surface2:#1a2420;--border:#2a3a34;--text:#e8f0ec;--text2:#9ab0a8;--primary:#10b981;--primary2:#34d399;--accent:#f59e0b;--danger:#ef4444;--radius:12px}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;background:var(--bg);color:var(--text)}
+.deck{width:100vw;height:100vh;position:relative}
+.slide{position:absolute;inset:0;display:none;flex-direction:column;padding:50px 70px 120px 70px;overflow-y:auto}
+.slide.active{display:flex;animation:fadeIn .4s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
+h1{font-size:2.8em;font-weight:800;margin-bottom:16px;line-height:1.2}
+h2{font-size:1.6em;font-weight:700;margin-bottom:20px;color:var(--primary2)}
+h3{font-size:1.2em;font-weight:600;margin:16px 0 8px;color:var(--primary2)}
+p{font-size:1.05em;line-height:1.6;margin-bottom:12px;color:var(--text)}
+ul,ol{margin:8px 0 16px 24px}
+li{font-size:1em;line-height:1.7;margin-bottom:6px}
+.badge{display:inline-block;padding:4px 12px;border-radius:20px;font-size:.75em;font-weight:600;margin:2px}
+.badge-primary{background:rgba(16,185,129,.15);color:var(--primary2);border:1px solid rgba(16,185,129,.3)}
+.badge-accent{background:rgba(245,158,11,.15);color:var(--accent);border:1px solid rgba(245,158,11,.3)}
+.badge-danger{background:rgba(239,68,68,.15);color:var(--danger);border:1px solid rgba(239,68,68,.3)}
+.grid{display:grid;gap:16px;margin:16px 0}
+.grid-2{grid-template-columns:1fr 1fr}
+.grid-3{grid-template-columns:1fr 1fr 1fr}
+.grid-4{grid-template-columns:1fr 1fr 1fr 1fr}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;position:relative;z-index:1}
+.card-accent{border-left:4px solid var(--primary)}
+.stat{font-size:2.5em;font-weight:800;color:var(--primary2);line-height:1}
+.slide>*,.slide .card,.slide .grid,.slide table,.slide pre,.slide h1,.slide h2,.slide h3,.slide p,.slide ul,.slide ol,.slide .badge,.slide .flow,.slide .flow-step{position:relative;z-index:1}
+.decor,.decor *{pointer-events:none;z-index:0}
+.slide{overflow:hidden auto}
+.stat-label{font-size:.85em;color:var(--text2);margin-top:4px}
+table{width:100%;border-collapse:collapse;margin:12px 0;font-size:.9em}
+th{background:var(--surface2);padding:10px 12px;text-align:left;font-weight:600;border-bottom:2px solid var(--border);color:var(--primary2)}
+td{padding:8px 12px;border-bottom:1px solid var(--border);color:var(--text)}
+tr:hover td{background:rgba(16,185,129,.05)}
+code{background:var(--surface2);padding:2px 8px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:.85em;color:var(--primary2)}
+pre{background:var(--surface2);padding:16px;border-radius:8px;overflow-x:auto;font-family:'JetBrains Mono',monospace;font-size:.8em;color:var(--text);border:1px solid var(--border)}
+.flow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:16px 0}
+.flow-step{background:var(--surface2);border:1px solid var(--primary);padding:8px 16px;border-radius:8px;font-size:.85em;font-weight:600}
+.flow-arrow{color:var(--primary2);font-size:1.2em}
+.nav{position:fixed;bottom:20px;right:20px;display:flex;gap:8px;z-index:1000}
+.nav button{background:var(--surface2);border:1px solid var(--border);color:var(--text);width:40px;height:40px;border-radius:8px;cursor:pointer;font-size:1.1em;display:flex;align-items:center;justify-content:center}
+.nav button:hover{background:var(--primary);color:var(--bg)}
+.counter{position:fixed;bottom:20px;left:20px;color:var(--text2);font-size:.85em;z-index:1000;background:var(--surface);padding:6px 14px;border-radius:20px;border:1px solid var(--border)}
+.progress{position:fixed;top:0;left:0;height:3px;background:var(--primary);z-index:1000;transition:width .3s;pointer-events:none}
+.decor{pointer-events:none}
+.center{display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;height:100%}
+.muted{color:var(--text2)}
+.text-primary{color:var(--primary2)}
+.text-accent{color:var(--accent)}
+.big{font-size:1.3em}
+.emoji{font-size:1.5em}
+@media(max-width:768px){.slide{padding:30px 24px}.grid-2,.grid-3,.grid-4{grid-template-columns:1fr}h1{font-size:1.8em}}
+</style>
+</head>
+<body>
+<div class="progress" id="progress" style="width:0%"></div>
+<div class="deck" id="deck">
+
+<!-- Slide 1: Title -->
+<section class="slide active center">
+<div class="emoji" style="font-size:4em;margin-bottom:20px">🚀</div>
+<h1>ZIAY</h1>
+<p class="big text-primary" style="font-weight:600">Revenue Operations para Comercio Agéntico</p>
+<p class="muted" style="margin-top:24px">La capa enterprise que convierte conversaciones en ingresos trazables<br>con automatización operativa, gobernanza y conexión nativa a tu stack comercial</p>
+<div style="margin-top:40px;display:flex;gap:12px">
+<span class="badge badge-primary">Ingresos trazables E2E</span>
+<span class="badge badge-primary">3 Capas: Revenue · Ops · Governance</span>
+<span class="badge badge-primary">4 Ejes Enterprise</span>
+<span class="badge badge-primary">108 APIs · 18 Adapters · 5 Protocolos</span>
+<span class="badge badge-accent">5 Tenants Activos</span>
+</div>
+<p class="muted" style="margin-top:40px;font-size:.85em">ZIAY SAS · Saramantha · Sublimados Majestic · Lovely Pijamas · Sueño de Reina</p>
+</section>
+
+<!-- Slide 2: El Problema -->
+<section class="slide">
+<h1>El Problema en LATAM</h1>
+<h2>El commerce conversacional está fragmentado</h2>
+<div class="grid grid-2">
+<div class="card card-accent">
+<h3>😰 Pain Points</h3>
+<ul>
+<li><strong>WhatsApp caótico:</strong> cientos de chats sin estructura, sin CRM, sin atribución</li>
+<li><strong>Manual:</strong> copiar direcciones, calcular fletes, cotizar precios — todo a mano</li>
+<li><strong>Sin atribución:</strong> no saben qué anuncio generó cada venta</li>
+<li><strong>Novedades sin gestionar:</strong> devoluciones, reintentos, guías perdidas</li>
+<li><strong>Multi-canal sin unificar:</strong> WhatsApp + Messenger + IG separados</li>
+<li><strong>Comisiones opacas:</strong> no hay visibilidad de GMV ni rentabilidad</li>
+</ul>
+</div>
+<div class="card card-accent">
+<h3>📊 Impacto</h3>
+<div class="stat">20.5%</div><div class="stat-label">Compradores devolvedores (0% entrega)</div>
+<div style="height:12px"></div>
+<div class="stat">73%</div><div class="stat-label">Pedidos requieren llamada de confirmación</div>
+<div style="height:12px"></div>
+<div class="stat">1.1%</div><div class="stat-label">Llegan a "despachado" sin sistema</div>
+<div style="height:12px"></div>
+<div class="stat">$0</div><div class="stat-label">ROAS medible sin atribución</div>
+</div>
+</div>
+<p class="muted" style="margin-top:20px">Datos reales de 238 pedidos del CRM de Saramantha (ZIAY SAS, Colombia)</p>
+</section>
+
+<!-- Slide 2.5: 4 Ejes Enterprise -->
+<section class="slide">
+<h1>4 Ejes Enterprise</h1>
+<h2>Cómo ZIAY convierte conversaciones en ingresos trazables</h2>
+<div class="grid grid-4">
+<div class="card card-accent">
+<div class="emoji">📈</div>
+<h3>Crecimiento medible</h3>
+<p>Cada conversación, agente y canal se atribuye a ingresos reales. ROAS, CPA y ROI auditables por canal, campaña y SKU.</p>
+</div>
+<div class="card card-accent">
+<div class="emoji">⚙️</div>
+<h3>Eficiencia operativa</h3>
+<p>Automatización end-to-end del ciclo de venta: del primer "Hola" al checkout, la logística y la post-venta. Menos costo por venta, más conversión.</p>
+</div>
+<div class="card card-accent">
+<div class="emoji">🛡️</div>
+<h3>Gobernanza</h3>
+<p>Wallet con 2FA, multi-tenant isolation, audit trail en cada transición, control de riesgo financiero y de devoluciones.</p>
+</div>
+<div class="card card-accent">
+<div class="emoji">🔌</div>
+<h3>Integración</h3>
+<p>Conexión nativa con tu stack comercial: Meta/Google/TikTok Ads (CAPI server-side), Shopify, WooCommerce, 4 gateways de pago, 3 carriers.</p>
+</div>
+</div>
+<p class="muted" style="margin-top:20px">Tagline: <strong>Revenue Operations para Comercio Agéntico</strong></p>
+</section>
+
+<!-- Slide 2.6: 3 Capas de Arquitectura -->
+<section class="slide">
+<h1>3 Capas de Arquitectura</h1>
+<h2>Revenue · Operations · Governance</h2>
+<div class="grid grid-3">
+<div class="card card-accent">
+<div class="emoji">💰</div>
+<h3>Revenue Layer</h3>
+<p>Conversaciones, agentes y canales digitales conectados a ingresos trazables. Atribución real por canal, verdict engine (kill/pause/scale/watch), CAPI server-side a Meta/Google/TikTok.</p>
+<p class="muted">Eje: <strong>Crecimiento medible</strong></p>
+</div>
+<div class="card card-accent">
+<div class="emoji">⚙️</div>
+<h3>Operations Layer</h3>
+<p>Automatización operativa del ciclo de venta: 26 agentes en 3 pipelines (pre-venta, post-venta, inteligencia). Logística, novedades, reintentos y remarketing sin intervención humana.</p>
+<p class="muted">Eje: <strong>Eficiencia operativa</strong></p>
+</div>
+<div class="card card-accent">
+<div class="emoji">🛡️</div>
+<h3>Governance Layer</h3>
+<p>Gobernanza financiera y de datos: wallet con 2FA, multi-tenant isolation, audit log, control de devolvedores, RLS policies listas para Postgres.</p>
+<p class="muted">Ejes: <strong>Gobernanza</strong> + <strong>Integración</strong></p>
+</div>
+</div>
+</section>
+
+<!-- Slide 3: Nuestra Solución -->
+<section class="slide">
+<h1>Nuestra Solución</h1>
+<h2>La capa enterprise que conecta conversación → pedido → logística → pago → ingresos trazables</h2>
+<div class="grid grid-3">
+<div class="card card-accent">
+<div class="emoji">💰</div>
+<h3>Ingresos trazables de extremo a extremo</h3>
+<p>Conversaciones, agentes y canales digitales conectados a ingresos medibles. Atribución real por canal, verdict engine (kill/pause/scale/watch) y CAPI server-side a Meta/Google/TikTok.</p>
+</div>
+<div class="card card-accent">
+<div class="emoji">📱</div>
+<h3>Multi-canal</h3>
+<p>WhatsApp, Messenger, Instagram unificados en un solo inbox. Socket.io para tiempo real. Cada agente puede responder en cualquier canal.</p>
+</div>
+<div class="card card-accent">
+<div class="emoji">🎯</div>
+<h3>Trazabilidad de ingresos por canal</h3>
+<p>Conecta cada pedido con el anuncio que lo generó. CPA, ROAS, ROI calculados automáticamente. Atribución confiable lista para auditoría.</p>
+</div>
+<div class="card card-accent">
+<div class="emoji">📦</div>
+<h3>Logística Inteligente</h3>
+<p>Score de transportadoras, detección de guías estancadas, CRM de novedades con reintentos automáticos. Dropi, 99envios, Aveonline.</p>
+</div>
+<div class="card card-accent">
+<div class="emoji">🛡️</div>
+<h3>Gobernanza financiera</h3>
+<p>Wallet con balance, retiros con 2FA Google Authenticator, comisiones escalonadas por GMV, compensación automática de traffickers.</p>
+</div>
+<div class="card card-accent">
+<div class="emoji">🌐</div>
+<h3>Crecimiento orgánico medible</h3>
+<p>Cada tienda tiene su página SSR pública con Schema.org. Sitemap dinámico. Cada nuevo producto = nueva URL indexable.</p>
+</div>
+</div>
+</section>
+
+<!-- Slide 4: Para Quién -->
+<section class="slide">
+<h1>Para Quién Es</h1>
+<h2>Marcas de commerce conversacional en LATAM</h2>
+<div class="grid grid-2">
+<div class="card">
+<h3>👗 Moda & Textil</h3>
+<p>Pijamas, ropa interior, batolas, sublimados. Catálogo visual con tallas, colores, diseños. Cross-sell por tema (Stitch, Hello Kitty).</p>
+<span class="badge badge-primary">Saramantha</span>
+<span class="badge badge-primary">Lovely Pijamas</span>
+</div>
+<div class="card">
+<h3>🎨 Sublimados & Personalizados</h3>
+<p>Productos personalizados con diseños temáticos. Identificación por imagen con VLM. Cotización por volumen.</p>
+<span class="badge badge-primary">Sublimados Majestic</span>
+</div>
+<div class="card">
+<h3>🛏️ Home & Comfort</h3>
+<p>Ropa de cama, batolas, ropa de descanso. Múltiples categorías. Envíos nacionales + internacionales.</p>
+<span class="badge badge-primary">Sueño de Reina</span>
+</div>
+<div class="card">
+<h3>🌍 Internacional</h3>
+<p>Marcas que venden cross-border. Multi-país, multi-moneda, multi-idioma preparado. Pagos con Stripe/PayPal.</p>
+<span class="badge badge-accent">ZIAY INTL</span>
+</div>
+</div>
+</section>
+
+<!-- Slide 5: Casos de Uso Reales -->
+<section class="slide">
+<h1>Casos de Uso Reales</h1>
+<h2>ZIAY SAS — 4 marcas, una plataforma</h2>
+<table>
+<tr><th>Marca</th><th>Negocio</th><th>Canales</th><th>Productos</th><th>Perfil</th></tr>
+<tr><td><strong>Saramantha</strong></td><td>Pijamas & ropa interior</td><td>WhatsApp + Messenger + IG</td><td>7 SKU + variantes</td><td>Mayorista + Detal + Regalo</td></tr>
+<tr><td><strong>Sublimados Majestic</strong></td><td>Sublimados personalizados</td><td>WhatsApp</td><td>Catálogo temático</td><td>Detal + Regalo</td></tr>
+<tr><td><strong>Lovely Pijamas</strong></td><td>Pijamas fashion</td><td>WhatsApp</td><td>Catálogo estacional</td><td>Detal</td></tr>
+<tr><td><strong>Sueño de Reina</strong></td><td>Ropa de descanso premium</td><td>WhatsApp</td><td>Catálogo comfort</td><td>Mayorista + Detal</td></tr>
+<tr><td><strong>ZIAY INTL</strong></td><td>Demo multi-país</td><td>WhatsApp + Messenger + IG</td><td>Catálogo internacional</td><td>Cross-border</td></tr>
+</table>
+<div class="grid grid-4" style="margin-top:20px">
+<div class="card"><div class="stat">238</div><div class="stat-label">Pedidos reales cargados</div></div>
+<div class="card"><div class="stat">$34.5M</div><div class="stat-label">GMV histórico (COP)</div></div>
+<div class="card"><div class="stat">$145K</div><div class="stat-label">AOV promedio</div></div>
+<div class="card"><div class="stat">5</div><div class="stat-label">Tenants activos</div></div>
+</div>
+</section>
+
+<!-- Slide 6: Arquitectura General -->
+<section class="slide">
+<h1>Arquitectura General</h1>
+<h2>De conversación a conversión, todo conectado</h2>
+<pre>
+┌──────────────────────────────────────────────────────────────────┐
+│                        COMPRADOR (Cliente)                        │
+│                   WhatsApp · Messenger · Instagram                │
+└────────────────────────────┬─────────────────────────────────────┘
+                             │ mensajes inbound
+                             ▼
+┌──────────────────────────────────────────────────────────────────┐
+│                     CADDY GATEWAY (reverse proxy)                 │
+│            :81 → Next.js :3000 | :3003 → chat-service             │
+└────────────┬───────────────────────────────┬─────────────────────┘
+             │                               │
+             ▼                               ▼
+┌────────────────────────┐    ┌──────────────────────────────────┐
+│   NEXT.JS 16 (SSR+SPA) │    │    SOCKET.IO MINI-SERVICE (:3003) │
+│                        │    │   Rooms por tenant + conversación │
+│  108 API Routes        │◄──►│   Auth gate + CORS configurable   │
+│  21 Dashboard Modules  │    └──────────────────────────────────┘
+│  2 SSR SEO Pages       │
+└───────────┬────────────┘
+            │
+     ┌──────┼──────┬───────────┬───────────┐
+     ▼      ▼      ▼           ▼           ▼
+  ┌─────┐┌─────┐┌────────┐┌────────┐┌────────┐
+  │Prisma││ ZAI ││Adapters││Webhooks││  VLM   │
+  │  71  ││ LLM ││  18    ││   8    ││glm-4.6v│
+  │models││glm4.││+5 proto││HMAC+rot││        │
+  └──┬───┘└─────┘└────────┘└────────┘└────────┘
+     │
+     ▼
+┌──────────────────────────────────────────────────────────────────┐
+│              SQLite (dev) → PostgreSQL (prod)                     │
+│           110 índices · RLS policies · pgvector ready              │
+└──────────────────────────────────────────────────────────────────┘
+</pre>
+</section>
+
+<!-- Slide 7: 26 Agentes (cómo lo hacemos) -->
+<section class="slide">
+<h1>Automatización operativa end-to-end</h1>
+<h2>Cómo lo hacemos: 26 agentes en 3 pipelines cubren todo el ciclo de venta</h2>
+<div class="grid grid-3">
+<div class="card card-accent">
+<h3 class="text-primary">Pipeline A · Pre-venta (10)</h3>
+<ol>
+<li>buyer_behavior 🛡️</li>
+<li>profile 🎯</li>
+<li>speech 💬</li>
+<li>catalog 🖼️</li>
+<li>cart_builder 🛒</li>
+<li>quote 🧮</li>
+<li>objection 🛡️</li>
+<li>address 📍</li>
+<li>logistics 🚚</li>
+<li>checkout ✅</li>
+</ol>
+</div>
+<div class="card card-accent">
+<h3 class="text-primary">Pipeline B · Post-venta (4)</h3>
+<ol>
+<li>guide_tracking 📦</li>
+<li>novedades ⚠️</li>
+<li>redelivery 🔄</li>
+<li>remarketing 💌</li>
+</ol>
+<h3 class="text-accent" style="margin-top:20px">Especializados (7)</h3>
+<ul>
+<li>vision 👁️</li>
+<li>address_analysis 📐</li>
+<li>sales_retainer 🔒</li>
+<li>logistics_notifier 📢</li>
+<li>traffic_orchestrator 🎯</li>
+<li>guide_alert 🚨</li>
+<li>theme 🎨</li>
+</ul>
+</div>
+<div class="card card-accent">
+<h3 class="text-primary">Pipeline C · Inteligencia (5)</h3>
+<ol>
+<li>customer_score 📊</li>
+<li>carrier_score 🚚</li>
+<li>product_enrichment 🏷️</li>
+<li>marketplace 🏪</li>
+<li>affiliator 💰</li>
+</ol>
+<div style="margin-top:20px">
+<p class="muted">Cada agente tiene prompt especializado, fallback determinístico, y puede ser orquestado en secuencia o individualmente.</p>
+</div>
+</div>
+</div>
+</section>
+
+<!-- Slide 8: Pipeline Pre-venta Detallado -->
+<section class="slide">
+<h1>Pipeline Pre-venta · 10 Pasos</h1>
+<h2>De "Hola" a "Pedido confirmado" — todo automatizado</h2>
+<div class="flow">
+<span class="flow-step">1. buyer_behavior</span><span class="flow-arrow">→</span>
+<span class="flow-step">2. profile</span><span class="flow-arrow">→</span>
+<span class="flow-step">3. speech</span><span class="flow-arrow">→</span>
+<span class="flow-step">4. catalog</span><span class="flow-arrow">→</span>
+<span class="flow-step">5. cart_builder</span>
+</div>
+<div class="flow">
+<span class="flow-step">6. quote</span><span class="flow-arrow">→</span>
+<span class="flow-step">7. objection</span><span class="flow-arrow">→</span>
+<span class="flow-step">8. address</span><span class="flow-arrow">→</span>
+<span class="flow-step">9. logistics</span><span class="flow-arrow">→</span>
+<span class="flow-step">10. checkout</span>
+</div>
+<table style="margin-top:20px">
+<tr><th>Paso</th><th>Agente</th><th>Qué hace</th><th>API</th></tr>
+<tr><td>1</td><td>buyer_behavior</td><td>Verifica si el comprador es devolvedor (0% entrega). Si es así, activa protocolo require_prepay.</td><td>POST /api/buyer-behavior</td></tr>
+<tr><td>2</td><td>profile</td><td>Perfila al lead: mayorista, emprendedor, detal, o regalo. Determina discurso y precios.</td><td>POST /api/agents/profile</td></tr>
+<tr><td>3</td><td>speech</td><td>Genera discurso de ventas personalizado por perfil. Incluye ofertas y cross-sell.</td><td>POST /api/agents/speech</td></tr>
+<tr><td>4</td><td>catalog</td><td>Muestra productos visualmente (tarjetas con imagen, precio, descripción). Visual-first.</td><td>POST /api/agents/catalog</td></tr>
+<tr><td>5</td><td>cart_builder</td><td>Construye carrito conversacional. Añade items, calcula totales, descuentos por volumen.</td><td>POST /api/conversational-cart</td></tr>
+<tr><td>6</td><td>quote</td><td>Cotización con cross-sell. Aplica precios por volumen (mayorista 3 tiers, emprendedor 2).</td><td>POST /api/agents/quote</td></tr>
+<tr><td>7</td><td>objection</td><td>Maneja objeciones: desconfianza, precio, talla, lo_pienso, producto_no_disponible.</td><td>POST /api/agents/objection</td></tr>
+<tr><td>8</td><td>address</td><td>Confirma 10 campos de dirección. Valida formato colombiano (vía + número).</td><td>POST /api/agents/address</td></tr>
+<tr><td>9</td><td>logistics</td><td>Cotiza flete con Dropi/99envios/Aveonline. Elige transportadora por score.</td><td>POST /api/shipping/quote</td></tr>
+<tr><td>10</td><td>checkout</td><td>Checkout: genera link de pago (MP/Wompi/Stripe/PayU) o confirma contra entrega.</td><td>POST /api/payments/create-link</td></tr>
+</table>
+</section>
+
+<!-- Slide 9: Pipeline Post-venta -->
+<section class="slide">
+<h1>Pipeline Post-venta · 4 Pasos</h1>
+<h2>Seguimiento, novedades, reintentos y recuperación</h2>
+<div class="flow">
+<span class="flow-step">1. guide_tracking 📦</span><span class="flow-arrow">→</span>
+<span class="flow-step">2. novedades ⚠️</span><span class="flow-arrow">→</span>
+<span class="flow-step">3. redelivery 🔄</span><span class="flow-arrow">→</span>
+<span class="flow-step">4. remarketing 💌</span>
+</div>
+<div class="grid grid-2" style="margin-top:20px">
+<div class="card card-accent">
+<h3>📦 guide_tracking + guide_alert</h3>
+<p><strong>Seguimiento de guías:</strong> consulta estado en tiempo real via API de la transportadora. Detecta guías estancadas sin movimiento por X días.</p>
+<p><strong>Alertas automáticas:</strong> si una guía lleva >3 días sin movimiento, se crea una alerta en el dashboard de Inteligencia Logística.</p>
+<p class="muted">API: GET /api/logistics-intelligence · GET /api/guide-movements</p>
+</div>
+<div class="card card-accent">
+<h3>⚠️ novedades (CRM)</h3>
+<p><strong>Gestión de incidencias:</strong> 3 tabs en el dashboard — Casos, Reintentos, Historial. Cada caso tiene evidence (fotos), messages, resolution.</p>
+<p><strong>Anti-alucinación:</strong> valida que el pedido pertenece al tenant antes de crear caso. Auto-genera caseNumber NV-YYYY-XXXXX.</p>
+<p class="muted">API: GET/POST/PATCH /api/novedades</p>
+</div>
+<div class="card card-accent">
+<h3>🔄 redelivery</h3>
+<p><strong>Reintentos de entrega:</strong> cuando una guía devuelve, se crea redelivery request con nueva dirección. Máximo de intentos configurable.</p>
+<p><strong>Acciones:</strong> confirm_address, schedule, assign_human, complete, cancel, add_attempt. Cada acción genera GuideMovement + AuditLog.</p>
+<p class="muted">API: GET/POST/PATCH /api/redelivery</p>
+</div>
+<div class="card card-accent">
+<h3>💌 remarketing</h3>
+<p><strong>Recuperación:</strong> campañas automatizadas para clientes que abandonaron, no respondieron, o compraron antes. Templates personalizables.</p>
+<p><strong>Auto-generate:</strong> el agente puede generar mensajes de remarketing basados en el historial de conversación.</p>
+<p class="muted">API: GET/POST/PATCH /api/remarketing</p>
+</div>
+</div>
+</section>
+
+<!-- Slide 10: Pipeline Inteligencia -->
+<section class="slide">
+<h1>Pipeline Inteligencia · 5 Pasos</h1>
+<h2>Scores, enriquecimiento, marketplace y affiliates</h2>
+<div class="flow">
+<span class="flow-step">1. customer_score 📊</span><span class="flow-arrow">→</span>
+<span class="flow-step">2. carrier_score 🚚</span><span class="flow-arrow">→</span>
+<span class="flow-step">3. product_enrichment 🏷️</span><span class="flow-arrow">→</span>
+<span class="flow-step">4. marketplace 🏪</span><span class="flow-arrow">→</span>
+<span class="flow-step">5. affiliator 💰</span>
+</div>
+<div class="grid grid-3" style="margin-top:20px">
+<div class="card card-accent">
+<h3>📊 customer_score</h3>
+<p>Score de cliente basado en historial de entregas. 3 categorías:</p>
+<ul>
+<li><strong class="text-primary">Confiables (100%):</strong> 50% de los clientes</li>
+<li><strong class="text-accent">Riesgo (1-49%):</strong> 29.5%</li>
+<li><strong class="text-danger">Devolvedores (0%):</strong> 20.5%</li>
+</ul>
+<p>Detección de patrones: direcciones falsas, números incorrectos, pedidos repetidos sin pagar.</p>
+</div>
+<div class="card card-accent">
+<h3>🚚 carrier_score</h3>
+<p>Score de transportadoras. 6 variantes de "Interrapidísimo" normalizadas. Datos reales:</p>
+<ul>
+<li>Interrapidísimo, TCC, Coordinadora, Servientrega, Envía</li>
+<li>Métricas: tasa de entrega, tiempo promedio, devoluciones</li>
+<li>Score usado por logistics para elegir la mejor transportadora</li>
+</ul>
+</div>
+<div class="card card-accent">
+<h3>🏷️ product_enrichment</h3>
+<p>VLM (glm-4.6v) analiza imágenes de productos y genera:</p>
+<ul>
+<li>Tags SEO (diseño, categoría, colores)</li>
+<li>Materiales detectados</li>
+<li>Medidas estimadas</li>
+<li>Descripción optimizada</li>
+</ul>
+<p>Mejora SEO orgánico y búsqueda por imagen.</p>
+</div>
+<div class="card card-accent">
+<h3>🏪 marketplace</h3>
+<p>Cross-brand marketplace: si un producto no está en marca A, se refiere a marca B. Lead sharing configurable. Comisiones de referencia trackeadas.</p>
+<p class="muted">API: GET/POST /api/marketplace</p>
+</div>
+<div class="card card-accent">
+<h3>💰 affiliator</h3>
+<p>Trafficker performance: mide qué affiliates generan más ventas. Comisiones escalonadas. Compensación automática si vendedor falla (seller_no_ship, seller_delayed, delivery_failed).</p>
+</div>
+<div class="card card-accent">
+<h3>🔒 sales_retainer</h3>
+<p>Detección de abandono: si un cliente deja de responder, el agente genera mensaje de retención. Si cancela, intenta recuperar con oferta.</p>
+</div>
+</div>
+</section>
+
+<!-- Slide 11: 21 Módulos del Dashboard -->
+<section class="slide">
+<h1>21 Módulos del Dashboard</h1>
+<h2>Todo lo que necesitas en un solo lugar</h2>
+<div class="grid grid-2">
+<div class="card"><h3>📊 Resumen</h3><p>KPIs: ingresos, ROAS, CPA, ROI, pedidos, inversión en pauta. Gráficos de tendencia y desglose por canal.</p></div>
+<div class="card"><h3>💬 Mensajería</h3><p>Inbox unificado WhatsApp + Messenger + IG. 26 agentes en dropdown. Socket.io tiempo real. Optimistic UI.</p></div>
+<div class="card"><h3>🖼️ Catálogo Visual</h3><p>Grid de productos con filtros. Chat IA embebido para enviar productos a conversaciones. Vista grid + lista.</p></div>
+<div class="card"><h3>📦 Pedidos & Pagos</h3><p>Tabla de pedidos con filtros. Workflow de estados inline. Modo de pago (anticipado/contra entrega/híbrido).</p></div>
+<div class="card"><h3>📋 Kanban Operativo</h3><p>Drag & drop con @dnd-kit. 8 columnas del embudo §15.1. % de pedidos por etapa. Tooltip de "stuck".</p></div>
+<div class="card"><h3>🎭 Orquestador</h3><p>3 pipelines visualizables. Stepper de 9 pasos. Ejecutar full o step-by-step. Timeline de respuestas.</p></div>
+<div class="card"><h3>🎯 Atribución de Pauta</h3><p>Tabla de ads con ROAS, CPA, verdict (kill/pause/scale/watch). Gráfico de spend trend. Metodología visible.</p></div>
+<div class="card"><h3>💵 Monetización</h3><p>GMV actual, tramo de comisión (4.5%/3%/1.75%), factura proyectada, comisiones reconocidas (50%/100%).</p></div>
+<div class="card"><h3>👛 Wallet</h3><p>Balance, 15 categorías de transacciones, retiros con 2FA TOTP, cuentas de retiro (bank/nequi/daviplata/paypal/wise).</p></div>
+<div class="card"><h3>🚚 Inteligencia Logística</h3><p>Scores de clientes (devolvedores/riesgo/confiables), scores de carriers, guías estancadas con alertas.</p></div>
+<div class="card"><h3>🏪 Marketplace</h3><p>Listings cross-brand, lead sharing config, referrals enviados/recibidos. Grid de productos de otras marcas.</p></div>
+<div class="card"><h3>⚠️ Novedades</h3><p>CRM de incidencias con 3 tabs: Casos, Reintentos, Historial. Evidence upload, messages, resolution flow.</p></div>
+<div class="card"><h3>🔌 Integraciones</h3><p>Health de todos los adapters (catálogo, logística, pagos, LLM). Tester de flete. VLM identifier. Estado real.</p></div>
+<div class="card"><h3>⚙️ Configuración</h3><p>Estrategia de pago por canal (anticipado/COD/híbrido). Umbrales globales. URLs de webhook. Channels manager.</p></div>
+<div class="card"><h3>🛡️ Compliance</h3><p>KYC de affiliates, consentimiento Habeas Data (Ley 1581), retención de datos, age-gate (Ley 1098), retracto (Ley 1480), facturación DIAN con Alegra.</p></div>
+<div class="card"><h3>🌐 Multi-país</h3><p>7 monedas activas (COP, MXN, PEN, USD, EUR, CLP, ARS), 4 locales (es-CO, es-MX, en-US, pt-BR). Conversión automática.</p></div>
+<div class="card"><h3>🔮 Protocolos IA</h3><p>5 protocolos de interoperabilidad: AP2, UCP, ACP, MCP, A2A. Tus agentes hablan con Claude, GPT, Gemini.</p></div>
+<div class="card"><h3>📈 ADRs y Auditoría</h3><p>21 Architecture Decision Records. 93 OpenAPI paths. Audit trail completo en cada transición.</p></div>
+<div class="card"><h3>🧪 QA y E2E</h3><p>986 tests en 52 archivos. 21 dashboard views verificadas. 108 API routes probadas. 8 webhooks con HMAC. 46 reglas NUNCA/SIEMPRE.</p></div>
+<div class="card"><h3>🔔 Monitoreo</h3><p>Uptime Kuma + 16 servicios Docker con health-checks. Alertas email/Slack/Telegram. Logs estructurados.</p></div>
+<div class="card"><h3>📊 Eval Harness</h3><p>Eval harness para prompts de agentes. Métricas de calidad por agente. A/B testing de prompts.</p></div>
+</div>
+</section>
+
+<!-- Slide 12: Catálogo Visual con IA -->
+<section class="slide">
+<h1>Catálogo Visual con IA</h1>
+<h2>Ver productos + chatear con IA en un solo flujo</h2>
+<div class="grid grid-2">
+<div class="card card-accent">
+<h3>🖼️ Vista Grid + Lista</h3>
+<p>Grid responsivo (2/3/4/5 columnas según pantalla). Filtros por categoría, diseño, temporada. Búsqueda por nombre/SKU.</p>
+<p>Cada producto muestra: imagen, nombre, SKU, precio, stock, tags de enriquecimiento VLM.</p>
+</div>
+<div class="card card-accent">
+<h3>🤖 Chat IA Embebido</h3>
+<p>Click en producto → dialog con detalle + botón "Enviar a conversación". Selecciona conversación activa y envía tarjeta del producto.</p>
+<p>Agente IA puede recomendar productos relacionados basado en el perfil del cliente.</p>
+</div>
+<div class="card card-accent">
+<h3>👁️ Vision (VLM)</h3>
+<p>Cliente envía foto → agente vision identifica producto del catálogo. Usa glm-4.6v (modelo de visión). Persiste ImageIdentification en DB.</p>
+<p>Ejemplo: cliente foto de pijama de Stitch → agente identifica PIJ-BATOLA-STITCH-003.</p>
+</div>
+<div class="card card-accent">
+<h3>🏷️ Product Enrichment</h3>
+<p>VLM analiza cada imagen de producto y genera: diseño, categoría, colores, materiales, medidas. SEO tags automáticos para páginas SSR.</p>
+<p>Cada producto enriquecido = mejor indexación en Google + IA search engines (AEO).</p>
+</div>
+</div>
+</section>
+
+<!-- Slide 13: Orquestador -->
+<section class="slide">
+<h1>Orquestador · 3 Pipelines</h1>
+<h2>Ejecuta secuencias de agentes con un clic</h2>
+<div class="grid grid-3">
+<div class="card card-accent">
+<h3 class="text-primary">Pipeline A · Pre-venta</h3>
+<p><strong>10 pasos secuenciales</strong></p>
+<ol>
+<li>buyer_behavior</li>
+<li>profile</li>
+<li>speech</li>
+<li>catalog</li>
+<li>cart_builder</li>
+<li>quote</li>
+<li>objection</li>
+<li>address</li>
+<li>logistics</li>
+<li>checkout</li>
+</ol>
+<p class="muted">Si buyer_behavior detecta devolvedor, activa require_prepay antes de continuar.</p>
+</div>
+<div class="card card-accent">
+<h3 class="text-primary">Pipeline B · Post-venta</h3>
+<p><strong>4 pasos secuenciales</strong></p>
+<ol>
+<li>guide_tracking + alertas</li>
+<li>novedades (CRM)</li>
+<li>redelivery (reintentos)</li>
+<li>remarketing</li>
+</ol>
+<p class="muted">Primero trackear guía. Si hay problema, crear novedad. Si es devolución, gestionar reintento. Finalmente remarketing.</p>
+</div>
+<div class="card card-accent">
+<h3 class="text-primary">Pipeline C · Inteligencia</h3>
+<p><strong>5 pasos secuenciales</strong></p>
+<ol>
+<li>customer_score</li>
+<li>carrier_score</li>
+<li>product_enrichment</li>
+<li>marketplace</li>
+<li>affiliator</li>
+</ol>
+<p class="muted">Evaluar clientes, luego carriers, enriquecer productos, buscar en marketplace, recomendar a traffickers.</p>
+</div>
+</div>
+<div class="card" style="margin-top:20px">
+<h3>Modos de ejecución</h3>
+<ul>
+<li><strong>Full:</strong> ejecuta todos los pasos del pipeline en secuencia. Cada agente recibe el output del anterior.</li>
+<li><strong>Step:</strong> ejecuta un solo paso. Útil para debugging o re-ejecutar un agente específico.</li>
+<li><strong>Fallback determinístico:</strong> si el LLM falla, cada agente tiene un fallback que genera una respuesta básica para que el pipeline no se rompa.</li>
+</ul>
+<p class="muted">API: POST /api/orchestrate { action: "full" | "step", pipeline: "pre_sale" | "post_sale" | "intelligence", tenantId }</p>
+</div>
+</section>
+
+<!-- Slide 14: Atribución de Pauta -->
+<section class="slide">
+<h1>Atribución de Pauta</h1>
+<h2>Conecta cada venta con el anuncio que la generó</h2>
+<div class="grid grid-2">
+<div class="card card-accent">
+<h3>📐 Cómo funciona</h3>
+<ol>
+<li><strong>AdSpend tracking:</strong> importamos spend diario por ad desde Meta Ads, Google Ads (GAQL), TikTok Ads (Marketing API)</li>
+<li><strong>Order attribution:</strong> cada pedido tiene sourceAdId (el ad que generó la conversación)</li>
+<li><strong>CPA:</strong> spend / número de pedidos atribuidos</li>
+<li><strong>ROAS:</strong> revenue / spend</li>
+<li><strong>ROI:</strong> (revenue - spend - COGS) / spend</li>
+</ol>
+</div>
+<div class="card card-accent">
+<h3>🎯 Verdict Engine</h3>
+<p>Automatización de decisiones basada en performance:</p>
+<table>
+<tr><th>ROAS</th><th>Verdict</th><th>Acción</th></tr>
+<tr><td>&lt; 0.8</td><td><span class="badge badge-danger">KILL</span></td><td>Pausar ad inmediatamente</td></tr>
+<tr><td>0.8 - 1.5</td><td><span class="badge badge-accent">PAUSE</span></td><td>Revisar creatividad</td></tr>
+<tr><td>1.5 - 3.0</td><td><span class="badge badge-primary">WATCH</span></td><td>Monitorear</td></tr>
+<tr><td>&gt; 3.0</td><td><span class="badge badge-primary">SCALE</span></td><td>Aumentar presupuesto</td></tr>
+</table>
+<p class="muted">Umbrales configurables en Settings (roas_kill_threshold, cpa_target)</p>
+</div>
+</div>
+<div class="card" style="margin-top:20px">
+<h3>Detección de canibalización</h3>
+<p>El sistema detecta cuando múltiples ads compiten por el mismo público y generan canibalización. Muestra warning en el dashboard con recomendación de pausar el peor performer.</p>
+</div>
+</section>
+
+<!-- Slide 15: Monetización -->
+<section class="slide">
+<h1>Monetización</h1>
+<h2>Comisión escalonada sobre GMV</h2>
+<div class="grid grid-2">
+<div class="card card-accent">
+<h3>📊 Tramos de Comisión</h3>
+<table>
+<tr><th>GMV Mensual (COP)</th><th>Comisión</th><th>Ejemplo</th></tr>
+<tr><td>&lt; $10M</td><td>4.5%</td><td>$450K sobre $10M</td></tr>
+<tr><td>$10M - $40M</td><td>3.0%</td><td>$900K sobre $30M</td></tr>
+<tr><td>&gt; $40M</td><td>1.75%</td><td>$700K sobre $40M</td></tr>
+</table>
+<p class="muted">A mayor volumen, menor comisión. Incentiva crecimiento.</p>
+</div>
+<div class="card card-accent">
+<h3>📅 Reconocimiento de 2 momentos</h3>
+<p>Según spec Saramantha §17.7:</p>
+<ul>
+<li><strong>50% al reconocer:</strong> cuando el pedido llega a "datos_completados" (dirección confirmada, datos validados)</li>
+<li><strong>100% al despachar:</strong> cuando el pedido llega a "despachado" (guía generada, entregado a transportadora)</li>
+</ul>
+<p>Si el pedido se cancela antes de despachar, se revierte el 50% reconocido.</p>
+</div>
+<div class="card card-accent">
+<h3>🧾 Facturación</h3>
+<p>Generación automática de factura mensual por tenant. Incluye: GMV del período, tramo aplicado, comisión calculada, pedidos contabilizados, IVA.</p>
+<p class="muted">Modelo: Invoice en Prisma. Estado: emitida / pagada / vencida.</p>
+</div>
+<div class="card card-accent">
+<h3>📈 Dashboard de Monetización</h3>
+<p>Vista con: GMV actual, tramo actual, próxima factura proyectada, comisiones reconocidas (50%/100%), desglose por pedido.</p>
+<p class="muted">API: GET /api/monetization/gmv · GET /api/monetization/commission</p>
+</div>
+</div>
+</section>
+
+<!-- Slide 16: Wallet + Trafficker -->
+<section class="slide">
+<h1>Wallet + Trafficker Affiliate</h1>
+<h2>Fintech layer para affiliates y vendedores</h2>
+<div class="grid grid-2">
+<div class="card card-accent">
+<h3>👛 Wallet del Trafficker</h3>
+<ul>
+<li><strong>Balance:</strong> actualizado en tiempo real</li>
+<li><strong>15 categorías</strong> de transacciones inbound/outbound</li>
+<li><strong>Cuentas de retiro:</strong> bank, nequi, daviplata, paypal, wise</li>
+<li><strong>Retiros con 2FA:</strong> TOTP (Google Authenticator) obligatorio</li>
+<li><strong>Backup codes:</strong> códigos de recuperación generados al activar 2FA</li>
+<li><strong>Fee:</strong> 2% por retiro (configurable)</li>
+</ul>
+</div>
+<div class="card card-accent">
+<h3>💰 Trafficker Affiliate</h3>
+<p>El trafficker invierte en pauta y cobra comisión por venta confirmada:</p>
+<ol>
+<li><strong>Registro:</strong> trafficker se registra con email + KYC</li>
+<li><strong>Crea campaña:</strong> define budget, targeting, creatividad</li>
+<li><strong>Pauta se sirve:</strong> Meta/Google/TikTok muestran los ads</li>
+<li><strong>Cliente compra:</strong> venta atribuida al trafficker</li>
+<li><strong>Comisión:</strong> % de la venta al trafficker</li>
+<li><strong>Retiro:</strong> solicita retiro con 2FA → procesado → completado</li>
+</ol>
+</div>
+</div>
+<div class="card card-accent" style="margin-top:20px">
+<h3>🛡️ Compensación Automática</h3>
+<p>Si el vendedor falla, el trafficker recibe compensación automáticamente:</p>
+<table>
+<tr><th>Causa de falla</th><th>Compensación</th></tr>
+<tr><td>Vendedor no despacha (seller_no_ship)</td><td>100% del commission</td></tr>
+<tr><td>Vendedor demora (seller_delayed)</td><td>50% del commission</td></tr>
+<tr><td>Vendedor cancela (seller_cancelled)</td><td>100% del commission</td></tr>
+<tr><td>Entrega fallida (delivery_failed)</td><td>50% del commission</td></tr>
+<tr><td>Producto dañado (product_damaged)</td><td>25% del commission</td></tr>
+</table>
+<p class="muted">API: POST /api/trafficker { action: "register_sale" | "confirm_sale" | "fail_sale" }</p>
+</div>
+</section>
+
+<!-- Slide 17: Seguridad -->
+<section class="slide">
+<h1>Seguridad</h1>
+<h2>Multi-layer defense-in-depth</h2>
+<div class="grid grid-2">
+<div class="card card-accent">
+<h3>🔐 Autenticación</h3>
+<ul>
+<li><strong>2FA TOTP:</strong> Google Authenticator para retiros de wallet. Secret + backup codes encriptados.</li>
+<li><strong>Auth headers:</strong> X-Tenant-Id / X-Trafficker-Id requeridos en rutas sensibles.</li>
+<li><strong>Session tokens:</strong> NextAuth.js disponible para SSO.</li>
+</ul>
+</div>
+<div class="card card-accent">
+<h3>🛡️ Multi-tenant Isolation</h3>
+<ul>
+<li><strong>tenantId guards:</strong> 16 API rutas endurecidas con validación de ownership.</li>
+<li><strong>RLS policies:</strong> SQL policies para PostgreSQL (migración lista).</li>
+<li><strong>Prisma extension:</strong> inyección automática de tenantId en queries.</li>
+</ul>
+</div>
+<div class="card card-accent">
+<h3>✉️ Webhook Security</h3>
+<ul>
+<li><strong>HMAC verification:</strong> WhatsApp + Meta webhooks verifican x-hub-signature-256 con timingSafeEqual.</li>
+<li><strong>Payment webhooks:</strong> MercadoPago (HMAC), Wompi (HMAC), Stripe (HMAC), PayU (MD5).</li>
+<li><strong>No fallback tokens:</strong> si env no configurado, 403 (no token público).</li>
+</ul>
+</div>
+<div class="card card-accent">
+<h3>⚡ Rate Limiting</h3>
+<ul>
+<li><strong>LLM routes:</strong> 10 req/min por IP en 5 rutas IA (agents, ai-reply, orchestrate, address-analysis, product-enrichment).</li>
+<li><strong>In-memory sliding window:</strong> Map de IP → timestamps, GC cada 5 min.</li>
+</ul>
+</div>
+<div class="card card-accent">
+<h3>🔌 Socket.io Security</h3>
+<ul>
+<li><strong>Auth gate:</strong> socket.handshake.auth.tenantId requerido (CHAT_STRICT_AUTH=true en prod).</li>
+<li><strong>Room isolation:</strong> cada socket join tenant:ID + conv:ID. io.to(room) en vez de io.emit().</li>
+<li><strong>CORS:</strong> configurable via CHAT_CORS_ORIGIN.</li>
+</ul>
+</div>
+<div class="card card-accent">
+<h3>📋 Audit Trail</h3>
+<ul>
+<li><strong>AuditLog:</strong> cada acción state-changing se registra con tenantId, userId, action, metadata.</li>
+<li><strong>OrderEvent:</strong> lifecycle completo de cada pedido.</li>
+<li><strong>GuideMovement:</strong> cada evento de la transportadora.</li>
+</ul>
+</div>
+</div>
+</section>
+
+<!-- Slide 18: SEO Orgánico -->
+<section class="slide">
+<h1>SEO Orgánico</h1>
+<h2>Cada tienda = nueva URL indexable = más tráfico orgánico</h2>
+<div class="grid grid-2">
+<div class="card card-accent">
+<h3>🌐 Páginas SSR Públicas</h3>
+<ul>
+<li><strong>/t/[slug]:</strong> página de tienda con catálogo top 20 productos. Schema.org OnlineStore + ItemList + FAQPage.</li>
+<li><strong>/t/[slug]/p/[sku]:</strong> página de producto con detalle. Schema.org Product + BreadcrumbList + Offer.</li>
+<li><strong>/directorio:</strong> directorio de todas las tiendas activas.</li>
+</ul>
+<p>Cada nueva tienda o producto = nueva URL en el sitemap automáticamente.</p>
+</div>
+<div class="card card-accent">
+<h3>📋 Schema.org JSON-LD</h3>
+<p>Cada página incluye structured data para Google + IA search engines (AEO):</p>
+<ul>
+<li><strong>OnlineStore:</strong> name, description, paymentAccepted, currenciesAccepted, areaServed</li>
+<li><strong>Product:</strong> sku, image, brand, offers (price, COP, availability, seller)</li>
+<li><strong>Offer:</strong> price, priceCurrency, availability, seller</li>
+<li><strong>BreadcrumbList:</strong> navegación tenant → producto</li>
+<li><strong>FAQPage:</strong> cómo comprar, envíos, contra entrega</li>
+</ul>
+</div>
+<div class="card card-accent">
+<h3>🗺️ Sitemap Dinámico</h3>
+<p><code>/sitemap.xml</code> generado dinámicamente desde DB:</p>
+<ul>
+<li>Homepage (prioridad 1.0, daily)</li>
+<li>/directorio (0.9, daily)</li>
+<li>1 URL por tenant activo (0.8, weekly)</li>
+<li>1 URL por producto activo (0.7, weekly)</li>
+</ul>
+<p>Crecimiento automático con cada nuevo tenant/producto.</p>
+</div>
+<div class="card card-accent">
+<h3>🤖 robots.txt</h3>
+<p>Permite /t/ y /directorio. Bloquea /api/ y /dashboard. Referencia al sitemap.</p>
+<p><strong>OG tags:</strong> title, description, type, locale=es_CO, siteName, url, images.</p>
+<p><strong>Twitter card:</strong> summary_large_image.</p>
+</div>
+</div>
+</section>
+
+<!-- Slide 19: Datos Reales -->
+<section class="slide">
+<h1>Datos Reales del CRM</h1>
+<h2>238 pedidos reales de Saramantha cargados</h2>
+<div class="grid grid-4">
+<div class="card"><div class="stat">$34.5M</div><div class="stat-label">GMV histórico (COP)</div></div>
+<div class="card"><div class="stat">$145K</div><div class="stat-label">AOV promedio</div></div>
+<div class="card"><div class="stat">238</div><div class="stat-label">Pedidos reales</div></div>
+<div class="card"><div class="stat">5</div><div class="stat-label">Tenants activos</div></div>
+</div>
+<div class="card card-accent" style="margin-top:20px">
+<h3>📊 Embudo §15.1 (datos reales)</h3>
+<table>
+<tr><th>Estado</th><th>Pedidos</th><th>% del total</th><th>Descripción</th></tr>
+<tr><td>pending_confirmation</td><td>174</td><td>73.4%</td><td>Requieren llamada para confirmar</td></tr>
+<tr><td>datos_completados</td><td>21</td><td>8.9%</td><td>Datos confirmados, listos para despachar</td></tr>
+<tr><td>intent_cancelacion</td><td>15</td><td>6.3%</td><td>Cliente quiere cancelar</td></tr>
+<tr><td>oficina</td><td>21</td><td>8.9%</td><td>En oficina procesando</td></tr>
+<tr><td>despachado</td><td>3</td><td>1.1%</td><td>Entregado a transportadora</td></tr>
+<tr><td>en_transito</td><td>4</td><td>1.7%</td><td>En camino</td></tr>
+</table>
+</div>
+<div class="grid grid-3" style="margin-top:20px">
+<div class="card"><div class="stat">20.5%</div><div class="stat-label">Compradores devolvedores (0% entrega)</div></div>
+<div class="card"><div class="stat">50%</div><div class="stat-label">Compradores confiables (100% entrega)</div></div>
+<div class="card"><div class="stat">6</div><div class="stat-label">Variantes de "Interrapidísimo" normalizadas</div></div>
+</div>
+</section>
+
+<!-- Slide 19.5: Nuevos Módulos IA -->
+<section class="slide">
+<h1>Nuevos Módulos IA</h1>
+<h2>Motor de cotización · VLM · 46 reglas centralizadas</h2>
+<div class="grid grid-2">
+<div class="card card-accent">
+<div class="emoji">🧮</div>
+<h3>Motor de Cotización Dinámica</h3>
+<p><strong>0% alucinación de precios.</strong> Cotiza con precios DB real, flete dinámico por ciudad + peso, pago híbrido (split vendedor/tienda) y <code>confirmed=false</code> hasta verificación por webhook.</p>
+<p class="muted">Endpoint: POST /api/quote/dynamic</p>
+</div>
+<div class="card card-accent">
+<div class="emoji">👁️</div>
+<h3>Identificación por Imagen (VLM)</h3>
+<p><strong>La IA identifica productos por foto.</strong> Cliente envía imagen → VLM glm-4.6v analiza color, forma, marca, categoría → fuzzy search contra catálogo → top-3 candidatos con score de similitud.</p>
+<p class="muted">Endpoint: POST /api/identify-product</p>
+</div>
+<div class="card card-accent">
+<div class="emoji">🛡️</div>
+<h3>46 Reglas NUNCA/SIEMPRE</h3>
+<p><strong>Comportamiento centralizado y auditable.</strong> 29 reglas NUNCA (prohibidas) + 17 SIEMPRE (obligatorias) inyectadas en el system prompt de todos los agentes. <code>validateOutput()</code> bloquea violaciones antes de enviar.</p>
+<p class="muted">Endpoint: GET /api/agents/rules</p>
+</div>
+<div class="card card-accent">
+<div class="emoji">🔗</div>
+<h3>ZIAY Bridge · 5 Actions</h3>
+<p><strong>Solución 100% propia.</strong> n8n → POST /api/ziay-bridge con 5 actions: <code>quote</code>, <code>identify</code>, <code>freight</code>, <code>payment</code>, <code>catalog</code>. ZIAY NO se conecta con ChateaPro ni el Generador (terceros excluyentes).</p>
+<p class="muted">Endpoints internos para automatización n8n</p>
+</div>
+</div>
+<div class="card" style="margin-top:16px">
+<h3>Impacto medible (antes → después)</h3>
+<table>
+<tr><th>Métrica</th><th>Antes</th><th>Ahora</th><th>Mejora</th></tr>
+<tr><td>Alucinación de precios</td><td>30-40%</td><td>0%</td><td>100%</td></tr>
+<tr><td>Flete incorrecto</td><td>50-60%</td><td>0%</td><td>100%</td></tr>
+<tr><td>Cobro sin confirmar</td><td>20%</td><td>0%</td><td>100%</td></tr>
+<tr><td>Identificación por imagen</td><td>0% (no soportado)</td><td>&gt;90%</td><td>+90%</td></tr>
+</table>
+</div>
+</section>
+
+<!-- Slide 20: Stack Tecnológico -->
+<section class="slide">
+<h1>Stack Tecnológico</h1>
+<h2>Tecnologías modernas, probadas en producción</h2>
+<div class="grid grid-2">
+<div class="card">
+<h3>⚛️ Frontend</h3>
+<ul>
+<li><strong>Next.js 16.2.10</strong> — App Router, SSR + SPA híbrido, Turbopack</li>
+<li><strong>React 19</strong> — use(), actions, streaming</li>
+<li><strong>TypeScript 5</strong> — strict mode, type-safety end-to-end</li>
+<li><strong>Tailwind CSS 4</strong> — oklch colors, dark mode, responsive</li>
+<li><strong>shadcn/ui</strong> — 48 componentes (New York style)</li>
+<li><strong>Framer Motion</strong> — animaciones (disponible)</li>
+<li><strong>Recharts</strong> — gráficas (area, pie, bar)</li>
+<li><strong>@dnd-kit</strong> — drag & drop (kanban)</li>
+</ul>
+</div>
+<div class="card">
+<h3>🗄️ Backend</h3>
+<ul>
+<li><strong>Next.js API Routes</strong> — 108 rutas REST</li>
+<li><strong>Prisma 6</strong> — 71 modelos, SQLite dev → Postgres prod</li>
+<li><strong>Socket.io</strong> — mini-service puerto 3003, rooms por tenant</li>
+<li><strong>z-ai-web-dev-sdk</strong> — LLM (glm-4.6) + VLM (glm-4.6v)</li>
+<li><strong>OTPAuth</strong> — TOTP 2FA (Google Authenticator)</li>
+<li><strong>Node.js 20</strong> — runtime</li>
+<li><strong>Bun</strong> — package manager + dev server</li>
+</ul>
+</div>
+<div class="card">
+<h3>🗄️ Base de Datos</h3>
+<ul>
+<li><strong>SQLite</strong> — desarrollo (file-based)</li>
+<li><strong>PostgreSQL 16</strong> — producción (docker-compose)</li>
+<li><strong>pgvector</strong> — embeddings (ready)</li>
+<li><strong>110 índices</strong> — en 71 modelos</li>
+<li><strong>RLS policies</strong> — para Postgres</li>
+</ul>
+</div>
+<div class="card">
+<h3>🚀 DevOps</h3>
+<ul>
+<li><strong>Docker Compose</strong> — 16 servicios</li>
+<li><strong>Caddy</strong> — reverse proxy, auto-HTTPS</li>
+<li><strong>Uptime Kuma</strong> — monitoring</li>
+<li><strong>Grafana + Prometheus + Loki</strong> — observabilidad</li>
+<li><strong>n8n</strong> — workflow automation</li>
+<li><strong>NocoDB</strong> — DB admin</li>
+<li><strong>MinIO</strong> — S3-compatible storage</li>
+<li><strong>Ollama</strong> — LLM local (opcional)</li>
+<li><strong>Alegra proxy + DIAN validator</strong> — facturación electrónica</li>
+</ul>
+</div>
+</div>
+</section>
+
+<!-- Slide 21: Integraciones -->
+<section class="slide">
+<h1>Integraciones</h1>
+<h2>18 adapters que conectan con todo</h2>
+<div class="grid grid-2">
+<div class="card card-accent">
+<h3>📦 Catálogo (5)</h3>
+<ul>
+<li><strong>WhatsApp Catalog</strong> — catálogo nativo de WhatsApp Business</li>
+<li><strong>WooCommerce</strong> — HTTP real (REST API v3)</li>
+<li><strong>Shopify</strong> — HTTP real (Admin API)</li>
+<li><strong>Supabase</strong> — PostgreSQL + Auth + Storage</li>
+<li><strong>Oracle</strong> — ERP enterprise</li>
+</ul>
+</div>
+<div class="card card-accent">
+<h3>🚚 Logística (3)</h3>
+<ul>
+<li><strong>Dropi</strong> — cotizador + guía (HTTP real, 18 ciudades CO)</li>
+<li><strong>99envios</strong> — cotizador + guía</li>
+<li><strong>Aveonline</strong> — cotizador + guía (Antioquia strong)</li>
+</ul>
+</div>
+<div class="card card-accent">
+<h3>💳 Pagos (4)</h3>
+<ul>
+<li><strong>MercadoPago</strong> — checkout preferences + webhook HMAC</li>
+<li><strong>Wompi</strong> — transactions v1 + webhook HMAC</li>
+<li><strong>Stripe</strong> — checkout sessions + webhook HMAC</li>
+<li><strong>PayU</strong> — payments-api 4.0 + webhook MD5</li>
+</ul>
+</div>
+<div class="card card-accent">
+<h3>🎯 Pauta (3)</h3>
+<ul>
+<li><strong>Meta Ads</strong> — Graph API v18 (spend + CAPI)</li>
+<li><strong>Google Ads</strong> — GAQL searchStream v17</li>
+<li><strong>TikTok Ads</strong> — Marketing API v1.3</li>
+</ul>
+</div>
+</div>
+<div class="card card-accent" style="margin-top:20px">
+<h3>📨 Webhooks (8)</h3>
+<p>WhatsApp Cloud API · Meta Messenger · Instagram · MercadoPago · Wompi · Stripe · PayU · Nequi — todos con verificación HMAC/MD5 de firma + rotación de secrets sin downtime.</p>
+<p class="muted">5 protocolos de interoperabilidad IA: AP2 · UCP · ACP · MCP · A2A. 6 módulos de compliance: KYC · consentimiento · retención · age-gate · retracto · DIAN.</p>
+</div>
+</section>
+
+<!-- Slide 22: CAPI Real -->
+<section class="slide">
+<h1>CAPI Real (Conversions API)</h1>
+<h2>No es stub — envío real a Meta, Google y TikTok</h2>
+<div class="grid grid-3">
+<div class="card card-accent">
+<h3>📘 Meta CAPI</h3>
+<p><strong>POST</strong> https://graph.facebook.com/v18.0/{pixelId}/events</p>
+<ul>
+<li>access_token = capiToken</li>
+<li>event_name, event_time, action_source</li>
+<li>user_data (hashed): email, phone, fbc, fbp</li>
+<li>custom_data: value, currency, content_ids</li>
+<li>test_event_code (modo test)</li>
+</ul>
+</div>
+<div class="card card-accent">
+<h3>📊 Google MP</h3>
+<p><strong>POST</strong> https://www.google-analytics.com/mp/collect</p>
+<ul>
+<li>measurement_id + api_secret</li>
+<li>client_id</li>
+<li>events: [{ name, params }]</li>
+<li>Permite server-side tracking</li>
+</ul>
+</div>
+<div class="card card-accent">
+<h3>🎵 TikTok Events</h3>
+<p><strong>POST</strong> https://business-api.tiktok.com/open_api/v1.3/event/track/</p>
+<ul>
+<li>Access-Token header</li>
+<li>event: Purchase, AddToCart, etc.</li>
+<li>user_data: email, phone, ttp</li>
+<li>content_type: product</li>
+</ul>
+</div>
+</div>
+<div class="card" style="margin-top:20px">
+<h3>Flujo de conversión</h3>
+<pre>
+Cliente completa compra → POST /api/conversions
+  → Busca PixelConfig activos para el tenant
+  → Para cada plataforma (Meta/Google/TikTok):
+    → Construye payload según spec
+    → HTTP POST a la API de la plataforma
+    → Si 2xx: ConversionEvent.status = 'sent'
+    → Si error: ConversionEvent.status = 'failed' + response guardada
+  → Cada plataforma en try/catch independiente (una falla no bloquea otras)
+</pre>
+</div>
+</section>
+
+<!-- Slide 23: Escalabilidad -->
+<section class="slide">
+<h1>Escalabilidad</h1>
+<h2>Diseñado para crecer de 5 a 5000 tenants</h2>
+<div class="grid grid-2">
+<div class="card card-accent">
+<h3>📈 Escalabilidad Vertical</h3>
+<ul>
+<li><strong>110 índices DB</strong> en 71 modelos — queries O(log n)</li>
+<li><strong>Prisma connection pooling</strong> — configurable</li>
+<li><strong>SSR streaming</strong> — React 19 streaming SSR</li>
+<li><strong>Code splitting</strong> — lazy loading de vistas</li>
+</ul>
+</div>
+<div class="card card-accent">
+<h3>↔️ Escalabilidad Horizontal</h3>
+<ul>
+<li><strong>SQLite → PostgreSQL</strong> — schema portable (cambiar provider)</li>
+<li><strong>Redis</strong> — para socket.io adapter (multi-instancia)</li>
+<li><strong>Docker Swarm/K8s</strong> — docker-compose listo</li>
+<li><strong>CDN</strong> — para imágenes de productos (Cloudflare/AWS)</li>
+</ul>
+</div>
+<div class="card card-accent">
+<h3>🗄️ Multi-tenant Scaling</h3>
+<ul>
+<li><strong>RLS Postgres</strong> — aislamiento a nivel DB</li>
+<li><strong>tenantId index</strong> en 52 modelos — queries filtradas</li>
+<li><strong>Prisma extension</strong> — auto-inject tenantId</li>
+<li><strong>Schema-per-tenant</strong> — opción futura para enterprise</li>
+</ul>
+</div>
+<div class="card card-accent">
+<h3>🤖 IA Scaling</h3>
+<ul>
+<li><strong>Multi-provider LLM</strong> — Zai, OpenAI, xAI, Ollama (failover)</li>
+<li><strong>Rate limiting</strong> — 10 req/min por IP en rutas LLM</li>
+<li><strong>Deterministic fallback</strong> — si LLM cae, respuesta básica</li>
+<li><strong>Embeddings</strong> — pgvector para similitud semántica</li>
+</ul>
+</div>
+</div>
+</section>
+
+<!-- Slide 24: Docker -->
+<section class="slide">
+<h1>Docker Compose · 16 Servicios</h1>
+<h2>Todo el stack en un solo comando</h2>
+<pre>
+docker compose up -d
+</pre>
+<table>
+<tr><th>Servicio</th><th>Imagen</th><th>Puerto</th><th>Propósito</th></tr>
+<tr><td>postgres</td><td>postgres:16-alpine</td><td>5432</td><td>DB principal (prod)</td></tr>
+<tr><td>redis</td><td>redis:7-alpine</td><td>6379</td><td>Socket.io adapter + cache</td></tr>
+<tr><td>minio</td><td>minio/minio</td><td>9000/9001</td><td>S3-compatible storage</td></tr>
+<tr><td>nocodb</td><td>nocodb/nocodb</td><td>1684</td><td>Admin DB (Airtable alt)</td></tr>
+<tr><td>n8n</td><td>n8nio/n8n</td><td>5678</td><td>Workflow automation</td></tr>
+<tr><td>ollama</td><td>ollama/ollama</td><td>11434</td><td>LLM local (opcional)</td></tr>
+<tr><td>uptime-kuma</td><td>louislam/uptime-kuma</td><td>3001</td><td>Monitoring</td></tr>
+<tr><td>grafana</td><td>grafana/grafana</td><td>3030</td><td>Observabilidad (dashboards)</td></tr>
+<tr><td>prometheus</td><td>prom/prometheus</td><td>9090</td><td>Métricas (scrape)</td></tr>
+<tr><td>loki</td><td>grafana/loki</td><td>3100</td><td>Logs centralizados</td></tr>
+<tr><td>promtail</td><td>grafana/promtail</td><td>—</td><td>Log shipper</td></tr>
+<tr><td>alegra-proxy</td><td>custom</td><td>3040</td><td>DIAN invoicing proxy</td></tr>
+<tr><td>dian-validator</td><td>custom</td><td>3050</td><td>Validador facturación</td></tr>
+<tr><td>caddy</td><td>custom</td><td>80/443</td><td>Reverse proxy + HTTPS</td></tr>
+<tr><td>app</td><td>custom (Next.js)</td><td>3000</td><td>App principal</td></tr>
+<tr><td>chat-service</td><td>custom (Bun)</td><td>3003</td><td>Socket.io server</td></tr>
+</table>
+<div class="card card-accent" style="margin-top:20px">
+<h3>Health checks</h3>
+<p>Cada servicio tiene healthcheck configurado. Caddy hace load balancing + auto-HTTPS. Uptime Kuma + Grafana monitorean todos los endpoints.</p>
+<p class="muted">GET /api/health → status consolidado de todos los servicios · build 32.3s · score 10.0/10</p>
+</div>
+</section>
+
+<!-- Slide 25: ROI Enterprise -->
+<section class="slide">
+<h1>ROI Enterprise</h1>
+<h2>Impacto medible sobre los 4 ejes</h2>
+<div class="grid grid-2">
+<div class="card card-accent">
+<h3>⚙️ Eficiencia operativa</h3>
+<ul>
+<li><strong>Perfilamiento automático:</strong> -80% tiempo de clasificación de leads</li>
+<li><strong>Cotización automática:</strong> -90% tiempo de quote + cross-sell</li>
+<li><strong>Dirección validada:</strong> -60% errores de entrega</li>
+<li><strong>Gestión operativa con SLA:</strong> -70% tiempo de gestión de incidencias</li>
+<li><strong>Automatización operativa end-to-end:</strong> 10 pasos automatizados vs manual</li>
+</ul>
+</div>
+<div class="card card-accent">
+<h3>📈 Crecimiento medible</h3>
+<ul>
+<li><strong>Menos costo por venta, más conversión:</strong> IA responde en <3s vs 15min humano</li>
+<li><strong>Cross-sell inteligente:</strong> +25% AOV con recomendaciones</li>
+<li><strong>Remarketing:</strong> +15% recuperación de carritos abandonados</li>
+<li><strong>Visual-first:</strong> +40% engagement con tarjetas de producto</li>
+</ul>
+</div>
+<div class="card card-accent">
+<h3>🎯 Trazabilidad de ingresos por canal</h3>
+<ul>
+<li><strong>ROAS real:</strong> sabe qué ads funcionan vs cuáles pierden</li>
+<li><strong>Optimización automática de inversión:</strong> verdict engine kill/scale</li>
+<li><strong>CPA medible:</strong> costo real por adquisición</li>
+<li><strong>Atribución confiable lista para auditoría:</strong> CAPI server-side +30% tracking</li>
+</ul>
+</div>
+<div class="card card-accent">
+<h3>🛡️ Gobernanza y rentabilidad</h3>
+<ul>
+<li><strong>Comisión escalonada:</strong> a mayor volumen, menor fee</li>
+<li><strong>Control de riesgo financiero:</strong> detección de devolvedores (20.5% → 5%)</li>
+<li><strong>Monetización adicional:</strong> marketplace cross-brand y trafficker affiliate</li>
+<li><strong>Crecimiento orgánico medible:</strong> SEO con tráfico gratuito creciente</li>
+</ul>
+</div>
+</div>
+</section>
+
+<!-- Slide 26: Contacto -->
+<section class="slide center">
+<div class="emoji" style="font-size:4em;margin-bottom:20px">💬</div>
+<h1>Hablemos</h1>
+<p class="big text-primary" style="font-weight:600">ZIAY está listo para tu marca</p>
+<div class="grid grid-3" style="margin-top:40px;max-width:800px">
+<div class="card"><h3>📅 Demo Personalizada</h3><p>Agenda una demo con tu catálogo real. 30 min.</p></div>
+<div class="card"><h3>🚀 Onboarding</h3><p>Activa tu marca en 24h. Importamos tu catálogo.</p></div>
+<div class="card"><h3>📞 Contacto</h3><p>ZIAY SAS<br>Bogotá, Colombia<br>ventas@ziay.co</p></div>
+</div>
+<p class="muted" style="margin-top:40px">ZIAY · Revenue Operations para Comercio Agéntico<br>La capa enterprise que convierte conversaciones, agentes y canales en ingresos trazables</p>
+</section>
+
+</div>
+
+<div class="counter" id="counter">1 / 29</div>
+<div class="nav">
+<button onclick="prev()">←</button>
+<button onclick="next()">→</button>
+</div>
+
+<script>
+let current=0;const slides=document.querySelectorAll('.slide');const total=slides.length;
+function show(n){slides[current].classList.remove('active');current=(n+total)%total;slides[current].classList.add('active');updateProgress();}
+function next(){show(current+1)}function prev(){show(current-1)}
+function updateProgress(){document.getElementById('counter').textContent=(current+1)+' / '+total;document.getElementById('progress').style.width=((current+1)/total*100)+'%';}
+document.addEventListener('keydown',e=>{if(e.key==='ArrowRight'||e.key===' ')next();if(e.key==='ArrowLeft')prev();if(e.key==='f')document.documentElement.requestFullscreen?.();});
+updateProgress();
+</script>
+</body>
+</html>

@@ -1,0 +1,1443 @@
+     1→// CommerceFlow OS — Prisma Schema (v2 · multi-tenant + Saramantha agents layer)
+     2→// Conversational Commerce + Ad Attribution + Multi-tenant Agent Platform
+     3→// Portable: SQLite (dev) -> PostgreSQL/MySQL + pgvector (prod).
+     4→// NOTE: SQLite has no native enums/arrays. We use String + constants in code.
+     5→
+     6→generator client {
+     7→  provider = "prisma-client-js"
+     8→}
+     9→
+    10→datasource db {
+    11→  provider = "sqlite"
+    12→  url      = env("DATABASE_URL")
+    13→}
+    14→
+    15→// ───────────────────────────────────────────────────────────────────────────
+    16→// 0. TENANT (clientes_plataforma) — multi-tenant core
+    17→// ───────────────────────────────────────────────────────────────────────────
+    18→model Tenant {
+    19→  id                    String   @id @default(cuid())
+    20→  // slug used in URLs and as tenantId foreign key value (e.g. "saramantha")
+    21→  slug                  String   @unique
+    22→  nombreNegocio         String
+    23→  marca                 String
+    24→  // platform_catalogo: whatsapp_catalog | woocommerce | shopify | catalogo_propio_cliente | catalogo_nuestro
+    25→  plataformaCatalogo    String   @default("whatsapp_catalog")
+    26→  // bd_catalogo: supabase_cliente | supabase_nuestro | oracle_nuestro
+    27→  bdCatalogo            String?  @default("supabase_nuestro")
+    28→  credencialesCatalogoRef String? // ref to n8n/secret manager
+    29→  // proveedor_ia: chatgpt | xai | ollama | zai (default for this stack)
+    30→  proveedorIa           String   @default("zai")
+    31→  credencialesIaRef     String?
+    32→  // proveedor_logistico: dropi | 99envios | aveonline | otro
+    33→  proveedorLogistico    String   @default("dropi")
+    34→  credencialesLogisticaRef String?
+    35→  wabaId                String?
+    36→  wabaTokenRef          String?
+    37→  // brand config (regla de oro Saramantha §2: NO business data in prompts)
+    38→  tonoMarca             String?  // e.g. "tutea, certeza total, sin disculpas"
+    39→  nombreAsesora         String?  // e.g. "Sara"
+    40→  politicaPago          String?  // "híbrido: prepay 5% off > $250k, COD debajo"
+    41→  preguntaPerfil        String?  // "¿Para ti o para surtir tu negocio?"
+    42→  // plan_monetizacion: conecta | catalogo_incluido | completo
+    43→  planMonetizacion      String   @default("conecta")
+    44→  feeBaseMensual        Float    @default(0) // COP
+    45→  comisionPctInicial    Float    @default(4.5) // % over GMV (tramo 1)
+    46→  activo                Boolean  @default(true)
+    47→  createdAt             DateTime @default(now())
+    48→  updatedAt             DateTime @updatedAt
+    49→
+    50→  users                 User[]
+    51→  channels              Channel[]
+    52→  customers             Customer[]
+    53→  conversations         Conversation[]
+    54→  products              Product[]
+    55→  orders                Order[]
+    56→  campaigns             Campaign[]
+    57→  carriers              Carrier[] // tenant-scoped canonical carriers
+    58→  salesSpeeches         SalesSpeech[]
+    59→  objections            Objection[]
+    60→  themes                ThemeDesign[]
+    61→  categoryCombos        CategoryCombo[]
+    62→  volumePrices          VolumePrice[]
+    63→  deliveryHistories     DeliveryHistory[]
+    64→  shipments             Shipment[]
+    65→  commissionEntries     CommissionEntry[]
+    66→  invoices              Invoice[]
+    67→  auditLogs             AuditLog[]
+    68→}
+    69→
+    70→// ───────────────────────────────────────────────────────────────────────────
+    71→// 1. IDENTITY & ACCESS
+    72→// ───────────────────────────────────────────────────────────────────────────
+    73→model User {
+    74→  id        String   @id @default(cuid())
+    75→  tenantId  String
+    76→  email     String   @unique
+    77→  name      String
+    78→  role      String   @default("agent") // admin | agent | trafficker | finance
+    79→  avatarUrl String?
+    80→  createdAt DateTime @default(now())
+    81→  updatedAt DateTime @updatedAt
+    82→
+    83→  tenant      Tenant        @relation(fields: [tenantId], references: [id])
+    84→  assignedConv Conversation[] @relation("AgentConvos")
+    85→  auditLogs   AuditLog[]
+    86→
+    87→  @@index([tenantId])
+    88→}
+    89→
+    90→// ───────────────────────────────────────────────────────────────────────────
+    91→// 2. CHANNELS — WhatsApp (CO primary), Messenger (intl), Instagram DM
+    92→// ───────────────────────────────────────────────────────────────────────────
+    93→model Channel {
+    94→  id           String   @id @default(cuid())
+    95→  tenantId     String
+    96→  type         String   // whatsapp | messenger | instagram | telegram
+    97→  name         String   // e.g. "WhatsApp Colombia", "Messenger Global"
+    98→  displayName  String
+    99→  accountId    String?
+   100→  verified     Boolean  @default(false)
+   101→  active       Boolean  @default(true)
+   102→  country      String?  // ISO code this channel primarily serves
+   103→  paymentStrategy String @default("hybrid")
+   104→  requirePrepayMin  Float?
+   105→  prepayDiscountPct  Float? @default(0)
+   106→  codFee            Float?  @default(0)
+   107→
+   108→  // ── Credenciales por tipo de canal (Saramantha §9.1, §9.2, §9.3) ──
+   109→  // WhatsApp Cloud API (§9.1)
+   110→  wabaId            String?  // WhatsApp Business Account ID
+   111→  phoneNumberId     String?  // Phone Number ID from Meta
+   112→  whatsappToken     String?  // Access token for WhatsApp Cloud API
+   113→  // Messenger (§9.2)
+   114→  pageId            String?  // Facebook Page ID
+   115→  pageAccessToken   String?  // Page Access Token
+   116→  // Instagram DM (§9.3)
+   117→  igAccountId       String?  // Instagram Business Account ID
+   118→  // Webhook security (all channels)
+   119→  verifyToken       String?  // Webhook verification token
+   120→  appSecret         String?  // App Secret for HMAC signature verification
+   121→
+   122→  createdAt    DateTime @default(now())
+   123→  updatedAt    DateTime @updatedAt
+   124→
+   125→  tenant        Tenant        @relation(fields: [tenantId], references: [id])
+   126→  conversations Conversation[]
+   127→
+   128→  @@index([tenantId])
+   129→  @@index([type])
+   130→}
+   131→
+   132→// ───────────────────────────────────────────────────────────────────────────
+   133→// 3. CUSTOMERS / CONTACTS
+   134→// ───────────────────────────────────────────────────────────────────────────
+   135→model Customer {
+   136→  id          String   @id @default(cuid())
+   137→  tenantId    String
+   138→  name        String
+   139→  phone       String?
+   140→  psid        String?
+   141→  igId        String?
+   142→  email       String?
+   143→  country     String?
+   144→  city        String?
+   145→  address     String?
+   146→  // Saramantha §2: perfil_detectado
+   147→  perfilDetectado String? // mayorista | emprendedor | detal | regalo
+   148→  notes       String?
+   149→  tags        String?
+   150→  lifetimeValue Float  @default(0)
+   151→  ordersCount  Int     @default(0)
+   152→  createdAt   DateTime @default(now())
+   153→  updatedAt   DateTime @updatedAt
+   154→
+   155→  tenant        Tenant         @relation(fields: [tenantId], references: [id])
+   156→  conversations Conversation[]
+   157→  orders        Order[]
+   158→
+   159→  @@index([tenantId])
+   160→  @@index([phone])
+   161→}
+   162→
+   163→// ───────────────────────────────────────────────────────────────────────────
+   164→// 4. CONVERSATIONS & MESSAGES
+   165→// ───────────────────────────────────────────────────────────────────────────
+   166→model Conversation {
+   167→  id          String   @id @default(cuid())
+   168→  tenantId    String
+   169→  customerId  String
+   170→  channelId   String
+   171→  status      String   @default("open") // open | pending | resolved | closed
+   172→  priority    String   @default("normal")
+   173→  assigneeId  String?
+   174→  lastMessageAt DateTime @default(now())
+   175→  unreadCount Int      @default(0)
+   176→  sourceAdId      String?
+   177→  sourceCampaign  String?
+   178→  utm             String?
+   179→  // Saramantha §2: perfil determinado en la conversación
+   180→  perfilConversacion String? // mayorista | emprendedor | detal | regalo
+   181→  createdAt   DateTime @default(now())
+   182→  updatedAt   DateTime @updatedAt
+   183→
+   184→  tenant      Tenant @relation(fields: [tenantId], references: [id])
+   185→  customer    Customer @relation(fields: [customerId], references: [id])
+   186→  channel     Channel  @relation(fields: [channelId], references: [id])
+   187→  assignee    User?    @relation("AgentConvos", fields: [assigneeId], references: [id])
+   188→  messages    Message[]
+   189→  orders      Order[]
+   190→
+   191→  @@index([tenantId])
+   192→  @@index([channelId])
+   193→  @@index([customerId])
+   194→  @@index([assigneeId])
+   195→  @@index([status])
+   196→  @@index([updatedAt])
+   197→}
+   198→
+   199→model Message {
+   200→  id             String   @id @default(cuid())
+   201→  tenantId       String
+   202→  conversationId String
+   203→  direction      String   // inbound | outbound
+   204→  body           String
+   205→  type           String   @default("text") // text | image | audio | template | order_card | payment_link
+   206→  mediaUrl       String?
+   207→  status         String   @default("sent")
+   208→  aiSuggested    Boolean  @default(false)
+   209→  aiConfidence   Float?
+   210→  // Saramantha §3: embedding for semantic memory (Bytes in SQLite, vector in PG)
+   211→  embedding      Bytes?
+   212→  createdAt      DateTime @default(now())
+   213→
+   214→  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+   215→
+   216→  @@index([tenantId])
+   217→  @@index([conversationId])
+   218→  @@index([createdAt])
+   219→}
+   220→
+   221→// ───────────────────────────────────────────────────────────────────────────
+   222→// 5. CATALOG & ORDERS
+   223→// ───────────────────────────────────────────────────────────────────────────
+   224→model Product {
+   225→  id          String   @id @default(cuid())
+   226→  tenantId    String
+   227→  sku         String
+   228→  name        String
+   229→  description String?
+   230→  price       Float
+   231→  cost        Float    @default(0)
+   232→  imageUrl    String?
+   233→  stock       Int      @default(0)
+   234→  active      Boolean  @default(true)
+   235→  // Saramantha §2: design + theme
+   236→  diseno      String?  // e.g. "Stitch", "Hello Kitty"
+   237→  categoria   String?  // e.g. "familia", "short", "pantalon", "batola"
+   238→  // Saramantha §2: image with visible metadata stripe
+   239→  imagenMetadataVisible Boolean @default(true)
+   240→  fuenteSincronizacion  String? // whatsapp_catalog | woocommerce | shopify | supabase_cliente | supabase_nuestro | oracle_nuestro
+   241→  // embeddings (Bytes in SQLite; in PG use vector type via Unsupported)
+   242→  embeddingTexto Bytes?
+   243→  embeddingVisual Bytes?
+   244→  createdAt   DateTime @default(now())
+   245→  updatedAt   DateTime @updatedAt
+   246→
+   247→  tenant      Tenant     @relation(fields: [tenantId], references: [id])
+   248→  orderItems  OrderItem[]
+   249→  volumePrices VolumePrice[]
+   250→
+   251→  @@unique([tenantId, sku])
+   252→  @@index([tenantId])
+   253→  @@index([active])
+   254→}
+   255→
+   256→model Order {
+   257→  id           String   @id @default(cuid())
+   258→  tenantId     String
+   259→  number       String   @unique
+   260→  customerId   String
+   261→  conversationId String?
+   262→  channelId    String?
+   263→  status       String   @default("new")
+   264→  // pending_payment | paid | preparing | shipped | delivered | returned | cancelled
+   265→  // Saramantha §10 Kanban: "Llamar para confirmar" | "Datos completados" | "Intento cancelación" | "Oficina" | "Programado" | "Despachado"
+   266→  paymentMode  String   // advance | cod | hybrid
+   267→  paymentStatus String  @default("unpaid")
+   268→  subtotal     Float
+   269→  discount     Float    @default(0)
+   270→  shipping     Float    @default(0)
+   271→  codFee       Float    @default(0)
+   272→  total        Float
+   273→  currency     String   @default("COP")
+   274→  country      String?
+   275→  city         String?
+   276→  address      String?
+   277→  // Saramantha §2: imagen_referencia_url
+   278→  imagenReferenciaUrl String?
+   279→  // Saramantha §2: origen (CRITICAL for monetization §17.6)
+   280→  origen       String   @default("agente_whatsapp") // agente_whatsapp | carrito_web | otro
+   281→  sourceAdId       String?
+   282→  sourceCampaign   String?
+   283→  sourcePlatform   String?
+   284→  clickId          String?
+   285→  attributedAt     DateTime?
+   286→  paymentGateway   String?
+   287→  paymentRef       String?
+   288→  paidAt           DateTime?
+   289→  createdAt        DateTime @default(now())
+   290→  updatedAt        DateTime @updatedAt
+   291→
+   292→  tenant      Tenant       @relation(fields: [tenantId], references: [id])
+   293→  customer      Customer     @relation(fields: [customerId], references: [id])
+   294→  conversation  Conversation? @relation(fields: [conversationId], references: [id])
+   295→  sourceAd      Ad?           @relation(fields: [sourceAdId], references: [id])
+   296→  items         OrderItem[]
+   297→  events        OrderEvent[]
+   298→  shipments     Shipment[]
+   299→  commissionEntries CommissionEntry[]
+   300→
+   301→  @@index([tenantId])
+   302→  @@index([customerId])
+   303→  @@index([conversationId])
+   304→  @@index([sourceAdId])
+   305→  @@index([status])
+   306→  @@index([createdAt])
+   307→}
+   308→
+   309→model OrderItem {
+   310→  id        String @id @default(cuid())
+   311→  orderId   String
+   312→  productId String
+   313→  name      String
+   314→  unitPrice Float
+   315→  cost      Float
+   316→  quantity  Int
+   317→  diseno    String? // Saramantha: design variant per item
+   318→
+   319→  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+   320→  product Product @relation(fields: [productId], references: [id])
+   321→}
+   322→
+   323→model OrderEvent {
+   324→  id        String   @id @default(cuid())
+   325→  orderId   String
+   326→  type      String   // created | paid | shipped | delivered | cancelled | refunded | cod_pending
+   327→  note      String?
+   328→  createdAt DateTime @default(now())
+   329→
+   330→  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+   331→
+   332→  @@index([orderId])
+   333→  @@index([createdAt])
+   334→}
+   335→
+   336→// ───────────────────────────────────────────────────────────────────────────
+   337→// 5.1 Saramantha §2 — pricing & discourse tables (per tenant)
+   338→// ───────────────────────────────────────────────────────────────────────────
+   339→model VolumePrice {
+   340→  id           String @id @default(cuid())
+   341→  tenantId     String
+   342→  productId    String
+   343→  sku          String // denormalized for convenience
+   344→  tipoCliente  String // mayorista | emprendedor | detal | regalo
+   345→  cantidadMinima Int
+   346→  cantidadMaxima Int
+   347→  precioUnitario Float
+   348→
+   349→  tenant  Tenant  @relation(fields: [tenantId], references: [id])
+   350→  product Product @relation(fields: [productId], references: [id])
+   351→
+   352→  @@unique([tenantId, productId, tipoCliente, cantidadMinima])
+   353→  @@index([tenantId, productId])
+   354→}
+   355→
+   356→model SalesSpeech {
+   357→  id           String @id @default(cuid())
+   358→  tenantId     String
+   359→  perfil       String // mayorista | emprendedor | detal | regalo
+   360→  aperturaTexto String
+   361→  pruebaSocial String?
+   362→
+   363→  tenant Tenant @relation(fields: [tenantId], references: [id])
+   364→
+   365→  @@unique([tenantId, perfil])
+   366→  @@index([tenantId])
+   367→}
+   368→
+   369→model Objection {
+   370→  id           String @id @default(cuid())
+   371→  tenantId     String
+   372→  tipoObjecion String // desconfianza | precio | talla | lo_pienso | producto_no_disponible
+   373→  respuestaBase String
+   374→  gatilloMentalAsociado String?
+   375→
+   376→  tenant Tenant @relation(fields: [tenantId], references: [id])
+   377→
+   378→  @@unique([tenantId, tipoObjecion])
+   379→  @@index([tenantId])
+   380→}
+   381→
+   382→model ThemeDesign {
+   383→  id           String @id @default(cuid())
+   384→  tenantId     String
+   385→  tema         String // "Stitch", "Hello Kitty"
+   386→  nombreDiseno String?
+   387→  skusAsociados String // comma-separated SKUs (SQLite no arrays)
+   388→
+   389→  tenant Tenant @relation(fields: [tenantId], references: [id])
+   390→
+   391→  @@unique([tenantId, tema])
+   392→  @@index([tenantId])
+   393→}
+   394→
+   395→model CategoryCombo {
+   396→  id           String @id @default(cuid())
+   397→  tenantId     String
+   398→  categoria    String // "familia", "short", etc.
+   399→  skusRecomendados String // comma-separated, min 3 distinct refs
+   400→
+   401→  tenant Tenant @relation(fields: [tenantId], references: [id])
+   402→
+   403→  @@unique([tenantId, categoria])
+   404→  @@index([tenantId])
+   405→}
+   406→
+   407→model DeliveryHistory {
+   408→  id           String @id @default(cuid())
+   409→  tenantId     String
+   410→  contactoId   String?
+   411→  direccionNormalizada String
+   412→  ciudad       String
+   413→  departamento String?
+   414→  resultadoEntregaAnterior String? // ok | rechazo | novedad
+   415→
+   416→  tenant Tenant @relation(fields: [tenantId], references: [id])
+   417→
+   418→  @@index([tenantId])
+   419→}
+   420→
+   421→model ImageIdentification {
+   422→  id           String @id @default(cuid())
+   423→  tenantId     String
+   424→  contactoId   String?
+   425→  imagenUrl    String
+   426→  skuDetectado String?
+   427→  metodo       String // ocr | openclip | vlm | manual
+   428→  confianza    Float  @default(0)
+   429→
+   430→  createdAt DateTime @default(now())
+   431→
+   432→  @@index([tenantId])
+   433→}
+   434→
+   435→// ───────────────────────────────────────────────────────────────────────────
+   436→// 6. AD ATTRIBUTION & PERFORMANCE
+   437→// ───────────────────────────────────────────────────────────────────────────
+   438→model AdPlatform {
+   439→  id          String  @id @default(cuid())
+   440→  name        String  @unique
+   441→  displayName String
+   442→  accountId   String?
+   443→  accessToken String?
+   444→  active      Boolean @default(true)
+   445→  createdAt   DateTime @default(now())
+   446→
+   447→  campaigns Campaign[]
+   448→}
+   449→
+   450→model Campaign {
+   451→  id          String   @id @default(cuid())
+   452→  tenantId    String
+   453→  platformId  String
+   454→  externalId  String
+   455→  name        String
+   456→  objective   String?
+   457→  budgetDaily Float?
+   458→  currency    String   @default("COP")
+   459→  status      String   @default("active")
+   460→  country     String?
+   461→  createdAt   DateTime @default(now())
+   462→  updatedAt   DateTime @updatedAt
+   463→
+   464→  tenant   Tenant      @relation(fields: [tenantId], references: [id])
+   465→  platform AdPlatform  @relation(fields: [platformId], references: [id])
+   466→  ads      Ad[]
+   467→
+   468→  @@index([tenantId])
+   469→  @@index([platformId])
+   470→}
+   471→
+   472→model Ad {
+   473→  id           String   @id @default(cuid())
+   474→  campaignId   String
+   475→  externalId   String   @unique
+   476→  name         String
+   477→  creative     String?
+   478→  status       String   @default("active")
+   479→  autoKill     Boolean  @default(false)
+   480→  killReason   String?
+   481→  createdAt    DateTime @default(now())
+   482→  updatedAt    DateTime @updatedAt
+   483→
+   484→  campaign    Campaign     @relation(fields: [campaignId], references: [id])
+   485→  spend       AdSpend[]
+   486→  attributions Attribution[]
+   487→  orders      Order[]
+   488→
+   489→  @@index([campaignId])
+   490→}
+   491→
+   492→model AdSpend {
+   493→  id        String   @id @default(cuid())
+   494→  adId      String
+   495→  date      DateTime
+   496→  spend     Float
+   497→  impressions Int
+   498→  clicks    Int
+   499→  convReported Int    @default(0)
+   500→  createdAt DateTime @default(now())
+   501→
+   502→  ad Ad @relation(fields: [adId], references: [id], onDelete: Cascade)
+   503→
+   504→  @@unique([adId, date])
+   505→  @@index([adId])
+   506→  @@index([date])
+   507→}
+   508→
+   509→model Attribution {
+   510→  id        String   @id @default(cuid())
+   511→  orderId   String
+   512→  adId      String
+   513→  weight    Float    @default(1.0)
+   514→  model     String   @default("last_click")
+   515→  touch     String?
+   516→  createdAt DateTime @default(now())
+   517→
+   518→  ad Ad @relation(fields: [adId], references: [id])
+   519→}
+   520→
+   521→// ───────────────────────────────────────────────────────────────────────────
+   522→// 7. LOGISTICS — LogisticsAdapter backing tables (Saramantha §2, §8.6)
+   523→// ───────────────────────────────────────────────────────────────────────────
+   524→model Carrier {
+   525→  // Canonical carrier names per tenant — normalizes the 6 variants of "Interrapidísimo"
+   526→  id         String @id @default(cuid())
+   527→  tenantId   String
+   528→  nombreCanonico   String // "Interrapidísimo"
+   529→  variantes         String // comma-separated: "Interrapidisimo,interrapidisimo,Interrapidicimo,..."
+   530→  cobertura         String @default("nacional") // nacional | internacional
+   531→
+   532→  tenant Tenant @relation(fields: [tenantId], references: [id])
+   533→
+   534→  @@unique([tenantId, nombreCanonico])
+   535→  @@index([tenantId])
+   536→}
+   537→
+   538→model Shipment {
+   539→  id              String @id @default(cuid())
+   540→  tenantId        String
+   541→  orderId         String
+   542→  proveedor       String // dropi | 99envios | aveonline
+   543→  numeroGuia      String?
+   544→  urlSeguimiento  String?
+   545→  transportadora  String? // raw from provider
+   546→  transportadoraCanonica String? // normalized via Carrier
+   547→  tarifa          Float @default(0)
+   548→  tiempoEstimadoDias Int?
+   549→  estado          String @default("generada") // generada | en_transito | entregada | novedad | devuelta
+   550→  novedad         String?
+   551→  createdAt       DateTime @default(now())
+   552→  updatedAt       DateTime @updatedAt
+   553→
+   554→  tenant Tenant @relation(fields: [tenantId], references: [id])
+   555→  order  Order  @relation(fields: [orderId], references: [id])
+   556→
+   557→  @@index([tenantId])
+   558→  @@index([orderId])
+   559→}
+   560→
+   561→// ───────────────────────────────────────────────────────────────────────────
+   562→// 8. MONETIZATION (Saramantha §17) — commission over GMV
+   563→// ───────────────────────────────────────────────────────────────────────────
+   564→model CommissionEntry {
+   565→  id              String @id @default(cuid())
+   566→  tenantId        String
+   567→  orderId         String
+   568→  gmv             Float // order.total at confirmation
+   569→  comisionPct     Float // e.g. 4.5
+   570→  comisionTotal   Float // gmv * pct / 100
+   571→  reconocidaPct   Float @default(50) // 50 at "Datos completados", 100 at "Despachado"
+   572→  reconocidaMonto Float // comisionTotal * reconocidaPct / 100
+   573→  etapaReconocimiento String? // datos_completados | despachado
+   574→  reconocidaAt    DateTime?
+   575→  createdAt       DateTime @default(now())
+   576→
+   577→  tenant Tenant @relation(fields: [tenantId], references: [id])
+   578→  order  Order  @relation(fields: [orderId], references: [id])
+   579→
+   580→  @@index([tenantId])
+   581→  @@index([orderId])
+   582→}
+   583→
+   584→model Invoice {
+   585→  id              String @id @default(cuid())
+   586→  tenantId        String
+   587→  periodo         String // "2026-07"
+   588→  gmvTotal        Float
+   589→  feeBase         Float
+   590→  comisionTotal   Float
+   591→  tramoAplicado   String // "0-10M" | "10-40M" | "40M+"
+   592→  total           Float // feeBase + comisionTotal
+   593→  estado          String @default("borrador") // borrador | emitida | pagada
+   594→  emitidaAt       DateTime?
+   595→  pagadaAt        DateTime?
+   596→  createdAt       DateTime @default(now())
+   597→
+   598→  tenant Tenant @relation(fields: [tenantId], references: [id])
+   599→
+   600→  @@index([tenantId])
+   601→}
+   602→
+   603→// ───────────────────────────────────────────────────────────────────────────
+   604→// 9. AUTOMATION & SETTINGS
+   605→// ───────────────────────────────────────────────────────────────────────────
+   606→model AutomationRule {
+   607→  id        String   @id @default(cuid())
+   608→  tenantId  String?
+   609→  name      String
+   610→  trigger   String   // new_conversation | keyword | order_created | ad_underperforming
+   611→  condition String?
+   612→  action    String   // auto_reply | tag | assign | pause_ad | notify
+   613→  active    Boolean  @default(true)
+   614→  createdAt DateTime @default(now())
+   615→}
+   616→
+   617→model Setting {
+   618→  id    String @id @default(cuid())
+   619→  key   String @unique
+   620→  value String
+   621→}
+   622→
+   623→model AuditLog {
+   624→  id        String   @id @default(cuid())
+   625→  tenantId  String?
+   626→  userId    String?
+   627→  action    String
+   628→  entity    String
+   629→  entityId  String?
+   630→  meta      String?
+   631→  createdAt DateTime @default(now())
+   632→
+   633→  tenant Tenant? @relation(fields: [tenantId], references: [id])
+   634→  user   User?   @relation(fields: [userId], references: [id])
+   635→
+   636→  @@index([tenantId])
+   637→  @@index([createdAt])
+   638→  @@index([userId])
+   639→}
+   640→
+   641→// ───────────────────────────────────────────────────────────────────────────
+   642→// 10. LOGISTICS INTELLIGENCE — Customer scores, carrier scores, guide tracking
+   643→// ───────────────────────────────────────────────────────────────────────────
+   644→
+   645→// Customer delivery score (from Dropi huella digital) — §15 analysis shows 20.5% devolvedores
+   646→model CustomerScore {
+   647→  id              String  @id @default(cuid())
+   648→  tenantId        String
+   649→  customerId      String?
+   650→  phone           String  // phone is the key in Dropi
+   651→  totalPedidos    Int     @default(0)
+   652→  pedidosEntregados Int   @default(0)
+   653→  pedidosDevueltos Int    @default(0)
+   654→  scoreEntrega    Float   @default(0) // 0-100%, 0% = devolvedor, 100% = confiable
+   655→  nivelRiesgo     String  @default("normal") // confiable | normal | riesgo | devolvedor
+   656→  ultimaActualizacion DateTime @default(now())
+   657→
+   658→  @@unique([tenantId, phone])
+   659→  @@index([tenantId])
+   660→}
+   661→
+   662→// Carrier effectiveness score (torre logística) — effectiveness by transportadora
+   663→model CarrierScore {
+   664→  id              String  @id @default(cuid())
+   665→  tenantId        String
+   666→  carrierName     String  // canonical name (Interrapidísimo, TCC, etc.)
+   667→  totalGuias      Int     @default(0)
+   668→  guiasEntregadas Int     @default(0)
+   669→  guiasDevueltas  Int     @default(0)
+   670→  guiasSinMovimiento Int  @default(0)
+   671→  efectividad     Float   @default(0) // 0-100%
+   672→  tarifaPromedio  Float   @default(0)
+   673→  diasPromedio    Float   @default(0)
+   674→  ultimaActualizacion DateTime @default(now())
+   675→
+   676→  @@unique([tenantId, carrierName])
+   677→  @@index([tenantId])
+   678→}
+   679→
+   680→// Guide tracking — individual shipment status tracking
+   681→model GuideTracking {
+   682→  id              String  @id @default(cuid())
+   683→  tenantId        String
+   684→  orderId         String?
+   685→  numeroGuia      String
+   686→  carrierName     String?
+   687→  carrierCanonica String?
+   688→  estado          String  @default("generada") // generada | en_transito | entregada | devuelta | sin_movimiento | no_recibida_transportadora
+   689→  ultimoMovimiento DateTime?
+   690→  diasSinMovimiento Int   @default(0)
+   691→  alertaEnviada   Boolean @default(false)
+   692→  notas           String?
+   693→  createdAt       DateTime @default(now())
+   694→  updatedAt       DateTime @updatedAt
+   695→
+   696→  @@index([tenantId])
+   697→  @@index([numeroGuia])
+   698→}
+   699→
+   700→// ───────────────────────────────────────────────────────────────────────────
+   701→// 11. MARKETPLACE CONVERSACIONAL COLABORATIVO
+   702→// ───────────────────────────────────────────────────────────────────────────
+   703→
+   704→// Products shared across tenants in the collaborative marketplace
+   705→model MarketplaceListing {
+   706→  id              String  @id @default(cuid())
+   707→  tenantId        String  // owner tenant
+   708→  productId       String?
+   709→  sku             String
+   710→  name            String
+   711→  description     String?
+   712→  price           Float
+   713→  imageUrl        String?
+   714→  diseno          String?
+   715→  categoria       String?
+   716→  stock           Int     @default(0)
+   717→  activo          Boolean @default(true)
+   718→  createdAt       DateTime @default(now())
+   719→
+   720→  @@index([tenantId])
+   721→  @@index([activo])
+   722→}
+   723→
+   724→// Lead sharing config — tenant authorizes sharing leads with marketplace
+   725→model LeadShareConfig {
+   726→  id              String  @id @default(cuid())
+   727→  tenantId        String  @unique
+   728→  compartirLeads  Boolean @default(false) // authorized to share traffic/leads
+   729→  recibirLeads    Boolean @default(false) // authorized to receive leads from others
+   730→  comisionLeadShare Float @default(5) // % commission when a lead converts via marketplace
+   731→  createdAt       DateTime @default(now())
+   732→  updatedAt       DateTime @updatedAt
+   733→}
+   734→
+   735→// Cross-tenant lead referral — when a customer asks for a product not in tenant A,
+   736→// but tenant B has it, the agent suggests tenant B
+   737→model LeadReferral {
+   738→  id              String  @id @default(cuid())
+   739→  fromTenantId    String  // tenant that received the lead but doesn't have the product
+   740→  toTenantId      String  // tenant that has the product
+   741→  customerId      String?
+   742→  phone           String
+   743→  productSku      String  // the product the customer asked for
+   744→  productName     String
+   745→  status          String  @default("referred") // referred | contacted | converted | lost
+   746→  comisionPct     Float   @default(5)
+   747→  createdAt       DateTime @default(now())
+   748→
+   749→  @@index([fromTenantId])
+   750→  @@index([toTenantId])
+   751→}
+   752→
+   753→// ───────────────────────────────────────────────────────────────────────────
+   754→// 12. REMARKETING — recordatorios, recuperación de carrito, re-engagement
+   755→// Datos reales: 0% de los 263 pedidos tiene remarketing enviado. Brecha crítica.
+   756→// ───────────────────────────────────────────────────────────────────────────
+   757→
+   758→model RemarketingCampaign {
+   759→  id              String  @id @default(cuid())
+   760→  tenantId        String
+   761→  name            String
+   762→  type            String  // cart_recovery | reminder_1 | reminder_2 | winback | no_show
+   763→  trigger         String  // abandoned_cart | no_response_24h | no_response_48h | delivered_no_reorder_30d | cancelled
+   764→  delayHours      Int     @default(24) // hours after trigger to send
+   765→  template        String  // message template with variables {{name}}, {{product}}, {{price}}
+   766→  active          Boolean @default(true)
+   767→  channels        String  @default("whatsapp") // comma-separated: whatsapp,messenger,instagram
+   768→  statsSent       Int     @default(0)
+   769→  statsConverted  Int     @default(0)
+   770→  createdAt       DateTime @default(now())
+   771→  updatedAt       DateTime @updatedAt
+   772→
+   773→  @@index([tenantId])
+   774→  @@index([active])
+   775→}
+   776→
+   777→model RemarketingMessage {
+   778→  id              String  @id @default(cuid())
+   779→  tenantId        String
+   780→  campaignId      String?
+   781→  customerId      String?
+   782→  phone           String
+   783→  conversationId  String?
+   784→  type            String  // cart_recovery | reminder_1 | reminder_2 | winback | no_show
+   785→  status          String  @default("pending") // pending | sent | delivered | read | converted | failed
+   786→  body            String
+   787→  scheduledAt     DateTime
+   788→  sentAt          DateTime?
+   789→  convertedAt     DateTime?
+   790→  createdAt       DateTime @default(now())
+   791→
+   792→  @@index([tenantId])
+   793→  @@index([status])
+   794→  @@index([scheduledAt])
+   795→}
+   796→
+   797→// ───────────────────────────────────────────────────────────────────────────
+   798→// 13. NOVEDADES — CRM de incidencias logísticas con escalación humana
+   799→// ───────────────────────────────────────────────────────────────────────────
+   800→
+   801→model NovedadCase {
+   802→  id              String  @id @default(cuid())
+   803→  tenantId        String
+   804→  caseNumber      String  @unique // NV-2026-00001
+   805→  orderId         String?
+   806→  customerId      String?
+   807→  phone           String
+   808→  customerName    String
+   809→  guideNumber     String?
+   810→  carrierName     String?
+   811→  type            String  // lost | damaged | wrong_product | delayed | not_delivered | returned | other
+   812→  priority        String  @default("normal") // low | normal | high | urgent
+   813→  status          String  @default("open") // open | evidence_required | under_review | assigned | resolved | closed | escalated_human
+   814→  description     String
+   815→  // Anti-alucinación: validación de que el pedido pertenece al tenant
+   816→  orderValidated  Boolean @default(false)
+   817→  orderValidationNote String?
+   818→  // Escalación humana obligatoria para compensación/reposición
+   819→  requiresHuman   Boolean @default(false)
+   820→  humanAssignedTo String? // user ID del agente humano
+   821→  carrierRepAssignedTo String? // user ID del representante de la transportadora
+   822→  resolution      String? // replacement | compensation | refund | no_action | other
+   823→  resolutionNote  String?
+   824→  compensationAmount Float?
+   825→  resolvedAt      DateTime?
+   826→  closedAt        DateTime?
+   827→  createdAt       DateTime @default(now())
+   828→  updatedAt       DateTime @updatedAt
+   829→
+   830→  evidence        NovedadEvidence[]
+   831→  messages        NovedadMessage[]
+   832→
+   833→  @@index([tenantId])
+   834→  @@index([status])
+   835→  @@index([carrierName])
+   836→  @@index([createdAt])
+   837→}
+   838→
+   839→model NovedadEvidence {
+   840→  id              String  @id @default(cuid())
+   841→  caseId          String
+   842→  type            String  // photo | video | guide_photo | screenshot | document
+   843→  url             String
+   844→  description     String?
+   845→  uploadedBy      String  // customer | agent | carrier_rep | system
+   846→  validated       Boolean @default(false)
+   847→  createdAt       DateTime @default(now())
+   848→
+   849→  novedadCase     NovedadCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+   850→}
+   851→
+   852→model NovedadMessage {
+   853→  id              String  @id @default(cuid())
+   854→  caseId          String
+   855→  authorRole      String  // customer | agent | carrier_rep | system | ai
+   856→  authorName      String?
+   857→  body            String
+   858→  internal        Boolean @default(false) // nota interna (no visible al cliente)
+   859→  createdAt       DateTime @default(now())
+   860→
+   861→  novedadCase     NovedadCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+   862→}
+   863→
+   864→// ───────────────────────────────────────────────────────────────────────────
+   865→// 14. REINTENTO DE ENTREGA + HISTORIAL DE MOVIMIENTOS DE GUÍA
+   866→// ───────────────────────────────────────────────────────────────────────────
+   867→
+   868→// Historial de movimientos de una guía (cada evento de la transportadora)
+   869→model GuideMovement {
+   870→  id              String  @id @default(cuid())
+   871→  tenantId        String
+   872→  guideNumber     String
+   873→  carrierName     String?
+   874→  eventType       String  // created | picked_up | in_transit | out_for_delivery | delivery_attempt | delivered | returned | held_at_office | address_correction_requested | redelivery_scheduled | cancelled
+   875→  description     String?
+   876→  location        String?
+   877→  timestamp       DateTime @default(now())
+   878→  raw_data        String? // JSON crudo del webhook de la transportadora
+   879→  createdAt       DateTime @default(now())
+   880→
+   881→  @@index([tenantId, guideNumber])
+   882→}
+   883→
+   884→// Solicitud de reintento de entrega
+   885→model RedeliveryRequest {
+   886→  id              String  @id @default(cuid())
+   887→  tenantId        String
+   888→  caseId          String? // link to NovedadCase if originated from a novedad
+   889→  orderId         String?
+   890→  guideNumber     String
+   891→  carrierName     String?
+   892→  customerPhone   String
+   893→  customerName    String
+   894→  originalAddress String
+   895→  confirmedAddress String? // dirección confirmada por el cliente (puede ser diferente)
+   896→  preferredTimeframe String? // morning | afternoon | evening | specific
+   897→  preferredDate   DateTime?
+   898→  status          String  @default("pending_customer") // pending_customer | address_confirmed | scheduled | in_progress | delivered | failed | cancelled
+   899→  reason          String  // not_present | wrong_address | customer_traveling | not_informed | product_dislike | insufficient_funds | other
+   900→  reasonNote      String? // detalle del motivo
+   901→  requiresHumanAction Boolean @default(true) // siempre requiere agente humano para confirmar
+   902→  humanAssignedTo String?
+   903→  attemptNumber   Int     @default(1) // intento actual (1, 2, 3...)
+   904→  maxAttempts     Int     @default(3)
+   905→  scheduledAt     DateTime?
+   906→  confirmedAt     DateTime?
+   907→  completedAt     DateTime?
+   908→  createdAt       DateTime @default(now())
+   909→  updatedAt       DateTime @updatedAt
+   910→
+   911→  attempts        RedeliveryAttempt[]
+   912→
+   913→  @@index([tenantId])
+   914→  @@index([status])
+   915→}
+   916→
+   917→// Cada intento de reintento de entrega
+   918→model RedeliveryAttempt {
+   919→  id              String  @id @default(cuid())
+   920→  redeliveryId    String
+   921→  attemptNumber   Int
+   922→  scheduledDate   DateTime
+   923→  timeframe       String  // morning | afternoon | evening
+   924→  status          String  @default("scheduled") // scheduled | in_progress | delivered | failed | customer_not_present | wrong_address | cancelled
+   925→  carrierResponse String?
+   926→  agentNote       String? // nota del agente humano que gestionó
+   927→  createdAt       DateTime @default(now())
+   928→  updatedAt       DateTime @updatedAt
+   929→
+   930→  redelivery      RedeliveryRequest @relation(fields: [redeliveryId], references: [id], onDelete: Cascade)
+   931→}
+   932→
+   933→// ───────────────────────────────────────────────────────────────────────────
+   934→// 15. INTELIGENCIA DE COMPRA — malos hábitos, carrito conversacional, enriquecimiento
+   935→// ───────────────────────────────────────────────────────────────────────────
+   936→
+   937→// Rastreo de hábitos de compra por cliente (patrones de mal comportamiento)
+   938→model BuyerBehavior {
+   939→  id              String  @id @default(cuid())
+   940→  tenantId        String
+   941→  customerId      String?
+   942→  phone           String
+   943→  totalOrders     Int     @default(0)
+   944→  totalDelivered  Int     @default(0)
+   945→  totalReturned   Int     @default(0)
+   946→  totalCancelled  Int     @default(0)
+   947→  // Patrones detectados
+   948→  crossStoreOrdering Boolean @default(false) // pide el mismo producto en múltiples tiendas
+   949→  selectiveReturn     Boolean @default(false) // recibe uno, devuelve los demás
+   950→  highReturnRate      Boolean @default(false) // tasa de devolución > 50%
+   951→  chronicCancellation Boolean @default(false) // cancela frecuentemente después de confirmar
+   952→  codAbuse            Boolean @default(false) // usa COD sistemáticamente y devuelve
+   953→  // Score de riesgo (0-100, 100 = máximo riesgo)
+   954→  riskScore       Float   @default(0)
+   955→  riskLevel       String  @default("normal") // normal | caution | high_risk | blacklist
+   956→  // Protocolo activado
+   957→  activeProtocol  String? // require_prepay | require_confirmation | manual_review | block_cod | blacklist
+   958→  protocolActivatedAt DateTime?
+   959→  // Datos del patrón
+   960→  patternDetails  String? // JSON con detalles del patrón detectado
+   961→  lastAnalyzedAt  DateTime?
+   962→  alerts         BehaviorAlert[]
+   963→  createdAt       DateTime @default(now())
+   964→  updatedAt       DateTime @updatedAt
+   965→
+   966→  @@unique([tenantId, phone])
+   967→  @@index([tenantId])
+   968→}
+   969→
+   970→// Alerta de mal comportamiento (se dispara cuando se detecta un patrón)
+   971→model BehaviorAlert {
+   972→  id              String  @id @default(cuid())
+   973→  tenantId        String
+   974→  buyerBehaviorId String
+   975→  customerId      String?
+   976→  phone           String
+   977→  alertType       String  // cross_store_ordering | selective_return | high_return_rate | chronic_cancellation | cod_abuse
+   978→  severity        String  @default("warning") // info | warning | critical | block
+   979→  description     String
+   980→  recommendedAction String // require_prepay | require_confirmation | manual_review | block_cod | blacklist
+   981→  status          String  @default("active") // active | acknowledged | resolved | dismissed
+   982→  resolvedBy      String? // user ID del agente humano
+   983→  resolvedNote    String?
+   984→  resolvedAt      DateTime?
+   985→  createdAt       DateTime @default(now())
+   986→
+   987→  buyerBehavior   BuyerBehavior @relation(fields: [buyerBehaviorId], references: [id])
+   988→
+   989→  @@index([tenantId])
+   990→  @@index([buyerBehaviorId])
+   991→}
+   992→
+   993→// Carrito conversacional — construido desde chat, no desde catálogo web
+   994→model ConversationalCart {
+   995→  id              String  @id @default(cuid())
+   996→  tenantId        String
+   997→  customerId      String?
+   998→  phone           String
+   999→  conversationId  String?
+  1000→  status          String  @default("building") // building | confirmed | converted_to_order | abandoned
+  1001→  totalItems      Int     @default(0)
+  1002→  totalValue      Float   @default(0)
+  1003→  items           CartItem[]
+  1004→  createdAt       DateTime @default(now())
+  1005→  updatedAt       DateTime @updatedAt
+  1006→
+  1007→  @@index([tenantId])
+  1008→  @@index([conversationId])
+  1009→}
+  1010→
+  1011→// Items del carrito conversacional
+  1012→model CartItem {
+  1013→  id              String  @id @default(cuid())
+  1014→  cartId          String
+  1015→  productId       String?
+  1016→  sku             String
+  1017→  name            String
+  1018→  price           Float
+  1019→  quantity        Int
+  1020→  imageUrl        String?
+  1021→  diseno          String?
+  1022→  // Cómo se identificó: agent_suggestion | customer_screenshot | customer_description | vision_identified
+  1023→  identificationMethod String @default("agent_suggestion")
+  1024→  // Si fue identificado por visión, nivel de confianza
+  1025→  visionConfidence Float?
+  1026→  confirmed       Boolean @default(false) // confirmado por el cliente
+  1027→  createdAt       DateTime @default(now())
+  1028→
+  1029→  cart            ConversationalCart @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  1030→}
+  1031→
+  1032→// Enriquecimiento de producto por imagen (tags + keywords + BI)
+  1033→model ProductEnrichment {
+  1034→  id              String  @id @default(cuid())
+  1035→  tenantId        String
+  1036→  productId       String?
+  1037→  sku             String
+  1038→  imageUrl        String
+  1039→  // Tags generados por VLM
+  1040→  tags            String  // comma-separated: "stitch,azul,short,tela-fria,verano"
+  1041→  keywords        String  // comma-separated: search keywords
+  1042→  colors          String  // comma-separated: blue,white,red
+  1043→  productType     String? // short | pantalon | batola | camiseta | etc
+  1044→  patterns        String? // stitch,hello-kitty,liso,rayas,etc
+  1045→  materials       String? // tela-fria,algodon,poliester
+  1046→  seasons         String? // verano,invierno,primavera
+  1047→  targetAudience  String? // ninos,adultos,mujeres,hombres
+  1048→  measurements    String? // JSON con medidas si detecta
+  1049→  // Calidad del enriquecimiento
+  1050→  enrichmentScore Float   @default(0) // 0-1, qué tan completo está
+  1051→  enrichedBy      String  @default("vlm") // vlm | manual | system
+  1052→  createdAt       DateTime @default(now())
+  1053→  updatedAt       DateTime @updatedAt
+  1054→
+  1055→  @@unique([tenantId, sku])
+  1056→  @@index([tenantId])
+  1057→}
+  1058→
+  1059→// ───────────────────────────────────────────────────────────────────────────
+  1060→// 16. TRAFFICKER AFFILIATE — Performance Marketing Layer
+  1061→// El trafficker invierte en pauta para productos del marketplace,
+  1062→// cobra comisión solo por ventas confirmadas, no toca logística.
+  1063→// ───────────────────────────────────────────────────────────────────────────
+  1064→
+  1065→// Perfil del trafficker (separado de Tenant — no es marca, no es vendedor)
+  1066→model Trafficker {
+  1067→  id              String  @id @default(cuid())
+  1068→  email           String  @unique
+  1069→  name            String
+  1070→  phone           String?
+  1071→  // Configuración
+  1072→  preferredLlm    String  @default("zai") // qué IA usa para optimizar pauta
+  1073→  commissionRate  Float   @default(10) // % comisión por defecto sobre venta confirmada
+  1074→  status          String  @default("active") // active | suspended | blocked
+  1075→  // Wallet
+  1076→  walletBalance   Float   @default(0) // saldo disponible para retiro
+  1077→  walletPending   Float   @default(0) // comisiones pendientes (ventas no confirmadas)
+  1078→  walletTotalEarned Float @default(0) // total histórico ganado
+  1079→  walletTotalInvested Float @default(0) // total invertido en pauta
+  1080→  // KYC (para retiros)
+  1081→  kycVerified     Boolean @default(false)
+  1082→  bankAccount     String? // cuenta bancaria para retiros
+  1083→  paymentMethod   String? // nequi | daviplata | bancolombia | paypal | wise
+  1084→  createdAt       DateTime @default(now())
+  1085→  updatedAt       DateTime @updatedAt
+  1086→
+  1087→  campaigns       TraffickerCampaign[]
+  1088→  transactions    TraffickerTransaction[]
+  1089→  compensations   TraffickerCompensation[]
+  1090→}
+  1091→
+  1092→// Campaña de pauta del trafficker para un producto del marketplace
+  1093→model TraffickerCampaign {
+  1094→  id              String  @id @default(cuid())
+  1095→  traffickerId    String
+  1096→  // Producto objetivo (de cualquier tenant del marketplace)
+  1097→  marketplaceListingId String?
+  1098→  tenantId        String  // tenant dueño del producto (vendedor)
+  1099→  productId       String?
+  1100→  sku             String
+  1101→  productName     String
+  1102→  // Inversión
+  1103→  budget          Float   // presupuesto total invertido
+  1104→  spent           Float   @default(0) // lo que se ha gastado
+  1105→  // Plataforma de pauta
+  1106→  platform        String  // meta | google | tiktok
+  1107→  adId            String? // ID del anuncio en la plataforma
+  1108→  // Comisión
+  1109→  commissionRate  Float   @default(10) // % que este trafficker gana por venta
+  1110→  // Estado
+  1111→  status          String  @default("active") // active | paused | completed | failed
+  1112→  // Resultados
+  1113→  salesConfirmed  Int     @default(0)
+  1114→  salesPending    Int     @default(0)
+  1115→  salesFailed     Int     @default(0)
+  1116→  revenue         Float   @default(0) // GMV generado
+  1117→  commissionEarned Float  @default(0) // comisión ganada
+  1118→  startDate       DateTime @default(now())
+  1119→  endDate         DateTime?
+  1120→  createdAt       DateTime @default(now())
+  1121→  updatedAt       DateTime @updatedAt
+  1122→
+  1123→  trafficker      Trafficker @relation(fields: [traffickerId], references: [id])
+  1124→  sales           TraffickerSale[]
+  1125→
+  1126→  @@index([traffickerId])
+  1127→  @@index([tenantId])
+  1128→}
+  1129→
+  1130→// Venta atribuida al trafficker (cuando un pedido viene de su anuncio)
+  1131→model TraffickerSale {
+  1132→  id              String  @id @default(cuid())
+  1133→  traffickerId    String
+  1134→  campaignId      String
+  1135→  orderId         String?
+  1136→  orderNumber     String
+  1137→  tenantId        String  // vendedor dueño
+  1138→  customerPhone   String
+  1139→  customerName    String
+  1140→  productSku      String
+  1141→  productName     String
+  1142→  quantity        Int
+  1143→  orderValue      Float
+  1144→  commissionRate  Float   // % de esta venta
+  1145→  commissionAmount Float  // monto de comisión
+  1146→  status          String  @default("pending") // pending | confirmed | failed | compensated
+  1147→  failReason      String? // por qué no se confirmó (devolución, cancelación, no entregado, etc.)
+  1148→  confirmedAt     DateTime?
+  1149→  failedAt        DateTime?
+  1150→  compensatedAt   DateTime?
+  1151→  createdAt       DateTime @default(now())
+  1152→
+  1153→  campaign        TraffickerCampaign @relation(fields: [campaignId], references: [id])
+  1154→
+  1155→  @@index([traffickerId])
+  1156→  @@index([tenantId])
+  1157→  @@index([campaignId])
+  1158→}
+  1159→
+  1160→// Transacción de wallet (depósito, retiro, comisión, compensación)
+  1161→model TraffickerTransaction {
+  1162→  id              String  @id @default(cuid())
+  1163→  traffickerId    String
+  1164→  type            String  // deposit | withdrawal | commission | compensation | refund
+  1165→  amount          Float   // positivo = entra al wallet, negativo = sale
+  1166→  balanceAfter    Float
+  1167→  description     String
+  1168→  saleId          String? // si es comisión, link a TraffickerSale
+  1169→  campaignId      String? // si es inversión, link a campaña
+  1170→  status          String  @default("completed") // pending | completed | failed
+  1171→  createdAt       DateTime @default(now())
+  1172→
+  1173→  trafficker      Trafficker @relation(fields: [traffickerId], references: [id])
+  1174→}
+  1175→
+  1176→// Compensación al trafficker cuando el vendedor falla
+  1177→model TraffickerCompensation {
+  1178→  id              String  @id @default(cuid())
+  1179→  traffickerId    String
+  1180→  saleId          String
+  1181→  campaignId      String
+  1182→  tenantId        String  // vendedor que falló
+  1183→  amount          Float   // monto compensado
+  1184→  reason          String  // seller_no_ship | seller_delayed | seller_cancelled | delivery_failed | product_damaged
+  1185→  description     String
+  1186→  status          String  @default("pending") // pending | approved | paid | disputed
+  1187→  approvedBy      String? // user ID que aprobó
+  1188→  paidAt          DateTime?
+  1189→  createdAt       DateTime @default(now())
+  1190→
+  1191→  trafficker      Trafficker @relation(fields: [traffickerId], references: [id])
+  1192→
+  1193→  @@index([tenantId])
+  1194→}
+  1195→
+  1196→// ───────────────────────────────────────────────────────────────────────────
+  1197→// 17. FINTECH — Wallet con 2FA Google Authenticator, historial detallado
+  1198→// CommerceFlow OS es INTERMEDIARIO (no banco): solo registra movimientos
+  1199→// ───────────────────────────────────────────────────────────────────────────
+  1200→
+  1201→// Cuenta de retiro registrada (puede tener múltiples por usuario)
+  1202→model WalletAccount {
+  1203→  id              String  @id @default(cuid())
+  1204→  traffickerId    String? // link al trafficker si aplica
+  1205→  tenantId        String? // link al tenant si aplica
+  1206→  userId          String? // link al user interno si aplica
+  1207→  accountType     String  // bank | nequi | daviplata | paypal | wise | other
+  1208→  accountHolder   String  // nombre del titular
+  1209→  accountNumber   String  // número de cuenta / teléfono / email
+  1210→  bankName        String? // nombre del banco si aplica
+  1211→  documentType    String? // cc | ce | nit | passport
+  1212→  documentNumber  String? // número de documento
+  1213→  isDefault       Boolean @default(false)
+  1214→  verified        Boolean @default(false)
+  1215→  createdAt       DateTime @default(now())
+  1216→  updatedAt       DateTime @updatedAt
+  1217→
+  1218→  withdrawals     WithdrawalRequest[]
+  1219→
+  1220→  @@index([traffickerId])
+  1221→  @@index([tenantId])
+  1222→}
+  1223→
+  1224→// Transacción detallada de wallet (ingresos y egresos con contexto)
+  1225→model WalletTransaction {
+  1226→  id              String  @id @default(cuid())
+  1227→  traffickerId    String? // a quién pertenece la wallet
+  1228→  tenantId        String? // o al tenant si es wallet de tenant
+  1229→  // Clasificación
+  1230→  direction       String  // inbound (ingreso) | outbound (egreso)
+  1231→  type            String  // commission | compensation | withdrawal | deposit | refund | adjustment | fee
+  1232→  category        String  // sale_commission | campaign_investment | carrier_compensation | seller_compensation | withdrawal_request | withdrawal_fee | platform_fee | tax_withhold | bonus | penalty | reconciliation
+  1233→  amount          Float   // positivo siempre (direction indica si entra o sale)
+  1234→  balanceBefore   Float
+  1235→  balanceAfter    Float
+  1236→  // Contexto detallado
+  1237→  description     String  // descripción legible del movimiento
+  1238→  reference       String? // ID de referencia (saleId, campaignId, orderId, withdrawalId)
+  1239→  referenceType   String? // sale | campaign | order | withdrawal | compensation | adjustment
+  1240→  // Metadata
+  1241→  metadata        String? // JSON con datos adicionales (producto, cliente, carrier, etc.)
+  1242→  status          String  @default("completed") // pending | completed | reversed | disputed
+  1243→  createdAt       DateTime @default(now())
+  1244→
+  1245→  @@index([traffickerId, createdAt])
+  1246→  @@index([tenantId, createdAt])
+  1247→}
+  1248→
+  1249→// Solicitud de retiro con 2FA obligatorio (Google Authenticator TOTP)
+  1250→model WithdrawalRequest {
+  1251→  id              String  @id @default(cuid())
+  1252→  traffickerId    String?
+  1253→  tenantId        String?
+  1254→  walletAccountId String
+  1255→  amount          Float   // monto a retirar
+  1256→  fee             Float   @default(0) // comisión por retiro
+  1257→  netAmount       Float   // amount - fee
+  1258→  // 2FA Google Authenticator
+  1259→  totpRequired    Boolean @default(true)
+  1260→  totpVerified    Boolean @default(false)
+  1261→  totpVerifiedAt  DateTime?
+  1262→  totpCode        String? // código ingresado (hash temporal)
+  1263→  // Estado del retiro
+  1264→  status          String  @default("pending_2fa") // pending_2fa | pending_processing | processing | completed | rejected | cancelled | failed
+  1265→  rejectionReason String?
+  1266→  // Procesamiento
+  1267→  processedBy     String? // user ID que procesó
+  1268→  processedAt     DateTime?
+  1269→  completedAt     DateTime?
+  1270→  // Referencia externa (comprobante bancario)
+  1271→  externalReference String? // número de transferencia, comprobante, etc.
+  1272→  notes           String?
+  1273→  createdAt       DateTime @default(now())
+  1274→  updatedAt       DateTime @updatedAt
+  1275→
+  1276→  walletAccount   WalletAccount @relation(fields: [walletAccountId], references: [id])
+  1277→
+  1278→  @@index([traffickerId])
+  1279→  @@index([tenantId])
+  1280→  @@index([status])
+  1281→}
+  1282→
+  1283→// Configuración 2FA TOTP por usuario/trafficker
+  1284→model TwoFactorConfig {
+  1285→  id              String  @id @default(cuid())
+  1286→  traffickerId    String? @unique
+  1287→  tenantId        String? @unique
+  1288→  secret          String  // TOTP secret (base32)
+  1289→  enabled         Boolean @default(false)
+  1290→  backupCodes     String? // JSON array de códigos de respaldo
+  1291→  enabledAt       DateTime?
+  1292→  createdAt       DateTime @default(now())
+  1293→  updatedAt       DateTime @updatedAt
+  1294→}
+  1295→
+  1296→// ───────────────────────────────────────────────────────────────────────────
+  1297→// 18. TRAFFIC INTELLIGENCE — Pixel, Conversions API, SEO, AEO, Geo, GA4
+  1298→// ───────────────────────────────────────────────────────────────────────────
+  1299→
+  1300→model PixelConfig {
+  1301→  id              String  @id @default(cuid())
+  1302→  tenantId        String
+  1303→  platform        String  // meta_pixel | google_tag | tiktok_pixel | ga4 | gtm
+  1304→  pixelId         String
+  1305→  apiToken        String? // Conversions API token
+  1306→  testEventCode   String?
+  1307→  active          Boolean @default(true)
+  1308→  createdAt       DateTime @default(now())
+  1309→  updatedAt       DateTime @updatedAt
+  1310→
+  1311→  @@unique([tenantId, platform])
+  1312→  @@index([tenantId])
+  1313→}
+  1314→
+  1315→model ConversionEvent {
+  1316→  id              String  @id @default(cuid())
+  1317→  tenantId        String
+  1318→  eventType       String  // page_view | view_content | add_to_cart | initiate_checkout | purchase | lead | search | contact | custom
+  1319→  platform        String  // meta | google | tiktok | ga4
+  1320→  eventId         String? // unique event ID for dedup (fbc/fbp hash)
+  1321→  value           Float?
+  1322→  currency        String  @default("COP")
+  1323→  contentIds      String? // comma-separated SKUs
+  1324→  contentType     String? // product | product_group
+  1325→  orderId         String?
+  1326→  customerId      String?
+  1327→  // User matching
+  1328→  fbp             String? // Facebook browser ID
+  1329→  fbc             String? // Facebook click ID
+  1330→  gclid           String? // Google click ID
+  1331→  ttclid          String? // TikTok click ID
+  1332→  // Delivery status
+  1333→  status          String  @default("pending") // pending | sent | delivered | failed | deduplicated
+  1334→  sentAt          DateTime?
+  1335→  response        String? // raw API response
+  1336→  createdAt       DateTime @default(now())
+  1337→
+  1338→  @@index([tenantId, eventType, createdAt])
+  1339→}
+  1340→
+  1341→model SEOConfig {
+  1342→  id              String  @id @default(cuid())
+  1343→  tenantId        String
+  1344→  // Sitemap
+  1345→  sitemapUrl      String?
+  1346→  sitemapLastGenerated DateTime?
+  1347→  // Robots
+  1348→  robotsTxt       String?
+  1349→  // Schema.org
+  1350→  organizationSchema String? // JSON-LD
+  1351→  productSchema    String? // JSON-LD template
+  1352→  // Meta tags defaults
+  1353→  defaultTitle    String?
+  1354→  defaultDescription String?
+  1355→  defaultKeywords String?
+  1356→  // Geo
+  1357→  geoCountry      String  @default("CO")
+  1358→  geoRegion       String?
+  1359→  geoCity         String?
+  1360→  // AEO (Answer Engine Optimization) — for AI search engines
+  1361→  aeoEnabled      Boolean @default(true)
+  1362→  faqSchema       String? // JSON-LD FAQ for AI crawlers
+  1363→  howToSchema     String? // JSON-LD HowTo
+  1364→  // Open Graph
+  1365→  ogImage         String?
+  1366→  ogType          String  @default("website")
+  1367→  // Canonical
+  1368→  canonicalUrl    String?
+  1369→  active          Boolean @default(true)
+  1370→  createdAt       DateTime @default(now())
+  1371→  updatedAt       DateTime @updatedAt
+  1372→
+  1373→  @@index([tenantId])
+  1374→}
+  1375→
+  1376→model GeoTarget {
+  1377→  id              String  @id @default(cuid())
+  1378→  tenantId        String
+  1379→  country         String  // CO, MX, ES, DE
+  1380→  region          String? // departamento/estado
+  1381→  city            String? // ciudad
+  1382→  // SEO + Ads targeting
+  1383→  localKeywords   String? // "pijamas bogota", "pijamas mayoristas cali"
+  1384→  localContent    String? // landing page content for this geo
+  1385→  localSitemap    String? // sitemap for this geo
+  1386→  // Business listing
+  1387→  businessName    String?
+  1388→  businessAddress String?
+  1389→  businessPhone   String?
+  1390→  businessHours   String?
+  1391→  // Performance
+  1392→  organicTraffic  Int     @default(0)
+  1393→  paidTraffic     Int     @default(0)
+  1394→  conversions     Int     @default(0)
+  1395→  createdAt       DateTime @default(now())
+  1396→  updatedAt       DateTime @updatedAt
+  1397→
+  1398→  @@unique([tenantId, country, region, city])
+  1399→  @@index([tenantId])
+  1400→}
+  1401→
+  1402→// ───────────────────────────────────────────────────────────────────────────
+  1403→// 19. CUSTOMER NOTIFICATIONS — logistics lifecycle + abandonment recovery
+  1404→// ───────────────────────────────────────────────────────────────────────────
+  1405→
+  1406→model CustomerNotification {
+  1407→  id              String  @id @default(cuid())
+  1408→  tenantId        String
+  1409→  customerId      String?
+  1410→  phone           String
+  1411→  orderId         String?
+  1412→  orderNumber     String?
+  1413→  // Notification type
+  1414→  type            String  // order_confirmed | payment_received | guide_created | in_transit | at_office | out_for_delivery | delivered | delivery_failed | abandoned_cart | cancellation_risk | winback | guide_number | estimated_arrival
+  1415→  channel         String  @default("whatsapp") // whatsapp | messenger | instagram
+  1416→  // Content
+  1417→  title           String
+  1418→  body            String
+  1419→  template        String? // template name if using WA template
+  1420→  // Smart timing
+  1421→  scheduledAt     DateTime
+  1422→  sentAt          DateTime?
+  1423→  // Delivery
+  1424→  status          String  @default("pending") // pending | sent | delivered | read | failed
+  1425→  // Anti-invasion
+  1426→  isReminder      Boolean @default(false)
+  1427→  reminderNumber  Int     @default(0) // 1st, 2nd reminder
+  1428→  maxReminders    Int     @default(2)
+  1429→  // Response tracking
+  1430→  customerResponded Boolean @default(false)
+  1431→  responseAt      DateTime?
+  1432→  // Metadata
+  1433→  guideNumber     String?
+  1434→  estimatedDays   Int?
+  1435→  estimatedDate   DateTime?
+  1436→  metadata        String? // JSON
+  1437→  createdAt       DateTime @default(now())
+  1438→
+  1439→  @@index([tenantId])
+  1440→  @@index([status])
+  1441→  @@index([scheduledAt])
+  1442→}
+  1443→

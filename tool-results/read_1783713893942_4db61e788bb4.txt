@@ -1,0 +1,491 @@
+     1→'use client'
+     2→import { useEffect, useState, useRef, useCallback } from 'react'
+     3→import { Card } from '@/components/ui/card'
+     4→import { Button } from '@/components/ui/button'
+     5→import { Input } from '@/components/ui/input'
+     6→import { Textarea } from '@/components/ui/textarea'
+     7→import { Badge } from '@/components/ui/badge'
+     8→import { Skeleton } from '@/components/ui/skeleton'
+     9→import { ScrollArea } from '@/components/ui/scroll-area'
+    10→import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+    11→import { Separator } from '@/components/ui/separator'
+    12→import {
+    13→  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+    14→} from '@/components/ui/select'
+    15→import {
+    16→  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator,
+    17→} from '@/components/ui/dropdown-menu'
+    18→import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+    19→import { cn } from '@/lib/utils'
+    20→import { timeAgo, shortTime, formatCurrency } from '@/lib/format'
+    21→import { getSocket } from '@/lib/socket'
+    22→import { toast } from 'sonner'
+    23→import { useTenantId } from '@/hooks/use-tenant'
+    24→import {
+    25→  MessageCircle, Send, Sparkles, Phone, MapPin, Tag, Bot, User, Search,
+    26→  CircleDot, ArrowRight, ShoppingCart,
+    27→} from 'lucide-react'
+    28→
+    29→type ConvListItem = {
+    30→  id: string; status: string; priority: string; unreadCount: number; lastMessageAt: string
+    31→  utm?: string; sourceAdId?: string; sourceCampaign?: string
+    32→  customer: { id: string; name: string; phone?: string; psid?: string; country?: string }
+    33→  channel: { id: string; type: string; displayName: string; paymentStrategy: string }
+    34→  assignee: { id: string; name: string } | null
+    35→  lastMessage: { body: string; direction: string; createdAt: string } | null
+    36→}
+    37→
+    38→type ConvDetail = {
+    39→  id: string; status: string; priority: string
+    40→  customer: { id: string; name: string; phone?: string; country?: string; city?: string; address?: string; tags?: string }
+    41→  channel: { id: string; type: string; displayName: string; paymentStrategy: string; prepayDiscountPct?: number; codFee?: number; requirePrepayMin?: number }
+    42→  assignee: { id: string; name: string } | null
+    43→  messages: { id: string; direction: string; body: string; type: string; createdAt: string; aiSuggested?: boolean }[]
+    44→  orders: { id: string; number: string; status: string; paymentMode: string; total: number; currency: string; items: { name: string; quantity: number }[] }[]
+    45→}
+    46→
+    47→const channelMeta = (type: string) => {
+    48→  switch (type) {
+    49→    case 'whatsapp': return { color: 'bg-emerald-500/10 text-emerald-600 ring-emerald-500/20', dot: 'bg-emerald-500', label: 'WhatsApp' }
+    50→    case 'messenger': return { color: 'bg-sky-500/10 text-sky-600 ring-sky-500/20', dot: 'bg-sky-500', label: 'Messenger' }
+    51→    case 'instagram': return { color: 'bg-fuchsia-500/10 text-fuchsia-600 ring-fuchsia-500/20', dot: 'bg-fuchsia-500', label: 'Instagram' }
+    52→    default: return { color: 'bg-slate-500/10 text-slate-600 ring-slate-500/20', dot: 'bg-slate-500', label: type }
+    53→  }
+    54→}
+    55→
+    56→const statusMeta = (s: string) => {
+    57→  switch (s) {
+    58→    case 'open': return { label: 'Abierta', cls: 'bg-sky-500/10 text-sky-600' }
+    59→    case 'pending': return { label: 'Pendiente', cls: 'bg-amber-500/10 text-amber-600' }
+    60→    case 'resolved': return { label: 'Resuelta', cls: 'bg-emerald-500/10 text-emerald-600' }
+    61→    case 'closed': return { label: 'Cerrada', cls: 'bg-slate-500/10 text-slate-600' }
+    62→    default: return { label: s, cls: 'bg-slate-500/10 text-slate-600' }
+    63→  }
+    64→}
+    65→
+    66→export function MessengerView() {
+    67→  const tenantId = useTenantId()
+    68→  const [convs, setConvs] = useState<ConvListItem[]>([])
+    69→  const [active, setActive] = useState<ConvDetail | null>(null)
+    70→  const [activeId, setActiveId] = useState<string | null>(null)
+    71→  const [loading, setLoading] = useState(true)
+    72→  const [filter, setFilter] = useState<'all' | 'open' | 'pending'>('all')
+    73→  const [channelFilter, setChannelFilter] = useState('all')
+    74→  const [q, setQ] = useState('')
+    75→  const [draft, setDraft] = useState('')
+    76→  const [aiLoading, setAiLoading] = useState(false)
+    77→  const [connected, setConnected] = useState(false)
+    78→  const threadRef = useRef<HTMLDivElement>(null)
+    79→
+    80→  const loadConvs = useCallback(async () => {
+    81→    if (!tenantId) return
+    82→    const res = await fetch(`/api/conversations?status=${filter}&channel=${channelFilter}&q=${encodeURIComponent(q)}&tenantId=${tenantId}`)
+    83→    const data = await res.json()
+    84→    setConvs(data.conversations || [])
+    85→    setLoading(false)
+    86→  }, [filter, channelFilter, q, tenantId])
+    87→
+    88→  useEffect(() => { loadConvs() }, [loadConvs])
+    89→
+    90→  // Open conversation
+    91→  const openConv = useCallback(async (id: string) => {
+    92→    setActiveId(id)
+    93→    const res = await fetch(`/api/conversations/${id}`)
+    94→    const data = await res.json()
+    95→    setActive(data.conversation)
+    96→    setConvs(prev => prev.map(c => c.id === id ? { ...c, unreadCount: 0 } : c))
+    97→  }, [])
+    98→
+    99→  // Socket.io live updates
+   100→  useEffect(() => {
+   101→    const socket = getSocket()
+   102→    socket.on('connect', () => setConnected(true))
+   103→    socket.on('disconnect', () => setConnected(false))
+   104→    socket.on('message:new', (msg: { conversationId: string; direction: string; body: string; timestamp: string }) => {
+   105→      // Append to active thread if matches
+   106→      setActive(prev => {
+   107→        if (!prev || prev.id !== msg.conversationId) return prev
+   108→        return {
+   109→          ...prev,
+   110→          messages: [...prev.messages, {
+   111→            id: `live-${Date.now()}`, direction: msg.direction, body: msg.body, type: 'text', createdAt: msg.timestamp,
+   112→          }],
+   113→        }
+   114→      })
+   115→      // Bump list preview
+   116→      setConvs(prev => prev.map(c => c.id === msg.conversationId ? {
+   117→        ...c,
+   118→        lastMessage: { body: msg.body, direction: msg.direction, createdAt: msg.timestamp },
+   119→        lastMessageAt: msg.timestamp,
+   120→        unreadCount: c.id === activeId ? 0 : c.unreadCount + 1,
+   121→      } : c))
+   122→    })
+   123→    return () => { socket.off('message:new'); socket.off('connect'); socket.off('disconnect') }
+   124→  }, [activeId])
+   125→
+   126→  // Auto-scroll thread
+   127→  useEffect(() => {
+   128→    if (threadRef.current) threadRef.current.scrollTop = threadRef.current.scrollHeight
+   129→  }, [active?.messages.length])
+   130→
+   131→  const send = async () => {
+   132→    if (!draft.trim() || !activeId) return
+   133→    const text = draft.trim()
+   134→    setDraft('')
+   135→    // Optimistic append
+   136→    setActive(prev => prev ? {
+   137→      ...prev,
+   138→      messages: [...prev.messages, { id: `opt-${Date.now()}`, direction: 'outbound', body: text, type: 'text', createdAt: new Date().toISOString() }],
+   139→    } : prev)
+   140→    // Persist via API
+   141→    await fetch('/api/conversations', {
+   142→      method: 'POST', headers: { 'Content-Type': 'application/json' },
+   143→      body: JSON.stringify({ tenantId, conversationId: activeId, body: text }),
+   144→    })
+   145→    // Broadcast via socket for other dashboards + simulated customer reply
+   146→    getSocket().emit('message:sent', { conversationId: activeId, body: text, agentName: 'Valentina' })
+   147→  }
+   148→
+   149→  const aiSuggest = async (agentName: string = 'speech') => {
+   150→    if (!activeId || !tenantId) return
+   151→    setAiLoading(true)
+   152→    try {
+   153→      // Use the 10-agent system if agentName is specified, else fallback to generic ai-reply
+   154→      const endpoint = agentName && agentName !== 'generic' ? `/api/agents/${agentName}` : '/api/ai-reply'
+   155→      const body = agentName && agentName !== 'generic'
+   156→        ? { tenantId, conversationId: activeId, customerId: active?.customer.id, perfil: (active as any)?.perfilConversacion || (active?.customer as any)?.perfilDetectado }
+   157→        : { conversationId: activeId }
+   158→      const res = await fetch(endpoint, {
+   159→        method: 'POST', headers: { 'Content-Type': 'application/json' },
+   160→        body: JSON.stringify(body),
+   161→      })
+   162→      const data = await res.json()
+   163→      if (data.reply) setDraft(data.reply)
+   164→      if (data.confidence < 0.5) toast.info('Respuesta de respaldo (IA no disponible — fallback determinístico)')
+   165→      else toast.success(`Agente "${agentName}" generó sugerencia`)
+   166→    } catch {
+   167→      toast.error('No se pudo generar la sugerencia')
+   168→    } finally {
+   169→      setAiLoading(false)
+   170→    }
+   171→  }
+   172→
+   173→  const updateStatus = async (status: string) => {
+   174→    if (!activeId) return
+   175→    await fetch(`/api/conversations/${activeId}`, {
+   176→      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+   177→      body: JSON.stringify({ status }),
+   178→    })
+   179→    setActive(prev => prev ? { ...prev, status } : prev)
+   180→    setConvs(prev => prev.map(c => c.id === activeId ? { ...c, status } : c))
+   181→  }
+   182→
+   183→  return (
+   184→    <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr_300px] gap-4 min-h-[calc(100vh-13rem)] animate-fade-in-up">
+   185→      {/* Conversation list */}
+   186→      <Card className="flex flex-col overflow-hidden">
+   187→        <div className="p-3 border-b space-y-2">
+   188→          <div className="relative">
+   189→            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+   190→            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar cliente..." className="pl-8 h-9" />
+   191→          </div>
+   192→          <div className="flex gap-2">
+   193→            <Select value={channelFilter} onValueChange={setChannelFilter}>
+   194→              <SelectTrigger className="h-8 text-xs flex-1"><SelectValue placeholder="Canal" /></SelectTrigger>
+   195→              <SelectContent>
+   196→                <SelectItem value="all">Todos los canales</SelectItem>
+   197→                <SelectItem value="ch-wa-co">WhatsApp CO</SelectItem>
+   198→                <SelectItem value="ch-wa-mx">WhatsApp MX</SelectItem>
+   199→                <SelectItem value="ch-msg-global">Messenger</SelectItem>
+   200→                <SelectItem value="ch-ig-global">Instagram</SelectItem>
+   201→              </SelectContent>
+   202→            </Select>
+   203→            <Tabs value={filter} onValueChange={(v) => setFilter(v as typeof filter)}>
+   204→              <TabsList className="h-8">
+   205→                <TabsTrigger value="all" className="text-xs px-2 h-7">Todas</TabsTrigger>
+   206→                <TabsTrigger value="open" className="text-xs px-2 h-7">Abiertas</TabsTrigger>
+   207→              </TabsList>
+   208→            </Tabs>
+   209→          </div>
+   210→          <div className="flex items-center gap-1.5 text-[11px]">
+   211→            <CircleDot className={cn('size-3', connected ? 'text-emerald-500' : 'text-slate-400')} />
+   212→            <span className="text-muted-foreground">{connected ? 'Tiempo real conectado' : 'Conectando socket...'}</span>
+   213→          </div>
+   214→        </div>
+   215→        <ScrollArea className="flex-1 scroll-thin">
+   216→          {loading ? (
+   217→            <div className="p-3 space-y-2">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-16" />)}</div>
+   218→          ) : convs.length === 0 ? (
+   219→            <div className="p-8 text-center text-sm text-muted-foreground">Sin conversaciones</div>
+   220→          ) : (
+   221→            convs.map((c) => {
+   222→              const cm = channelMeta(c.channel.type)
+   223→              const sm = statusMeta(c.status)
+   224→              const isActive = c.id === activeId
+   225→              return (
+   226→                <button
+   227→                  key={c.id}
+   228→                  onClick={() => openConv(c.id)}
+   229→                  className={cn(
+   230→                    'w-full text-left px-3 py-3 border-b hover:bg-muted/50 transition-colors flex gap-3',
+   231→                    isActive && 'bg-primary/5 border-l-2 border-l-primary'
+   232→                  )}
+   233→                >
+   234→                  <Avatar className="size-10 rounded-full ring-1 ring-border">
+   235→                    <AvatarFallback className={cn('text-xs font-medium', cm.color)}>
+   236→                      {c.customer.name.split(' ').map(n => n[0]).slice(0, 2).join('')}
+   237→                    </AvatarFallback>
+   238→                  </Avatar>
+   239→                  <div className="flex-1 min-w-0">
+   240→                    <div className="flex items-center gap-2">
+   241→                      <span className="font-medium text-sm truncate">{c.customer.name}</span>
+   242→                      <span className={cn('size-1.5 rounded-full shrink-0', cm.dot)} />
+   243→                      <span className="text-[10px] text-muted-foreground ml-auto">{timeAgo(c.lastMessageAt)}</span>
+   244→                    </div>
+   245→                    <div className="flex items-center gap-1.5 mt-0.5">
+   246→                      <span className={cn('text-[10px] px-1.5 py-0.5 rounded ring-1', cm.color)}>{cm.label}</span>
+   247→                      {c.customer.country && <span className="text-[10px] text-muted-foreground">{c.customer.country}</span>}
+   248→                      {c.priority === 'urgent' && <Badge variant="destructive" className="text-[9px] h-4 px-1">URGENTE</Badge>}
+   249→                    </div>
+   250→                    <p className="text-xs text-muted-foreground truncate mt-1">
+   251→                      {c.lastMessage?.direction === 'outbound' && 'Tú: '}
+   252→                      {c.lastMessage?.body || 'Sin mensajes'}
+   253→                    </p>
+   254→                    <div className="flex items-center gap-1.5 mt-1">
+   255→                      <span className={cn('text-[10px] px-1.5 py-0.5 rounded', sm.cls)}>{sm.label}</span>
+   256→                      {c.unreadCount > 0 && <span className="ml-auto size-4 rounded-full bg-primary text-primary-foreground text-[10px] font-semibold flex items-center justify-center">{c.unreadCount}</span>}
+   257→                    </div>
+   258→                  </div>
+   259→                </button>
+   260→              )
+   261→            })
+   262→          )}
+   263→        </ScrollArea>
+   264→      </Card>
+   265→
+   266→      {/* Thread */}
+   267→      <Card className="flex flex-col overflow-hidden">
+   268→        {!active ? (
+   269→          <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground gap-3">
+   270→            <MessageCircle className="size-12 opacity-30" />
+   271→            <p className="text-sm">Selecciona una conversación para empezar</p>
+   272→          </div>
+   273→        ) : (
+   274→          <>
+   275→            {/* Thread header */}
+   276→            <div className="p-3 border-b flex items-center gap-3">
+   277→              <Avatar className="size-9 rounded-full">
+   278→                <AvatarFallback className={cn('text-xs', channelMeta(active.channel.type).color)}>
+   279→                  {active.customer.name.split(' ').map((n: string) => n[0]).slice(0, 2).join('')}
+   280→                </AvatarFallback>
+   281→              </Avatar>
+   282→              <div className="flex-1 min-w-0">
+   283→                <div className="font-medium text-sm truncate">{active.customer.name}</div>
+   284→                <div className="text-xs text-muted-foreground flex items-center gap-2">
+   285→                  <span className={cn('text-[10px] px-1.5 py-0.5 rounded ring-1', channelMeta(active.channel.type).color)}>{active.channel.displayName}</span>
+   286→                  {active.customer.phone && <span>· {active.customer.phone}</span>}
+   287→                </div>
+   288→              </div>
+   289→              <Select value={active.status} onValueChange={updateStatus}>
+   290→                <SelectTrigger className="h-8 w-32 text-xs">
+   291→                  <SelectValue />
+   292→                </SelectTrigger>
+   293→                <SelectContent>
+   294→                  <SelectItem value="open">Abierta</SelectItem>
+   295→                  <SelectItem value="pending">Pendiente</SelectItem>
+   296→                  <SelectItem value="resolved">Resuelta</SelectItem>
+   297→                  <SelectItem value="closed">Cerrada</SelectItem>
+   298→                </SelectContent>
+   299→              </Select>
+   300→            </div>
+   301→
+   302→            {/* Messages */}
+   303→            <div ref={threadRef} className="flex-1 overflow-y-visible p-4 space-y-3 bg-muted/20">
+   304→              {active.messages.map((m) => {
+   305→                const isOut = m.direction === 'outbound'
+   306→                return (
+   307→                  <div key={m.id} className={cn('flex gap-2 max-w-[80%]', isOut ? 'ml-auto flex-row-reverse' : '')}>
+   308→                    {!isOut && (
+   309→                      <div className="size-7 rounded-full bg-muted flex items-center justify-center shrink-0">
+   310→                        <User className="size-3.5 text-muted-foreground" />
+   311→                      </div>
+   312→                    )}
+   313→                    <div className={cn(
+   314→                      'rounded-2xl px-3.5 py-2 text-sm',
+   315→                      isOut ? 'bg-primary text-primary-foreground rounded-br-md' : 'bg-background border rounded-bl-md'
+   316→                    )}>
+   317→                      <p className="whitespace-pre-wrap">{m.body}</p>
+   318→                      <div className={cn('text-[10px] mt-1', isOut ? 'text-primary-foreground/60' : 'text-muted-foreground')}>
+   319→                        {shortTime(m.createdAt)} {isOut && '·✓✓'}
+   320→                      </div>
+   321→                    </div>
+   322→                  </div>
+   323→                )
+   324→              })}
+   325→            </div>
+   326→
+   327→            {/* Composer */}
+   328→            <div className="p-3 border-t space-y-2">
+   329→              <div className="flex gap-2">
+   330→                <Textarea
+   331→                  value={draft}
+   332→                  onChange={(e) => setDraft(e.target.value)}
+   333→                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
+   334→                  placeholder="Escribe un mensaje... (Enter para enviar, Shift+Enter para salto)"
+   335→                  className="min-h-[44px] max-h-24 resize-none text-sm"
+   336→                />
+   337→              </div>
+   338→              <div className="flex items-center justify-between gap-2">
+   339→                <DropdownMenu>
+   340→                  <DropdownMenuTrigger asChild>
+   341→                    <Button variant="outline" size="sm" disabled={aiLoading} className="gap-1.5">
+   342→                      <Sparkles className={cn('size-3.5', aiLoading && 'animate-pulse')} />
+   343→                      {aiLoading ? 'Generando...' : 'Agentes IA'}
+   344→                    </Button>
+   345→                  </DropdownMenuTrigger>
+   346→                  <DropdownMenuContent align="start" className="w-64">
+   347→                    <DropdownMenuLabel className="text-xs text-muted-foreground">10 agentes especializados (Saramantha §6)</DropdownMenuLabel>
+   348→                    <DropdownMenuSeparator />
+   349→                    <DropdownMenuItem onClick={() => aiSuggest('profile')} className="text-xs cursor-pointer">
+   350→                      <span className="font-medium">Perfilamiento</span><span className="text-muted-foreground ml-auto">mayorista/detal/...</span>
+   351→                    </DropdownMenuItem>
+   352→                    <DropdownMenuItem onClick={() => aiSuggest('speech')} className="text-xs cursor-pointer">
+   353→                      <span className="font-medium">Discurso</span><span className="text-muted-foreground ml-auto">por perfil</span>
+   354→                    </DropdownMenuItem>
+   355→                    <DropdownMenuItem onClick={() => aiSuggest('quote')} className="text-xs cursor-pointer">
+   356→                      <span className="font-medium">Cotización</span><span className="text-muted-foreground ml-auto">volumen + margen</span>
+   357→                    </DropdownMenuItem>
+   358→                    <DropdownMenuItem onClick={() => aiSuggest('catalog')} className="text-xs cursor-pointer">
+   359→                      <span className="font-medium">Catálogo</span><span className="text-muted-foreground ml-auto">visual-primero</span>
+   360→                    </DropdownMenuItem>
+   361→                    <DropdownMenuItem onClick={() => aiSuggest('theme')} className="text-xs cursor-pointer">
+   362→                      <span className="font-medium">Tema/personaje</span><span className="text-muted-foreground ml-auto">Stitch, Hello Kitty</span>
+   363→                    </DropdownMenuItem>
+   364→                    <DropdownMenuItem onClick={() => aiSuggest('objection')} className="text-xs cursor-pointer">
+   365→                      <span className="font-medium">Objeciones</span><span className="text-muted-foreground ml-auto">desconfianza, precio...</span>
+   366→                    </DropdownMenuItem>
+   367→                    <DropdownMenuItem onClick={() => aiSuggest('address')} className="text-xs cursor-pointer">
+   368→                      <span className="font-medium">Dirección</span><span className="text-muted-foreground ml-auto">10 campos</span>
+   369→                    </DropdownMenuItem>
+   370→                    <DropdownMenuItem onClick={() => aiSuggest('logistics')} className="text-xs cursor-pointer">
+   371→                      <span className="font-medium">Logística</span><span className="text-muted-foreground ml-auto">flete real</span>
+   372→                    </DropdownMenuItem>
+   373→                    <DropdownMenuItem onClick={() => aiSuggest('vision')} className="text-xs cursor-pointer">
+   374→                      <span className="font-medium">Visión</span><span className="text-muted-foreground ml-auto">SKU por imagen</span>
+   375→                    </DropdownMenuItem>
+   376→                    <DropdownMenuItem onClick={() => aiSuggest('checkout')} className="text-xs cursor-pointer">
+   377→                      <span className="font-medium">Checkout</span><span className="text-muted-foreground ml-auto">resumen + confirma</span>
+   378→                    </DropdownMenuItem>
+   379→                    <DropdownMenuSeparator />
+   380→                    <DropdownMenuItem onClick={() => aiSuggest('generic')} className="text-xs cursor-pointer text-muted-foreground">
+   381→                      <Sparkles className="size-3" /> Agente genérico (legacy)
+   382→                    </DropdownMenuItem>
+   383→                  </DropdownMenuContent>
+   384→                </DropdownMenu>
+   385→                <div className="flex items-center gap-2">
+   386→                  <span className="text-[11px] text-muted-foreground hidden sm:inline">Estrategia: <strong className="text-foreground">{active.channel.paymentStrategy}</strong></span>
+   387→                  <Button size="sm" onClick={send} disabled={!draft.trim()} className="gap-1.5">
+   388→                    <Send className="size-3.5" /> Enviar
+   389→                  </Button>
+   390→                </div>
+   391→              </div>
+   392→            </div>
+   393→          </>
+   394→        )}
+   395→      </Card>
+   396→
+   397→      {/* Customer panel */}
+   398→      <Card className="hidden lg:flex flex-col overflow-hidden">
+   399→        {!active ? (
+   400→          <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">Sin cliente</div>
+   401→        ) : (
+   402→          <ScrollArea className="flex-1 scroll-thin">
+   403→            <div className="p-4 space-y-4">
+   404→              <div className="flex items-center gap-3">
+   405→                <Avatar className="size-12 rounded-full">
+   406→                  <AvatarFallback className={cn('text-sm', channelMeta(active.channel.type).color)}>
+   407→                    {active.customer.name.split(' ').map((n: string) => n[0]).slice(0, 2).join('')}
+   408→                  </AvatarFallback>
+   409→                </Avatar>
+   410→                <div className="min-w-0">
+   411→                  <div className="font-medium text-sm truncate">{active.customer.name}</div>
+   412→                  <div className="text-xs text-muted-foreground">{active.customer.country} · {active.customer.city}</div>
+   413→                </div>
+   414→              </div>
+   415→
+   416→              <div className="space-y-1.5 text-xs">
+   417→                {active.customer.phone && (
+   418→                  <div className="flex items-center gap-2 text-muted-foreground"><Phone className="size-3.5" /> {active.customer.phone}</div>
+   419→                )}
+   420→                {active.customer.address && (
+   421→                  <div className="flex items-start gap-2 text-muted-foreground"><MapPin className="size-3.5 mt-0.5" /> {active.customer.address}</div>
+   422→                )}
+   423→                {active.customer.tags && (
+   424→                  <div className="flex items-start gap-2 text-muted-foreground"><Tag className="size-3.5 mt-0.5" />
+   425→                    <div className="flex flex-wrap gap-1">
+   426→                      {active.customer.tags.split(',').map((t) => <Badge key={t} variant="secondary" className="text-[10px] h-4">{t}</Badge>)}
+   427→                    </div>
+   428→                  </div>
+   429→                )}
+   430→              </div>
+   431→
+   432→              <Separator />
+   433→
+   434→              <div>
+   435→                <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Atribución</div>
+   436→                <div className="space-y-1.5 text-xs">
+   437→                  <div className="flex justify-between"><span className="text-muted-foreground">Campaña</span><span className="font-medium text-right">{(active as any).sourceCampaign || 'Orgánico'}</span></div>
+   438→                  <div className="flex justify-between"><span className="text-muted-foreground">Canal</span><span className="font-medium">{active.channel.displayName}</span></div>
+   439→                  <div className="flex justify-between"><span className="text-muted-foreground">Estrategia pago</span>
+   440→                    <Badge variant="outline" className="text-[10px] h-4">{active.channel.paymentStrategy}</Badge>
+   441→                  </div>
+   442→                </div>
+   443→              </div>
+   444→
+   445→              <Separator />
+   446→
+   447→              <div>
+   448→                <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1.5"><ShoppingCart className="size-3.5" /> Pedidos del cliente</div>
+   449→                {active.orders.length === 0 ? (
+   450→                  <p className="text-xs text-muted-foreground">Sin pedidos aún</p>
+   451→                ) : (
+   452→                  <div className="space-y-2">
+   453→                    {active.orders.map((o) => (
+   454→                      <div key={o.id} className="p-2 rounded-lg border text-xs">
+   455→                        <div className="flex items-center justify-between">
+   456→                          <span className="font-mono font-medium">{o.number}</span>
+   457→                          <span className="font-semibold">{formatCurrency(o.total, o.currency)}</span>
+   458→                        </div>
+   459→                        <div className="text-muted-foreground mt-0.5">{o.items.map(i => `${i.quantity}x ${i.name}`).join(', ')}</div>
+   460→                        <div className="flex items-center gap-1.5 mt-1">
+   461→                          <Badge variant="secondary" className="text-[9px] h-3.5">{o.status}</Badge>
+   462→                          <Badge variant="outline" className="text-[9px] h-3.5">{o.paymentMode === 'cod' ? 'Contra entrega' : 'Anticipado'}</Badge>
+   463→                        </div>
+   464→                      </div>
+   465→                    ))}
+   466→                  </div>
+   467→                )}
+   468→              </div>
+   469→
+   470→              <Separator />
+   471→
+   472→              <div className="p-3 rounded-lg bg-primary/5 border border-primary/15 flex gap-2 text-xs">
+   473→                <Bot className="size-4 text-primary shrink-0 mt-0.5" />
+   474→                <p className="text-muted-foreground">
+   475→                  {active.channel.paymentStrategy === 'advance' && 'Canal exige pago anticipado. Ofrece descuento y envía link del carrito.'}
+   476→                  {active.channel.paymentStrategy === 'cod' && 'Canal solo contra entrega. Confirma dirección y ciudad antes de cerrar.'}
+   477→                  {active.channel.paymentStrategy === 'hybrid' && `Híbrido: pedidos > ${formatCurrency(active.channel.requirePrepayMin || 0)} recomienda prepay (${active.channel.prepayDiscountPct || 0}% off).`}
+   478→                </p>
+   479→              </div>
+   480→
+   481→              <Button variant="outline" size="sm" className="w-full gap-1.5">
+   482→                <ArrowRight className="size-3.5" /> Crear pedido desde chat
+   483→              </Button>
+   484→            </div>
+   485→          </ScrollArea>
+   486→        )}
+   487→      </Card>
+   488→    </div>
+   489→  )
+   490→}
+   491→

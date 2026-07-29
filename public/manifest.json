@@ -1,0 +1,31 @@
+{
+  "name": "ZIAY · Comercio Conversacional",
+  "short_name": "ZIAY",
+  "description": "Comercio conversacional con atribución inteligente para LATAM",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#10b981",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "lang": "es-CO",
+  "categories": ["business", "productivity", "shopping"],
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Resumen",
+      "url": "/?view=overview"
+    },
+    {
+      "name": "Mensajería",
+      "url": "/?view=messenger"
+    }
+  ]
+}

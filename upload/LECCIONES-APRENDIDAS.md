@@ -798,3 +798,26 @@ En CI, los 68 tests de Playwright corren desde `127.0.0.1` (un solo bucket por I
 **Leccion:** El code review responde si el codigo esta bien escrito pero no si hace lo que deberia. Para modulos criticos, siempre hacer verificacion end-to-behavior.
 
 **Accion:** Fix en PR #4 - anadido customerEmail al Zod schema y al checkTransaction call.
+
+---
+
+## Leccion L66: PowerShell quoting destruye template literals de TypeScript
+
+**Contexto**: Al aplicar el fix de anti-injection al vision pipeline, intentamos usar `$content.Replace(...)` en PowerShell para reemplazar strings que contenian backticks y `${variable}` - ambos son caracteres especiales en strings double-quoted de PowerShell.
+
+**Problema**:
+- Backtick es el caracter de escape en PowerShell double-quoted strings
+- `${imageUrl}` se interpreta como variable de PowerShell
+- El error "Falta el parentesis de cierre" detuvo el pipeline antes de que cualquier `.Replace()` se ejecutara
+- El commit resultante solo tenia 1 linea (el import), sin las llamadas `wrapUserInput()` reales
+- `Select-String` confirmo que solo el import estaba presente
+
+**Solucion**:
+- Escribir un script Node.js (`.mjs`) que lee el archivo, aplica regex, y escribe de vuelta
+- Node.js escribe UTF-8 sin BOM por defecto
+- Regex en JS no tiene los problemas de quoting de PowerShell
+- El script verifica conteos esperados antes de escribir (aborta si la estructura es inesperada)
+
+**Regla**: Para cualquier modificacion de codigo fuente que involucre template literals, backticks, o `${...}`, usar un script `.mjs` con `readFileSync`/`writeFileSync` en lugar de `.Replace()` de PowerShell.
+
+**Script de referencia**: `apply-vision-fix.mjs` (commit `7987ed1`, PR #12).

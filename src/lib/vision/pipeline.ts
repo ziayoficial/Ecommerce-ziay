@@ -16,6 +16,7 @@ import ZAI from 'z-ai-web-dev-sdk'
 import type { VisionMessage } from 'z-ai-web-dev-sdk'
 import { db } from '@/lib/db'
 import { getLogger } from '@/lib/logger'
+import { wrapUserInput, ANTI_INJECTION_PREFIX } from '@/lib/agents/sanitize'
 
 const log = getLogger('vision:pipeline')
 
@@ -103,11 +104,11 @@ ${catalogLines.join('\n') || 'Catálogo vacío — responde metodo="sin_match".'
 Imagen del cliente: ${imageUrl}`
 
   const messages: VisionMessage[] = [
-    { role: 'system', content: systemPrompt },
+    { role: 'system', content: ANTI_INJECTION_PREFIX + systemPrompt },
     {
       role: 'user',
       content: [
-        { type: 'text', text: userText },
+        { type: 'text', text: wrapUserInput(userText) },
         { type: 'image_url', image_url: { url: imageUrl } },
       ],
     },
@@ -188,11 +189,11 @@ Responde SOLO en JSON: {"alt_image": "...", "tags": ["..."], "description_seo": 
 URL de la imagen: ${imageUrl}`
 
   const messages: VisionMessage[] = [
-    { role: 'system', content: systemPrompt },
+    { role: 'system', content: ANTI_INJECTION_PREFIX + systemPrompt },
     {
       role: 'user',
       content: [
-        { type: 'text', text: userText },
+        { type: 'text', text: wrapUserInput(userText) },
         { type: 'image_url', image_url: { url: imageUrl } },
       ],
     },

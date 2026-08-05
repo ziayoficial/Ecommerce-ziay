@@ -5,10 +5,10 @@
 // differ from the task description):
 //   - getScores          → customer-score leaderboard (top 200)
 //   - getCarrierScores   → carrier-score leaderboard (top 200)
-//   - persistShipmentGuide → atomic-ish Shipment + Order update + OrderEvent +
-//                          AuditLog writes (sequential — no $transaction
-//                          because the carrier adapter already created the
-//                          guide on the carrier side)
+//   - persistShipmentGuide → atomic Shipment + Order update + OrderEvent +
+//                          AuditLog writes inside db.$transaction
+//                          (AUTOFIX-L-3 — previously sequential, could leave
+//                          DB inconsistent on partial failure)
 //   - upsertBuyerBehavior → upserts a BuyerBehavior row keyed by
 //                          (tenantId, phone), creates a BehaviorAlert when the
 //                          new risk level is `high_risk` or `blacklist`
@@ -164,7 +164,7 @@ describe('logisticsService.getCarrierScores', () => {
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
-// persistShipmentGuide — sequential writes (no $transaction by design)
+// persistShipmentGuide — atomic writes inside db.$transaction (AUTOFIX-L-3)
 // ─────────────────────────────────────────────────────────────────────────────
 describe('logisticsService.persistShipmentGuide', () => {
   it('creates Shipment, updates Order status + shipping, writes OrderEvent + AuditLog', async () => {
@@ -244,10 +244,11 @@ describe('logisticsService.persistShipmentGuide', () => {
       }),
     })
 
-    // No $transaction — the writes are sequential by design (carrier adapter
-    // already pushed the guide to the carrier, so a rollback would not
-    // un-generate the carrier-side guide).
-    expect(db.$transaction).not.toHaveBeenCalled()
+    // AUTOFIX-L-3 — the 4 writes are now wrapped in db.$transaction so a
+    // partial failure rolls back and the AuditLog row only persists when
+    // all related writes succeeded.
+    expect(db.$transaction).toHaveBeenCalledTimes(1)
+    expect(typeof db.$transaction.mock.calls[0][0]).toBe('function')
   })
 
   it('defaults urlSeguimiento to null when not provided', async () => {

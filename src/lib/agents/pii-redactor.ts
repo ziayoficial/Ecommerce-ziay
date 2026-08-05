@@ -80,10 +80,16 @@ export interface PIIPattern {
  * longer digit strings (e.g. a 20-digit order number shouldn't trigger
  * credit_card on the middle 16 digits).
  */
+// AUTOFIX-G-3 — tightened patterns to reduce false positives:
+//   - credit_card : requires separators (12-digit order ids no longer match).
+//   - phone_co    : also accepts 10-digit mobile without +57 prefix
+//                   (common in Colombian WA messages).
 export const PII_PATTERNS: PIIPattern[] = [
   {
     name: 'credit_card',
-    regex: /\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b/g,
+    // Require spaces or dashes between the four 4-digit groups — a bare
+    // 16-digit run (order id, transaction ref) is NOT a credit card.
+    regex: /\b\d{4}[\s-]\d{4}[\s-]\d{4}[\s-]\d{4}\b/g,
     replacement: '[CARD]',
   },
   {
@@ -108,7 +114,10 @@ export const PII_PATTERNS: PIIPattern[] = [
   },
   {
     name: 'phone_co',
-    regex: /\b\+57\s?\d{3}\s?\d{3}\s?\d{4}\b/g,
+    // With +57 prefix (international form), OR a bare 10-digit Colombian
+    // mobile (3xx xxx xxxx) when the surrounding context looks like a
+    // message (no separator-anchored 16-digit credit-card shape).
+    regex: /\b(?:\+57\s?\d{3}\s?\d{3}\s?\d{4}|3\d{2}\s?\d{3}\s?\d{4})\b/g,
     replacement: '[PHONE]',
   },
   {

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import crypto from 'node:crypto'
 import { runRetentionCleanup } from '@/lib/compliance/retention'
 import { db } from '@/lib/db'
 import { captureError } from '@/lib/capture-error'
@@ -52,7 +53,17 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
     )
   }
 
-  if (authHeader !== `Bearer ${cronSecret}`) {
+  // SECURITY · AUTOFIX-L-2 — constant-time compare to prevent timing
+  // side-channels leaking the secret byte-by-byte. Previous code used
+  // `!==` which returns at the first mismatched character.
+  const provided = authHeader ?? ''
+  const expected = `Bearer ${cronSecret}`
+  const providedBuf = Buffer.from(provided)
+  const expectedBuf = Buffer.from(expected)
+  if (
+    providedBuf.length !== expectedBuf.length ||
+    !crypto.timingSafeEqual(providedBuf, expectedBuf)
+  ) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

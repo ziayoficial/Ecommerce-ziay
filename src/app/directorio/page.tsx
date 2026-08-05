@@ -37,7 +37,7 @@ export const metadata: Metadata = {
     siteName: 'ZIAY',
     images: [
       {
-        url: '/og-default.png',
+        url: `${BASE_URL}/og`,
         width: 1200,
         height: 630,
         alt: 'Directorio de marcas ZIAY',
@@ -49,7 +49,7 @@ export const metadata: Metadata = {
     title: 'Directorio de marcas · ZIAY',
     description:
       'Explora todas las marcas y tiendas que operan en ZIAY — comercio conversacional con atribución inteligente.',
-    images: ['/og-default.png'],
+    images: [`${BASE_URL}/og`],
   },
   robots: { index: true, follow: true },
 }

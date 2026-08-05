@@ -42,6 +42,26 @@ import { emitToTenant } from '@/lib/chat-emit'
 
 const log = getLogger('agent:memory-curator')
 
+// AUTOFIX-G-4 — PII-bearing fact types get a 180-day retention TTL via
+// `expiresAt`. Non-personal preferences (preferred payment, brand, style)
+// are kept indefinitely so the sales agent can recall them on every return
+// visit. Facts that describe something the customer DID or said in a
+// specific transaction history (purchase_history, objection, budget, and
+// the catch-all `other`) get a TTL because they can carry PII embedded in
+// the value (address, phone, ID). The retention cron
+// (`src/lib/compliance/retention`) sweeps rows past their `expiresAt`.
+const PII_TTL_TYPES = new Set([
+  'purchase_history',
+  'objection',
+  'budget',
+  'other',
+])
+const PII_TTL_DAYS = 180
+function computeExpiresAt(type: ExtractedFact['type']): Date | null {
+  if (!PII_TTL_TYPES.has(type)) return null
+  return new Date(Date.now() + PII_TTL_DAYS * 24 * 60 * 60 * 1000)
+}
+
 /**
  * Single extracted fact (mirrors `MemoryCuratorFactSchema` in schemas.ts).
  */
@@ -241,6 +261,9 @@ export async function runMemoryCurator(input: {
             confidence: fact.confidence,
             extractedFrom: input.conversationId,
             embeddingTexto: embeddingBuf,
+            // AUTOFIX-G-4 — refresh TTL on every re-extraction (the
+            // customer re-stating a fact is a signal it's still relevant).
+            expiresAt: computeExpiresAt(fact.type),
           },
         })
       } else {
@@ -254,6 +277,7 @@ export async function runMemoryCurator(input: {
             confidence: fact.confidence,
             extractedFrom: input.conversationId,
             embeddingTexto: embeddingBuf,
+            expiresAt: computeExpiresAt(fact.type),
           },
         })
       }

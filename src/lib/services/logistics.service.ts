@@ -221,10 +221,15 @@ export const logisticsService = {
   /**
    * Atomic shipment-guide generation: persist Shipment, update Order status
    * + shipping fee, write OrderEvent (shipped), write AuditLog. Mirrors the
-   * prior inline route logic — every write is required, but the route keeps
-   * them sequential (no $transaction) for the same reason as before: the
-   * carrier adapter already pushed the guide to the carrier by the time we
-   * get here, so a rollback wouldn't un-generate the carrier-side guide.
+   * prior inline route logic.
+   *
+   * AUTOFIX-L-3 — the 4 writes are now wrapped in `db.$transaction`. The
+   * previous sequential implementation could leave the DB in an
+   * inconsistent state on partial failure (Shipment created, Order not
+   * marked shipped; or Order updated, no OrderEvent/AuditLog row). The
+   * carrier-side guide can't be rolled back, but at least the local DB
+   * stays consistent — and the AuditLog being inside the tx means we
+   * only record a row when ALL the related writes succeeded.
    *
    * Returns the persisted Shipment + the stamped OrderEvent note.
    */
@@ -242,46 +247,49 @@ export const logisticsService = {
     orderNumber: string
   }) {
     try {
-      const shipment = await db.shipment.create({
-        data: {
-          tenantId: input.tenantId,
-          orderId: input.orderId,
-          proveedor: input.proveedor,
-          numeroGuia: input.numeroGuia,
-          urlSeguimiento: input.urlSeguimiento ?? null,
-          transportadora: input.transportadora,
-          transportadoraCanonica: input.transportadoraCanonica,
-          tarifa: input.tarifa,
-          tiempoEstimadoDias: input.tiempoEstimadoDias,
-          estado: 'generada',
-        },
-      })
-      await db.order.update({
-        where: { id: input.orderId },
-        data: { status: 'shipped', shipping: input.tarifa },
-      })
       const eventNote = `Guía ${input.numeroGuia} (${input.transportadoraCanonica}) — $${input.tarifa} COP, ETA ${input.tiempoEstimadoDias} días`
-      await db.orderEvent.create({
-        data: {
-          orderId: input.orderId,
-          type: 'shipped',
-          note: eventNote,
-        },
-      })
-      await db.auditLog.create({
-        data: {
-          tenantId: input.tenantId,
-          action: 'shipping_guide_generated',
-          entity: 'shipment',
-          entityId: shipment.id,
-          metadata: JSON.stringify({
+      const { shipment } = await db.$transaction(async (tx) => {
+        const shipment = await tx.shipment.create({
+          data: {
+            tenantId: input.tenantId,
             orderId: input.orderId,
-            numero_guia: input.numeroGuia,
+            proveedor: input.proveedor,
+            numeroGuia: input.numeroGuia,
+            urlSeguimiento: input.urlSeguimiento ?? null,
             transportadora: input.transportadora,
             transportadoraCanonica: input.transportadoraCanonica,
             tarifa: input.tarifa,
-          }),
-        },
+            tiempoEstimadoDias: input.tiempoEstimadoDias,
+            estado: 'generada',
+          },
+        })
+        await tx.order.update({
+          where: { id: input.orderId },
+          data: { status: 'shipped', shipping: input.tarifa },
+        })
+        await tx.orderEvent.create({
+          data: {
+            orderId: input.orderId,
+            type: 'shipped',
+            note: eventNote,
+          },
+        })
+        await tx.auditLog.create({
+          data: {
+            tenantId: input.tenantId,
+            action: 'shipping_guide_generated',
+            entity: 'shipment',
+            entityId: shipment.id,
+            metadata: JSON.stringify({
+              orderId: input.orderId,
+              numero_guia: input.numeroGuia,
+              transportadora: input.transportadora,
+              transportadoraCanonica: input.transportadoraCanonica,
+              tarifa: input.tarifa,
+            }),
+          },
+        })
+        return { shipment }
       })
       return { shipment, eventNote }
     } catch (err) {

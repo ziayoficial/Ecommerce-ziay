@@ -109,40 +109,48 @@ export const escrowService = {
         }
       }
 
-      // Update holding status
-      await db.escrowHolding.update({
-        where: { orderId },
-        data: {
-          status: 'released',
-          releasedAt: new Date(),
-          releasedBy,
-          deliveryRef: deliveryRef || null,
-        },
-      })
-
-      // Credit seller wallet (if there's a trafficker/seller)
-      if (holding.traffickerId && holding.sellerAmount > 0) {
-        await db.trafficker.update({
-          where: { id: holding.traffickerId },
-          data: { walletBalance: { increment: holding.sellerAmount } },
-        })
-
-        await db.walletTransaction.create({
+      // Atomic release: update holding + credit wallet + record transaction
+      await db.$transaction(async (tx) => {
+        await tx.escrowHolding.update({
+          where: { orderId },
           data: {
-            traffickerId: holding.traffickerId,
-            direction: 'inbound',
-            type: 'escrow_release',
-            category: 'marketplace_sale',
-            amount: holding.sellerAmount,
-            balanceBefore: 0, // Will be updated by the trigger
-            balanceAfter: 0,
-            description: `Escrow release for order ${orderId}`,
-            reference: orderId,
-            referenceType: 'order',
-            status: 'completed',
+            status: 'released',
+            releasedAt: new Date(),
+            releasedBy,
+            deliveryRef: deliveryRef || null,
           },
         })
-      }
+
+        // Credit seller wallet (if there's a trafficker/seller)
+        if (holding.traffickerId && holding.sellerAmount > 0) {
+          const sellerBefore = await tx.trafficker.findUnique({
+            where: { id: holding.traffickerId },
+            select: { walletBalance: true },
+          })
+          const balanceBefore = sellerBefore?.walletBalance ?? 0
+
+          await tx.trafficker.update({
+            where: { id: holding.traffickerId },
+            data: { walletBalance: { increment: holding.sellerAmount } },
+          })
+
+          await tx.walletTransaction.create({
+            data: {
+              traffickerId: holding.traffickerId,
+              direction: 'inbound',
+              type: 'escrow_release',
+              category: 'marketplace_sale',
+              amount: holding.sellerAmount,
+              balanceBefore,
+              balanceAfter: balanceBefore + holding.sellerAmount,
+              description: `Escrow release for order ${orderId}`,
+              reference: orderId,
+              referenceType: 'order',
+              status: 'completed',
+            },
+          })
+        }
+      })
 
       log.info(
         { orderId, releasedBy, sellerAmount: holding.sellerAmount, commission: holding.commissionAmount },

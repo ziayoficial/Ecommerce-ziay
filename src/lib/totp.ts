@@ -68,22 +68,34 @@ function encrypt(plaintext: string): string {
   return `${iv.toString('hex')}:${authTag.toString('hex')}:${encrypted.toString('hex')}`
 }
 
+// SECURITY · AUTOFIX-A-1 · fail-closed decryption.
+// Previous behavior: on ANY error (bad authTag, wrong key, corrupted
+// ciphertext) `decrypt` returned the input as-is. That meant an attacker
+// who tampered with the `secret` column could force `decrypt` to hand
+// `verifyTOTP` whatever string they chose — effectively bypassing 2FA by
+// downgrading the secret to an attacker-controlled plaintext.
+// Now: invalid format or failed authTag throws; callers (`verifyTOTP`)
+// already catch and treat as verification failure. A legacy plaintext
+// secret (pre-encryption migration) is only honoured when it is clearly a
+// base32 TOTP secret (A–Z2–7), so a malicious blob can't masquerade as
+// "legacy".
 function decrypt(ciphertext: string): string {
-  try {
-    const parts = ciphertext.split(':')
-    if (parts.length !== 3) return ciphertext // Fallback: assume plaintext (migration)
-    const key = Buffer.from(ENCRYPTION_KEY.padEnd(32).slice(0, 32), 'utf8')
-    const iv = Buffer.from(parts[0], 'hex')
-    const authTag = Buffer.from(parts[1], 'hex')
-    const encrypted = Buffer.from(parts[2], 'hex')
-    const decipher = crypto.createDecipheriv(ALGORITHM, key, iv)
-    decipher.setAuthTag(authTag)
-    const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()])
-    return decrypted.toString('utf8')
-  } catch {
-    // If decryption fails, return as-is (might be a plaintext from before encryption was added)
-    return ciphertext
+  const parts = ciphertext.split(':')
+  // Legacy plaintext secret from before encryption was added — only accept
+  // well-formed base32 (the exact alphabet otpauth accepts). Anything else
+  // with no `iv:authTag:...` shape is rejected as a potential downgrade.
+  if (parts.length !== 3) {
+    if (/^[A-Z2-7]+$/.test(ciphertext)) return ciphertext
+    throw new Error('Invalid TOTP secret format (not encrypted, not base32)')
   }
+  const key = Buffer.from(ENCRYPTION_KEY.padEnd(32).slice(0, 32), 'utf8')
+  const iv = Buffer.from(parts[0], 'hex')
+  const authTag = Buffer.from(parts[1], 'hex')
+  const encrypted = Buffer.from(parts[2], 'hex')
+  const decipher = crypto.createDecipheriv(ALGORITHM, key, iv)
+  decipher.setAuthTag(authTag)
+  const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()])
+  return decrypted.toString('utf8')
 }
 
 // ── TOTP generation ───────────────────────────────────────────────────────

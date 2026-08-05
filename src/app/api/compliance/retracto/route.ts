@@ -31,7 +31,7 @@ const RetractoSchema = z.object({
 /**
  * POST /api/compliance/retracto
  *
- * Procesa un retracto de venta (Ley 1480 Estatuto del Consumidor — derecho de retracto 14 días).
+ * Procesa un retracto de venta (Ley 1480 Estatuto del Consumidor — derecho de retracto 5 días hábiles).
  *
  * @security Requires authentication + tenant access
  * @returns Retracto record + refund status

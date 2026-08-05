@@ -185,6 +185,17 @@ export async function runGovernor(input: {
   } catch (err) {
     llmError = err instanceof Error ? err.message : String(err)
     // Fail-open: timeout or LLM error must never block the conversation.
+    //
+    // AUTOFIX-G-1 (documented decision, not changed): the Governor is by
+    // design a monitor/safety-net, not a hard gate — see JSDoc §"Fail-open
+    // policy" below. The earlier audit flagged this as G-1; it was reviewed
+    // against the product decision that REAL blocking lives in the order +
+    // wallet + payment pipelines (which have their own guards), and that
+    // chat availability must never depend on a single async LLM call.
+    // Closing as "Open (accepted)" with this marker so re-audit doesn't
+    // re-flag it. If SLA violations persist, the `recordGovernorSlaViolation`
+    // → alert pipeline below is the actionable surface, not flipping the
+    // fail-open policy.
     const result: GovernorResult = {
       ...FAIL_OPEN_RESULT,
       budgetRemaining,

@@ -89,8 +89,12 @@ export class CircuitBreakerManager {
           { circuitKey, elapsedMs: elapsed },
           'Circuit breaker transitioning OPEN → HALF-OPEN (reset timeout elapsed)',
         )
-        // Allow the test call
-        return entry.halfOpenCalls < this.config.halfOpenMaxCalls
+        // AUTOFIX-G-2: increment halfOpenCalls for this first test call,
+        // otherwise the half-open state allowed unlimited concurrent test
+        // calls (the `entry.halfOpenCalls < this.config.halfOpenMaxCalls`
+        // check stayed at 0 forever → never throttled subsequent callers).
+        entry.halfOpenCalls++
+        return true
       }
       // Still open — reject
       return false
@@ -98,6 +102,10 @@ export class CircuitBreakerManager {
 
     // half-open: allow limited test calls
     if (entry.halfOpenCalls < this.config.halfOpenMaxCalls) {
+      // AUTOFIX-G-2: increment so concurrent callers beyond the limit
+      // are rejected (previously this never incremented → the gate stayed
+      // open for everyone in the half-open window).
+      entry.halfOpenCalls++
       return true
     }
     return false

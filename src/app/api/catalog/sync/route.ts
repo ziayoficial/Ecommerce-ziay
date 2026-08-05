@@ -27,10 +27,20 @@
 // the tenant's external API quota, can be used for DoS).
 
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { requireTenantAccess } from '@/lib/auth-helpers'
 import { enqueue, isInlineMode } from '@/lib/queue'
 import { catalogService } from '@/lib/services'
 import { withErrorHandling } from '@/lib/middleware/api-error-handler'
+
+// SECURITY · AUTOFIX-CO-1 · validate POST body with Zod before any
+// downstream use. Previous code did `const { tenantId } = body as {...}`
+// — a raw cast with no runtime check. A malformed/extra field payload
+// was silently passed through, and an attacker could probe the queue
+// handler with arbitrary shapes.
+const CatalogSyncSchema = z.object({
+  tenantId: z.string().min(1),
+})
 
 /**
  * POST /api/catalog/sync
@@ -42,12 +52,23 @@ import { withErrorHandling } from '@/lib/middleware/api-error-handler'
  */
 export const POST = withErrorHandling(async (req: NextRequest) => {
 
-    const body = await req.json()
-    const { tenantId } = body as { tenantId?: string }
-
-    if (!tenantId) {
-      return NextResponse.json({ error: 'tenantId is required' }, { status: 400 })
+    let raw: unknown
+    try {
+      raw = await req.json()
+    } catch {
+      return NextResponse.json(
+        { error: 'Cuerpo JSON inválido' },
+        { status: 400 },
+      )
     }
+    const parsed = CatalogSyncSchema.safeParse(raw)
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: 'Parámetros inválidos', details: parsed.error.flatten() },
+        { status: 400 },
+      )
+    }
+    const { tenantId } = parsed.data
 
     // FIX-SECURITY-AUTH-001 (#25) — tenant gate before any work.
     const { error } = await requireTenantAccess(tenantId)

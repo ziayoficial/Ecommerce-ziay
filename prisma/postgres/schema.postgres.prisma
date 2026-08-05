@@ -1,13 +1,14 @@
 // CommerceFlow OS — Prisma schema for PostgreSQL + pgvector (production)
 // Saramantha §16.2, §3 — RLS + pgvector for semantic memory.
 //
-// To use this in production:
-// 1. Copy this file to prisma/schema.prisma (replacing the SQLite version)
-// 2. Set DATABASE_URL=postgresql://commerceflow:password@localhost:5432/commerceflow
-// 3. Run: bun run db:migrate --name init_postgres
-// 4. Run: psql -f prisma/sql/rls-policies.sql
-// 5. Run: psql -c "CREATE EXTENSION IF NOT EXISTS vector;"
-// 6. Run: bun run scripts/migrate-postgres/vectorize-embeddings.ts
+// ⚠️ AUDIT-C-8: This file is INCOMPLETE (~50 of ~70 models).
+// To switch to PostgreSQL, DO NOT copy this file manually.
+// Instead, modify prisma/schema.prisma:
+//   1. Change provider from "sqlite" to "postgresql"
+//   2. Uncomment the extensions line in the datasource block
+//   3. Run: bun run db:push
+//
+// See dev ops checklist for full PostgreSQL migration steps.
 
 generator client {
   provider = "prisma-client-js"

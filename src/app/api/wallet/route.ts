@@ -21,6 +21,7 @@
 // `walletService`. The 2FA secret + TOTP verification helpers stay in the
 // route (they're cryptographic, not DB-bound). Response shapes unchanged.
 
+import crypto from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireAuth } from '@/lib/auth-helpers'
@@ -580,7 +581,7 @@ function generateBackupCodesPlain(): string[] {
   const codes: string[] = []
   const seen = new Set<string>()
   while (codes.length < 10) {
-    const n = Math.floor(Math.random() * 100_000_000)
+    const n = crypto.randomInt(0, 100_000_000)
     const code = n.toString().padStart(8, '0')
     const formatted = `${code.slice(0, 4)}-${code.slice(4)}`
     if (seen.has(formatted)) continue

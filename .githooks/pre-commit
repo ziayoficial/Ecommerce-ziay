@@ -1,17 +1,24 @@
 #!/bin/bash
 set -e
+# AUTOFIX-D-1 — `set -o pipefail` so the exit status of a piped command is
+# the rightmost NON-ZERO exit of any segment. Without it, `cmd | head` is
+# always exit 0 (because `head` succeeds), masking a failing `tsc`/`eslint`.
+# The original hook silently let broken commits through — `tsc --noEmit
+# --incremental | head -20` always reported success.
+set -o pipefail
 
 # Run quick checks before allowing a commit
 echo "🔍 Running pre-commit checks..."
 
-# Type check (fast — uses cache)
+# Type check (fast — uses cache). Capture status — `set -o pipefail` makes
+# the pipeline fail if `tsc` exits non-zero, regardless of `head`.
 npx tsc --noEmit --incremental 2>&1 | head -20
 if [ $? -ne 0 ]; then
   echo "❌ TypeScript check failed"
   exit 1
 fi
 
-# Lint (only changed files for speed)
+# Lint (only changed files for speed).
 STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(ts|tsx)$' | head -20)
 if [ -n "$STAGED_FILES" ]; then
   bunx eslint $STAGED_FILES --rule '{"no-unused-vars": "error"}' 2>&1 | head -20

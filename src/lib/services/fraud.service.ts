@@ -852,33 +852,42 @@ export const fraudService = {
       if (input.deviceId) {
         increments.push({ identifierType: 'device', identifier: input.deviceId })
       }
-      for (const { identifierType, identifier } of increments) {
+      // AUTOFIX-H-13 — wrap all velocity upserts in a single $transaction
+      // so the counters for the same transactional event commit together.
+      // Previously a partial failure (one identifier's upsert succeeded,
+      // the next failed) left the velocity windows out of sync — the
+      // customer bucket advanced by 1 but the device bucket didn't, so
+      // the velocity check would under-report future attempts.
+      if (increments.length > 0) {
         try {
-          await db.velocityWindow.upsert({
-            where: {
-              tenantId_identifierType_identifier_windowStart: {
-                tenantId: input.tenantId,
-                identifierType,
-                identifier,
-                windowStart: ws,
-              },
-            },
-            create: {
-              tenantId: input.tenantId,
-              identifierType,
-              identifier,
-              windowStart: ws,
-              count: 1,
-            },
-            update: { count: { increment: 1 } },
-          })
+          await db.$transaction(
+            increments.map(({ identifierType, identifier }) =>
+              db.velocityWindow.upsert({
+                where: {
+                  tenantId_identifierType_identifier_windowStart: {
+                    tenantId: input.tenantId,
+                    identifierType,
+                    identifier,
+                    windowStart: ws,
+                  },
+                },
+                create: {
+                  tenantId: input.tenantId,
+                  identifierType,
+                  identifier,
+                  windowStart: ws,
+                  count: 1,
+                },
+                update: { count: { increment: 1 } },
+              }),
+            ),
+          )
         } catch (err) {
           captureError(err as Error, {
             service: 'fraud',
             method: 'checkTransaction',
-            step: 'velocityWindow.upsert',
+            step: 'velocityWindow.upsert (batch $transaction)',
             tenantId: input.tenantId,
-            identifierType,
           })
         }
       }

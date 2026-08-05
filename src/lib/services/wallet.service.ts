@@ -283,6 +283,13 @@ export const walletService = {
     traffickerId: string
     walletAccountId: string
     amount: number
+    /**
+     * `balanceBefore` / `balanceAfter` from the caller are used ONLY for
+     * the audit/metadata trail. The actual DB update uses `decrement` so
+     * a concurrent transaction between the caller's snapshot read and
+     * this write cannot be lost (ATTERN: absolute writes were a TOCTOU
+     * race — see AUTOFIX-H-10).
+     */
     balanceBefore: number
     balanceAfter: number
     externalReference?: string | null
@@ -296,12 +303,32 @@ export const walletService = {
     }
     try {
       const result = await db.$transaction(async (tx) => {
-        // 1. Decrement trafficker balance
+        // AUTOFIX-H-10 — read the live balance INSIDE the tx so the
+        // decrement is relative to the current committed value, not the
+        // caller's snapshot (eliminates the TOCTOU race). The caller's
+        // `balanceBefore`/`balanceAfter` are kept only for the audit
+        // metadata + WalletTransaction row (which is what the admin saw
+        // when approving — the audit trail shouldn't silently change).
+        const liveTrafficker = await tx.trafficker.findUnique({
+          where: { id: input.traffickerId },
+          select: { walletBalance: true },
+        })
+        if (!liveTrafficker) {
+          throw new Error('Trafficker not found during withdrawal processing')
+        }
+        const liveBalanceBefore = liveTrafficker.walletBalance
+        if (input.amount > liveBalanceBefore) {
+          throw new Error('Insufficient funds at commit time (balance changed)')
+        }
+        const liveBalanceAfter = liveBalanceBefore - input.amount
+
+        // 1. Decrement trafficker balance (RELATIVE — atomic decrement).
         await tx.trafficker.update({
           where: { id: input.traffickerId },
-          data: { walletBalance: input.balanceAfter },
+          data: { walletBalance: { decrement: input.amount } },
         })
-        // 2. Record outbound transaction
+        // 2. Record outbound transaction (use the live values so the row
+        // matches the actual debited balance, not a stale snapshot).
         await tx.walletTransaction.create({
           data: {
             traffickerId: input.traffickerId,
@@ -309,8 +336,8 @@ export const walletService = {
             type: 'withdrawal',
             category: 'cashout',
             amount: input.amount,
-            balanceBefore: input.balanceBefore,
-            balanceAfter: input.balanceAfter,
+            balanceBefore: liveBalanceBefore,
+            balanceAfter: liveBalanceAfter,
             description: `Retiro #${input.withdrawalId.slice(-6)} a ${input.walletAccountId}`,
             reference: input.withdrawalId,
             referenceType: 'withdrawal',
@@ -327,7 +354,8 @@ export const walletService = {
             completedAt: new Date(),
           },
         })
-        // 4. Create audit log entry
+        // 4. Create audit log entry (keep the admin's snapshot values in
+        // the metadata for traceability of what the admin saw).
         await tx.auditLog.create({
           data: {
             action: 'withdrawal_processed',
@@ -337,8 +365,10 @@ export const walletService = {
               withdrawalId: input.withdrawalId,
               traffickerId: input.traffickerId,
               amount: input.amount,
-              balanceBefore: input.balanceBefore,
-              balanceAfter: input.balanceAfter,
+              adminSeen_balanceBefore: input.balanceBefore,
+              admin_seen_balanceAfter: input.balanceAfter,
+              committed_balanceBefore: liveBalanceBefore,
+              committed_balanceAfter: liveBalanceAfter,
               processedBy: 'wallet_api',
             }),
           },
@@ -358,6 +388,18 @@ export const walletService = {
       )
       return result
     } catch (err) {
+      // AUTOFIX-H-10 — preserve the validation message so the caller can
+      // distinguish "insufficient funds at commit time" from a generic
+      // infrastructure failure. The original code merged everything into
+      // a single "Failed to process withdrawal" message, hiding race
+      // conditions from the admin UI.
+      const msg = err instanceof Error ? err.message : String(err)
+      if (msg.startsWith('Insufficient funds') || msg.startsWith('Trafficker not found')) {
+        // Validation failure inside the tx — bubble as-is so the admin
+        // sees the specific reason (no captureError needed — this is an
+        // expected business outcome, not a system fault).
+        throw err
+      }
       captureError(err as Error, {
         service: 'wallet',
         method: 'processWithdrawal',

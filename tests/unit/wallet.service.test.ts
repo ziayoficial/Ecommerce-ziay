@@ -34,6 +34,7 @@ const { db } = vi.hoisted(() => {
       update: vi.fn(),
     },
     trafficker: {
+      findUnique: vi.fn(),
       update: vi.fn(),
     },
     auditLog: {
@@ -380,6 +381,10 @@ describe('walletService.createWithdrawalRequest', () => {
 describe('walletService.processWithdrawal', () => {
   it('atomically deducts balance, records WalletTransaction, completes WithdrawalRequest, writes AuditLog', async () => {
     const updated = { id: 'wd-1', status: 'completed' }
+    // AUTOFIX-H-10 — processWithdrawal now reads the live balance inside
+    // the tx (TOCTOU-safe). Mock the findUnique to return a trafficker
+    // whose balance covers the withdrawal.
+    db.trafficker.findUnique.mockResolvedValue({ id: 't-1', walletBalance: 1000 })
     db.trafficker.update.mockResolvedValue({ id: 't-1' })
     db.walletTransaction.create.mockResolvedValue({ id: 'txn-1' })
     db.withdrawalRequest.update.mockResolvedValue(updated)
@@ -400,10 +405,19 @@ describe('walletService.processWithdrawal', () => {
     // $transaction was invoked with a callback — verify it was called once
     // and that all 4 inner writes happened in the right order.
     expect(db.$transaction).toHaveBeenCalledTimes(1)
+    // AUTOFIX-H-10: balance is now read INSIDE the tx.
+    expect(db.trafficker.findUnique).toHaveBeenCalledWith({
+      where: { id: 't-1' },
+      select: { walletBalance: true },
+    })
+    // Decrement is RELATIVE (atomic), not an absolute write.
     expect(db.trafficker.update).toHaveBeenCalledWith({
       where: { id: 't-1' },
-      data: { walletBalance: 500 },
+      data: { walletBalance: { decrement: 500 } },
     })
+    // WalletTransaction uses the live balance from inside the tx
+    // (1000 → 500), not the caller's snapshot (which happens to coincide
+    // here because the mock returns 1000).
     expect(db.walletTransaction.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         traffickerId: 't-1',
@@ -437,6 +451,8 @@ describe('walletService.processWithdrawal', () => {
   })
 
   it('passes externalReference=null when not provided', async () => {
+    // AUTOFIX-H-10 — set up the findUnique mock for the live balance read.
+    db.trafficker.findUnique.mockResolvedValue({ id: 't-1', walletBalance: 100 })
     db.withdrawalRequest.update.mockResolvedValue({ id: 'wd-2', status: 'completed' })
 
     await walletService.processWithdrawal({
@@ -452,6 +468,42 @@ describe('walletService.processWithdrawal', () => {
       where: { id: 'wd-2' },
       data: expect.objectContaining({ externalReference: null }),
     })
+  })
+
+  it('throws when live balance is insufficient at commit time (AUTOFIX-H-10)', async () => {
+    // The caller's snapshot said balanceBefore=1000, but by the time the
+    // tx runs the live balance is 300 — the decrement must NOT happen.
+    db.trafficker.findUnique.mockResolvedValue({ id: 't-1', walletBalance: 300 })
+
+    await expect(
+      walletService.processWithdrawal({
+        withdrawalId: 'wd-race',
+        traffickerId: 't-1',
+        walletAccountId: 'acc-1',
+        amount: 500,
+        balanceBefore: 1000,
+        balanceAfter: 500,
+      }),
+    ).rejects.toThrow(/Insufficient funds at commit time/)
+
+    // The decrement must NOT have run — the tx should have aborted.
+    expect(db.trafficker.update).not.toHaveBeenCalled()
+    expect(db.walletTransaction.create).not.toHaveBeenCalled()
+  })
+
+  it('throws when the trafficker vanishes between snapshot and tx (defense-in-depth)', async () => {
+    db.trafficker.findUnique.mockResolvedValue(null)
+
+    await expect(
+      walletService.processWithdrawal({
+        withdrawalId: 'wd-vanish',
+        traffickerId: 't-1',
+        walletAccountId: 'acc-1',
+        amount: 100,
+        balanceBefore: 100,
+        balanceAfter: 0,
+      }),
+    ).rejects.toThrow(/Trafficker not found/)
   })
 
   it('throws a wrapped Error when the tx rejects', async () => {

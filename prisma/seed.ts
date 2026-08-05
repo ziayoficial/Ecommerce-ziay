@@ -80,7 +80,14 @@ async function main() {
 
   // ── Users (1 admin per tenant + shared agents) ────────────────────
   // Existing demo users (commerceflow.co domain) — preserve IDs, add auth.
-  const demoPasswordHash = await bcrypt.hash('demo123', 10)
+  // AUTOFIX-H-20 — the seed password is now configurable via env var.
+  // Hardcoded `demo123` was a problem when the seed ran against a shared
+  // / staging DB — anyone with repo read access knew the credentials.
+  // In dev the default `demo123` is convenient (preserves the documented
+  // logins in the README), but if someone wants a stronger password on a
+  // staging deploy they just set `SEED_PASSWORD` before `bun run db:seed`.
+  const seedPassword = process.env.SEED_PASSWORD || 'demo123'
+  const demoPasswordHash = await bcrypt.hash(seedPassword, 10)
   await db.user.upsert({ where: { email: 'valentina@commerceflow.co' },
     update: { passwordHash: demoPasswordHash, status: 'active' },
     create: { id: 'user-valentina', tenantId: saramantha.id, email: 'valentina@commerceflow.co', name: 'Valentina Restrepo', role: 'admin', passwordHash: demoPasswordHash, status: 'active' }})

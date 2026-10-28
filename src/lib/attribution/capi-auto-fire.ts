@@ -22,6 +22,14 @@ import { db } from '@/lib/db'
 import { getLogger } from '@/lib/logger'
 import { captureError } from '@/lib/capture-error'
 import { enqueue } from '@/lib/queue'
+// AUTOFIX-C6 — eager import (no dynamic import) so the overlay happens
+// deterministically inside `fireCapiPurchaseEvent` without the extra
+// microtask hop a dynamic `await import()` adds. capi-auto-fire is
+// strictly server-side — the eager import doesn't bloat any edge bundle.
+import {
+  resolveCredentialNamespace,
+  credentialsService as creds,
+} from '@/lib/services/credentials.service'
 
 const log = getLogger('capi-auto-fire')
 
@@ -78,9 +86,22 @@ export async function fireCapiPurchaseEvent(
       return
     }
 
-    const pixels = await db.pixelConfig.findMany({
+    const pixelsRaw = await db.pixelConfig.findMany({
       where: { tenantId, active: true },
     })
+
+    // AUTOFIX-C6 — overlay credentialsService tokens over the legacy
+    // `PixelConfig.apiToken` column. Best-effort: a Setting lookup failure
+    // keeps the column value (the old behavior).
+    let pixels = pixelsRaw
+    try {
+      const ns = resolveCredentialNamespace(tenantId)
+      pixels = await Promise.all(
+        pixelsRaw.map((p) => creds.overlayPixelApiToken(ns, p)),
+      )
+    } catch {
+      // credentialsService unavailable — keep raw rows
+    }
 
     if (pixels.length === 0) {
       log.info({ orderId, tenantId }, 'CAPI auto-fire: no active pixels — skipping')

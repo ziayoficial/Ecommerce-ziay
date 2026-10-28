@@ -157,6 +157,35 @@ function encryptCredValue(jsonString: string): string {
 
 export const credentialsService = {
   /**
+   * Resolve the per-pixel apiToken: prefer credentialsService (Setting
+   * `cred::{ns}::pixel_{platform}_{pixelId}`), fall back to the legacy
+   * `PixelConfig.apiToken` column. Returns the enriched row (with
+   * `apiToken` possibly overridden) or the original row on any failure.
+   *
+   * AUTOFIX-C6 — shared by `conversionsService.getActivePixels` (route
+   * POST /api/conversions) and `capi-auto-fire.ts` (auto-fire on order
+   * paid). Keeping it here ensures both paths use the same credKey scheme.
+   */
+  async overlayPixelApiToken<T extends { id: string; platform: string; pixelId: string; apiToken: string; testMode: boolean }>(
+    ns: string,
+    pixel: T,
+  ): Promise<T> {
+    const credKey = `pixel_${pixel.platform}_${pixel.pixelId}`
+    try {
+      const row = await credentialsService.getForIntegration(ns, credKey)
+      if (row) {
+        const fields = parseCredValue(row.value)
+        if (fields.apiToken) {
+          return { ...pixel, apiToken: fields.apiToken }
+        }
+      }
+    } catch {
+      // best-effort — keep column value
+    }
+    return pixel
+  },
+
+  /**
    * List all stored credential Setting rows for a namespace. Returns the
    * raw rows (key + value) — values are STILL ENCRYPTED at this layer.
    * Callers are responsible for `parseCredValue` (which decrypts) and

@@ -438,31 +438,71 @@ export const walletService = {
   }) {
     try {
       const txn = await db.$transaction(async (tx) => {
-        // 1. Record the ledger entry.
+        // AUTOFIX-H-10-remainder — same race as processWithdrawal:
+        // caller's `balanceAfter` is a snapshot and could be stale by the
+        // time this tx commits (another concurrent tx could have moved the
+        // balance). Read the live balance inside the tx + apply a relative
+        // increment/decrement so concurrent writes can never overwrite each
+        // other. The caller's snapshot values are preserved in the
+        // `WalletTransaction` ledger row so the admin can see what they
+        // saw when they submitted the entry (for audit trail), while the
+        // actual `walletBalance` is computed from the live read.
+        const liveTrafficker = await tx.trafficker.findUnique({
+          where: { id: input.traffickerId },
+          select: { walletBalance: true },
+        })
+        if (!liveTrafficker) {
+          throw new Error('Trafficker not found during recordTransaction')
+        }
+        const liveBalanceBefore = liveTrafficker.walletBalance
+        const unsignedAmount = Math.abs(input.amount)
+        const signedDelta =
+          input.direction === 'inbound' ? unsignedAmount : -unsignedAmount
+        const liveBalanceAfter = liveBalanceBefore + signedDelta
+        if (liveBalanceAfter < 0) {
+          throw new Error('Transaction would result in a negative balance')
+        }
+        // 1. Record the ledger entry with the LIVE values so the row
+        // matches the actual applied balance (not the stale admin snapshot).
         const created = await tx.walletTransaction.create({
           data: {
             traffickerId: input.traffickerId,
             direction: input.direction,
             type: input.type,
             category: input.category || input.type,
-            amount: Math.abs(input.amount),
-            balanceBefore: input.balanceBefore,
-            balanceAfter: input.balanceAfter,
+            amount: unsignedAmount,
+            balanceBefore: liveBalanceBefore,
+            balanceAfter: liveBalanceAfter,
             description: input.description || null,
             reference: input.reference || null,
             referenceType: input.referenceType || null,
             status: 'completed',
           },
         })
-        // 2. Apply the new balance to the trafficker row.
+        // 2. Apply the balance change (RELATIVE — atomic).
         await tx.trafficker.update({
           where: { id: input.traffickerId },
-          data: { walletBalance: input.balanceAfter },
+          data: {
+            walletBalance:
+              input.direction === 'inbound'
+                ? { increment: unsignedAmount }
+                : { decrement: unsignedAmount },
+          },
         })
         return created
       })
       return txn
     } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      // AUTOFIX-H-10-remainder — bubble validation errors with their
+      // specific message so the admin sees "negative balance" / "trafficker
+      // not found" rather than a generic envelope.
+      if (
+        msg.startsWith('Trafficker not found') ||
+        msg.startsWith('Transaction would result')
+      ) {
+        throw err
+      }
       captureError(err as Error, {
         service: 'wallet',
         method: 'recordTransaction',

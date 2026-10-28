@@ -65,6 +65,13 @@ const { dbMock } = vi.hoisted(() => {
   return {
     dbMock: {
       auditLog: { create: vi.fn() },
+      // AUTOFIX-C6: credentialsService.overlayPixelApiToken calls
+      // `db.setting.findUnique` — mock it to return null (no
+      // credentialsService row) so callers fall back to the
+      // PixelConfig.apiToken column value verbatim. Per-test overrides
+      // can `mockResolvedValueOnce({ value: 'enc:v1:…' })` if they
+      // want to test the overlay path.
+      setting: { findUnique: vi.fn().mockResolvedValue(null) },
       order: {
         findFirst: vi.fn(),
         findUnique: vi.fn(),

@@ -525,8 +525,11 @@ describe('walletService.processWithdrawal', () => {
 // recordTransaction
 // ─────────────────────────────────────────────────────────────────────────────
 describe('walletService.recordTransaction', () => {
-  it('creates a WalletTransaction + updates Trafficker walletBalance in parallel', async () => {
+  it('creates a WalletTransaction + applies RELATIVE trafficker.walletBalance update (AUTOFIX-H-10-remainder)', async () => {
     const txn = { id: 'txn-1', direction: 'inbound', type: 'commission', amount: 100 }
+    // AUTOFIX-H-10-remainder: live balance read INSIDE the tx — mocked to
+    // return a trafficker with starting balance 0 so inbound +100 → 100.
+    db.trafficker.findUnique.mockResolvedValue({ id: 't-1', walletBalance: 0 })
     db.walletTransaction.create.mockResolvedValue(txn)
     db.trafficker.update.mockResolvedValue({ id: 't-1', walletBalance: 100 })
 
@@ -544,6 +547,10 @@ describe('walletService.recordTransaction', () => {
     })
 
     expect(result).toEqual(txn)
+    expect(db.trafficker.findUnique).toHaveBeenCalledWith({
+      where: { id: 't-1' },
+      select: { walletBalance: true },
+    })
     expect(db.walletTransaction.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         traffickerId: 't-1',
@@ -559,13 +566,15 @@ describe('walletService.recordTransaction', () => {
         referenceType: 'sale',
       }),
     })
+    // RELATIVE update — `increment` for inbound, not absolute write.
     expect(db.trafficker.update).toHaveBeenCalledWith({
       where: { id: 't-1' },
-      data: { walletBalance: 100 },
+      data: { walletBalance: { increment: 100 } },
     })
   })
 
   it('falls back category to type when category is omitted', async () => {
+    db.trafficker.findUnique.mockResolvedValue({ id: 't-1', walletBalance: 100 })
     db.walletTransaction.create.mockResolvedValue({ id: 'txn-2' })
 
     await walletService.recordTransaction({
@@ -581,11 +590,19 @@ describe('walletService.recordTransaction', () => {
       data: expect.objectContaining({
         type: 'withdrawal',
         category: 'withdrawal',
+        balanceBefore: 100,
+        balanceAfter: 50,
       }),
+    })
+    // outbound → decrement
+    expect(db.trafficker.update).toHaveBeenCalledWith({
+      where: { id: 't-1' },
+      data: { walletBalance: { decrement: 50 } },
     })
   })
 
   it('takes the absolute value of amount (negative → positive)', async () => {
+    db.trafficker.findUnique.mockResolvedValue({ id: 't-1', walletBalance: 0 })
     db.walletTransaction.create.mockResolvedValue({ id: 'txn-3' })
 
     await walletService.recordTransaction({
@@ -602,7 +619,26 @@ describe('walletService.recordTransaction', () => {
     })
   })
 
-  it('throws a wrapped Error when one of the parallel writes rejects', async () => {
+  it('throws when live balance would go negative (AUTOFIX-H-10-remainder)', async () => {
+    // Admin's snapshot said balanceBefore=100, but live read returns 30 —
+    // outbound 50 must NOT be allowed.
+    db.trafficker.findUnique.mockResolvedValue({ id: 't-1', walletBalance: 30 })
+
+    await expect(
+      walletService.recordTransaction({
+        traffickerId: 't-1',
+        direction: 'outbound',
+        type: 'withdrawal',
+        amount: 50,
+        balanceBefore: 100,
+        balanceAfter: 50,
+      }),
+    ).rejects.toThrow(/negative balance/)
+    expect(db.trafficker.update).not.toHaveBeenCalled()
+  })
+
+  it('throws a wrapped Error when an infrastructure write rejects (not validation)', async () => {
+    db.trafficker.findUnique.mockResolvedValue({ id: 't-1', walletBalance: 100 })
     db.walletTransaction.create.mockRejectedValue(new Error('fail'))
     await expect(
       walletService.recordTransaction({

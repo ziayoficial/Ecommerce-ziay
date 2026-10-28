@@ -10,6 +10,13 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { logger } from '@/lib/logger'
+// AUTOFIX-C4 — eager import so the credentialsService read is
+// deterministic (no extra microtask hop from `await import`).
+import {
+  resolveCredentialNamespace,
+  credentialsService,
+  parseCredValue,
+} from '@/lib/services/credentials.service'
 
 const WA_API_BASE =
   process.env.WHATSAPP_CLOUD_API_BASE ?? 'https://graph.facebook.com/v18.0'
@@ -203,8 +210,36 @@ export async function getWhatsAppAdapter(
   const channel = await db.channel.findFirst({
     where: { tenantId, type: 'whatsapp', active: true },
   })
-  if (!channel?.phoneNumberId || !channel?.whatsappToken) return null
-  return new WhatsAppCloudAdapter(channel.phoneNumberId, channel.whatsappToken)
+  if (!channel?.phoneNumberId) return null
+  // AUTOFIX-C4 — read the WhatsApp access token from `credentialsService`
+  // first (Setting `cred::{tenantId}::whatsapp` encrypted with AES-256-GCM).
+  // Falls back to the legacy `channel.whatsappToken` column when the
+  // migration hasn't been run yet (backfill in progress).
+  let apiToken: string | null = null
+  try {
+    const ns = resolveCredentialNamespace(tenantId)
+    const row = await credentialsService.getForIntegration(ns, 'whatsapp')
+    if (row) {
+      const fields = parseCredValue(row.value)
+      apiToken = fields.apiToken || null
+    }
+  } catch (err) {
+    const { captureError } = await import('@/lib/capture-error')
+    captureError(err as Error, {
+      module: 'whatsapp-cloud',
+      method: 'getWhatsAppAdapter',
+      step: 'credentialsService-read',
+      tenantId,
+    })
+  }
+  // Fall back to the column when (a) no Setting row or (b) the Setting value
+  // had no `apiToken` field. The column is still present in this transitional
+  // state — it's dropped in a later migration once backfill is confirmed.
+  if (!apiToken) {
+    apiToken = channel.whatsappToken
+  }
+  if (!apiToken) return null
+  return new WhatsAppCloudAdapter(channel.phoneNumberId, apiToken)
 }
 
 /**

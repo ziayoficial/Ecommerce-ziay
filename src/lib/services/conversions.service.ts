@@ -9,6 +9,11 @@
 
 import { db } from '@/lib/db'
 import { captureError } from '@/lib/capture-error'
+// AUTOFIX-C6 — eager import so the overlay is deterministic.
+import {
+  resolveCredentialNamespace,
+  credentialsService as creds,
+} from '@/lib/services/credentials.service'
 
 // TD-7: `log` was declared but never used (the service uses `captureError`
 // for error reporting instead of structured logging). Removed to silence
@@ -52,12 +57,34 @@ export const conversionsService = {
    * (including apiToken) — callers are expected to treat the token as opaque
    * and only forward it to the queue handler. The handler redacts it from
    * any persisted response payload.
+   *
+   * AUTOFIX-C6 — when a tenant has migrated the PixelConfig.apiToken to
+   * credentialsService (Setting `cred::{tenantId}::pixel_{platform}_{pixelId}`
+   * encrypted with AES-256-GCM), substitute the column value with the
+   * decrypted Setting value. This keeps the queue handler + route callers
+   * transparently working with either storage location during the
+   * backfill/migration window. After the migration is confirmed complete,
+   * `PixelConfig.apiToken` can be dropped from the schema.
    */
   async getActivePixels(tenantId: string) {
     try {
-      return await db.pixelConfig.findMany({
+      const pixels = await db.pixelConfig.findMany({
         where: { tenantId, active: true },
       })
+      // AUTOFIX-C6 — overlay credentialsService tokens over the column
+      // values. Best-effort: if the read fails (no row, decrypt failure,
+      // …) keep the column value. The column is still present in the
+      // schema until the post-migration cleanup is run.
+      try {
+        const ns = resolveCredentialNamespace(tenantId)
+        const enriched = await Promise.all(
+          pixels.map((p) => creds.overlayPixelApiToken(ns, p)),
+        )
+        return enriched
+      } catch {
+        // credentialsService unavailable — return raw rows
+        return pixels
+      }
     } catch (err) {
       captureError(err as Error, {
         service: 'conversions',

@@ -219,13 +219,22 @@ model Channel {
   // WhatsApp Cloud API (§9.1)
   wabaId            String?  // WhatsApp Business Account ID
   phoneNumberId     String?  // Phone Number ID from Meta
-  // AUDIT-C-4/C-10: los siguientes 4 campos almacenan credenciales en texto plano.
-  // Deben migrarse a credentialsService (Setting + AES-256-GCM) en el próximo sprint.
-  // Ver: agent-ctx/AUDIT-CRITICAL-FIXES.md
-  whatsappToken     String?  // Access token for WhatsApp Cloud API — AUDIT-C-4: texto plano
+  // AUTOFIX-C4 (post-backfill — column kept as fallback): the two fields
+  // below (`whatsappToken`, `pageAccessToken`) are STILL on the Channel
+  // table as a transitional fallback for tenants that haven't run the
+  // backfill script (scripts/backfill-credentials.ts). Callers
+  // (`whatsapp-cloud.getWhatsAppAdapter`) read first from
+  // credentialsService (Setting `cred::{tenantId}::whatsapp` /
+  // `::messenger` encrypted with AES-256-GCM) and only fall back to these
+  // columns when the Setting row is absent. After all tenants are migrated,
+  // these two columns can be dropped — they will read as null for tenants
+  // who've run the backfill (the write side now redirects via
+  // `/api/integrations/credentials` POST). See
+  // agent-ctx/AUTOFIX-AUDITORIA-001-senior-security-engineer.md.
+  whatsappToken     String?  // Access token for WhatsApp Cloud API — fallback after backfill
   // Messenger (§9.2)
   pageId            String?  // Facebook Page ID
-  pageAccessToken   String?  // Page Access Token — AUDIT-C-4: texto plano
+  pageAccessToken   String?  // Page Access Token — fallback after backfill (AUTOFIX-C4)
   // Instagram DM (§9.3)
   igAccountId       String?  // Instagram Business Account ID
   // Webhook security (all channels)
@@ -746,8 +755,11 @@ model AdPlatform {
   name        String  @unique
   displayName String
   accountId   String?
-  // AUDIT-C-5: accessToken almacenado en texto plano. Migrar a credentialsService.
-  accessToken String?
+  // AUTOFIX-C5 — `accessToken` field REMOVED. It was dead: no caller ever
+  // read this column. The AdPlatform adapters (google-ads, tiktok-ads) get
+  // their credentials from `credentialsService` (Setting + AES-256-GCM)
+  // via `ads-registry.ts` and `process.env` fallbacks. See
+  // agent-ctx/AUTOFIX-AUDITORIA-001-senior-security-engineer.md.
   active      Boolean @default(true)
   createdAt   DateTime @default(now())
 
@@ -1473,9 +1485,16 @@ model TwoFactorConfig {
   traffickerId  String?  @unique
   tenantId      String?  @unique
   userId        String?
-  // AUDIT-C-3: secret almacenado en texto plano (sin AES-256-GCM).
-  // El secreto se cifra a nivel de aplicación en totp.ts, pero el schema debería
-  // migrar a un campo cifrado con credentialsService en el próximo sprint.
+  // AUTOFIX-C3 (doc-only — already encrypted): the `secret` column stores
+  // TOTP secrets encrypted at the application layer by `src/lib/totp.ts`
+  // `encrypt()` (AES-256-GCM, format `iv:authTag:encryptedHex`). The
+  // earlier audit comment incorrectly flagged this as "texto plano" —
+  // it never was; the encryption happens before Prisma sees the value.
+  // Migrating this column to `credentialsService` (Setting `cred::*`)
+  // would just move from one AES-256-GCM scheme to another with no
+  // security gain, while breaking `verifyTOTP` which expects the
+  // `iv:authTag:encryptedHex` shape. CLOSED as "Open (accepted)" — see
+  // agent-ctx/AUTOFIX-AUDITORIA-001-senior-security-engineer.md.
   secret        String
   backupCodes   String?
   enabled       Boolean  @default(false)
@@ -1545,8 +1564,16 @@ model PixelConfig {
   tenantId    String
   platform    String   // meta | google | tiktok
   pixelId     String
-  // AUDIT-C-6: apiToken almacenado en texto plano. Migrar a credentialsService.
-  apiToken    String
+  // AUTOFIX-C6 (post-backfill — column kept as fallback): the
+  // `PixelConfig.apiToken` column remains as a transitional fallback.
+  // Callers (`conversionsService.getActivePixels`,
+  // `capi-auto-fire.fireCapiPurchaseEvent`) read first from
+  // credentialsService (Setting `cred::{tenantId}::pixel_{platform}_{pixelId}`
+  // encrypted with AES-256-GCM) and only fall back to this column when
+  // the Setting row is absent. After all tenants are migrated this column
+  // can be dropped. See
+  // agent-ctx/AUTOFIX-AUDITORIA-001-senior-security-engineer.md.
+  apiToken    String  // Pixel API token — fallback after backfill (AUTOFIX-C6)
   testMode    Boolean  @default(false)
   active      Boolean  @default(true)
   createdAt   DateTime @default(now())

@@ -1,4 +1,6 @@
 import { Metadata } from 'next'
+import { Suspense } from 'react'
+import { ParentalConsentForm } from '@/components/compliance/parental-consent-form'
 
 export const metadata: Metadata = {
   title: 'Consentimiento de Padre/Madre/Tutor',
@@ -11,17 +13,21 @@ export const metadata: Metadata = {
 
 // SPRINT-ADOPT-ERRORHANDLER-001 — age-gate escalation target.
 //
-// When the age-gate middleware (`src/lib/compliance/age-gate.ts`) detects
-// a minor trying to checkout without a recorded parental consent, it
-// redirects here. The page collects the tutor's identity + relationship
-// + explicit consent checkbox; on submit, the form POSTs to
-// `/api/compliance/consent` (already exists) with
-// `purpose: 'parental_consent_minor'`.
+// When the age-gate (`src/lib/compliance/age-gate.ts`) detects a minor
+// trying to checkout without a recorded parental consent, the UCP
+// checkout redirects here with ?customerId=… (see
+// /api/ucp/v1/checkout/[sessionId] `requires_escalation`). The tutor —
+// who has NO NextAuth session — fills the form and the client island
+// POSTs to the anonymous public endpoint `/api/compliance/parental-consent`
+// (AUDIT-CYCLE-4-H3), which persists the `parental_consent_minor`
+// ConsentRecord (with proof: tutor name, relationship, IP, user agent,
+// timestamp and the tutor document HASHED) that `requireParentalConsent`
+// checks to let the minor's checkout proceed.
 //
-// This is a static page (no server data fetch) — kept simple intentionally
-// so the legal surface is identical regardless of dashboard state. The
-// actual consent record (with the signed payload + IP + user agent) is
-// persisted by the API route, not here.
+// The page is public (in middleware PUBLIC_PATTERNS) because the tutor
+// arrives from a chat link; the submission endpoint carries its own
+// hardening (same-origin CSRF check, 5/10min rate limit, isMinor
+// customer validation, Zod body).
 //
 // Legal references:
 //   - Ley 1098 de 2006 — Código de la Infancia y la Adolescencia (Colombia)
@@ -46,72 +52,18 @@ export default function ParentalConsentPage() {
           <p className="font-medium">¿Qué necesitas?</p>
           <ul className="list-disc list-inside space-y-1 text-muted-foreground">
             <li>Tu documento de identidad</li>
-            <li>El documento de identidad del menor</li>
+            <li>El enlace que te compartió el asesor por chat</li>
             <li>Confirmar que eres el tutor legal</li>
           </ul>
         </div>
 
-        <form className="space-y-4">
-          <div>
-            <label htmlFor="tutor-name" className="block text-sm font-medium mb-1">
-              Nombre completo del tutor
-            </label>
-            <input
-              id="tutor-name"
-              type="text"
-              required
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="tutor-doc" className="block text-sm font-medium mb-1">
-              Documento de identidad del tutor
-            </label>
-            <input
-              id="tutor-doc"
-              type="text"
-              required
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="relationship" className="block text-sm font-medium mb-1">
-              Parentesco
-            </label>
-            <select
-              id="relationship"
-              required
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            >
-              <option value="">Selecciona...</option>
-              <option value="padre">Padre</option>
-              <option value="madre">Madre</option>
-              <option value="tutor">Tutor legal</option>
-              <option value="abuelo">Abuelo/a</option>
-            </select>
-          </div>
-
-          <div className="flex items-start gap-2">
-            <input
-              id="consent"
-              type="checkbox"
-              required
-              className="mt-1"
-            />
-            <label htmlFor="consent" className="text-xs text-muted-foreground">
-              Confirmo que soy el padre, madre o tutor legal del menor y autorizo esta compra conforme a la Ley 1098 de 2006.
-            </label>
-          </div>
-
-          <button
-            type="submit"
-            className="w-full rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-          >
-            Autorizar compra
-          </button>
-        </form>
+        {/* AUDIT-CYCLE-4-H3 — the form was previously inert (no action,
+            nothing persisted). It now submits to the anonymous public
+            endpoint. Suspense is required because the island reads
+            ?customerId via useSearchParams (same pattern as /login). */}
+        <Suspense fallback={<div className="h-64 animate-pulse rounded-md bg-muted/40" />}>
+          <ParentalConsentForm />
+        </Suspense>
 
         <p className="text-xs text-center text-muted-foreground">
           Al autorizar, registraremos tu consentimiento de forma verificable conforme a la Ley 1581 de 2012.

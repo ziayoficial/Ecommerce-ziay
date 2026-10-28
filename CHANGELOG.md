@@ -6,7 +6,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Security
+### Security — AUDIT-CYCLE-4 (auditoría → fix → re-auditoría)
+- **H1 · POST /api/trafficker ownership checks**: 5 de 6 acciones eran ejecutables por cualquier usuario autenticado de cualquier rol. `confirm_sale`/`fail_sale` (acreditan wallet) ahora son admin/finance-only; `register` solo self-signup (email propio) o admin/finance (cierra identity squatting); `create_campaign`/`register_sale` requieren self (email match) o admin/finance. 15 tests nuevos (tests/unit/trafficker-route-authorization.test.ts).
+- **H2 · /vendedor exige sesión**: la página era pública (PUBLIC_PATTERNS) y exponía emails de staff, nombres de clientes y montos de órdenes cross-tenant a visitantes anónimos, con fallback al primer agente de la plataforma. Ahora: middleware JWT gate + guard server-side self-or-admin (platform admin cualquier vendedor; tenant admin solo los de su tenant). 2 e2e nuevos.
+- **H3 · Flujo de consentimiento parental funcional (Ley 1098/2006 Art 17 + Ley 1581/2012 Art 10)**: el flujo estaba roto end-to-end — el form público no tenía action y NADA podía crear el `ConsentRecord` que el age-gate exige (la API rechazaba el purpose `parental_consent_minor` y exigía sesión imposible para el tutor anónimo). Nuevo endpoint anónimo `POST /api/compliance/parental-consent` (CSRF same-origin + rate limit 5/10min/IP + validación isMinor + Zod + documento del tutor hasheado + idempotencia) + form cableado (client island). Purpose añadido al enum de /api/compliance/consent. 8 tests nuevos.
+- **M1 · GET /api/tenants aplica el filtro por rol documentado**: usuarios tenant-bound ahora reciben solo su propio tenant (antes: lista completa con config interna de todos los tenants a cualquier rol). 3 tests nuevos.
+- **M2 · GET /api/agents/traces restringido a platform admins**: un admin tenant-bound podía leer traces con PII de todos los tenants (el doc decía "platform admins"; el guard no lo distinguía). 4 tests nuevos.
+- **M3 · POST/DELETE /api/integrations/credentials**: ahora admin-only + Zod (antes cualquier usuario del tenant, ej. rol agent, podía sobreescribir o borrar credenciales de MercadoPago/WhatsApp). 7 tests nuevos.
+- **L1 · alertmanager-webhook compara el Bearer secret con `timingSafeEqual`** (antes `!==` — timing side-channel).
+- **L2 · /api/ucp/v1/order limpia doble `requireAuth` + doc `@security` corregido.**
+
+### Removed — AUDIT-CYCLE-4 (código muerto, 9 módulos con 0 importadores)
+- `src/lib/rls.ts` (la "capa ORM" de aislamiento — nunca cableada; el aislamiento vivo es app-layer + RLS SQL), `src/lib/http.ts`, `src/lib/graceful-shutdown.ts`, `src/lib/api-error-handler.ts` (raíz; el vivo es `middleware/api-error-handler.ts`), `src/lib/middleware/security-headers.ts` (el middleware aplica headers inline), `src/lib/middleware/country-detection.ts`, `src/lib/agents/prompt-versioning.ts`, `src/lib/adapters/oracle-catalog.ts`, `src/lib/orchestrator/orchestrator.ts` (deprecated ORC-1).
+- **SECURITY.md corregido**: describía una "defensa en 3 capas" con una capa ORM inexistente (incl. funciones que nunca existieron en el archivo); ahora documenta las 2 capas reales (app guards + 35 políticas RLS en Postgres) con nota de honestidad documental.
+
+### Fixed - Docs (AUDIT-CYCLE-4-L4 doc drift)
+- docker-compose.yml: header decía "11 services" (16 reales). `summarize.ts` decía "aún NO cableada" (sí lo está). `meta-agent-config.ts` decía "26 agents" (24 post IA-3). openapi.yaml: añadido `POST /api/compliance/parental-consent` + purpose `parental_consent_minor` (Redocly válido).
+
+### Added - Documentation (AUDIT-CYCLE-4)
+- agent-ctx/AUDIT-CYCLE-4-full-stack-security-auditor.md (11 hallazgos: 3 High, 3 Medium, 4 Low, 1 Info; 4 refutados en verificación).
+- 37 tests nuevos (1169 pasando; suite completa verde).
+- Lecciones L67 en upload/ + public/presentaciones/LECCIONES-APRENDIDAS.md.
+
+### Security (previo)
 - **Vision pipeline anti-injection** (PR #12): `src/lib/vision/pipeline.ts` now wraps system prompts with `ANTI_INJECTION_PREFIX` and user text with `wrapUserInput()` in both `identifyImage()` and `enrichProductImage()`, closing the last known prompt injection gap in the agent layer. All LLM call sites now follow the same pattern: `/api/agents/[agentName]`, `/api/ai-reply`, `/api/orchestrate`, `memory-curator.service`, and `vision/pipeline`.
 
 

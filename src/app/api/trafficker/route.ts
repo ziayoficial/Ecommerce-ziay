@@ -35,6 +35,25 @@ function authorizeTraffickerAccess(
   return null
 }
 
+/**
+ * AUDIT-CYCLE-4-H1 — privileged-only gate for wallet-crediting actions.
+ * `confirm_sale` and `fail_sale` credit the trafficker's wallet (commission
+ * on confirm, compensation on fail). Allowing self-service here would let a
+ * trafficker register a fake sale and credit their own wallet — the caller
+ * must be an admin/finance operator (tenant admins included; they verify the
+ * sale actually happened on their tenant).
+ */
+function requirePrivileged(session: Session | null): NextResponse | null {
+  const callerRole = session?.user?.role
+  if (callerRole !== 'admin' && callerRole !== 'finance') {
+    return NextResponse.json(
+      { error: 'Forbidden: admin/finance role required' },
+      { status: 403 },
+    )
+  }
+  return null
+}
+
 // ───────────────────────────────────────────────────────────────────────────
 // Body schemas (per-action discriminated union)
 // ───────────────────────────────────────────────────────────────────────────
@@ -164,6 +183,18 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
 //   - fail_sale           : { action, saleId, reason? }
 //   - withdraw            : { action, traffickerId, amount, walletAccountId, totpCode? }
 //
+// AUDIT-CYCLE-4-H1 — authorization matrix, enforced per action:
+//   - register          : self (own email only) or admin/finance — closes
+//                         identity squatting via arbitrary emails.
+//   - create_campaign   : the trafficker themselves (email match) or
+//                         admin/finance.
+//   - register_sale     : the trafficker themselves or admin/finance.
+//   - confirm_sale      : admin/finance ONLY — credits the wallet; a
+//                         trafficker must not self-confirm sales.
+//   - fail_sale         : admin/finance ONLY — credits compensation.
+//   - withdraw          : self (email match) or admin/finance (existing
+//                         FIX-SECURITY-AUTH-001 #13 check, unchanged).
+//
 // SPRINT8-SERVICES-REST-001 — migrated every Trafficker / TraffickerCampaign /
 // TraffickerSale / TraffickerCompensation / TraffickerTransaction /
 // WalletTransaction / WithdrawalRequest read+write to `walletService`.
@@ -203,15 +234,15 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
 
   switch (action) {
     case 'register':
-      return await registerTrafficker(body)
+      return await registerTrafficker(body, session)
     case 'create_campaign':
-      return await createCampaign(body)
+      return await createCampaign(body, session)
     case 'register_sale':
-      return await registerSale(body)
+      return await registerSale(body, session)
     case 'confirm_sale':
-      return await confirmSale(body)
+      return await confirmSale(body, session)
     case 'fail_sale':
-      return await failSale(body)
+      return await failSale(body, session)
     case 'withdraw':
       return await withdraw(body, session)
     default:
@@ -235,8 +266,19 @@ const COMPENSATION_RATES: Record<string, number> = {
   product_damaged: 0.25,    // 25% of commission
 }
 
-async function registerTrafficker(body: z.infer<typeof RegisterTraffickerSchema>) {
+async function registerTrafficker(
+  body: z.infer<typeof RegisterTraffickerSchema>,
+  session: Session | null,
+) {
   const { email, name, phone } = body
+
+  // AUDIT-CYCLE-4-H1 — only self-signup (own session email) or
+  // admin/finance may register a trafficker. Previously ANY authed user
+  // could register a trafficker with an arbitrary email (identity
+  // squatting that later enabled `isSelf` in other flows).
+  const forbidden = authorizeTraffickerAccess(session, email)
+  if (forbidden) return forbidden
+
   // Pre-check for duplicate email — service create would throw, but a
   // friendly 409 with the existing row is more useful.
   const existing = await traffickerService.getTraffickerByEmail(email)
@@ -254,7 +296,10 @@ async function registerTrafficker(body: z.infer<typeof RegisterTraffickerSchema>
   return NextResponse.json({ trafficker })
 }
 
-async function createCampaign(body: z.infer<typeof CreateCampaignSchema>) {
+async function createCampaign(
+  body: z.infer<typeof CreateCampaignSchema>,
+  session: Session | null,
+) {
   const { traffickerId, tenantId, name, platform, budget, startDate, endDate } = body
   // Verify trafficker exists and is active
   const trafficker = await traffickerService.getTraffickerById(traffickerId)
@@ -264,6 +309,13 @@ async function createCampaign(body: z.infer<typeof CreateCampaignSchema>) {
       { status: 404 },
     )
   }
+
+  // AUDIT-CYCLE-4-H1 — ownership check: only the trafficker themselves
+  // or admin/finance may create campaigns (previously any authed user
+  // could create campaigns for any trafficker on any tenant).
+  const forbidden = authorizeTraffickerAccess(session, trafficker.email)
+  if (forbidden) return forbidden
+
   const campaign = await traffickerService.createCampaign({
     traffickerId,
     tenantId,
@@ -276,8 +328,24 @@ async function createCampaign(body: z.infer<typeof CreateCampaignSchema>) {
   return NextResponse.json({ campaign })
 }
 
-async function registerSale(body: z.infer<typeof RegisterSaleSchema>) {
+async function registerSale(
+  body: z.infer<typeof RegisterSaleSchema>,
+  session: Session | null,
+) {
   const { traffickerId, tenantId, campaignId, orderId, amount, commission } = body
+
+  // AUDIT-CYCLE-4-H1 — ownership check before touching the ledger: only
+  // the trafficker themselves or admin/finance may register sales.
+  const trafficker = await traffickerService.getTraffickerById(traffickerId)
+  if (!trafficker) {
+    return NextResponse.json(
+      { error: 'Trafficker not found' },
+      { status: 404 },
+    )
+  }
+  const forbidden = authorizeTraffickerAccess(session, trafficker.email)
+  if (forbidden) return forbidden
+
   // Verify campaign belongs to this trafficker
   const campaign = await traffickerService.getCampaignForTrafficker(campaignId, traffickerId, tenantId)
   if (!campaign) {
@@ -297,8 +365,20 @@ async function registerSale(body: z.infer<typeof RegisterSaleSchema>) {
   return NextResponse.json({ sale })
 }
 
-async function confirmSale(body: z.infer<typeof ConfirmSaleSchema>) {
+async function confirmSale(
+  body: z.infer<typeof ConfirmSaleSchema>,
+  session: Session | null,
+) {
   const { saleId } = body
+
+  // AUDIT-CYCLE-4-H1 — privileged-only: confirming a sale CREDITS the
+  // trafficker's wallet, so self-service is forbidden (previously any
+  // authed user — including the trafficker themselves — could credit
+  // wallets at will). Tenant admins pass (role 'admin') because they
+  // verify the sale happened on their tenant.
+  const forbidden = requirePrivileged(session)
+  if (forbidden) return forbidden
+
   const sale = await traffickerService.getSaleWithCampaign(saleId)
   if (!sale) {
     return NextResponse.json({ error: 'Sale not found' }, { status: 404 })
@@ -318,8 +398,16 @@ async function confirmSale(body: z.infer<typeof ConfirmSaleSchema>) {
   return NextResponse.json(result)
 }
 
-async function failSale(body: z.infer<typeof FailSaleSchema>) {
+async function failSale(
+  body: z.infer<typeof FailSaleSchema>,
+  session: Session | null,
+) {
   const { saleId, reason } = body
+
+  // AUDIT-CYCLE-4-H1 — privileged-only (same rationale as confirm_sale:
+  // failing a sale CREDITS a compensation to the wallet).
+  const forbidden = requirePrivileged(session)
+  if (forbidden) return forbidden
 
   const validReasons = Object.keys(COMPENSATION_RATES)
   const failReason = reason && validReasons.includes(reason) ? reason : 'seller_no_ship'

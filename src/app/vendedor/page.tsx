@@ -1,12 +1,26 @@
 import Link from 'next/link'
 import type { Metadata } from 'next'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { redirect } from 'next/navigation'
 import { db } from '@/lib/db'
 import { formatCurrency, formatNumber, timeAgo } from '@/lib/format'
 
 // ───────────────────────────────────────────────────────────────────────────
 // /vendedor — SSR seller profile page
 // Shows seller KPIs, active conversations, recent sales, quick actions.
-// ?sellerId=<userId> — defaults to the first user (agent) found.
+// ?sellerId=<userId> — access-checked (self or admin), defaults to the
+// session user.
+//
+// AUDIT-CYCLE-4-H2 — this page was PUBLIC (middleware PUBLIC_PATTERNS)
+// and leaked seller emails, customer names and order amounts cross-tenant
+// to anonymous visitors, with a fallback to the first agent on the
+// platform. Now:
+//   1. The middleware JWT gate applies (removed from PUBLIC_PATTERNS).
+//   2. This server-side guard requires a session BEFORE any data fetch.
+//   3. ?sellerId= is access-checked: self, platform admin (any seller) or
+//      tenant admin (sellers of their own tenant only). Everyone else is
+//      redirected to '/'.
 // ───────────────────────────────────────────────────────────────────────────
 
 interface PageProps {
@@ -28,21 +42,24 @@ export const dynamic = 'force-dynamic'
 export default async function SellerPage({ searchParams }: PageProps) {
   const { sellerId } = await searchParams
 
-  // Resolve seller — explicit ?sellerId=, else first user with role "agent".
-  const seller = sellerId
-    ? await db.user.findUnique({ where: { id: sellerId } })
-    : await db.user.findFirst({
-        where: { role: { in: ['agent', 'admin'] } },
-        orderBy: { createdAt: 'asc' },
-      })
+  // AUDIT-CYCLE-4-H2 — session required. redirect() aborts the render
+  // before any DB query runs.
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) {
+    redirect('/login?callbackUrl=%2Fvendedor')
+  }
+
+  // Resolve seller — explicit ?sellerId= (access-checked below), else the
+  // session user themselves.
+  const targetSellerId = sellerId ?? session.user.id
+  const seller = await db.user.findUnique({ where: { id: targetSellerId } })
 
   if (!seller) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background p-6 text-center">
-        <h1 className="text-2xl font-semibold">Sin vendedores registrados</h1>
+        <h1 className="text-2xl font-semibold">Vendedor no encontrado</h1>
         <p className="mt-2 text-muted-foreground max-w-md">
-          Aún no hay usuarios vendedores en la plataforma. Crea un usuario
-          desde el panel de administración para ver su perfil aquí.
+          No encontramos un vendedor con ese identificador.
         </p>
         <Link
           href="/"
@@ -52,6 +69,21 @@ export default async function SellerPage({ searchParams }: PageProps) {
         </Link>
       </div>
     )
+  }
+
+  // AUDIT-CYCLE-4-H2 — access control on ?sellerId=:
+  //   - self (the session user views their own panel)
+  //   - platform admin (tenantId null — sees any seller)
+  //   - tenant admin (sees sellers of their own tenant only)
+  const caller = session.user
+  const isSelf = seller.id === caller.id
+  const isPlatformAdmin = caller.role === 'admin' && !caller.tenantId
+  const isTenantAdminOfSeller =
+    caller.role === 'admin' &&
+    !!caller.tenantId &&
+    caller.tenantId === seller.tenantId
+  if (!isSelf && !isPlatformAdmin && !isTenantAdminOfSeller) {
+    redirect('/')
   }
 
   // ── Parallel data fetch ──

@@ -63,7 +63,7 @@ erDiagram
 
 ## Multi-Tenancy
 
-Every tenant-scoped model carries a `tenantId` foreign key pointing to `Tenant.id`. The middleware + `requireTenantAccess` / `requireAuth` helpers enforce tenant isolation at the API layer; the database-level Row-Level Security (RLS) helper (`src/lib/rls.ts`) is available for direct Prisma queries that need an extra defense-in-depth layer.
+Every tenant-scoped model carries a `tenantId` foreign key pointing to `Tenant.id`. The middleware + `requireTenantAccess` / `requireAuth` helpers enforce tenant isolation at the API layer; in production, PostgreSQL Row-Level Security (`prisma/sql/rls-policies.sql`, 35 policies) provides the database-level defense-in-depth layer.
 
 **Global models (8):**
 - `Tenant` — the root entity (slug, name, currency, country).

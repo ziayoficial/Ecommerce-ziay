@@ -12,7 +12,8 @@
 //
 // This module is the SINGLE source of truth for which strategy ZIAY uses
 // per deployment. The default is `own_stack` (see `META-AGENT-DECISION.md`
-// for the full rationale): ZIAY's 26 specialized agents already cover the
+// for the full rationale): ZIAY's 24 specialized agents (20 consolidated
+// base + 4 control-plane, post IA-3) already cover the
 // 6 stages of the agentic flow, the per-conversation cost is ~100x lower
 // than Meta's per-token fee, and AP2/UCP compliance requires ZIAY to own
 // the signing service (impossible with Meta Native).

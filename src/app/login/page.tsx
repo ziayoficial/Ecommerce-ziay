@@ -61,6 +61,15 @@ const DEMO_ACCOUNTS = [
   },
 ] as const
 
+// AUDIT-CYCLE-4-L5 — demo credentials must not ship in production
+// bundles. NODE_ENV is inlined at build time, so in a production build
+// this evaluates to `false` and the whole demo section below (including
+// the DEMO_ACCOUNTS literal, referenced only inside it) is
+// dead-code-eliminated from the client JS. Dev/staging keep the
+// one-click demo login; production should never expose account emails +
+// a password pattern on its login screen.
+const SHOW_DEMO_ACCOUNTS = process.env.NODE_ENV !== 'production'
+
 function LoginInner() {
   const router = useRouter()
   const search = useSearchParams()
@@ -296,13 +305,18 @@ function LoginInner() {
             </form>
 
             <CardFooter className="flex flex-col gap-3 pt-2">
-              <p className="text-[11px] text-muted-foreground text-center w-full">
-                ¿Sin cuenta? Usa una de las credenciales demo abajo.
-              </p>
+              {SHOW_DEMO_ACCOUNTS && (
+                <p className="text-[11px] text-muted-foreground text-center w-full">
+                  ¿Sin cuenta? Usa una de las credenciales demo abajo.
+                </p>
+              )}
             </CardFooter>
           </Card>
 
-          {/* Demo accounts */}
+          {/* Demo accounts — AUDIT-CYCLE-4-L5: dev/staging only.
+              In production builds this block (and the DEMO_ACCOUNTS data)
+              is eliminated from the bundle. */}
+          {SHOW_DEMO_ACCOUNTS && (
           <div className="space-y-2.5">
             <div className="flex items-center gap-2 text-[11px] uppercase tracking-wider font-semibold text-muted-foreground">
               <span className="h-px flex-1 bg-border" />
@@ -345,6 +359,7 @@ function LoginInner() {
               Contraseña para todas: <code className="font-mono bg-muted px-1.5 py-0.5 rounded">demo123</code>
             </p>
           </div>
+          )}
 
           {/* Public pages link */}
           <div className="text-center text-xs text-muted-foreground">

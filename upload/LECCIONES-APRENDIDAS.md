@@ -821,3 +821,14 @@ En CI, los 68 tests de Playwright corren desde `127.0.0.1` (un solo bucket por I
 **Regla**: Para cualquier modificacion de codigo fuente que involucre template literals, backticks, o `${...}`, usar un script `.mjs` con `readFileSync`/`writeFileSync` en lugar de `.Replace()` de PowerShell.
 
 **Script de referencia**: `apply-vision-fix.mjs` (commit `7987ed1`, PR #12).
+
+
+---
+
+## Leccion L67: La documentacion de seguridad que describe capas inexistentes es en si misma un hallazgo
+
+**Contexto**: SECURITY.md describia una "defensa en profundidad de 3 capas" para el aislamiento multi-tenant, donde la capa 2 (ORM) era `makeTenantPrismaExtension()` de `src/lib/rls.ts` - un modulo que existia en disco pero tenia 0 importadores (nunca estuvo cableado en runtime). La seccion incluso documentaba funciones `withTenant()` y `createTenantScopedClient()` que NO existian en el archivo. La defensa real son 2 capas: los guards de la app layer (`requireTenantAccess`, 155+ usages) + las 35 politicas RLS SQL en Postgres.
+
+**Leccion**: Una capa de seguridad documentada pero no cableada es peor que no documentarla: el operador cree tener un respaldo que no existe. Extiende L1 (el worklog puede mentir) a los documentos de seguridad: verificar cada capa claimada con grep de importadores reales, no con la documentacion. La auditoria de AUDIT-CYCLE-4 encontro 9 modulos muertos (~2.000 lineas) documentados como activos.
+
+**Accion (AUDIT-CYCLE-4)**: Eliminados los 9 modulos huérfanos; SECURITY.md reescrito a las 2 capas reales con nota de honestidad documental; docs/ERD.md corregido. La regla queda: toda capa de defensa mencionada en SECURITY.md debe tener un import real trazable en el arbol de codigo.

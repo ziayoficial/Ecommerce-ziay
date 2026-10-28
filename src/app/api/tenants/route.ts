@@ -23,10 +23,22 @@ import { tenantsService } from '@/lib/services'
  */
 export const GET = withErrorHandling(async () => {
 
-  const { error } = await requireAuth()
+  const { session, error } = await requireAuth()
   if (error) return error
 
   const payload = await tenantsService.listActiveTenants()
+
+  // AUDIT-CYCLE-4-M1 — enforce the role filter the docstring has always
+  // promised (but the code never applied): any authenticated user of any
+  // role was receiving the full tenant list including internal config
+  // (proveedorIa, proveedorLogistico, plataformaCatalogo, politicaPago)
+  // of every tenant on the platform. The 5-min cache stores the full
+  // list (it's the only meaningful input); the per-session filter runs
+  // here so no cache key can leak cross-tenant data.
+  const callerTenantId = session?.user?.tenantId ?? null
+  const tenants = callerTenantId
+    ? payload.filter((t) => t.id === callerTenantId)
+    : payload
 
   // SPRINT-PERFORMANCE-FINAL-001 — `private`: the tenant list is gated by
   // NextAuth + filtered by role (platform admins see all, tenant users see
@@ -34,7 +46,7 @@ export const GET = withErrorHandling(async () => {
   // list could be served to another. `private, max-age=60` lets the
   // browser cache for 60s (matching the withCache TTL) but instructs every
   // CDN in the chain to skip caching entirely.
-  return setCacheHeaders(NextResponse.json({ tenants: payload }), 'private')
+  return setCacheHeaders(NextResponse.json({ tenants }), 'private')
 
 
 })

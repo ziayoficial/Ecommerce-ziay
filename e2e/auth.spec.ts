@@ -30,6 +30,21 @@ test.describe('Authentication flows', () => {
     expect(page.url()).toMatch(/\/login/)
   })
 
+  // AUDIT-CYCLE-4-H2 — /vendedor was PUBLIC and leaked seller emails,
+  // customer names and order amounts to anonymous visitors. Now the
+  // middleware JWT gate applies (removed from PUBLIC_PATTERNS) + the
+  // page adds a server-side self-or-admin access check.
+  test('unauthenticated user hitting /vendedor is redirected to /login (AUDIT-CYCLE-4-H2)', async ({ page }) => {
+    const res = await page.goto('/vendedor')
+    expect(res?.status()).toBeLessThan(400)
+    await page.waitForURL(/\/login(\?.*)?$/, { timeout: 15_000 })
+    const callback = page.url()
+    // Must carry the callbackUrl so the seller lands back on their panel.
+    expect(callback).toMatch(/callbackUrl=/)
+    // Never render the panel itself to an anonymous visitor.
+    expect(callback).not.toMatch(/\/vendedor(\?.*)?$/)
+  })
+
   test('login page renders with email + password form', async ({ page }) => {
     await page.goto('/login')
     await expect(page).toHaveTitle(/ZIAY|CommerceFlow|Saramantha|login|Acceso|sesi|Comercio/i)
@@ -40,14 +55,17 @@ test.describe('Authentication flows', () => {
     // Submit button.
     await expect(page.locator('button[type="submit"]')).toBeVisible()
 
-    // Demo credentials hint is rendered (helps QA) — use .first() since the
-    // login page mentions it multiple times (header, footer, code hint).
-    await expect(page.getByText(/demo123|credenciales demo/i).first()).toBeVisible()
+    // AUDIT-CYCLE-4-L5 — demo credentials are gated out of production
+    // builds (NODE_ENV !== 'production' → dead-code-eliminated from the
+    // client bundle). This suite runs against the production standalone
+    // build, so the demo hint (emails + 'demo123') must NOT be visible
+    // here. Dev/staging servers still render the one-click demo login.
+    await expect(page.getByText(/demo123/i)).not.toBeVisible()
+    await expect(page.getByText(/credenciales demo/i)).not.toBeVisible()
   })
 
   test('login with valid credentials redirects to /', async ({ page }) => {
     await page.goto('/login')
-
     await page.locator('input[type="email"], input[name="email"]').fill(TEST_EMAIL)
     await page.locator('input[type="password"], input[name="password"]').fill(TEST_PASSWORD)
     await page.locator('button[type="submit"]').click()
@@ -56,6 +74,25 @@ test.describe('Authentication flows', () => {
     await page.waitForURL('**/', { timeout: 30_000 })
     expect(page.url()).toMatch(/\/$/)
   })
+
+  // AUDIT-CYCLE-4-H2 — the session user defaults to their own panel.
+  test('authenticated user sees their own seller panel on /vendedor (AUDIT-CYCLE-4-H2)', async ({ page }) => {
+    await signInViaForm(page)
+    // Wait for the login to actually complete (the cookie is only set when
+    // the redirect to '/' lands) before navigating to /vendedor —
+    // otherwise the middleware bounces the pre-session navigation to
+    // /login and the panel never renders.
+    await page.waitForURL('**/', { timeout: 30_000 })
+    const res = await page.goto('/vendedor')
+    expect(res?.status()).toBeLessThan(400)
+    // KPI section renders for the session user (no ?sellerId= needed).
+    // The phrase "Conversaciones activas" appears 3 times on the page
+    // (KPI label + section heading + empty state) — target the heading.
+    await expect(
+      page.getByRole('heading', { name: 'Conversaciones activas' }),
+    ).toBeVisible({ timeout: 10_000 })
+  })
+
 
   test('login with invalid credentials shows an error message', async ({ page }) => {
     await page.goto('/login')

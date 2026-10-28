@@ -11,11 +11,11 @@
 // cliente, próximos pasos acordados). El costo de la llamada LLM extra se
 // justifica cuando el agente necesita ese contexto para responder bien.
 //
-// NOTA: esta función aún NO está cableada en /api/ai-reply/route.ts ni en
-// /api/agents/[agentName]/route.ts. El truncado simple (truncateHistory)
-// sigue siendo el default. truncateWithSummary queda como opt-in para
-// callers que explicitamente quieran el resumen LLM — el cableado real es
-// follow-up (ver "Next Actions" en worklog SPRINT-AI-AGENTS-002).
+// NOTA (AUDIT-CYCLE-4-L4 — corrige doc drift): truncateWithSummary SÍ está
+// cableada — la importan y usan `/api/ai-reply/route.ts` y
+// `/api/orchestrate/route.ts` (como complemento del truncado simple
+// `truncateHistory` de ./history.ts, que sigue siendo el default para
+// conversaciones cortas). El comentario anterior afirmaba lo contrario.
 
 import { chat } from '@/lib/llm/adapter'
 import type { Message } from '@/lib/agents/history'

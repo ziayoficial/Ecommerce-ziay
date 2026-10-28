@@ -23197,3 +23197,84 @@ Stage Summary:
   WCAG accessibility matrix + top-10 list).
 - Dev server was unstable per task description â€” worked from source
   code; relied on tsc + lint + test for verification. All green.
+
+===============================================================================
+
+Task ID: AUDIT-CYCLE-4
+Agent: full-stack-security-auditor (audit -> fix -> re-audit loop)
+Task: Full-project re-audit cycle — verify initial-read findings + security
+      invariant sweep (tenant guards, secrets, Zod, IDOR); fix 1:1 with tests.
+
+Work Log:
+- AUDIT: verified 11 findings with file:line evidence (3 High, 3 Medium,
+  4 Low, 1 Info) + 4 refuted first-read hypotheses (payments/local status
+  and ucp/v1/order DO have inline tenant guards; web-vitals is
+  middleware-protected). Clean categories: hardcoded secrets (0 real),
+  console.log in server (0), tenant guards 97/102 correct, webhooks 12/12
+  HMAC + 2-layer idempotency.
+- BUSINESS DECISIONS asked to the user (not assumed): /vendedor -> require
+  session; parental consent -> anonymous signed flow with hashed tutor
+  document; demo accounts -> hidden in prod builds; dead code -> remove +
+  fix SECURITY.md.
+- FIX H1: POST /api/trafficker ownership matrix — confirm_sale/fail_sale
+  (wallet-crediting) now admin/finance-only; register self-email-only or
+  privileged (closes identity squatting); create_campaign/register_sale
+  self (email match) or privileged. 15 tests
+  (tests/unit/trafficker-route-authorization.test.ts).
+- FIX H2: /vendedor requires session — removed from middleware
+  PUBLIC_PATTERNS + server-side guard (self | platform admin | tenant admin
+  of the seller's tenant). 2 new e2e cases + privacy page comment.
+- FIX H3: parental consent flow (Ley 1098/2006 Art 17) was broken
+  end-to-end (inert form + API rejected the purpose + session impossible
+  for the anonymous tutor -> minors stuck in requires_escalation). New
+  public endpoint POST /api/compliance/parental-consent: checkCSRF
+  same-origin + rateLimit 5/10min/IP + customer must be isMinor=true +
+  Zod + tutor document HASHED in proof (Ley 1581 minimos) + idempotent
+  200. Client island wired (parental-consent-form.tsx) + purpose added to
+  /api/compliance/consent enum + PUBLIC_PATTERNS entry + openapi.yaml
+  path (Redocly valid). 8 tests.
+- FIX M1: GET /api/tenants applies the documented role filter per session
+  (tenant-bound users see only their tenant; cache stores the full list,
+  filter runs after — never in the cache key). 3 tests.
+- FIX M2: GET /api/agents/traces restricted to platform admins
+  (tenantId null) — tenant-bound admins were reading cross-tenant PII
+  traces. 4 tests.
+- FIX M3: POST/DELETE /api/integrations/credentials now requireRole
+  (admin) + Zod schemas (previously any tenant user could wipe the
+  tenant's gateway credentials; manual typeof checks). 7 tests.
+- FIX L1: alertmanager-webhook Bearer compare -> timingSafeEqual.
+- FIX L2: /api/ucp/v1/order single requireAuth + @security doc fixed.
+- FIX L3: removed 9 dead modules (0 importers, ~2k lines): rls.ts (the
+  "ORM layer" SECURITY.md claimed as defense — never wired; live
+  isolation is app-layer guards + 35 RLS SQL policies), http.ts,
+  graceful-shutdown.ts, api-error-handler.ts (root),
+  middleware/security-headers.ts, middleware/country-detection.ts,
+  agents/prompt-versioning.ts, adapters/oracle-catalog.ts,
+  orchestrator/orchestrator.ts. SECURITY.md rewritten to the real 2-layer
+  defense + honesty note. docs/ERD.md:66 fixed.
+- FIX L4 (doc drift): docker-compose header 11->16 services; summarize.ts
+  "aun NO cableada" (it IS wired); meta-agent-config 26->24 agents.
+- E2E: auth.spec demo-accounts assertion inverted (hidden in prod
+  builds), +2 /vendedor cases (anonymous redirect with callbackUrl,
+  authenticated self panel).
+
+Stage Summary:
+- Findings: 11 (3 High, 3 Medium, 4 Low, 1 Info) — all fixed except I1
+  (reported, authz design decision). 0 Critical (gate held).
+- 37 new unit tests; full suite 1169 passed | 18 skipped — 0 regressions.
+- lint 0 errors / tsc 0 errors / redocly valid / build standalone OK.
+- E2E 68/70 consistent — 2 remaining failures are ENVIRONMENTAL: /api/health
+  returns 503 because the local machine's disk is at 2.9% free and the
+  disk_space check correctly reports error (passes in CI with a healthy
+  disk). 1 ECONNRESET flake in dashboard.spec passed on isolated re-run
+  (24/24).
+- Second-pass review of the financial diff (H1) per AGENTS.md critical-module
+  rule: guards run before any side-effect; no existence oracle for
+  non-privileged callers; service signatures/shapes unchanged.
+- Report: agent-ctx/AUDIT-CYCLE-4-full-stack-security-auditor.md.
+- Leccion L67 added to BOTH copies of LECCIONES-APRENDIDAS.md
+  (upload/ + public/presentaciones/): security docs describing
+  non-existent defense layers are themselves a finding.
+- Pre-existing uncommitted changes from a previous session (wallet.service,
+  credentials.service, capi-auto-fire, whatsapp-cloud, prisma/schema, 2
+  tests, 2 pngs, scripts/backfill-credentials.ts) were NOT touched.

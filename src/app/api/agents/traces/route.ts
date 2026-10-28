@@ -21,8 +21,22 @@ import { agentTracer } from '@/lib/agents/tracing'
 export const dynamic = 'force-dynamic'
 
 export const GET = withErrorHandling(async (req: NextRequest) => {
-  const { error } = await requireRole(['admin'])
+  const { session, error } = await requireRole(['admin'])
   if (error) return error
+
+  // AUDIT-CYCLE-4-M2 — traces are cross-tenant and carry PII (agent input
+  // contains customer message text). `requireRole(['admin'])` alone let a
+  // tenant-bound admin read every other tenant's traces, contradicting the
+  // documented "restricted to platform admins" intent. Tenant-bound admins
+  // (session.user.tenantId set) now get 403; their tenant-scoped window is
+  // /api/governance/decisions. Platform admins (tenantId null) keep full
+  // access for live debugging.
+  if (session?.user?.tenantId) {
+    return NextResponse.json(
+      { error: 'Forbidden: platform admin only (cross-tenant PII)' },
+      { status: 403 },
+    )
+  }
 
   const limit = Math.min(
     Math.max(parseInt(req.nextUrl.searchParams.get('limit') ?? '50', 10) || 50, 1),

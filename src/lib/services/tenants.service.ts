@@ -16,8 +16,10 @@ export const tenantsService = {
    * List active tenants ordered by `nombreNegocio`. Cached for 5 minutes
    * under `tenants:active` — tenants rarely change and the topbar hits
    * this on every page load. The cache key encodes the only meaningful
-   * input (no tenant-scoping here — the route itself returns the full
-   * tenant list, auth-gated to logged-in users).
+   * input. AUDIT-CYCLE-4-M1: the ROUTE applies the per-session role
+   * filter (tenant users → only their own tenant; platform users → all)
+   * AFTER this cached fetch — never here, or the cache would serve one
+   * session's filtered list to another.
    *
    * Returns the tenant projection used by the topbar switcher:
    * `id, slug, nombreNegocio, marca, planMonetizacion, proveedorIa,

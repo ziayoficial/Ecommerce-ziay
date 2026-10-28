@@ -22,6 +22,12 @@ const CreateConsentSchema = z.object({
     'analytics',
     'ai_processing',
     'data_sharing',
+    // AUDIT-CYCLE-4-H3 — recorded automatically by the anonymous public
+    // endpoint (/api/compliance/parental-consent) and read by the
+    // age-gate (`requireParentalConsent`). Also allows operators to
+    // record a phone-verified parental consent through this (session-
+    // auth) route.
+    'parental_consent_minor',
   ]),
   legalBasis: z.enum([
     'consent',

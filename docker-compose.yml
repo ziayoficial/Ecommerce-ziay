@@ -1,7 +1,9 @@
 # ───────────────────────────────────────────────────────────────────────────
-# CommerceFlow OS — docker-compose.yml
-# 11 services: postgres, redis, minio, nocodb, n8n, ollama, uptime-kuma,
-#              app, chat-service, caddy, + chat-service-db (sqlite volume).
+# ZIAY — docker-compose.yml
+# AUDIT-CYCLE-4-L4 — 16 services (the old header said 11; the monitoring
+# stack was added later): postgres, redis, minio, nocodb, n8n, ollama,
+# uptime-kuma, app, chat-service, caddy, mailhog, prometheus, alertmanager,
+# grafana, loki, promtail.
 # Healthchecks, volumes, env_file configured for a self-hosted stack.
 # ───────────────────────────────────────────────────────────────────────────
 

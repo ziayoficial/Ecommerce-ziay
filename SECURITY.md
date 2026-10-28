@@ -34,16 +34,15 @@ Solo se aplican patches de seguridad a la versión más reciente de la rama `0.4
 
 ### Aislamiento multi-tenant (RLS + app-layer guards)
 
-Implementamos **defensa en profundidad de 3 capas** para garantizar que un tenant **nunca** pueda acceder a los datos de otro:
+Implementamos **defensa en profundidad de 2 capas** para garantizar que un tenant **nunca** pueda acceder a los datos de otro:
 
-1. **App layer** — `requireTenantAccess(tenantId)` en cada ruta API (155 usages). Cualquier ruta sin este guard es un bug de seguridad. En v0.4.0 se cerraron **9 rutas con cross-tenant bypass** (`conversations/search`, `image-identifications`, `conversational-cart`, `vision-pipeline`, `address-analysis`, `attribution`, `llm-providers`, `onboarding`, `webhooks/nocodb-out`).
-2. **ORM layer** — `makeTenantPrismaExtension()` Prisma `$extends` auto-inyecta `tenantId` en cada query.
-3. **DB layer** — **35 políticas RLS** en PostgreSQL (`prisma/sql/rls-policies.sql`) — `ALTER TABLE ... ENABLE ROW LEVEL SECURITY` + `FORCE ROW LEVEL SECURITY` en las **tablas multi-tenant** (incluyendo `fraud_blocklist`, `fraud_event`, `velocity_window`, `refund`). Cada `CREATE POLICY tenant_isolation_*` filtra por `current_setting('app.tenant_id')`.
+1. **App layer** — `requireTenantAccess(tenantId)` / `resolveTenantId` en cada ruta API (155+ usages; algunas rutas usan un guard inline equivalente comparando `session.user.tenantId`). Cualquier ruta sin este guard es un bug de seguridad. En v0.4.0 se cerraron **9 rutas con cross-tenant bypass** (`conversations/search`, `image-identifications`, `conversational-cart`, `vision-pipeline`, `address-analysis`, `attribution`, `llm-providers`, `onboarding`, `webhooks/nocodb-out`).
+2. **DB layer** — **35 políticas RLS** en PostgreSQL (`prisma/sql/rls-policies.sql`) — `ALTER TABLE ... ENABLE ROW LEVEL SECURITY` + `FORCE ROW LEVEL SECURITY` en las **tablas multi-tenant** (incluyendo `fraud_blocklist`, `fraud_event`, `velocity_window`, `refund`). Cada `CREATE POLICY tenant_isolation_*` filtra por `current_setting('app.tenant_id')`.
 
-- **`src/lib/rls.ts`** expone `withTenant(db, tenantId, fn)` y `createTenantScopedClient` que inyectan `SET LOCAL app.tenant_id` antes de cada query.
 - El rol de aplicación **NO es superuser** — el `FORCE` garantiza que el RLS aplique incluso al owner de la tabla.
 - En desarrollo (SQLite) el RLS no aplica (SQLite no lo soporta), pero el `tenantId` se incluye en cada `where`.
 - **0 cross-tenant bypasses restantes** verificados en v0.4.0.
+- **AUDIT-CYCLE-4-L3 (honestidad documental):** una revisión anterior de este documento describía una "capa ORM" (`makeTenantPrismaExtension()` de `src/lib/rls.ts`) como capa intermedia de defensa. Ese módulo existía en disco pero **nunca estuvo cableado** (0 importadores — el aislamiento vivo en runtime es el guard de la app layer; el SQL de RLS vive en `prisma/sql/rls-policies.sql`). El módulo fue eliminado en AUDIT-CYCLE-4 y esta sección describe únicamente las capas reales y verificables.
 
 ### Anti-fraud service (full)
 

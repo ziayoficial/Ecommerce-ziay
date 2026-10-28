@@ -11,14 +11,20 @@ import { withErrorHandling } from '@/lib/middleware/api-error-handler'
  *
  * UCP order fetch — read-only access for an external AI agent (per UCP spec).
  *
- * @security Public (signed UCP mandate — bearer auth)
+ * @security Requires NextAuth session + tenant guard on the order
  * @returns Order detail (UCP-shaped)
  */
 export const GET = withErrorHandling(async (_req: NextRequest,
   { params }: { params: Promise<{ orderId: string }> },) => {
 
   const { orderId } = await params
-  const { error } = await requireAuth()
+
+  // AUDIT-CYCLE-4-L2 — single session fetch. The route previously called
+  // requireAuth() twice (once for the auth gate, once for the tenant
+  // guard) — two identical session lookups per request. The guard order
+  // is unchanged: 404 for unknown orders, then 403 on tenant mismatch
+  // (the order's existence is not leaked cross-tenant either way).
+  const { session, error } = await requireAuth()
   if (error) return error
 
     const order = await db.order.findUnique({
@@ -37,8 +43,6 @@ export const GET = withErrorHandling(async (_req: NextRequest,
     }
 
     // Tenant guard.
-    const { session, error: tErr } = await requireAuth()
-    if (tErr) return tErr
     const userTenantId = session?.user?.tenantId ?? null
     if (userTenantId && userTenantId !== order.tenantId) {
       return NextResponse.json(

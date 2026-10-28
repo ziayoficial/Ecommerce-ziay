@@ -50,7 +50,12 @@ const AUTH_SECRET: string = (() => {
 const PUBLIC_PATTERNS: Array<RegExp | string> = [
   /^\/login(?:\/.*)?$/,
   /^\/t\/.+/,
-  /^\/vendedor(?:\/.*)?$/,
+  // AUDIT-CYCLE-4-H2 — /vendedor REMOVED from public patterns. The page
+  // exposes seller emails, customer names and order amounts; it was
+  // reachable anonymously with a fallback to the first agent on the
+  // platform. Now the JWT gate applies here too (redirects to
+  // /login?callbackUrl=/vendedor) and the page adds a server-side
+  // self-or-admin access check (see src/app/vendedor/page.tsx).
   /^\/directorio(?:\/.*)?$/,
   // FIX-LEGAL-P0-001 L-1 — public legal pages (Ley 1581 Art 10). SSR pages
   // reachable by crawlers + unauthenticated data subjects. Linked from
@@ -60,9 +65,16 @@ const PUBLIC_PATTERNS: Array<RegExp | string> = [
   /^\/legal(?:\/.*)?$/,
   // SPRINT-ADOPT-ERRORHANDLER-001 — age-gate escalation target (Ley 1098
   // de 2006). The age-gate middleware redirects unauthenticated minors
-  // here mid-checkout. The page itself is static; consent submission goes
-  // through the (auth-protected) /api/compliance/consent endpoint.
+  // here mid-checkout. The page itself is static.
+  // AUDIT-CYCLE-4-H3 — the form now submits to the ANONYMOUS public
+  // endpoint below (the tutor has no session); it carries its own
+  // hardening: same-origin CSRF check, 5/10min rate limit, isMinor
+  // customer validation, Zod body, tutor document hashed.
   /^\/compliance\/parental-consent(?:\/.*)?$/,
+  // AUDIT-CYCLE-4-H3 — anonymous parental consent submission endpoint.
+  // See src/app/api/compliance/parental-consent/route.ts for the
+  // hardening layers that replace the NextAuth JWT gate here.
+  '/api/compliance/parental-consent',
   // SPRINT-MONITORING-002 · M-11 — public status page. Shows current
   // health of DB + chat-service in Spanish (no auth, no PII, no
   // per-tenant data). Indexed so customers / partners can monitor

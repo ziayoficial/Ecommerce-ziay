@@ -7,7 +7,8 @@ import Link from 'next/link'
 // FIX-LEGAL-P0-001 L-1 — public privacy policy required by Ley 1581 Art 10
 // (right to be informed about data processing). Server-rendered so crawlers
 // + data subjects can read it without authentication. Mirrors the SSR pattern
-// of /directorio + /vendedor (NOT a client-only SPA behind noindex).
+// of /directorio (NOT a client-only SPA behind noindex). AUDIT-CYCLE-4-H2:
+// /vendedor is no longer public (session required — it exposes seller PII).
 // ───────────────────────────────────────────────────────────────────────────
 
 const BASE_URL =

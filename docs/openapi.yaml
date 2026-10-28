@@ -2367,7 +2367,7 @@ paths:
                   enum: [customer, user, lead]
                 purpose:
                   type: string
-                  enum: [marketing, analytics, ai_processing, data_sharing]
+                  enum: [marketing, analytics, ai_processing, data_sharing, parental_consent_minor]
                 legalBasis:
                   type: string
                   enum: [consent, contract, legitimate_interest, legal_obligation]
@@ -2408,6 +2408,55 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+  /api/compliance/parental-consent:
+    post:
+      operationId: createParentalConsentAnonymous
+      tags: [Compliance]
+      summary: Record parental consent (anonymous, Ley 1098/2006 Art 17)
+      description: >-
+        AUDIT-CYCLE-4-H3 — registra el consentimiento de padre/madre/tutor para
+        un cliente menor de edad. Público por diseño (el tutor llega desde un
+        enlace de chat sin sesión NextAuth). Endurecimiento: check CSRF de
+        mismo origen, rate limit 5/10min/IP, el customer debe estar marcado
+        isMinor=true, Zod en el body y el documento del tutor se almacena
+        hasheado (principio de mínimos, Ley 1581/2012). Idempotente — si ya
+        existe un consentimiento activo devuelve 200 con el registro previo.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [customerId, tutorName, tutorDocumentId, relationship, consent]
+              properties:
+                customerId:
+                  type: string
+                  description: 'Customer cuid — debe existir y estar marcado isMinor=true.'
+                tutorName:
+                  type: string
+                tutorDocumentId:
+                  type: string
+                  description: 'Documento del tutor — se persiste SOLO su hash, nunca el valor crudo.'
+                relationship:
+                  type: string
+                  enum: [padre, madre, tutor, abuelo]
+                consent:
+                  type: boolean
+                  enum: [true]
+      responses:
+        '200':
+          description: 'Ya existe un consentimiento activo ({ ok, alreadyRegistered: true, consentId }).'
+        '201':
+          description: 'Consentimiento registrado ({ ok, alreadyRegistered: false, consentId }).'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: Cliente menor no encontrado con ese identificador.
+        '429':
+          description: Rate limit excedido (5 envíos / 10 min / IP).
   /api/compliance/dian-invoice:
     post:
       operationId: createComplianceDianInvoice

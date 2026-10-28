@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAuth } from '@/lib/auth-helpers'
+import { z } from 'zod'
+import { requireAuth, requireRole } from '@/lib/auth-helpers'
 import {
   INTEGRATION_REGISTRY,
   getIntegrationById,
@@ -31,6 +32,12 @@ import {
 //
 // Security:
 //   - All routes require an authenticated session (requireAuth).
+//   - AUDIT-CYCLE-4-M3 — writes (POST/DELETE) additionally require the
+//     `admin` role: any tenant user (e.g. an agent) could previously
+//     overwrite or wipe the tenant's MercadoPago/WhatsApp credentials.
+//     GET stays session-scoped (masked values only) and PUT only exposes
+//     the public field registry.
+//   - Bodies are validated with Zod (previously manual typeof checks).
 //   - GET never returns raw secrets — values are masked ("••••" + last4).
 //   - POST/DELETE return masked values too, so the client never sees the
 //     raw secret after the request completes.
@@ -44,6 +51,18 @@ import {
 // response shaping. The masking + namespace-resolution helpers live in
 // the service so future admin tools can reuse them.
 // ───────────────────────────────────────────────────────────────────────────
+
+// AUDIT-CYCLE-4-M3 — Zod schemas (replace the previous manual typeof
+// checks; AGENTS.md requires Zod validation on every mutating route).
+const SaveCredentialsSchema = z.object({
+  integration: z.string().min(1).max(64),
+  fields: z.record(z.string(), z.unknown()),
+})
+
+const DeleteCredentialsSchema = z.object({
+  integration: z.string().min(1).max(64),
+  field: z.string().min(1).max(64).optional(),
+})
 
 /** Mask every value in a raw credential payload (used when the integration
  *  id is unknown — registry was pruned or it's a legacy row). */
@@ -98,7 +117,7 @@ export const GET = withErrorHandling(async () => {
 })
 
 // ───────────────────────────────────────────────────────────────────────────
-// POST /api/integrations/credentials
+// POST /api/integrations/credentials  (admin role — AUDIT-CYCLE-4-M3)
 // Body: { integration: string, fields: Record<string, string> }
 //   - `integration` MUST exist in INTEGRATION_REGISTRY
 //   - `fields` keys MUST match declared field keys (others are silently
@@ -108,8 +127,11 @@ export const GET = withErrorHandling(async () => {
 // ───────────────────────────────────────────────────────────────────────────
 export const POST = withErrorHandling(async (req: NextRequest) => {
 
-  const { session, error } = await requireAuth()
-  if (error) return error
+  // AUDIT-CYCLE-4-M3 — admin-only write. The namespace is still derived
+  // from the session (auto-scoping preserved); the role gate just stops
+  // non-admin tenant users from overwriting the tenant's credentials.
+  const { session, error: roleErr } = await requireRole(['admin'])
+  if (roleErr) return roleErr
 
   const ns = resolveCredentialNamespace(session?.user?.tenantId ?? null)
 
@@ -120,17 +142,14 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
-  const { integration, fields } = (body ?? {}) as {
-    integration?: unknown
-    fields?: unknown
+  const parsed = SaveCredentialsSchema.safeParse(body)
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: '`integration` (string) y `fields` (objeto) son requeridos' },
+      { status: 400 },
+    )
   }
-
-  if (typeof integration !== 'string' || !integration) {
-    return NextResponse.json({ error: '`integration` (string) is required' }, { status: 400 })
-  }
-  if (typeof fields !== 'object' || fields === null || Array.isArray(fields)) {
-    return NextResponse.json({ error: '`fields` (object) is required' }, { status: 400 })
-  }
+  const { integration, fields } = parsed.data
 
   const config = getIntegrationById(integration)
   if (!config) {
@@ -179,15 +198,16 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
 })
 
 // ───────────────────────────────────────────────────────────────────────────
-// DELETE /api/integrations/credentials
+// DELETE /api/integrations/credentials  (admin role — AUDIT-CYCLE-4-M3)
 // Body:
 //   { integration: "mercadopago" }                       → remove whole integration
 //   { integration: "mercadopago", field: "accessToken" } → remove a single field
 // ───────────────────────────────────────────────────────────────────────────
 export const DELETE = withErrorHandling(async (req: NextRequest) => {
 
-  const { session, error } = await requireAuth()
-  if (error) return error
+  // AUDIT-CYCLE-4-M3 — admin-only write (same rationale as POST).
+  const { session, error: roleErr } = await requireRole(['admin'])
+  if (roleErr) return roleErr
 
   const ns = resolveCredentialNamespace(session?.user?.tenantId ?? null)
 
@@ -198,14 +218,14 @@ export const DELETE = withErrorHandling(async (req: NextRequest) => {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
-  const { integration, field } = (body ?? {}) as {
-    integration?: unknown
-    field?: unknown
+  const parsed = DeleteCredentialsSchema.safeParse(body)
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: '`integration` (string) es requerido' },
+      { status: 400 },
+    )
   }
-
-  if (typeof integration !== 'string' || !integration) {
-    return NextResponse.json({ error: '`integration` (string) is required' }, { status: 400 })
-  }
+  const { integration, field } = parsed.data
 
   const settingKey = integrationIdToCredKey(ns, integration)
   const existing = await credentialsService.getForIntegration(ns, integration)

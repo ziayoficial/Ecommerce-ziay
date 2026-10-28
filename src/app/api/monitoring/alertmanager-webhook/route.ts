@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { timingSafeEqual } from 'crypto'
 import { db } from '@/lib/db'
 import { withErrorHandling } from '@/lib/middleware/api-error-handler'
 
@@ -49,7 +50,19 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   const authHeader = req.headers.get('authorization')
   const expectedSecret = process.env.ALERTMANAGER_WEBHOOK_SECRET
 
-  if (!expectedSecret || authHeader !== `Bearer ${expectedSecret}`) {
+  if (!expectedSecret) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  // AUDIT-CYCLE-4-L1 — constant-time compare (same pattern as the retention
+  // cron endpoint, AUTOFIX-L-2). The previous `!==` returned at the first
+  // mismatched byte, leaking the secret through timing.
+  const providedBuf = Buffer.from(authHeader ?? '')
+  const expectedBuf = Buffer.from(`Bearer ${expectedSecret}`)
+  if (
+    providedBuf.length !== expectedBuf.length ||
+    !timingSafeEqual(providedBuf, expectedBuf)
+  ) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
